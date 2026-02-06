@@ -1,0 +1,190 @@
+Phase 1: Project Setup & Skeleton
+Goal: Basic Streamlit app running with placeholder text.
+
+Requirements for Cursor:
+
+Create a new Python project with files:
+
+app.py
+
+requirements.txt
+
+.env.example
+
+Add these dependencies in requirements.txt:
+
+streamlit
+
+PyPDF2
+
+google-generativeai
+
+python-dotenv
+
+In app.py, implement:
+
+Streamlit page with title: “AI CV Reviewer (GenAI Vibe Coded)”
+
+Sidebar section with brief instructions: “Upload CV + Paste Job Description + Click Analyze”
+
+A text area for job description.
+
+A file uploader for PDF CV.
+
+A disabled “Analyze” button (or button that just shows st.info("Feature coming in next phase")).
+
+Acceptance: App starts with streamlit run app.py and UI elements are visible.
+
+Phase 2: CV Parsing & Input Validation
+Goal: Successfully extract text from uploaded PDF and validate inputs.
+
+Requirements for Cursor:
+
+In app.py:
+
+When “Analyze” is clicked:
+
+Validate that a job description is provided and a file is uploaded.
+
+If missing, show clear error using st.error.
+
+If inputs are valid:
+
+Use PyPDF2.PdfReader to read the uploaded PDF.
+
+Extract text from all pages and concatenate into a single string cv_text.
+
+Handle errors:
+
+If PDF is encrypted/invalid, show st.error("Could not read this PDF. Please upload a text-based PDF CV.").
+
+Display the first 500 characters of extracted CV text in an expandable section for debugging (e.g., st.expander("Preview CV Text")).
+
+Acceptance: Valid PDF → CV text preview shown; invalid input → helpful error message.
+
+Phase 3: Gemini Integration (Core Analysis)
+Goal: Send CV + job description to Gemini and receive structured analysis (JSON).
+
+Requirements for Cursor:
+
+Read API key using python-dotenv:
+
+Load .env.
+
+Configure Gemini client with GOOGLE_API_KEY.
+
+Add a function:
+
+python
+def analyze_cv_with_gemini(cv_text: str, job_desc: str) -> dict:
+    ...
+Inside that function:
+
+Build a prompt that asks for:
+
+match_score (0–100, as string or int)
+
+strengths (list of strings)
+
+missing_skills (list of strings)
+
+suggestions (list of strings, actionable)
+
+Ask model to respond only in valid JSON, no markdown.
+
+Call this function when inputs are valid and show a loading spinner.
+
+Parse the returned JSON safely:
+
+Try json.loads(response_text).
+
+If parsing fails, show st.error("AI response was not in expected format. Please try again.").
+
+Acceptance: For a sample CV and JD, a Python dict with the four keys is obtained without crashing.
+
+Phase 4: Results UI (Score, Strengths, Gaps, Suggestions)
+Goal: Turn the JSON into a clean, readable dashboard.
+
+Requirements for Cursor:
+
+Using the JSON dict (e.g., analysis), display:
+
+Match score:
+
+st.metric("CV–Job Match", f"{score}%")
+
+A st.progress(score/100) bar.
+
+Optional: color interpretation text:
+
+>=70: “Strong fit” (green)
+
+50–69: “Moderate fit” (yellow)
+
+<50: “Weak fit” (red)
+
+Strengths:
+
+Subheader “💪 Strengths”
+
+Bullet list from analysis["strengths"]
+
+Missing skills:
+
+Subheader “❌ Missing Skills”
+
+Bullet list from analysis["missing_skills"]
+
+Suggestions:
+
+Subheader “💡 Suggestions”
+
+Numbered list from analysis["suggestions"]
+
+Wrap the entire analysis section so it only appears after a successful API call.
+
+Acceptance: For a test run, the UI shows score, strengths, missing skills, and suggestions without errors.
+
+Phase 5: Robust Error Handling & Edge Cases
+Goal: Make the app stable for demo.
+
+Requirements for Cursor:
+
+Add try/except around:
+
+PDF parsing.
+
+Gemini API call.
+
+JSON parsing.
+
+Show clear, user-friendly messages for:
+
+Network/API errors.
+
+Rate limits or invalid API key.
+
+Empty analysis sections.
+
+Truncate cv_text before sending to Gemini (e.g., first 4000–6000 characters) to avoid token issues.
+
+Optionally log raw response in st.expander("Debug: Raw AI Response") only in debug mode.
+
+Acceptance: App never crashes on bad input; instead shows meaningful error messages.
+
+Phase 6: Optional Enhancements (If Time Allows)
+You can give Cursor each of these as a separate “mini phase”:
+
+Multi-CV ranking
+
+Allow uploading multiple PDFs.
+
+Loop over each, call analyze_cv_with_gemini, collect scores.
+
+Show a table: CV name, score, rank.
+
+ATS-focused mode
+
+Add a selectbox with modes: “General Review”, “ATS Scan”.
+
+Change prompt content slightly for ATS mode (focus

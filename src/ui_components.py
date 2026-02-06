@@ -1,0 +1,1772 @@
+import json
+import re
+from typing import Any, Dict, List
+
+import streamlit as st
+import streamlit.components.v1 as components
+
+from src.reporting import build_report_md
+
+
+def _markdown_inline_to_html(text: str) -> str:
+    """Convert inline Markdown (**bold**, *italic*) to HTML so it renders correctly in unsafe_allow_html blocks."""
+    if not text:
+        return text
+    # Escape HTML to avoid breaking tags or XSS
+    s = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    # **bold** -> <strong>bold</strong> (do before single *)
+    s = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", s)
+    # *italic* -> <em>italic</em>
+    s = re.sub(r"\*(.+?)\*", r"<em>\1</em>", s)
+    return s
+
+
+def inject_back_button_sync() -> None:
+    """Inject script so browser back/forward reload the page and sync with query_params."""
+    components.html(
+        """
+        <script>
+        (function() {
+            var target = window.parent && window.parent !== window ? window.parent : window;
+            target.addEventListener('popstate', function() {
+                target.location.reload();
+            });
+        })();
+        </script>
+        """,
+        height=0,
+    )
+
+
+def inject_base_css(theme: str = "light") -> None:
+    """Inject custom CSS for the refreshed dual-page experience with manual theme support."""
+    # Simple theme colors - WHITE for light, BLACK for dark
+    is_light = theme == "light"
+    bg_color = "#ffffff" if is_light else "#0b0f17"  # Pure white for light, dark for dark
+    text_color = "#111827" if is_light else "#e5e7eb"  # Dark text for light, light text for dark
+    
+    st.markdown(
+        f"""
+        <style>
+            /* FORCE THEME - APPLY TO EVERYTHING IMMEDIATELY */
+            /* Default: Apply theme color to everything */
+            html,
+            body,
+            body > div,
+            .stApp,
+            .stApp > div,
+            [data-testid="stAppViewContainer"],
+            [data-testid="stAppViewContainer"] > div,
+            [data-testid="stAppViewContainer"] > div > div {{
+                background-color: {bg_color} !important;
+                background: {bg_color} !important;
+                color: {text_color} !important;
+            }}
+            
+            /* Make sure main containers are transparent to show background */
+            .main,
+            .block-container {{
+                background-color: transparent !important;
+                background: transparent !important;
+            }}
+            
+            /* Additional overrides for light mode */
+            body.theme-light,
+            body.theme-light .stApp,
+            .stApp.theme-light,
+            body.theme-light [data-testid="stAppViewContainer"],
+            body.theme-light [data-testid="stAppViewContainer"] > div,
+            body.theme-light .stApp > div {{
+                background-color: #ffffff !important;
+                background: #ffffff !important;
+                color: #111827 !important;
+            }}
+            
+            /* Dark Mode - FORCE DARK BACKGROUND */
+            body.theme-dark,
+            body.theme-dark .stApp,
+            .stApp.theme-dark,
+            body.theme-dark [data-testid="stAppViewContainer"],
+            body.theme-dark [data-testid="stAppViewContainer"] > div,
+            body.theme-dark .stApp > div {{
+                background-color: #0b0f17 !important;
+                background: #0b0f17 !important;
+                color: #e5e7eb !important;
+            }}
+            
+            /* CSS Variables for components (theme set server-side; buttons use variables for visibility) */
+            :root {{
+                --bg-primary: {bg_color};
+                --text-primary: {text_color};
+                --bg-secondary: {'#f9fafb' if is_light else '#111827'};
+                --bg-card: {'#ffffff' if is_light else '#1f2937'};
+                --bg-sidebar: {'#f3f4f6' if is_light else '#0f172a'};
+                --bg-hero: {'rgba(249, 250, 251, 0.95)' if is_light else 'rgba(15, 23, 42, 0.92)'};
+                --text-secondary: {'#6b7280' if is_light else '#cbd5e1'};
+                --text-muted: #9ca3af;
+                --border-color: {'rgba(0, 0, 0, 0.1)' if is_light else 'rgba(255, 255, 255, 0.1)'};
+                --border-light: {'rgba(0, 0, 0, 0.05)' if is_light else 'rgba(255, 255, 255, 0.06)'};
+                --shadow: {'rgba(0, 0, 0, 0.1)' if is_light else 'rgba(0, 0, 0, 0.3)'};
+                --shadow-lg: {'rgba(0, 0, 0, 0.15)' if is_light else 'rgba(0, 0, 0, 0.45)'};
+                --accent: #10b981;
+                --accent-2: #7c6bff;
+                --button-bg: {'#ffffff' if is_light else '#1f2937'};
+                --button-text: {'#111827' if is_light else '#e5e7eb'};
+                --button-border: {'rgba(0, 0, 0, 0.15)' if is_light else 'rgba(255, 255, 255, 0.1)'};
+                --button-hover-bg: {'#fef3c7' if is_light else '#111827'};
+                --button-hover-border: {'#f59e0b' if is_light else '#7c6bff'};
+                --button-shadow: {'0 1px 3px rgba(0, 0, 0, 0.1)' if is_light else 'none'};
+                --button-hover-shadow: {'0 2px 8px rgba(245, 158, 11, 0.2)' if is_light else 'none'};
+                --placeholder-color: {'#6b7280' if is_light else '#9ca3af'};
+            }}
+            
+            /* Placeholder visibility: explicit color so visible in light theme (no body class needed) */
+            .stTextArea textarea::placeholder {{
+                color: var(--placeholder-color) !important;
+                opacity: 1 !important;
+            }}
+            .stTextArea textarea::-webkit-input-placeholder {{
+                color: var(--placeholder-color) !important;
+                opacity: 1 !important;
+            }}
+            .stTextArea textarea::-moz-placeholder {{
+                color: var(--placeholder-color) !important;
+                opacity: 1 !important;
+            }}
+            
+            /* File uploader dropzone text (Drag and drop / Limit) - visible in both themes */
+            .stFileUploader [data-testid="stFileUploaderDropzone"],
+            .stFileUploader [data-testid="stFileUploaderDropzone"] *,
+            .stFileUploader [data-testid="stFileUploaderDropzone"] p,
+            .stFileUploader [data-testid="stFileUploaderDropzone"] span,
+            .stFileUploader [data-testid="stFileUploaderDropzone"] small {{
+                color: var(--text-primary) !important;
+            }}
+            /* Force dropzone text visible in light theme (Streamlit may override with light gray) */
+            {'.stFileUploader [data-testid="stFileUploaderDropzone"], .stFileUploader [data-testid="stFileUploaderDropzone"] * {{ color: #374151 !important; }}' if is_light else ''}
+            
+            /* BUTTONS: variable-based so visible in light/dark without body class */
+            .stButton > button,
+            .stButton button,
+            .stButton > button *,
+            .stButton button *,
+            form button[type="submit"],
+            form button,
+            form button *,
+            .stForm button[type="submit"],
+            .stForm button,
+            .stForm button *,
+            .stForm .stButton button,
+            .stForm .stButton button *,
+            button[data-testid="baseButton-primary"],
+            button[data-testid="baseButton-primary"] * {{
+                background-color: var(--button-bg) !important;
+                background: var(--button-bg) !important;
+                color: var(--button-text) !important;
+                border-color: var(--button-border) !important;
+            }}
+            .stButton > button,
+            .stButton button,
+            form button[type="submit"],
+            form button,
+            .stForm button[type="submit"],
+            .stForm button,
+            button[data-testid="baseButton-primary"] {{
+                border: 1px solid var(--button-border) !important;
+                border-radius: 8px !important;
+                font-weight: 600 !important;
+                padding: 0.75rem 1.5rem !important;
+                min-height: 44px !important;
+                box-shadow: var(--button-shadow) !important;
+            }}
+            .stButton > button:hover,
+            .stButton button:hover,
+            form button[type="submit"]:hover,
+            form button:hover,
+            .stForm button[type="submit"]:hover,
+            .stForm button:hover,
+            .stButton > button:hover *,
+            .stButton button:hover *,
+            form button:hover *,
+            .stForm button:hover *,
+            button[data-testid="baseButton-primary"]:hover,
+            button[data-testid="baseButton-primary"]:hover * {{
+                background-color: var(--button-hover-bg) !important;
+                background: var(--button-hover-bg) !important;
+                color: var(--button-text) !important;
+                border-color: var(--button-hover-border) !important;
+            }}
+            .stButton > button:hover,
+            .stButton button:hover,
+            form button[type="submit"]:hover,
+            form button:hover,
+            .stForm button[type="submit"]:hover,
+            .stForm button:hover,
+            button[data-testid="baseButton-primary"]:hover {{
+                box-shadow: var(--button-hover-shadow) !important;
+            }}
+            [data-testid="stAppViewContainer"] .stForm button,
+            [data-testid="stAppViewContainer"] .stForm button *,
+            [data-testid="stAppViewContainer"] .stForm .stButton button,
+            [data-testid="stAppViewContainer"] .stForm .stButton button * {{
+                background-color: var(--button-bg) !important;
+                background: var(--button-bg) !important;
+                color: var(--button-text) !important;
+                border-color: var(--button-border) !important;
+            }}
+            [data-testid="stAppViewContainer"] .stForm button:hover,
+            [data-testid="stAppViewContainer"] .stForm button:hover * {{
+                background-color: var(--button-hover-bg) !important;
+                background: var(--button-hover-bg) !important;
+                color: var(--button-text) !important;
+                border-color: var(--button-hover-border) !important;
+            }}
+            /* Catch-all: every button in the app (e.g. Download Reports) – download buttons may sit outside .report-main in DOM */
+            [data-testid="stAppViewContainer"] .stButton button,
+            [data-testid="stAppViewContainer"] .stButton button *,
+            [data-testid="stAppViewContainer"] button[data-testid="baseButton-primary"],
+            [data-testid="stAppViewContainer"] button[data-testid="baseButton-primary"] *,
+            [data-testid="stAppViewContainer"] button[data-testid="baseButton-secondary"],
+            [data-testid="stAppViewContainer"] button[data-testid="baseButton-secondary"] * {{
+                background-color: var(--button-bg) !important;
+                background: var(--button-bg) !important;
+                color: var(--button-text) !important;
+                border-color: var(--button-border) !important;
+            }}
+            [data-testid="stAppViewContainer"] .stButton button:hover,
+            [data-testid="stAppViewContainer"] .stButton button:hover *,
+            [data-testid="stAppViewContainer"] button[data-testid="baseButton-primary"]:hover,
+            [data-testid="stAppViewContainer"] button[data-testid="baseButton-primary"]:hover *,
+            [data-testid="stAppViewContainer"] button[data-testid="baseButton-secondary"]:hover,
+            [data-testid="stAppViewContainer"] button[data-testid="baseButton-secondary"]:hover * {{
+                background-color: var(--button-hover-bg) !important;
+                background: var(--button-hover-bg) !important;
+                color: var(--button-text) !important;
+                border-color: var(--button-hover-border) !important;
+            }}
+            /* Nuclear: any button in the app (Streamlit download buttons may use different markup) */
+            [data-testid="stAppViewContainer"] button {{
+                background-color: var(--button-bg) !important;
+                background: var(--button-bg) !important;
+                color: var(--button-text) !important;
+                border: 1px solid var(--button-border) !important;
+            }}
+            [data-testid="stAppViewContainer"] button:hover {{
+                background-color: var(--button-hover-bg) !important;
+                background: var(--button-hover-bg) !important;
+                color: var(--button-text) !important;
+                border-color: var(--button-hover-border) !important;
+            }}
+            [data-testid="stAppViewContainer"] button * {{
+                background-color: transparent !important;
+                color: var(--button-text) !important;
+            }}
+            [data-testid="stAppViewContainer"] button:hover * {{
+                color: var(--button-text) !important;
+            }}
+            .stFileUploader button,
+            .stFileUploader button *,
+            .stFileUploader [data-baseweb="button"],
+            .stFileUploader [data-baseweb="button"] * {{
+                background-color: var(--button-bg) !important;
+                background: var(--button-bg) !important;
+                color: var(--button-text) !important;
+                border-color: var(--button-border) !important;
+            }}
+            .stFileUploader button,
+            .stFileUploader [data-baseweb="button"] {{
+                border: 1px solid var(--button-border) !important;
+                border-radius: 8px !important;
+                padding: 8px 16px !important;
+                font-weight: 600 !important;
+                min-height: 36px !important;
+                box-shadow: var(--button-shadow) !important;
+            }}
+            .stFileUploader button:hover,
+            .stFileUploader [data-baseweb="button"]:hover,
+            .stFileUploader button:hover *,
+            .stFileUploader [data-baseweb="button"]:hover * {{
+                background-color: var(--button-hover-bg) !important;
+                background: var(--button-hover-bg) !important;
+                color: var(--button-text) !important;
+                border-color: var(--button-hover-border) !important;
+            }}
+            button[data-testid="baseButton-secondary"],
+            button[data-testid="baseButton-secondary"] * {{
+                background-color: var(--button-bg) !important;
+                background: var(--button-bg) !important;
+                color: var(--button-text) !important;
+                border: 1px solid var(--button-border) !important;
+            }}
+            button[data-testid="baseButton-secondary"]:hover,
+            button[data-testid="baseButton-secondary"]:hover * {{
+                background-color: var(--button-hover-bg) !important;
+                background: var(--button-hover-bg) !important;
+                color: var(--button-text) !important;
+                border-color: var(--button-hover-border) !important;
+            }}
+            
+            /* Theme toggle button */
+            .theme-toggle {{
+                background: var(--bg-card);
+                border: 1px solid var(--border-color);
+                border-radius: 8px;
+                padding: 6px 12px;
+                cursor: pointer;
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                font-size: 0.85rem;
+                color: var(--text-primary);
+                transition: all 0.2s ease;
+            }}
+            .theme-toggle:hover {{
+                background: var(--bg-secondary);
+                border-color: var(--accent-2);
+            }}
+            
+            /* Hide Streamlit's deploy button */
+            #MainMenu {{
+                visibility: hidden;
+            }}
+            .stDeployButton {{
+                display: none !important;
+            }}
+            /* Remove top blank: collapse header so it takes no space */
+            header[data-testid="stHeader"] {{
+                display: none !important;
+                height: 0 !important;
+                min-height: 0 !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                overflow: hidden !important;
+                border: none !important;
+            }}
+            
+            /* Hide Streamlit's default file size limit text */
+            .stFileUploader > div > div > small {{
+                display: none !important;
+            }}
+            
+            /* Remove ALL top and bottom blank: zero padding/margin on every container */
+            [data-testid="stAppViewContainer"] {{
+                padding-top: 0 !important;
+                padding-bottom: 0 !important;
+                margin-top: 0 !important;
+                margin-bottom: 0 !important;
+            }}
+            [data-testid="stAppViewContainer"] section {{
+                padding-top: 0 !important;
+                padding-bottom: 0 !important;
+                margin-top: 0 !important;
+                margin-bottom: 0 !important;
+            }}
+            [data-testid="stAppViewContainer"] > section > div {{
+                padding-top: 0 !important;
+                padding-bottom: 0 !important;
+            }}
+            .main {{
+                padding-top: 0 !important;
+                padding-bottom: 0 !important;
+                margin-top: 0 !important;
+                margin-bottom: 0 !important;
+            }}
+            .main .block-container {{
+                padding-top: 0 !important;
+                padding-bottom: 0 !important;
+                margin-top: 0 !important;
+                margin-bottom: 0 !important;
+                max-width: 1400px;
+                background: transparent !important;
+            }}
+            .block-container {{
+                padding-top: 0 !important;
+                padding-bottom: 0 !important;
+            }}
+            /* Remove bottom blank: no margin/padding on last block */
+            .main .block-container > div:last-child {{
+                margin-bottom: 0 !important;
+                padding-bottom: 0 !important;
+            }}
+            /* Tighten gaps between rows */
+            [data-testid="stVerticalBlock"] {{
+                margin-top: 0 !important;
+                margin-bottom: 0 !important;
+            }}
+            [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"] {{
+                margin-bottom: 0 !important;
+            }}
+            .topbar {{
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                padding: 12px 0 8px;
+                margin-bottom: 8px;
+            }}
+            .brand-mark {{
+                width: 38px;
+                height: 38px;
+                border-radius: 10px;
+                background: linear-gradient(135deg, #10b981, #7c6bff);
+                display: grid;
+                place-items: center;
+                font-weight: 800;
+                color: #ffffff;
+                font-size: 1.2rem;
+            }}
+            .brand-copy {{
+                display: flex;
+                flex-direction: column;
+                gap: 2px;
+            }}
+            .brand-title {{ 
+                font-weight: 700; 
+                font-size: 1.1rem; 
+                color: var(--text-primary); 
+            }}
+            .brand-subtitle {{ 
+                color: var(--text-muted); 
+                font-size: 0.85rem; 
+            }}
+            
+            /* Fix selectbox cursor issue and theme */
+            div[data-baseweb="select"] input,
+            div[data-baseweb="select"] > div,
+            .stSelectbox > div > div > div input {{
+                cursor: pointer !important;
+                caret-color: transparent !important;
+                background-color: var(--bg-card) !important;
+                color: var(--text-primary) !important;
+                border: 1px solid var(--border-color) !important;
+            }}
+            div[data-baseweb="select"] input:focus {{
+                cursor: pointer !important;
+                caret-color: transparent !important;
+                background-color: var(--bg-card) !important;
+                color: var(--text-primary) !important;
+            }}
+            
+            /* Fix selectbox container and all nested elements */
+            .stSelectbox > div > div {{
+                background-color: var(--bg-card) !important;
+                border: 1px solid var(--border-color) !important;
+            }}
+            .stSelectbox > div > div > div {{
+                background-color: var(--bg-card) !important;
+                color: var(--text-primary) !important;
+            }}
+            .stSelectbox > div > div > div > div {{
+                background-color: var(--bg-card) !important;
+                color: var(--text-primary) !important;
+            }}
+            
+            /* Force all baseweb select elements */
+            [data-baseweb="select"] {{
+                background-color: var(--bg-card) !important;
+            }}
+            [data-baseweb="select"] > div {{
+                background-color: var(--bg-card) !important;
+                color: var(--text-primary) !important;
+            }}
+            [data-baseweb="select"] input {{
+                background-color: var(--bg-card) !important;
+                color: var(--text-primary) !important;
+            }}
+            
+            /* Style selectbox (Mode dropdown) to match theme */
+            .stSelectbox label {{
+                color: var(--text-primary) !important;
+                font-size: 0.9rem;
+                font-weight: 600;
+            }}
+            
+            /* Fix selectbox dropdown background and text */
+            div[data-baseweb="select"] > div {{
+                background-color: var(--bg-card) !important;
+                border: 1px solid var(--border-color) !important;
+                color: var(--text-primary) !important;
+            }}
+            div[data-baseweb="select"] input {{
+                background-color: var(--bg-card) !important;
+                color: var(--text-primary) !important;
+            }}
+            div[data-baseweb="popover"] {{
+                background-color: var(--bg-card) !important;
+                border: 1px solid var(--border-color) !important;
+            }}
+            div[data-baseweb="popover"] li {{
+                background-color: var(--bg-card) !important;
+                color: var(--text-primary) !important;
+            }}
+            div[data-baseweb="popover"] li:hover {{
+                background-color: var(--bg-secondary) !important;
+            }}
+            
+            /* (Button styles above use CSS variables; no body.theme-* override) */
+            
+            /* Style text area */
+            .stTextArea textarea {{
+                background: var(--bg-card);
+                border: 1px solid var(--border-color);
+                border-radius: 12px;
+                color: var(--text-primary);
+                padding: 12px 16px;
+                font-size: 0.95rem;
+                transition: all 0.2s ease;
+            }}
+            .stTextArea textarea:focus {{
+                border-color: var(--accent-2);
+                box-shadow: 0 0 0 3px rgba(124, 107, 255, 0.1);
+            }}
+            .stTextArea label {{
+                color: var(--text-primary);
+                font-weight: 600;
+                font-size: 0.9rem;
+            }}
+            
+            /* Style file uploader (Upload PDF/browse file) - LIGHT MODE */
+            body.theme-light .stFileUploader {{
+                border: 2px dashed rgba(0, 0, 0, 0.1) !important;
+                border-radius: 12px;
+                padding: 24px;
+                background: #f9fafb !important;
+                transition: all 0.2s ease;
+            }}
+            body.theme-light .stFileUploader:hover {{
+                border-color: #7c6bff !important;
+                background: #ffffff !important;
+            }}
+            body.theme-light .stFileUploader label {{
+                color: #111827 !important;
+                font-weight: 600;
+                font-size: 0.9rem;
+            }}
+            
+            /* Style file uploader - DARK MODE */
+            body.theme-dark .stFileUploader {{
+                border: 2px dashed rgba(255, 255, 255, 0.1) !important;
+                background: #111827 !important;
+            }}
+            body.theme-dark .stFileUploader label {{
+                color: #e5e7eb !important;
+            }}
+            
+            /* Fix file uploader inner elements and buttons */
+            .stFileUploader > div {{
+                background-color: transparent !important;
+            }}
+            
+            /* Uploaded file display - theme-aware (light: white card, dark: dark card) */
+            .stFileUploader .uploadedFile,
+            .stFileUploader [data-testid="stFileUploaderFile"],
+            .stFileUploader [data-testid="stFileUploaderFile"] > div,
+            .stFileUploader [data-testid="stFileUploaderFile"] span,
+            .stFileUploader [data-testid="stFileUploaderFile"] p,
+            .stFileUploader [data-testid="stFileUploaderFile"] div,
+            .stFileUploader .uploadedFile span,
+            .stFileUploader .uploadedFile div,
+            .stFileUploader .uploadedFile p,
+            .stFileUploader .uploadedFile *,
+            .stFileUploader [data-testid="stFileUploaderFile"] * {{
+                background-color: var(--bg-card) !important;
+                color: var(--text-primary) !important;
+                border-color: var(--border-color) !important;
+            }}
+            .stFileUploader .uploadedFile,
+            .stFileUploader [data-testid="stFileUploaderFile"] {{
+                border: 1px solid var(--border-color) !important;
+                padding: 8px 12px !important;
+                border-radius: 8px !important;
+                font-weight: 500 !important;
+                font-size: 0.9rem !important;
+            }}
+            .stFileUploader .uploadedFile:hover,
+            .stFileUploader [data-testid="stFileUploaderFile"]:hover {{
+                background-color: var(--bg-secondary) !important;
+                border-color: var(--accent-2) !important;
+            }}
+            .stFileUploader .uploadedFile:hover *,
+            .stFileUploader [data-testid="stFileUploaderFile"]:hover * {{
+                background-color: transparent !important;
+                color: var(--text-primary) !important;
+            }}
+            
+            /* Fix file uploader drag and drop area */
+            .stFileUploader [data-testid="stFileUploaderDropzone"] {{
+                background-color: var(--bg-secondary) !important;
+                border: 2px dashed var(--border-color) !important;
+                color: var(--text-primary) !important;
+            }}
+            .stFileUploader [data-testid="stFileUploaderDropzone"]:hover {{
+                background-color: var(--bg-card) !important;
+                border-color: var(--accent-2) !important;
+            }}
+            
+            /* (Browse Files uses variable-based button rules above) */
+            
+            /* Style form elements */
+            .stForm {{
+                border: none;
+                background: transparent;
+            }}
+
+            /* Upload page */
+            .hero-shell {{
+                background: linear-gradient(135deg, var(--bg-hero), var(--bg-secondary));
+                border: 1px solid var(--border-light);
+                border-radius: 24px;
+                padding: 40px 40px 32px;
+                box-shadow: 0 30px 90px var(--shadow-lg);
+                margin-top: 16px;
+            }}
+            .hero-copy {{
+                padding-right: 12px;
+            }}
+            .eyebrow {{
+                text-transform: uppercase;
+                letter-spacing: 0.14em;
+                font-size: 0.75rem;
+                color: var(--accent-2);
+                margin-bottom: 12px;
+                font-weight: 700;
+            }}
+            .hero-title {{
+                font-size: 3.5rem;
+                line-height: 1.05;
+                margin: 0 0 10px;
+                font-weight: 800;
+                color: var(--text-primary);
+            }}
+            .hero-title span {{ 
+                color: var(--accent); 
+            }}
+            .hero-subtitle {{
+                color: var(--text-secondary);
+                font-size: 1.1rem;
+                margin-bottom: 16px;
+                line-height: 1.6;
+            }}
+            .privacy-note {{
+                color: var(--text-muted);
+                font-size: 0.85rem;
+                margin-top: 8px;
+                margin-bottom: 12px;
+                display: flex;
+                align-items: center;
+                gap: 6px;
+            }}
+            .upload-preview {{
+                background: var(--bg-sidebar);
+                border: 1px solid var(--border-light);
+                border-radius: 20px;
+                padding: 24px;
+                box-shadow: inset 0 1px 0 var(--border-light);
+            }}
+            .preview-card {{
+                background: var(--bg-card) !important;
+                border-radius: 18px;
+                padding: 24px 24px 16px;
+                color: var(--text-primary) !important;
+                box-shadow: 0 20px 60px var(--shadow);
+                border: 1px solid var(--border-light);
+            }}
+            
+            /* Ensure preview card text is visible in both themes */
+            .preview-card * {{
+                color: var(--text-primary) !important;
+            }}
+            .preview-header {{
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                margin-bottom: 14px;
+            }}
+            .preview-badge {{
+                background: rgba(16, 185, 129, 0.15);
+                color: var(--accent);
+                padding: 6px 12px;
+                border-radius: 999px;
+                font-weight: 700;
+                font-size: 0.75rem;
+                letter-spacing: 0.5px;
+            }}
+            .theme-dark .preview-badge {{
+                background: rgba(16, 185, 129, 0.25);
+                color: #34d399;
+            }}
+            .preview-score {{
+                display: flex;
+                align-items: baseline;
+                gap: 6px;
+                font-weight: 700;
+            }}
+            .preview-score .num {{ 
+                color: var(--accent); 
+                font-size: 1.8rem; 
+            }}
+            .preview-score .den {{ 
+                color: var(--text-muted); 
+            }}
+            .pill-row {{
+                display: flex;
+                gap: 8px;
+                flex-wrap: wrap;
+                margin: 6px 0 14px;
+            }}
+            .pill {{
+                background: var(--bg-secondary);
+                color: var(--text-primary);
+                padding: 6px 10px;
+                border-radius: 10px;
+                font-size: 0.82rem;
+                font-weight: 600;
+            }}
+            .progress-shell {{
+                margin: 16px 0 8px;
+            }}
+            .progress-track {{
+                width: 100%;
+                height: 10px;
+                background: var(--bg-secondary);
+                border-radius: 12px;
+                overflow: hidden;
+            }}
+            .progress-fill {{
+                height: 100%;
+                background: linear-gradient(90deg, var(--accent), #22d3ee);
+                border-radius: 12px;
+            }}
+            .list-row {{
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                padding: 10px 0;
+                border-bottom: 1px solid var(--border-color);
+                background-color: transparent !important;
+            }}
+            .list-row:last-child {{ 
+                border-bottom: none; 
+            }}
+            .list-row span {{ 
+                font-size: 0.95rem; 
+                color: var(--text-primary) !important; 
+            }}
+            
+            /* Fix preview card list items to match theme */
+            .preview-card .list-row {{
+                background-color: transparent !important;
+                color: var(--text-primary) !important;
+            }}
+            .preview-card .list-row span {{
+                color: var(--text-primary) !important;
+            }}
+            
+            /* Ensure icons in list rows are visible and properly colored */
+            .list-row span:last-child {{
+                font-weight: 700;
+                font-size: 1.1rem;
+            }}
+            
+            /* Make sure all text in preview card is visible */
+            .preview-card,
+            .preview-card * {{
+                background-color: var(--bg-card) !important;
+            }}
+            .preview-card .text-primary,
+            .preview-card .text-secondary,
+            .preview-card .text-muted {{
+                color: var(--text-primary) !important;
+            }}
+
+            /* Report page – center theme + Upload buttons with PDF section */
+            #report-pdf-row-marker {{
+                display: none !important;
+                height: 0 !important;
+                margin: 0 !important;
+                padding: 0 !important;
+            }}
+            [data-testid="stHorizontalBlock"]:has(.report-hero) > div:last-child {{
+                display: flex !important;
+                flex-direction: column !important;
+                justify-content: center !important;
+                gap: 8px !important;
+            }}
+            .report-hero {{
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                background: linear-gradient(135deg, var(--bg-card), var(--bg-secondary));
+                border: 1px solid var(--border-color);
+                padding: 18px 20px;
+                border-radius: 16px;
+                margin: 10px 0 20px;
+            }}
+            .report-title {{ 
+                margin: 0; 
+                font-size: 2rem; 
+                color: var(--text-primary); 
+            }}
+            .score-pill {{
+                background: rgba(16,185,129,0.15);
+                color: var(--accent);
+                padding: 10px 14px;
+                border-radius: 12px;
+                font-weight: 700;
+                min-width: 110px;
+                text-align: center;
+            }}
+            .theme-dark .score-pill {{
+                color: #a7f3d0;
+            }}
+            .report-shell {{
+                display: grid;
+                grid-template-columns: 360px 1fr;
+                gap: 20px;
+            }}
+            .report-sidebar {{
+                background: var(--bg-sidebar);
+                border: 1px solid var(--border-light);
+                border-radius: 18px;
+                padding: 20px;
+                box-shadow: 0 14px 50px var(--shadow);
+            }}
+            .score-card {{
+                background: linear-gradient(145deg, var(--bg-card), var(--bg-sidebar));
+                border: 1px solid var(--border-color);
+                border-radius: 14px;
+                padding: 18px;
+                margin-bottom: 18px;
+                text-align: center;
+            }}
+            .score-number {{ 
+                font-size: 2.8rem; 
+                font-weight: 800; 
+                color: #fcd34d; 
+            }}
+            .score-number span {{ 
+                font-size: 1rem; 
+                color: var(--text-muted); 
+            }}
+            .issues-text {{ 
+                color: var(--text-muted); 
+                font-size: 0.95rem; 
+            }}
+            .issues-text.clickable {{
+                cursor: pointer;
+                color: #f87171;
+                text-decoration: underline;
+                transition: color 0.2s ease;
+            }}
+            .issues-text.clickable:hover {{
+                color: #ef4444;
+            }}
+            .category {{
+                border-top: 1px solid var(--border-light);
+                padding: 12px 0;
+            }}
+            .category:first-of-type {{ 
+                border-top: none; 
+            }}
+            .category-head {{
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 8px;
+                color: var(--text-primary);
+                font-weight: 700;
+                letter-spacing: 0.03em;
+            }}
+            .category-score {{
+                padding: 6px 10px;
+                border-radius: 10px;
+                font-weight: 700;
+                font-size: 0.95rem;
+            }}
+            .score-good {{ 
+                background: rgba(16,185,129,0.12); 
+                color: #34d399; 
+            }}
+            .score-medium {{ 
+                background: rgba(234,179,8,0.15); 
+                color: #fbbf24; 
+            }}
+            .score-low {{ 
+                background: rgba(239,68,68,0.16); 
+                color: #f87171; 
+            }}
+            .subitem {{
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 10px;
+                color: var(--text-muted);
+                padding: 8px 0;
+                font-size: 0.92rem;
+            }}
+            .subitem .subitem-label-wrap {{
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                flex: 1;
+                min-width: 0;
+            }}
+            .subitem .subitem-icon {{
+                flex-shrink: 0;
+                width: 20px;
+                height: 20px;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                border-radius: 50%;
+                font-size: 12px;
+                font-weight: 700;
+            }}
+            .subitem .subitem-icon.icon-ok {{
+                background: rgba(16,185,129,0.2);
+                color: #34d399;
+            }}
+            .subitem .subitem-icon.icon-warn {{
+                background: rgba(239,68,68,0.2);
+                color: #f87171;
+            }}
+            .subitem.clickable {{
+                cursor: pointer;
+                transition: all 0.2s ease;
+                border-radius: 6px;
+                padding: 8px 10px;
+                margin: 0 -10px;
+            }}
+            .subitem.clickable:hover {{
+                background: var(--bg-secondary);
+                color: var(--text-primary);
+            }}
+            .section-anchor {{
+                scroll-margin-top: 100px;
+            }}
+            .badge {{
+                padding: 4px 10px;
+                border-radius: 999px;
+                font-size: 0.8rem;
+                font-weight: 700;
+            }}
+            .badge-ok {{ 
+                background: rgba(16,185,129,0.18); 
+                color: #34d399; 
+            }}
+            .badge-warn {{ 
+                background: rgba(239,68,68,0.18); 
+                color: #f87171; 
+            }}
+            .badge-lock {{ 
+                background: rgba(148,163,184,0.15); 
+                color: var(--text-secondary); 
+            }}
+            .theme-light .badge-lock {{
+                color: #6b7280;
+            }}
+
+            .report-main {{
+                background: var(--bg-card);
+                border: 1px solid var(--border-light);
+                border-radius: 18px;
+                padding: 20px;
+                box-shadow: 0 14px 50px var(--shadow);
+            }}
+            .detail-card {{
+                background: var(--bg-secondary);
+                border: 1px solid var(--border-light);
+                border-radius: 14px;
+                padding: 16px 18px;
+                margin-bottom: 14px;
+            }}
+            .detail-head {{
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                margin-bottom: 10px;
+            }}
+            .detail-head h3 {{ 
+                margin: 0; 
+            }}
+            /* Shared body area for all report sections (Quantifying Impact, Spelling & Grammar, Strengths, etc.) – same as Suggestions */
+            .section-body {{
+                padding: 0 0 4px 0;
+                margin: 0;
+            }}
+            .section-body-item {{
+                margin-bottom: 8px;
+                line-height: 1.45;
+                color: var(--text-primary);
+            }}
+            .section-body-item:last-child {{
+                margin-bottom: 0;
+            }}
+            .progress-track.dark {{
+                background: var(--bg-secondary);
+            }}
+            .progress-fill.dark {{
+                background: linear-gradient(90deg, var(--accent), #0ea5e9);
+            }}
+            .list-tag {{
+                display: inline-block;
+                padding: 6px 10px;
+                border-radius: 10px;
+                background: var(--bg-secondary);
+                color: var(--text-primary);
+                margin-right: 8px;
+                margin-bottom: 6px;
+                font-size: 0.9rem;
+            }}
+            .text-primary {{ 
+                color: var(--text-primary); 
+            }}
+            .text-secondary {{ 
+                color: var(--text-secondary); 
+            }}
+            .text-muted {{ 
+                color: var(--text-muted); 
+            }}
+            .text-description {{ 
+                color: var(--text-secondary); 
+            }}
+            .download-row {{
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+                gap: 12px;
+                margin-top: 12px;
+            }}
+            
+            /* Ensure download buttons are clickable */
+            .report-sidebar button,
+            .report-main button {{
+                position: relative;
+                z-index: 10;
+                pointer-events: auto !important;
+            }}
+            
+            /* Report area buttons (Download Reports, etc.) use theme colors – light in light mode */
+            .report-main .stButton > button,
+            .report-main .stButton button,
+            .report-main button[data-testid="baseButton-primary"],
+            .report-main button[data-testid="baseButton-secondary"],
+            .report-sidebar .stButton > button,
+            .report-sidebar .stButton button,
+            .report-sidebar button[data-testid="baseButton-primary"],
+            .report-sidebar button[data-testid="baseButton-secondary"],
+            .report-main button,
+            .report-sidebar button {{
+                background-color: var(--button-bg) !important;
+                background: var(--button-bg) !important;
+                color: var(--button-text) !important;
+                border: 1px solid var(--button-border) !important;
+                box-shadow: var(--button-shadow) !important;
+            }}
+            .report-main .stButton > button *,
+            .report-main .stButton button *,
+            .report-main button *,
+            .report-sidebar .stButton > button *,
+            .report-sidebar .stButton button *,
+            .report-sidebar button * {{
+                background-color: transparent !important;
+                color: var(--button-text) !important;
+            }}
+            .report-main .stButton > button:hover,
+            .report-main .stButton button:hover,
+            .report-main button:hover,
+            .report-sidebar .stButton > button:hover,
+            .report-sidebar .stButton button:hover,
+            .report-sidebar button:hover {{
+                background-color: var(--button-hover-bg) !important;
+                background: var(--button-hover-bg) !important;
+                color: var(--button-text) !important;
+                border-color: var(--button-hover-border) !important;
+                box-shadow: var(--button-hover-shadow) !important;
+            }}
+            .report-main .stButton > button:hover *,
+            .report-main .stButton button:hover *,
+            .report-main button:hover *,
+            .report-sidebar .stButton > button:hover *,
+            .report-sidebar .stButton button:hover *,
+            .report-sidebar button:hover * {{
+                background-color: transparent !important;
+                color: var(--button-text) !important;
+            }}
+            
+            /* Ensure no overlay blocks buttons */
+            .report-sidebar,
+            .report-main {{
+                position: relative;
+                z-index: 1;
+            }}
+        </style>
+        <script>
+            function scrollToSection(sectionId) {{
+                const element = document.getElementById(sectionId);
+                if (element) {{
+                    element.scrollIntoView({{ behavior: 'smooth', block: 'start' }});
+                    // Highlight the section briefly
+                    element.style.transition = 'background-color 0.3s ease';
+                    const originalBg = element.style.backgroundColor;
+                    element.style.backgroundColor = 'rgba(16,185,129,0.15)';
+                    setTimeout(() => {{
+                        element.style.backgroundColor = originalBg;
+                    }}, 1000);
+                }}
+            }}
+        </script>
+        <script>
+            // SIMPLE THEME APPLICATION - WHITE FOR LIGHT, BLACK FOR DARK
+            (function() {{
+                // Clean up any existing intervals
+                if (window.themeInterval) {{
+                    clearInterval(window.themeInterval);
+                }}
+                
+                const bgColor = '{bg_color}';
+                const themeClass = bgColor === '#ffffff' ? 'theme-light' : 'theme-dark';
+                
+                function forceTheme() {{
+                    try {{
+                        // Apply theme class to body and html
+                        if (document.body) {{
+                            document.body.className = document.body.className.replace(/theme-\\w+/g, '').trim() + ' ' + themeClass;
+                            document.body.style.cssText += 'background-color: ' + bgColor + ' !important; background: ' + bgColor + ' !important;';
+                        }}
+                        if (document.documentElement) {{
+                            document.documentElement.style.cssText += 'background-color: ' + bgColor + ' !important; background: ' + bgColor + ' !important;';
+                        }}
+                        
+                        // Force .stApp and ALL its children - WHITE or BLACK
+                        const stApp = document.querySelector('.stApp');
+                        if (stApp) {{
+                            stApp.className = stApp.className.replace(/theme-\\w+/g, '').trim() + ' ' + themeClass;
+                            stApp.style.cssText += 'background-color: ' + bgColor + ' !important; background: ' + bgColor + ' !important;';
+                            
+                            // Force ALL children recursively
+                            const allChildren = stApp.querySelectorAll('*');
+                            allChildren.forEach(child => {{
+                                if (child && child.style && !child.classList.contains('hero-shell') && !child.classList.contains('preview-card')) {{
+                                    // Only override container backgrounds, not content cards
+                                    if (child === stApp.firstElementChild || child.parentElement === stApp) {{
+                                        child.style.cssText += 'background-color: ' + bgColor + ' !important; background: ' + bgColor + ' !important;';
+                                    }}
+                                }}
+                            }});
+                        }}
+                        
+                        // Force Streamlit view container and ALL children
+                        const viewContainer = document.querySelector('[data-testid="stAppViewContainer"]');
+                        if (viewContainer) {{
+                            viewContainer.style.cssText += 'background-color: ' + bgColor + ' !important; background: ' + bgColor + ' !important;';
+                            const allViewChildren = viewContainer.querySelectorAll('*');
+                            allViewChildren.forEach(child => {{
+                                if (child && child.style && child.parentElement === viewContainer) {{
+                                    child.style.cssText += 'background-color: ' + bgColor + ' !important; background: ' + bgColor + ' !important;';
+                                }}
+                            }});
+                        }}
+                        
+                        // Force main and block-container to be transparent
+                        document.querySelectorAll('.main, .block-container').forEach(el => {{
+                            if (el && el.style) {{
+                                el.style.cssText += 'background-color: transparent !important;';
+                            }}
+                        }});
+                        // Remove top and bottom blank: force zero padding/margin on all main containers
+                        const view = document.querySelector('[data-testid="stAppViewContainer"]');
+                        if (view) {{
+                            view.style.paddingTop = '0'; view.style.paddingBottom = '0';
+                            view.style.marginTop = '0'; view.style.marginBottom = '0';
+                            const section = view.querySelector('section');
+                            if (section) {{
+                                section.style.paddingTop = '0'; section.style.paddingBottom = '0';
+                                section.style.marginTop = '0'; section.style.marginBottom = '0';
+                                [].forEach.call(section.children, div => {{
+                                    div.style.paddingTop = '0'; div.style.paddingBottom = '0';
+                                }});
+                            }}
+                        }}
+                        document.querySelectorAll('.main, .block-container').forEach(el => {{
+                            if (el && el.style) {{
+                                el.style.paddingTop = '0'; el.style.paddingBottom = '0';
+                                el.style.marginTop = '0'; el.style.marginBottom = '0';
+                            }}
+                        }});
+                        
+                        // Fix selectbox (Mode dropdown) - force theme colors
+                        document.querySelectorAll('div[data-baseweb="select"]').forEach(select => {{
+                            if (select) {{
+                                const selectDiv = select.querySelector('div');
+                                if (selectDiv) {{
+                                    selectDiv.style.cssText += 'background-color: ' + (bgColor === '#ffffff' ? '#ffffff' : '#1f2937') + ' !important; color: ' + (bgColor === '#ffffff' ? '#111827' : '#e5e7eb') + ' !important; border-color: ' + (bgColor === '#ffffff' ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)') + ' !important;';
+                                }}
+                                const input = select.querySelector('input');
+                                if (input) {{
+                                    input.style.cssText += 'background-color: ' + (bgColor === '#ffffff' ? '#ffffff' : '#1f2937') + ' !important; color: ' + (bgColor === '#ffffff' ? '#111827' : '#e5e7eb') + ' !important;';
+                                }}
+                            }}
+                        }});
+                        
+                        // Fix file uploader - force theme colors
+                        document.querySelectorAll('.stFileUploader').forEach(uploader => {{
+                            if (uploader) {{
+                                uploader.style.cssText += 'background-color: ' + (bgColor === '#ffffff' ? '#f9fafb' : '#111827') + ' !important; border-color: ' + (bgColor === '#ffffff' ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)') + ' !important;';
+                                
+                                // Fix Browse Files button inside uploader
+                                const browseBtn = uploader.querySelector('button, [data-baseweb="button"]');
+                                if (browseBtn) {{
+                                    browseBtn.style.cssText += 'background-color: ' + (bgColor === '#ffffff' ? '#ffffff' : '#1f2937') + ' !important; color: ' + (bgColor === '#ffffff' ? '#111827' : '#e5e7eb') + ' !important; border-color: ' + (bgColor === '#ffffff' ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)') + ' !important;';
+                                }}
+                            }}
+                        }});
+                        
+                        // Fix Upload & Analyze button - SAME PATTERN AS THEME TOGGLE - FORCE VISIBLE IN LIGHT MODE
+                        document.querySelectorAll('form button[type="submit"], .stForm button[type="submit"], .stButton > button, button[type="submit"], button[data-testid="baseButton-primary"]').forEach(btn => {{
+                            if (btn && btn.getAttribute('key') !== 'theme_toggle') {{
+                                const btnBg = bgColor === '#ffffff' ? '#ffffff' : '#1f2937';
+                                const btnText = bgColor === '#ffffff' ? '#111827' : '#e5e7eb';
+                                const btnBorder = bgColor === '#ffffff' ? 'rgba(0,0,0,0.15)' : 'rgba(255,255,255,0.1)';
+                                btn.style.cssText += 'background-color: ' + btnBg + ' !important; background: ' + btnBg + ' !important; color: ' + btnText + ' !important; border: 1px solid ' + btnBorder + ' !important; box-shadow: ' + (bgColor === '#ffffff' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none') + ' !important;';
+                                
+                                // Fix ALL nested elements (divs, spans, p tags)
+                                const allNested = btn.querySelectorAll('div, span, p');
+                                allNested.forEach(el => {{
+                                    el.style.cssText += 'background-color: transparent !important; color: ' + btnText + ' !important;';
+                                }});
+                            }}
+                        }});
+                        
+                        // Fix Browse Files button - SAME PATTERN AS THEME TOGGLE - FORCE VISIBLE IN LIGHT MODE
+                        document.querySelectorAll('.stFileUploader button, .stFileUploader [data-baseweb="button"], .stFileUploader [data-testid="baseButton-secondary"]').forEach(btn => {{
+                            if (btn) {{
+                                const btnBg = bgColor === '#ffffff' ? '#ffffff' : '#1f2937';
+                                const btnText = bgColor === '#ffffff' ? '#111827' : '#e5e7eb';
+                                const btnBorder = bgColor === '#ffffff' ? 'rgba(0,0,0,0.15)' : 'rgba(255,255,255,0.1)';
+                                btn.style.cssText += 'background-color: ' + btnBg + ' !important; background: ' + btnBg + ' !important; color: ' + btnText + ' !important; border: 1px solid ' + btnBorder + ' !important; box-shadow: ' + (bgColor === '#ffffff' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none') + ' !important;';
+                                
+                                // Fix ALL nested elements (divs, spans, p tags)
+                                const allNested = btn.querySelectorAll('div, span, p');
+                                allNested.forEach(el => {{
+                                    el.style.cssText += 'background-color: transparent !important; color: ' + btnText + ' !important;';
+                                }});
+                            }}
+                        }});
+                        
+                        // Fix uploaded file visibility - ALWAYS VISIBLE - FORCE ALL TEXT
+                        document.querySelectorAll('.stFileUploader .uploadedFile, .stFileUploader [data-testid="stFileUploaderFile"]').forEach(fileEl => {{
+                            if (fileEl) {{
+                                const fileBg = bgColor === '#ffffff' ? '#ffffff' : '#1f2937';
+                                const fileText = bgColor === '#ffffff' ? '#111827' : '#e5e7eb';
+                                const fileBorder = bgColor === '#ffffff' ? 'rgba(0,0,0,0.15)' : 'rgba(255,255,255,0.15)';
+                                fileEl.style.cssText += 'background-color: ' + fileBg + ' !important; background: ' + fileBg + ' !important; color: ' + fileText + ' !important; border: 1px solid ' + fileBorder + ' !important;';
+                                // Fix ALL nested elements - recursively
+                                const allTextElements = fileEl.querySelectorAll('*');
+                                allTextElements.forEach(textEl => {{
+                                    if (textEl && textEl.tagName !== 'BUTTON' && textEl.tagName !== 'SVG') {{
+                                        textEl.style.cssText += 'color: ' + fileText + ' !important; background-color: transparent !important;';
+                                    }}
+                                }});
+                                // Also force direct children
+                                Array.from(fileEl.children).forEach(child => {{
+                                    child.style.cssText += 'color: ' + fileText + ' !important; background-color: ' + fileBg + ' !important;';
+                                }});
+                            }}
+                        }});
+                        
+                        // Middle theme + Upload buttons with respect to the Resume report (PDF) section
+                        const pdfRow = document.querySelector('[data-testid="stHorizontalBlock"]:has(.report-hero)');
+                        if (pdfRow && pdfRow.lastElementChild) {{
+                            const actionsCol = pdfRow.lastElementChild;
+                            actionsCol.style.display = 'flex';
+                            actionsCol.style.flexDirection = 'column';
+                            actionsCol.style.justifyContent = 'center';
+                            actionsCol.style.gap = '8px';
+                        }}
+                        
+                        // Fix theme toggle button - force theme colors
+                        const themeBtn = document.querySelector('button[key="theme_toggle"]');
+                        if (themeBtn) {{
+                            themeBtn.style.cssText += 'background-color: ' + (bgColor === '#ffffff' ? '#ffffff' : '#1f2937') + ' !important; background: ' + (bgColor === '#ffffff' ? '#ffffff' : '#1f2937') + ' !important; color: ' + (bgColor === '#ffffff' ? '#111827' : '#e5e7eb') + ' !important; border-color: ' + (bgColor === '#ffffff' ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)') + ' !important;';
+                            
+                            // Fix any nested divs
+                            const btnDivs = themeBtn.querySelectorAll('div');
+                            btnDivs.forEach(div => {{
+                                div.style.cssText += 'background-color: transparent !important; color: ' + (bgColor === '#ffffff' ? '#111827' : '#e5e7eb') + ' !important;';
+                            }});
+                        }}
+                        
+                        // Fix ALL secondary buttons
+                        document.querySelectorAll('button[data-testid="baseButton-secondary"]').forEach(btn => {{
+                            if (btn) {{
+                                btn.style.cssText += 'background-color: ' + (bgColor === '#ffffff' ? '#ffffff' : '#1f2937') + ' !important; color: ' + (bgColor === '#ffffff' ? '#111827' : '#e5e7eb') + ' !important; border-color: ' + (bgColor === '#ffffff' ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)') + ' !important;';
+                            }}
+                        }});
+                        
+                        // Fix Download Reports and any other buttons inside report area (override Streamlit dark defaults)
+                        document.querySelectorAll('.report-main button, .report-sidebar button').forEach(btn => {{
+                            if (btn) {{
+                                const btnBg = bgColor === '#ffffff' ? '#ffffff' : '#1f2937';
+                                const btnText = bgColor === '#ffffff' ? '#111827' : '#e5e7eb';
+                                const btnBorder = bgColor === '#ffffff' ? 'rgba(0,0,0,0.15)' : 'rgba(255,255,255,0.1)';
+                                btn.style.cssText += 'background-color: ' + btnBg + ' !important; background: ' + btnBg + ' !important; color: ' + btnText + ' !important; border: 1px solid ' + btnBorder + ' !important;';
+                                const nested = btn.querySelectorAll('*');
+                                nested.forEach(el => {{
+                                    if (el && el.style) el.style.cssText += 'background-color: transparent !important; color: ' + btnText + ' !important;';
+                                }});
+                            }}
+                        }});
+                        
+                        // Catch-all: force theme on EVERY button in the app (download buttons may not be inside .report-main)
+                        const viewContainer = document.querySelector('[data-testid="stAppViewContainer"]');
+                        if (viewContainer) {{
+                            viewContainer.querySelectorAll('button').forEach(btn => {{
+                                if (btn) {{
+                                    const btnBg = bgColor === '#ffffff' ? '#ffffff' : '#1f2937';
+                                    const btnText = bgColor === '#ffffff' ? '#111827' : '#e5e7eb';
+                                    const btnBorder = bgColor === '#ffffff' ? 'rgba(0,0,0,0.15)' : 'rgba(255,255,255,0.1)';
+                                    btn.style.setProperty('background-color', btnBg, 'important');
+                                    btn.style.setProperty('background', btnBg, 'important');
+                                    btn.style.setProperty('color', btnText, 'important');
+                                    btn.style.setProperty('border', '1px solid ' + btnBorder, 'important');
+                                    btn.querySelectorAll('*').forEach(el => {{
+                                        if (el && el.style) {{
+                                            el.style.setProperty('background-color', 'transparent', 'important');
+                                            el.style.setProperty('color', btnText, 'important');
+                                        }}
+                                    }});
+                                }}
+                            }});
+                        }}
+                    }} catch(e) {{
+                        console.error('Theme error:', e);
+                    }}
+                }}
+                
+                // Run immediately multiple times
+                forceTheme();
+                setTimeout(forceTheme, 10);
+                setTimeout(forceTheme, 50);
+                setTimeout(forceTheme, 100);
+                
+                // Run continuously every 10ms to aggressively override Streamlit
+                window.themeInterval = setInterval(forceTheme, 10);
+                
+                // Also run on DOM changes
+                if (document.body) {{
+                    new MutationObserver(() => {{
+                        setTimeout(forceTheme, 5);
+                    }}).observe(document.body, {{
+                        childList: true,
+                        subtree: true,
+                        attributes: true,
+                        attributeFilter: ['style', 'class']
+                    }});
+                }}
+                
+                // Run on all events
+                ['DOMContentLoaded', 'load'].forEach(event => {{
+                    window.addEventListener(event, forceTheme);
+                }});
+            }})();
+        </script>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def get_score_color_class(score: int) -> str:
+    """Get CSS class for score color."""
+    if score >= 80:
+        return "score-good"
+    if score >= 60:
+        return "score-medium"
+    return "score-low"
+
+
+def get_category_icon(score: int) -> str:
+    """Get icon for category based on score."""
+    if score >= 80:
+        return "✓"
+    if score >= 60:
+        return "⚠"
+    return "✗"
+
+
+def issue_count(analysis: Dict[str, Any]) -> int:
+    """Count total issues found in analysis."""
+    count = 0
+    count += len(analysis.get("missing_keywords", []))
+    count += len(analysis.get("missing_skills", []))
+    count += len([s for s in analysis.get("suggestions", []) if s.strip()])
+    if analysis.get("match_score", 0) < 70:
+        count += 1
+    return max(count, 0)
+
+
+def render_upload_preview_card() -> None:
+    """Static preview card on the upload screen."""
+    st.markdown(
+        """
+        <div class="upload-preview">
+            <div class="preview-card">
+                <div class="preview-header">
+                    <div>
+                        <div style="font-weight:700;" class="text-primary">ATS Resume Score</div>
+                        <div class="text-muted" style="font-size:0.9rem;">Sample preview</div>
+                    </div>
+                    <div class="preview-badge">LIVE</div>
+                </div>
+                <div class="preview-score"><span class="num">92</span><span class="den">/100</span></div>
+                <div class="pill-row">
+                    <span class="pill">ATS Parse</span>
+                    <span class="pill">Quantified Impact</span>
+                    <span class="pill">Sections</span>
+                    <span class="pill">Skills</span>
+                </div>
+                <div class="progress-shell">
+                    <div class="progress-track">
+                        <div class="progress-fill" style="width:90%;"></div>
+                    </div>
+                    <div style="display:flex;justify-content:space-between;font-size:0.9rem;margin-top:6px;" class="text-secondary">
+                        <span>Parse rate</span><span>90%</span>
+                    </div>
+                </div>
+                <div class="list-row"><span>ATS Parse Rate</span><span>✓</span></div>
+                <div class="list-row"><span>Quantifying Impact</span><span>✓</span></div>
+                <div class="list-row"><span>Repetition</span><span>⚠</span></div>
+                <div class="list-row"><span>Spelling & Grammar</span><span>✕</span></div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_report_page(analysis: Dict[str, Any], name: str = "CV") -> None:
+    """Render the two-column report view inspired by the HTML mock."""
+    score = analysis.get("match_score", 0)
+    subs = analysis.get("subscores", {}) or {}
+    issues = issue_count(analysis)
+
+    # Extract content metrics
+    content_metrics = analysis.get("content_metrics", {}) or {}
+    ats_parse_rate = content_metrics.get("ats_parse_rate", 0)
+    quant_impact = content_metrics.get("quantifying_impact", {}) or {}
+    repetition = content_metrics.get("repetition", {}) or {}
+    spelling_grammar = content_metrics.get("spelling_grammar", {}) or {}
+    
+    # Calculate Content category score as average of content metrics
+    content_items = [
+        ats_parse_rate,
+        quant_impact.get("score", 0),
+        repetition.get("score", 0),
+        spelling_grammar.get("score", 0)
+    ]
+    content_score = int(sum(content_items) / len(content_items)) if content_items else subs.get("ats_readiness", score)
+    
+    # Build Content category items: (label, status, score) so sidebar can show number instead of "Review"
+    content_items_list = [
+        ("ATS Parse Rate", "ok" if ats_parse_rate >= 80 else "warn" if ats_parse_rate >= 60 else "error", ats_parse_rate),
+        ("Quantifying Impact", quant_impact.get("status", "ok"), quant_impact.get("score", 0)),
+        ("Repetition", repetition.get("status", "ok"), repetition.get("score", 0)),
+        ("Spelling & Grammar", spelling_grammar.get("status", "ok"), spelling_grammar.get("score", 0)),
+    ]
+    
+    # Extract other category metrics
+    sections_metrics = analysis.get("sections_metrics", {}) or {}
+    sections_score = sections_metrics.get("score", subs.get("experience_alignment", score))
+    
+    ats_essentials_metrics = analysis.get("ats_essentials_metrics", {}) or {}
+    ats_essentials_score = ats_essentials_metrics.get("score", subs.get("ats_readiness", score))
+    
+    tailoring_metrics = analysis.get("tailoring_metrics", {}) or {}
+    tailoring_score = tailoring_metrics.get("score", subs.get("skills_alignment", score))
+
+    categories = [
+        ("Content", content_score, content_items_list),
+        ("Sections", sections_score, []),
+        ("ATS Essentials", ats_essentials_score, []),
+        ("Tailoring", tailoring_score, []),
+    ]
+
+    # No report-shell wrapper (it was rendering as a bar); columns put Your Score and ATS Parse Rate side by side
+    sidebar, main = st.columns([1, 1.6], gap="large")
+
+    with sidebar:
+        # report-sidebar wrapper starts with score-card to avoid empty bar above Your Score
+        onclick_attr = 'onclick="scrollToSection(\"suggestions\")"' if issues > 0 else ''
+        clickable_class = 'clickable' if issues > 0 else ''
+        st.markdown(
+            f"""
+            <div class="report-sidebar">
+            <div class="score-card">
+                <div class="score-title text-muted" style="font-size:0.95rem;">Your Score</div>
+                <div class="score-number">{score}<span>/100</span></div>
+                <div class="issues-text {clickable_class}" {onclick_attr}>{issues} issues</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        for title, cat_score, items in categories:
+            badge_cls = get_score_color_class(cat_score)
+            st.markdown('<div class="category">', unsafe_allow_html=True)
+            st.markdown(
+                f"""
+                <div class="category-head">
+                    <span>{title}</span>
+                    <span class="category-score {badge_cls}">{cat_score}%</span>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+            for item in items:
+                item_label = item[0]
+                status = item[1]
+                score_val = item[2] if len(item) > 2 else None
+                badge = {
+                    "ok": "badge badge-ok",
+                    "warn": "badge badge-warn",
+                    "error": "badge badge-warn",  # Error status uses warn styling
+                    "lock": "badge badge-lock",
+                }.get(status, "badge badge-warn")  # Default to warn if status is unknown
+                # Show number (e.g. 65%) instead of "Review" when status is warn/error
+                if status in ["warn", "error"] and score_val is not None:
+                    badge_text = f"{score_val}%"
+                else:
+                    badge_text = {"ok": "No issues", "lock": "Locked"}.get(status, "Review")
+                # Section ID for scroll (must match detail-card id in main column)
+                section_id = item_label.lower().replace(" & ", "-").replace(" ", "-").replace("--", "-").strip("-")
+                # Icon: checkmark for ok, X for warn/error (reference website style)
+                icon_class = "icon-ok" if status == "ok" else "icon-warn"
+                icon_char = "✓" if status == "ok" else "✕"
+                # All subitems under Content (and any with a section) are clickable to scroll to that section
+                is_clickable = status != "lock"
+                clickable_class = "clickable" if is_clickable else ""
+                onclick_handler = f'onclick="scrollToSection(\"{section_id}\")"' if is_clickable else ""
+                st.markdown(
+                    f"""
+                    <div class="subitem {clickable_class}" {onclick_handler}>
+                        <span class="subitem-label-wrap">
+                            <span class="subitem-icon {icon_class}" aria-hidden="true">{icon_char}</span>
+                            <span>{item_label}</span>
+                        </span>
+                        <span class="{badge}">{badge_text}</span>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+            st.markdown("</div>", unsafe_allow_html=True)
+
+        # Download buttons - placed outside HTML divs to ensure proper rendering
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.download_button(
+            "📄 Download report (Markdown)",
+            data=build_report_md(name, analysis),
+            file_name=f"{name}-analysis.md",
+            mime="text/markdown",
+            use_container_width=True,
+            key="download_md_sidebar",
+        )
+        st.download_button(
+            "💾 Download JSON",
+            data=json.dumps(analysis, indent=2),
+            file_name=f"{name}-analysis.json",
+            mime="application/json",
+            use_container_width=True,
+            key="download_json_sidebar",
+        )
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    with main:
+        # Full ATS card in one markdown with report-main wrapper to avoid empty bar above ATS Parse Rate
+        ats_parse_rate_value = content_metrics.get("ats_parse_rate", 0)
+        ats_badge_class = "badge-ok" if ats_parse_rate_value >= 80 else "badge-warn" if ats_parse_rate_value >= 60 else "badge-warn"
+        ats_badge_text = "Excellent" if ats_parse_rate_value >= 80 else "Good" if ats_parse_rate_value >= 60 else "Needs Improvement"
+        st.markdown(
+            f"""
+            <div class="report-main">
+            <div class="detail-card section-anchor" id="ats-parse-rate">
+            <div class="detail-head">
+                <h3>ATS Parse Rate</h3>
+                <span class="badge {ats_badge_class}">{ats_badge_text}</span>
+            </div>
+            <div class="section-body">
+            <p class="section-body-item text-description">A high parse rate ensures the ATS can read your resume, experience, and skills.</p>
+            <div class="progress-track dark">
+                <div class="progress-fill dark" style="width:{ats_parse_rate_value}%"></div>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:0.9rem;" class="text-muted">
+                <span>Score</span><span>{ats_parse_rate_value}%</span>
+            </div>
+            </div>
+            </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        # Content metric cards (scores and status from backend programmatic + optional AI logic)
+        quant_score = quant_impact.get("score", 0)
+        quant_status = quant_impact.get("status", "ok")
+        quant_details = quant_impact.get("details", "")
+        quant_badge = "ok" if quant_status == "ok" else "warn"
+        quant_label = "No issues" if quant_status == "ok" else f"{quant_score}%"
+        st.markdown(
+            f"""
+            <div class="detail-card section-anchor" id="quantifying-impact">
+            <div class="detail-head">
+                <h3>Quantifying Impact</h3>
+                <span class="badge badge-{quant_badge}">{quant_label}</span>
+            </div>
+            <div class="section-body">
+            <p class="section-body-item text-description">Your resume should include quantifiable achievements with numbers, metrics, and measurable results.</p>
+            <div class="progress-track dark">
+                <div class="progress-fill dark" style="width:{quant_score}%"></div>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:0.9rem;" class="text-muted">
+                <span>Score</span><span>{quant_score}%</span>
+            </div>
+            {f'<p class="section-body-item text-description" style="margin-top:8px;font-size:0.9rem;">{quant_details}</p>' if quant_details else ''}
+            </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        rep_score = repetition.get("score", 0)
+        rep_status = repetition.get("status", "ok")
+        rep_details = repetition.get("details", "")
+        rep_badge = "ok" if rep_status == "ok" else "warn"
+        rep_label = "No issues" if rep_status == "ok" else f"{rep_score}%"
+        st.markdown(
+            f"""
+            <div class="detail-card section-anchor" id="repetition">
+            <div class="detail-head">
+                <h3>Repetition</h3>
+                <span class="badge badge-{rep_badge}">{rep_label}</span>
+            </div>
+            <div class="section-body">
+            <p class="section-body-item text-description">Avoid excessive repetition of words and phrases to improve readability and professionalism.</p>
+            <div class="progress-track dark">
+                <div class="progress-fill dark" style="width:{rep_score}%"></div>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:0.9rem;" class="text-muted">
+                <span>Score (higher = less repetition)</span><span>{rep_score}%</span>
+            </div>
+            {f'<p class="section-body-item text-description" style="margin-top:8px;font-size:0.9rem;">{rep_details}</p>' if rep_details else ''}
+            </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        spell_score = spelling_grammar.get("score", 0)
+        spell_status = spelling_grammar.get("status", "ok")
+        spell_details = spelling_grammar.get("details", "")
+        spell_badge = "ok" if spell_status == "ok" else "warn"
+        spell_label = "No issues" if spell_status == "ok" else f"{spell_score}%"
+        st.markdown(
+            f"""
+            <div class="detail-card section-anchor" id="spelling-grammar">
+            <div class="detail-head">
+                <h3>Spelling & Grammar</h3>
+                <span class="badge badge-{spell_badge}">{spell_label}</span>
+            </div>
+            <div class="section-body">
+            <p class="section-body-item text-description">Ensure your resume is free of spelling and grammatical errors for a professional appearance.</p>
+            <div class="progress-track dark">
+                <div class="progress-fill dark" style="width:{spell_score}%"></div>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:0.9rem;" class="text-muted">
+                <span>Score</span><span>{spell_score}%</span>
+            </div>
+            {f'<p class="section-body-item text-description" style="margin-top:8px;font-size:0.9rem;">{spell_details}</p>' if spell_details else ''}
+            </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        # Strengths and gaps
+        def render_list_block(title: str, items: List[str], badge: str, section_id: str = None) -> None:
+            if section_id:
+                st.markdown(f'<div class="detail-card section-anchor" id="{section_id}">', unsafe_allow_html=True)
+            else:
+                st.markdown('<div class="detail-card">', unsafe_allow_html=True)
+            st.markdown(
+                f"""
+                <div class="detail-head">
+                    <h3>{title}</h3>
+                    <span class="badge {badge}">{len(items) or '0'} items</span>
+                </div>
+                <div class="section-body">
+                """,
+                unsafe_allow_html=True,
+            )
+            if items:
+                for idx, item in enumerate(items, 1):
+                    item_html = _markdown_inline_to_html(item)
+                    st.markdown(
+                        f'<p class="section-body-item text-primary"><strong>{idx}.</strong> {item_html}</p>',
+                        unsafe_allow_html=True,
+                    )
+            else:
+                st.markdown(
+                    '<p class="section-body-item text-muted">Nothing noted here yet.</p>',
+                    unsafe_allow_html=True,
+                )
+            st.markdown("</div></div>", unsafe_allow_html=True)
+
+        render_list_block("Strengths", analysis.get("strengths", []), "badge-ok")
+        render_list_block("Missing skills", analysis.get("missing_skills", []), "badge-warn", "missing-skills")
+        render_list_block("Missing keywords (ATS)", analysis.get("missing_keywords", []), "badge-warn", "missing-keywords")
+
+        # Suggestions (same section-body layout as other sections)
+        suggestions = analysis.get("suggestions", [])
+        st.markdown('<div class="detail-card section-anchor" id="suggestions">', unsafe_allow_html=True)
+        st.markdown(
+            f"""
+            <div class="detail-head">
+                <h3>Suggestions</h3>
+                <span class="badge badge-ok">{len(suggestions) or '0'} tips</span>
+            </div>
+            <div class="section-body">
+            """,
+            unsafe_allow_html=True,
+        )
+        if suggestions:
+            for idx, suggestion in enumerate(suggestions, 1):
+                suggestion_html = _markdown_inline_to_html(suggestion)
+                st.markdown(
+                    f'<p class="section-body-item text-primary"><strong>{idx}.</strong> {suggestion_html}</p>',
+                    unsafe_allow_html=True,
+                )
+        else:
+            st.markdown('<p class="section-body-item text-muted">No suggestions provided.</p>', unsafe_allow_html=True)
+        st.markdown("</div></div>", unsafe_allow_html=True)
+
+        # Download buttons in main content area for better visibility
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.markdown("### Download Reports", unsafe_allow_html=False)
+        col1, col2 = st.columns(2, gap="medium")
+        with col1:
+            st.download_button(
+                "📄 Download Markdown Report",
+                data=build_report_md(name, analysis),
+                file_name=f"{name}-analysis.md",
+                mime="text/markdown",
+                use_container_width=True,
+                key="download_md_main",
+            )
+        with col2:
+            st.download_button(
+                "💾 Download JSON Export",
+                data=json.dumps(analysis, indent=2),
+                file_name=f"{name}-analysis.json",
+                mime="application/json",
+                use_container_width=True,
+                key="download_json_main",
+            )
+        st.markdown("</div>", unsafe_allow_html=True)
+

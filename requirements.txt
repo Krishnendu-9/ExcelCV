@@ -1,0 +1,6 @@
+streamlit
+PyPDF2
+google-generativeai
+python-dotenv
+
+# py -m streamlit run app.py //to run the app

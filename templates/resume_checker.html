@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Resume Checker - Enhancv</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            overflow-x: hidden;
+            background: linear-gradient(135deg, #1a1a1a 0%, #2d3436 50%, #4a3556 100%);
+            min-height: 100vh;
+        }
+
+        .container {
+            display: flex;
+            min-height: 100vh;
+            position: relative;
+        }
+
+        .left-section {
+            flex: 1;
+            padding: 60px 80px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            max-width: 700px;
+        }
+
+        .logo {
+            color: #7c6bff;
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: 2px;
+            margin-bottom: 60px;
+            text-transform: uppercase;
+        }
+
+        h1 {
+            font-size: 72px;
+            color: #ffffff;
+            line-height: 1.1;
+            margin-bottom: 30px;
+            font-weight: 700;
+        }
+
+        .highlight {
+            color: #8fb89d;
+        }
+
+        .subtitle {
+            color: #a0a0a0;
+            font-size: 18px;
+            line-height: 1.6;
+            margin-bottom: 50px;
+        }
+
+        .subtitle span {
+            color: #7c6bff;
+        }
+
+        .upload-box {
+            background: rgba(255, 255, 255, 0.05);
+            border: 2px dashed rgba(255, 255, 255, 0.2);
+            border-radius: 16px;
+            padding: 60px 40px;
+            text-align: center;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .upload-box:hover {
+            border-color: rgba(124, 107, 255, 0.5);
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .upload-box.drag-over {
+            border-color: #7c6bff;
+            background: rgba(124, 107, 255, 0.1);
+        }
+
+        .upload-text {
+            color: #c0c0c0;
+            font-size: 16px;
+            margin-bottom: 10px;
+        }
+
+        .upload-subtext {
+            color: #808080;
+            font-size: 14px;
+            margin-bottom: 30px;
+        }
+
+        .upload-btn {
+            background: linear-gradient(135deg, #4ecca3 0%, #3ba682 100%);
+            color: white;
+            border: none;
+            padding: 16px 40px;
+            font-size: 16px;
+            font-weight: 600;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(78, 204, 163, 0.3);
+        }
+
+        .upload-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(78, 204, 163, 0.4);
+        }
+
+        .privacy {
+            color: #909090;
+            font-size: 13px;
+            margin-top: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .privacy::before {
+            content: "🔒";
+        }
+
+        .right-section {
+            flex: 1;
+            padding: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .preview-card {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            width: 100%;
+            max-width: 500px;
+            box-shadow: 0 30px 60px rgba(0, 0, 0, 0.3);
+        }
+
+        .preview-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 40px;
+        }
+
+        .preview-logo {
+            color: #4ecca3;
+            font-weight: 700;
+            font-size: 16px;
+        }
+
+        .score-section {
+            margin-bottom: 40px;
+        }
+
+        .score-title {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 20px;
+        }
+
+        .score-circle {
+            width: 120px;
+            height: 120px;
+            margin: 0 auto 15px;
+            position: relative;
+        }
+
+        .score-value {
+            font-size: 32px;
+            font-weight: 700;
+            color: #4ecca3;
+        }
+
+        .score-max {
+            font-size: 18px;
+            color: #999;
+        }
+
+        .score-issues {
+            color: #999;
+            font-size: 12px;
+            text-align: center;
+        }
+
+        .content-section {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 25px;
+        }
+
+        .content-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+
+        .content-title {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .content-badge {
+            background: #4ecca3;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .content-item {
+            display: flex;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .content-item:last-child {
+            border-bottom: none;
+        }
+
+        .check-icon {
+            color: #4ecca3;
+            margin-right: 12px;
+            font-size: 16px;
+        }
+
+        .alert-icon {
+            color: #ff6b6b;
+            margin-right: 12px;
+            font-size: 16px;
+        }
+
+        .content-item-text {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .category-list {
+            margin-top: 30px;
+        }
+
+        .category-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 0;
+        }
+
+        .category-name {
+            color: #666;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .category-badge {
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .badge-high {
+            background: #d4f4e7;
+            color: #4ecca3;
+        }
+
+        .badge-medium {
+            background: #fff3cd;
+            color: #ff9800;
+        }
+
+        .badge-low {
+            background: #ffe0e0;
+            color: #ff6b6b;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        @media (max-width: 1024px) {
+            .container {
+                flex-direction: column;
+            }
+
+            h1 {
+                font-size: 56px;
+            }
+
+            .left-section {
+                padding: 40px;
+            }
+
+            .right-section {
+                padding: 40px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 42px;
+            }
+
+            .left-section {
+                padding: 30px 20px;
+            }
+
+            .right-section {
+                padding: 30px 20px;
+            }
+
+            .preview-card {
+                padding: 25px;
+            }
+        }
+
+        /* Progress bar styles */
+        .progress-section {
+            margin-top: 25px;
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+        }
+
+        .progress-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .progress-title {
+            font-size: 13px;
+            color: #666;
+        }
+
+        .progress-bar-container {
+            background: #e0e0e0;
+            height: 8px;
+            border-radius: 10px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .progress-bar {
+            background: linear-gradient(90deg, #4ecca3 0%, #45b393 100%);
+            height: 100%;
+            width: 85%;
+            border-radius: 10px;
+            transition: width 0.3s ease;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="left-section">
+            <div class="logo">RESUME CHECKER</div>
+            
+            <h1>Is your resume <span class="highlight">good enough</span>?</h1>
+            
+            <p class="subtitle">
+                A free and fast AI resume checker doing <span>16 crucial checks</span> to ensure your resume is ready to perform and get you interview callbacks.
+            </p>
+
+            <div class="upload-box" id="uploadBox">
+                <p class="upload-text">Drop your resume here or choose a file.</p>
+                <p class="upload-subtext">PDF & DOCX only. Max 2MB file size.</p>
+                
+                <button class="upload-btn" onclick="document.getElementById('fileInput').click()">
+                    Upload Your Resume
+                </button>
+                
+                <input type="file" id="fileInput" accept=".pdf,.docx" onchange="handleFile(this)">
+                
+                <div class="privacy">Privacy guaranteed</div>
+            </div>
+        </div>
+
+        <div class="right-section">
+            <div class="preview-card">
+                <div class="preview-header">
+                    <div class="preview-logo">∞ Enhancv</div>
+                </div>
+
+                <div class="score-section">
+                    <div class="score-title">Resume Score</div>
+                    <svg class="score-circle" viewBox="0 0 120 120">
+                        <circle cx="60" cy="60" r="54" fill="none" stroke="#e0e0e0" stroke-width="8"/>
+                        <circle cx="60" cy="60" r="54" fill="none" stroke="#4ecca3" stroke-width="8" 
+                                stroke-dasharray="339.292" stroke-dashoffset="33.929" 
+                                stroke-linecap="round" transform="rotate(-90 60 60)"/>
+                        <text x="60" y="55" text-anchor="middle" class="score-value">92</text>
+                        <text x="60" y="75" text-anchor="middle" class="score-max">/100</text>
+                    </svg>
+                    <div class="score-issues">24 Issues</div>
+                </div>
+
+                <div class="content-section">
+                    <div class="content-header">
+                        <div class="content-title">
+                            <span style="color: #7c6bff;">●</span>
+                            CONTENT
+                        </div>
+                        <div class="content-badge">96%</div>
+                    </div>
+
+                    <div class="content-item">
+                        <span class="check-icon">✓</span>
+                        <span class="content-item-text">ATS Parse Rate</span>
+                    </div>
+                    <div class="content-item">
+                        <span class="check-icon">✓</span>
+                        <span class="content-item-text">Quantifying Impact</span>
+                    </div>
+                    <div class="content-item">
+                        <span class="alert-icon">⚠</span>
+                        <span class="content-item-text">Repetition</span>
+                    </div>
+                    <div class="content-item">
+                        <span class="alert-icon">⚠</span>
+                        <span class="content-item-text">Spelling & Grammar</span>
+                    </div>
+                    <div class="content-item">
+                        <span class="alert-icon">⚠</span>
+                        <span class="content-item-text">Summarize Resume</span>
+                    </div>
+                </div>
+
+                <div class="category-list">
+                    <div class="category-item">
+                        <span class="category-name">FORMAT & BREVITY</span>
+                        <span class="category-badge badge-high">94%</span>
+                    </div>
+                    <div class="category-item">
+                        <span class="category-name">STYLE</span>
+                        <span class="category-badge badge-low">68%</span>
+                    </div>
+                    <div class="category-item">
+                        <span class="category-name">SECTIONS</span>
+                        <span class="category-badge badge-low">68%</span>
+                    </div>
+                    <div class="category-item">
+                        <span class="category-name">SKILLS</span>
+                        <span class="category-badge badge-medium">89%</span>
+                    </div>
+                </div>
+
+                <div class="progress-section">
+                    <div class="progress-header">
+                        <span class="progress-title">ATS PARSE RATE</span>
+                    </div>
+                    <div class="progress-bar-container">
+                        <div class="progress-bar"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const uploadBox = document.getElementById('uploadBox');
+        const fileInput = document.getElementById('fileInput');
+
+        // Drag and drop functionality
+        uploadBox.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadBox.classList.add('drag-over');
+        });
+
+        uploadBox.addEventListener('dragleave', () => {
+            uploadBox.classList.remove('drag-over');
+        });
+
+        uploadBox.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadBox.classList.remove('drag-over');
+            
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFileUpload(files[0]);
+            }
+        });
+
+        function handleFile(input) {
+            if (input.files && input.files[0]) {
+                handleFileUpload(input.files[0]);
+            }
+        }
+
+        function handleFileUpload(file) {
+            const maxSize = 2 * 1024 * 1024; // 2MB
+            const allowedTypes = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+
+            if (file.size > maxSize) {
+                alert('File size exceeds 2MB. Please choose a smaller file.');
+                return;
+            }
+
+            if (!allowedTypes.includes(file.type)) {
+                alert('Please upload a PDF or DOCX file.');
+                return;
+            }
+
+            alert(`File "${file.name}" uploaded successfully! Analysis would begin here.`);
+        }
+    </script>
+</body>
+</html>

@@ -105,6 +105,115 @@ def render_theme_toggle(standalone: bool = True) -> None:
             st.rerun()
 
 
+def inject_file_uploader_spacing_css() -> None:
+    """
+    Inject custom CSS to position labels directly on top of their boxes
+    for both 'Job description' and 'Upload resume (PDF only)'.
+    """
+    st.markdown(
+        """
+        <style>
+        /* ── Position labels directly on top of boxes - Clean design ── */
+
+        /* Textarea labels - Job description - Position directly on top */
+        .stTextArea > label,
+        .stTextArea label,
+        [data-testid="stTextArea"] > label,
+        [data-testid="stTextArea"] label,
+        .stForm .stTextArea label,
+        .stForm .stTextArea > label,
+        form .stTextArea label,
+        form .stTextArea > label,
+        body.theme-light .stTextArea label,
+        body.theme-light .stTextArea > label,
+        body.theme-light [data-testid="stTextArea"] label,
+        body.theme-dark .stTextArea label,
+        body.theme-dark .stTextArea > label,
+        body.theme-dark [data-testid="stTextArea"] label {
+            margin-bottom: 4px !important;
+            margin-top: 0 !important;
+            padding-bottom: 6px !important;
+        }
+
+        /* File uploader labels - Upload resume - Position directly on top */
+        .stFileUploader > label,
+        .stFileUploader label,
+        [data-testid="stFileUploader"] > label,
+        [data-testid="stFileUploader"] label,
+        .stForm .stFileUploader label,
+        .stForm .stFileUploader > label,
+        form .stFileUploader label,
+        form .stFileUploader > label,
+        body.theme-light .stFileUploader label,
+        body.theme-light .stFileUploader > label,
+        body.theme-light [data-testid="stFileUploader"] label,
+        body.theme-dark .stFileUploader label,
+        body.theme-dark .stFileUploader > label,
+        body.theme-dark [data-testid="stFileUploader"] label {
+            margin-bottom: 4px !important;
+            margin-top: 0 !important;
+            padding-bottom: 6px !important;
+        }
+
+        /* Remove ALL gaps between label containers and input boxes */
+        .stTextArea > div:first-child,
+        .stTextArea > div:first-of-type,
+        .stTextArea > div {
+            margin-bottom: 0 !important;
+            padding-bottom: 0 !important;
+            margin-top: 0 !important;
+        }
+
+        .stFileUploader > div:first-of-type,
+        .stFileUploader > div,
+        [data-testid="stFileUploader"] > div,
+        [data-testid="stFileUploader"] > div:first-child {
+            margin-top: 0 !important;
+            padding-top: 0 !important;
+            margin-bottom: 0 !important;
+            padding-bottom: 0 !important;
+        }
+
+        /* Ensure textarea sits directly below label with no gap */
+        .stTextArea textarea {
+            margin-top: 0 !important;
+            padding-top: 12px !important;
+        }
+
+        /* Ensure dropzone sits directly below label with no gap */
+        [data-testid="stFileUploaderDropzone"],
+        section[data-testid="stFileUploadDropzone"],
+        .stFileUploader [data-testid="stFileUploaderDropzone"] {
+            margin-top: 0 !important;
+            padding-top: 0.75rem !important;
+            padding-bottom: 0.75rem !important;
+        }
+
+        /* Remove any wrapper gaps completely */
+        .stTextArea {
+            margin-bottom: 0 !important;
+            margin-top: 0 !important;
+        }
+
+        .stFileUploader {
+            margin-top: 0 !important;
+            margin-bottom: 0 !important;
+        }
+
+        /* Remove spacing from form containers */
+        .stForm .stTextArea,
+        .stForm .stFileUploader,
+        form .stTextArea,
+        form .stFileUploader {
+            margin-top: 0 !important;
+            margin-bottom: 0 !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def main() -> None:
     """Main application entry point."""
     st.set_page_config(
@@ -133,6 +242,10 @@ def main() -> None:
 
     # Inject CSS with current theme
     inject_base_css(st.session_state["theme"])
+
+    # Inject the file-uploader spacing fix
+    inject_file_uploader_spacing_css()
+
     # Reload on browser back/forward so URL and page stay in sync
     inject_back_button_sync()
 
@@ -229,7 +342,7 @@ def render_report_view() -> None:
     cv_text = st.session_state.get("cv_text")
     job_description = st.session_state.get("job_description")
     debug = st.session_state.get("debug", False)
-    
+
     # If mode changed and we have stored CV text and JD, re-analyze
     if current_mode != stored_mode and cv_text and job_description:
         new_analysis = _reanalyze_with_mode(cv_text, job_description, current_mode, debug)
@@ -242,14 +355,14 @@ def render_report_view() -> None:
             # If re-analysis failed, revert to stored mode
             st.session_state["mode"] = stored_mode
             st.error("⚠️ Re-analysis failed. Keeping previous results. Please try again.")
-    
+
     analysis_mode = st.session_state.get("analysis_mode", "General Review")
     mode_description = (
         "ATS-focused analysis emphasizing keyword matching and format compliance."
         if analysis_mode == "ATS Scan"
         else "Comprehensive review focusing on overall quality and content alignment."
     )
-    
+
     # Marker for CSS/JS: center theme + Upload buttons with PDF section
     st.markdown('<div id="report-pdf-row-marker" aria-hidden="true"></div>', unsafe_allow_html=True)
     col_header, col_actions = st.columns([1.6, 0.5])

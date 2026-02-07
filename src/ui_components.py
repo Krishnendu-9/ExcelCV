@@ -1,3 +1,10 @@
+"""
+UI Components Module
+
+This module contains all UI-related functions for the CV Reviewer application,
+including CSS injection, theme management, and report rendering.
+"""
+
 import json
 import re
 from typing import Any, Dict, List
@@ -6,6 +13,27 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 from src.reporting import build_report_md
+from src.ui_constants import (
+    LIGHT_BG_PRIMARY,
+    LIGHT_TEXT_PRIMARY,
+    DARK_BG_PRIMARY,
+    DARK_TEXT_PRIMARY,
+    get_theme_colors,
+)
+from src.css_generators import (
+    generate_theme_base_css,
+    generate_css_variables,
+    generate_textarea_css,
+    generate_dropzone_css,
+    generate_label_css,
+    generate_theme_button_css,
+    generate_button_hover_css,
+)
+from src.js_generators import (
+    generate_theme_force_js,
+    generate_hover_effects_js,
+    generate_scroll_to_section_js,
+)
 
 
 def _markdown_inline_to_html(text: str) -> str:
@@ -39,89 +67,32 @@ def inject_back_button_sync() -> None:
 
 
 def inject_base_css(theme: str = "light") -> None:
-    """Inject custom CSS for the refreshed dual-page experience with manual theme support."""
-    # Simple theme colors - WHITE for light, BLACK for dark
+    """
+    Inject custom CSS for the refreshed dual-page experience with manual theme support.
+    
+    Args:
+        theme: Theme mode ("light" or "dark")
+    """
     is_light = theme == "light"
-    bg_color = "#ffffff" if is_light else "#0b0f17"  # Pure white for light, dark for dark
-    text_color = "#111827" if is_light else "#e5e7eb"  # Dark text for light, light text for dark
+    # Use constants for theme colors
+    bg_color = LIGHT_BG_PRIMARY if is_light else DARK_BG_PRIMARY
+    text_color = LIGHT_TEXT_PRIMARY if is_light else DARK_TEXT_PRIMARY
+    
+    # Generate CSS using helper functions
+    theme_base_css = generate_theme_base_css(is_light, bg_color, text_color)
+    css_variables = generate_css_variables(is_light, bg_color, text_color)
+    textarea_css = generate_textarea_css()
+    dropzone_css = generate_dropzone_css(is_light)
+    label_css = generate_label_css()
+    theme_button_css = generate_theme_button_css()
+    button_hover_css = generate_button_hover_css()
     
     st.markdown(
         f"""
         <style>
-            /* FORCE THEME - APPLY TO EVERYTHING IMMEDIATELY */
-            /* Default: Apply theme color to everything */
-            html,
-            body,
-            body > div,
-            .stApp,
-            .stApp > div,
-            [data-testid="stAppViewContainer"],
-            [data-testid="stAppViewContainer"] > div,
-            [data-testid="stAppViewContainer"] > div > div {{
-                background-color: {bg_color} !important;
-                background: {bg_color} !important;
-                color: {text_color} !important;
-            }}
+            {theme_base_css}
             
-            /* Make sure main containers are transparent to show background */
-            .main,
-            .block-container {{
-                background-color: transparent !important;
-                background: transparent !important;
-            }}
-            
-            /* Additional overrides for light mode */
-            body.theme-light,
-            body.theme-light .stApp,
-            .stApp.theme-light,
-            body.theme-light [data-testid="stAppViewContainer"],
-            body.theme-light [data-testid="stAppViewContainer"] > div,
-            body.theme-light .stApp > div {{
-                background-color: #ffffff !important;
-                background: #ffffff !important;
-                color: #111827 !important;
-            }}
-            
-            /* Dark Mode - FORCE DARK BACKGROUND */
-            body.theme-dark,
-            body.theme-dark .stApp,
-            .stApp.theme-dark,
-            body.theme-dark [data-testid="stAppViewContainer"],
-            body.theme-dark [data-testid="stAppViewContainer"] > div,
-            body.theme-dark .stApp > div {{
-                background-color: #0b0f17 !important;
-                background: #0b0f17 !important;
-                color: #e5e7eb !important;
-            }}
-            
-            /* CSS Variables for components (theme set server-side; buttons use variables for visibility) */
-            :root {{
-                --bg-primary: {bg_color};
-                --text-primary: {text_color};
-                --bg-secondary: {'#f9fafb' if is_light else '#111827'};
-                --bg-card: {'#ffffff' if is_light else '#1f2937'};
-                --bg-sidebar: {'#f3f4f6' if is_light else '#0f172a'};
-                --bg-hero: {'rgba(249, 250, 251, 0.95)' if is_light else 'rgba(15, 23, 42, 0.92)'};
-                --text-secondary: {'#6b7280' if is_light else '#cbd5e1'};
-                --text-muted: #9ca3af;
-                --border-color: {'rgba(0, 0, 0, 0.1)' if is_light else 'rgba(255, 255, 255, 0.1)'};
-                --border-light: {'rgba(0, 0, 0, 0.05)' if is_light else 'rgba(255, 255, 255, 0.06)'};
-                --shadow: {'rgba(0, 0, 0, 0.1)' if is_light else 'rgba(0, 0, 0, 0.3)'};
-                --shadow-lg: {'rgba(0, 0, 0, 0.15)' if is_light else 'rgba(0, 0, 0, 0.45)'};
-                --accent: #10b981;
-                --accent-2: #7c6bff;
-                --warm-hover-bg: #faf6db;
-                --warm-hover-border: #f5e6a8;
-                --warm-hover-glow: 0 0 20px rgba(250, 246, 219, 0.6), 0 0 40px rgba(250, 246, 219, 0.4);
-                --button-bg: {'#ffffff' if is_light else '#1f2937'};
-                --button-text: {'#111827' if is_light else '#e5e7eb'};
-                --button-border: {'rgba(0, 0, 0, 0.15)' if is_light else 'rgba(255, 255, 255, 0.1)'};
-                --button-hover-bg: {'#e5e7eb' if is_light else '#374151'};
-                --button-hover-border: {'rgba(0, 0, 0, 0.2)' if is_light else 'rgba(255, 255, 255, 0.2)'};
-                --button-shadow: {'0 1px 3px rgba(0, 0, 0, 0.1)' if is_light else 'none'};
-                --button-hover-shadow: {'0 2px 8px rgba(0, 0, 0, 0.15)' if is_light else '0 2px 8px rgba(0, 0, 0, 0.4)'};
-                --placeholder-color: {'#6b7280' if is_light else '#9ca3af'};
-            }}
+            {css_variables}
             
             /* Placeholder visibility: explicit color so visible in light theme (no body class needed) */
             .stTextArea textarea::placeholder {{
@@ -137,21 +108,18 @@ def inject_base_css(theme: str = "light") -> None:
                 opacity: 1 !important;
             }}
             
-            /* File uploader dropzone text (Drag and drop / Limit) - visible in both themes */
-            .stFileUploader [data-testid="stFileUploaderDropzone"],
-            .stFileUploader [data-testid="stFileUploaderDropzone"] *,
-            .stFileUploader [data-testid="stFileUploaderDropzone"] p,
-            .stFileUploader [data-testid="stFileUploaderDropzone"] span,
-            .stFileUploader [data-testid="stFileUploaderDropzone"] small {{
-                color: var(--text-primary) !important;
-            }}
-            /* Explicitly remove any default box-shadow from dropzone - NO GLOW by default */
-            .stFileUploader [data-testid="stFileUploaderDropzone"],
-            [data-testid="stFileUploaderDropzone"] {{
-                box-shadow: none !important;
-            }}
-            /* Force dropzone text visible in light theme (Streamlit may override with light gray) */
-            {'.stFileUploader [data-testid="stFileUploaderDropzone"], .stFileUploader [data-testid="stFileUploaderDropzone"] * {{ color: #374151 !important; }}' if is_light else ''}
+            /* Textarea and Dropzone Styling */
+            {textarea_css}
+            {dropzone_css}
+            
+            /* Label Styling */
+            {label_css}
+            
+            /* Theme Button Styling */
+            {theme_button_css}
+            
+            /* Button Hover Effects */
+            {button_hover_css}
             
             /* BUTTONS: variable-based so visible in light/dark without body class */
             .stButton > button,
@@ -312,53 +280,6 @@ def inject_base_css(theme: str = "light") -> None:
                 background: var(--button-hover-bg) !important;
                 color: var(--button-text) !important;
                 border-color: var(--button-hover-border) !important;
-            }}
-            
-            /* Theme toggle button */
-            .theme-toggle {{
-                background: var(--bg-card);
-                border: 1px solid var(--border-color);
-                border-radius: 8px;
-                padding: 6px 12px;
-                cursor: pointer;
-                display: inline-flex;
-                align-items: center;
-                gap: 6px;
-                font-size: 0.85rem;
-                color: var(--text-primary);
-                transition: all 0.2s ease;
-            }}
-            .theme-toggle:hover,
-            button[key="theme_toggle"]:hover,
-            [data-testid="stAppViewContainer"] button[key="theme_toggle"]:hover,
-            .stButton button[key="theme_toggle"]:hover,
-            button[data-baseweb="button"][key="theme_toggle"]:hover,
-            [data-testid="baseButton-secondary"][key="theme_toggle"]:hover,
-            button:has([data-testid="baseButton-secondary"])[key="theme_toggle"]:hover,
-            body button[key="theme_toggle"]:hover,
-            html body button[key="theme_toggle"]:hover {{
-                box-shadow: 0 0 20px rgba(250, 246, 219, 0.6), 0 0 40px rgba(250, 246, 219, 0.4) !important;
-                border-color: #f5e6a8 !important;
-                background-color: var(--button-bg) !important;
-                background: var(--button-bg) !important;
-                background-image: none !important;
-            }}
-            .theme-toggle:hover *,
-            button[key="theme_toggle"]:hover *,
-            [data-testid="stAppViewContainer"] button[key="theme_toggle"]:hover * {{
-                background-color: transparent !important;
-                background: transparent !important;
-                background-image: none !important;
-            }}
-            .theme-toggle:hover div,
-            .theme-toggle:hover span,
-            .theme-toggle:hover p,
-            button[key="theme_toggle"]:hover div,
-            button[key="theme_toggle"]:hover span,
-            button[key="theme_toggle"]:hover p {{
-                background-color: transparent !important;
-                background: transparent !important;
-                background-image: none !important;
             }}
             
             /* Hide Streamlit's deploy button */
@@ -732,24 +653,6 @@ def inject_base_css(theme: str = "light") -> None:
                 color: var(--text-primary) !important;
             }}
             
-            /* Fix file uploader drag and drop area - Match textarea styling EXACTLY */
-            .stFileUploader [data-testid="stFileUploaderDropzone"] {{
-                background: var(--bg-card) !important;
-                border: 1px solid var(--border-color) !important;
-                border-radius: 12px !important;
-                color: var(--text-primary) !important;
-                padding: 12px 16px !important;
-                font-size: 0.95rem !important;
-                transition: all 0.2s ease !important;
-                box-shadow: none !important;
-            }}
-            .stFileUploader [data-testid="stFileUploaderDropzone"]:hover {{
-                box-shadow: 0 0 20px rgba(250, 246, 219, 0.6), 0 0 40px rgba(250, 246, 219, 0.4) !important;
-                border-color: #f5e6a8 !important;
-                background: var(--bg-card) !important;
-                background-color: var(--bg-card) !important;
-            }}
-            
             /* (Browse Files uses variable-based button rules above) */
             
             /* Style form elements */
@@ -1023,6 +926,43 @@ def inject_base_css(theme: str = "light") -> None:
                 color: var(--text-primary);
                 font-weight: 700;
                 letter-spacing: 0.03em;
+                cursor: pointer;
+                user-select: none;
+                transition: color 0.2s ease;
+                padding: 4px 0;
+            }}
+            .category-head:hover {{
+                color: var(--accent);
+            }}
+            .category-head .category-title {{
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                flex: 1;
+            }}
+            .category-chevron {{
+                display: inline-block;
+                transition: transform 0.3s ease;
+                font-size: 0.85rem;
+                color: var(--text-muted);
+                margin-left: 4px;
+            }}
+            .category-head.expanded .category-chevron {{
+                transform: rotate(180deg);
+            }}
+            .category-items {{
+                overflow: hidden;
+                transition: max-height 0.3s ease, opacity 0.2s ease;
+            }}
+            .category-items.collapsed {{
+                max-height: 0;
+                opacity: 0;
+                margin: 0;
+                padding: 0;
+            }}
+            .category-items.expanded {{
+                max-height: 1000px;
+                opacity: 1;
             }}
             .category-score {{
                 padding: 6px 10px;
@@ -1274,21 +1214,7 @@ def inject_base_css(theme: str = "light") -> None:
                 z-index: 1;
             }}
         </style>
-        <script>
-            function scrollToSection(sectionId) {{
-                const element = document.getElementById(sectionId);
-                if (element) {{
-                    element.scrollIntoView({{ behavior: 'smooth', block: 'start' }});
-                    // Highlight the section briefly
-                    element.style.transition = 'background-color 0.3s ease';
-                    const originalBg = element.style.backgroundColor;
-                    element.style.backgroundColor = 'rgba(16,185,129,0.15)';
-                    setTimeout(() => {{
-                        element.style.backgroundColor = originalBg;
-                    }}, 1000);
-                }}
-            }}
-        </script>
+        <!-- Sidebar interactions handled by components.html in render_report_page -->
         <script>
             // SIMPLE THEME APPLICATION - WHITE FOR LIGHT, BLACK FOR DARK
             (function() {{
@@ -1505,7 +1431,7 @@ def inject_base_css(theme: str = "light") -> None:
                             
                             themeBtnSelectors.forEach(selector => {{
                                 document.querySelectorAll(selector).forEach(themeBtn => {{
-                                    if (themeBtn) {{
+                        if (themeBtn) {{
                                         const btnBg = bgColor === '#ffffff' ? '#ffffff' : '#1f2937';
                                         const btnText = bgColor === '#ffffff' ? '#111827' : '#e5e7eb';
                                         const btnBorder = bgColor === '#ffffff' ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)';
@@ -1524,10 +1450,10 @@ def inject_base_css(theme: str = "light") -> None:
                                             themeBtn.style.setProperty('background', btnBg, 'important');
                                             themeBtn.style.setProperty('color', btnText, 'important');
                                             themeBtn.style.setProperty('border-color', btnBorder, 'important');
-                                            
-                                            // Fix any nested divs
+                            
+                            // Fix any nested divs
                                             const btnDivs = themeBtn.querySelectorAll('div, span, p');
-                                            btnDivs.forEach(div => {{
+                            btnDivs.forEach(div => {{
                                                 div.style.setProperty('background-color', 'transparent', 'important');
                                                 div.style.setProperty('background', 'transparent', 'important');
                                                 div.style.setProperty('background-image', 'none', 'important');
@@ -1812,8 +1738,12 @@ def inject_base_css(theme: str = "light") -> None:
     )
 
 
-def get_score_color_class(score: int) -> str:
+def get_score_color_class(score) -> str:
     """Get CSS class for score color."""
+    try:
+        score = int(score)
+    except (TypeError, ValueError):
+        return "score-low"
     if score >= 80:
         return "score-good"
     if score >= 60:
@@ -1880,6 +1810,170 @@ def render_upload_preview_card() -> None:
     )
 
 
+def _build_sidebar_html(score: int, issues: int, categories: list) -> str:
+    """Build the entire sidebar as one complete HTML string."""
+    issues_cls = 'clickable' if issues > 0 else ''
+    issues_attr = 'data-section-id="suggestions"' if issues > 0 else ''
+
+    html = f"""
+    <div class="report-sidebar">
+        <div class="score-card">
+            <div class="score-title text-muted" style="font-size:0.95rem;">Your Score</div>
+            <div class="score-number">{score}<span>/100</span></div>
+            <div class="issues-text {issues_cls}" {issues_attr}>{issues} issues</div>
+        </div>"""
+
+    for title, cat_score, items in categories:
+        safe_score = int(cat_score) if cat_score is not None else 0
+        badge_cls = get_score_color_class(safe_score)
+        category_id = title.lower().replace(" ", "-")
+        has_items = len(items) > 0
+        cursor = 'cursor:pointer;' if has_items else ''
+        chevron = '<span class="category-chevron">&#9660;</span>' if has_items else ''
+
+        html += f"""
+        <div class="category">
+            <div class="category-head" id="cat-head-{category_id}" style="{cursor}">
+                <span class="category-title">
+                    <span>{title}</span>
+                    {chevron}
+                </span>
+                <span class="category-score {badge_cls}">{safe_score}%</span>
+            </div>"""
+
+        if has_items:
+            html += f'<div class="category-items collapsed" id="cat-items-{category_id}">'
+            for item in items:
+                item_label, status = item[0], item[1]
+                score_val = item[2] if len(item) > 2 else None
+                badge_class = {"ok": "badge badge-ok", "warn": "badge badge-warn",
+                               "error": "badge badge-warn", "lock": "badge badge-lock"
+                               }.get(status, "badge badge-warn")
+
+                if status in ("warn", "error"):
+                    if score_val is not None and isinstance(score_val, (int, float)) and score_val <= 100:
+                        badge_text = f"{int(score_val)}%"
+                    elif score_val is not None:
+                        badge_text = f"{score_val} {'issue' if score_val == 1 else 'issues'}"
+                    else:
+                        badge_text = "Review"
+                else:
+                    badge_text = {"ok": "No issues", "lock": "Locked"}.get(status, "Review")
+
+                section_id = item_label.lower().replace(" & ", "-").replace(" ", "-").replace("--", "-").strip("-")
+                icon_cls = "icon-ok" if status == "ok" else "icon-warn"
+                icon = "&#10003;" if status == "ok" else "&#10005;"
+                clickable = "clickable" if status != "lock" else ""
+                data = f'data-section-id="{section_id}"' if status != "lock" else ""
+
+                html += f"""
+                <div class="subitem {clickable}" {data}>
+                    <span class="subitem-label-wrap">
+                        <span class="subitem-icon {icon_cls}">{icon}</span>
+                        <span>{item_label}</span>
+                    </span>
+                    <span class="{badge_class}">{badge_text}</span>
+                </div>"""
+            html += '</div>'  # close category-items
+
+        html += '</div>'  # close category
+
+    html += '</div>'  # close report-sidebar
+    return html
+
+
+def _build_sidebar_js() -> str:
+    """Build JavaScript for sidebar interactions. Runs in components.html iframe."""
+    return """
+    <script>
+    (function() {
+        var doc = window.parent.document;
+
+        // Toggle expand/collapse for a category
+        function toggleCategory(categoryId) {
+            var head = doc.getElementById('cat-head-' + categoryId);
+            var items = doc.getElementById('cat-items-' + categoryId);
+            if (!head || !items) return;
+
+            if (head.classList.contains('expanded')) {
+                head.classList.remove('expanded');
+                items.classList.remove('expanded');
+                items.classList.add('collapsed');
+            } else {
+                head.classList.add('expanded');
+                items.classList.remove('collapsed');
+                items.classList.add('expanded');
+            }
+        }
+
+        // Scroll to a section in the main column
+        function scrollToSection(sectionId) {
+            var el = doc.getElementById(sectionId);
+            if (!el) return;
+            el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            el.style.transition = 'background-color 0.3s ease';
+            var origBg = el.style.backgroundColor;
+            el.style.backgroundColor = 'rgba(16,185,129,0.15)';
+            setTimeout(function() { el.style.backgroundColor = origBg; }, 1200);
+        }
+
+        // Event delegation on parent document
+        function handleClick(e) {
+            // Category header click -> toggle
+            var head = e.target.closest ? e.target.closest('[id^="cat-head-"]') : null;
+            if (head) {
+                var catId = head.id.replace('cat-head-', '');
+                toggleCategory(catId);
+                e.stopPropagation();
+                return;
+            }
+            // Sub-item click -> scroll
+            var subitem = e.target.closest ? e.target.closest('.subitem.clickable') : null;
+            if (subitem && subitem.getAttribute('data-section-id')) {
+                scrollToSection(subitem.getAttribute('data-section-id'));
+                e.stopPropagation();
+                return;
+            }
+            // Issues text click -> scroll
+            var issueEl = e.target.closest ? e.target.closest('.issues-text.clickable') : null;
+            if (issueEl && issueEl.getAttribute('data-section-id')) {
+                scrollToSection(issueEl.getAttribute('data-section-id'));
+                e.stopPropagation();
+                return;
+            }
+        }
+
+        // Remove previous listener if any
+        if (window.parent.__sidebarClickHandler) {
+            doc.removeEventListener('click', window.parent.__sidebarClickHandler, true);
+        }
+        window.parent.__sidebarClickHandler = handleClick;
+        doc.addEventListener('click', handleClick, true);
+
+        // Auto-expand Content on load
+        function initContent() {
+            var head = doc.getElementById('cat-head-content');
+            var items = doc.getElementById('cat-items-content');
+            if (head && items && !head.classList.contains('expanded')) {
+                head.classList.add('expanded');
+                items.classList.remove('collapsed');
+                items.classList.add('expanded');
+            }
+        }
+        // Retry until elements exist
+        var attempts = 0;
+        var initTimer = setInterval(function() {
+            initContent();
+            attempts++;
+            if (attempts > 20 || doc.getElementById('cat-head-content')) {
+                clearInterval(initTimer);
+            }
+        }, 200);
+    })();
+    </script>
+    """
+
+
 def render_report_page(analysis: Dict[str, Any], name: str = "CV") -> None:
     """Render the two-column report view inspired by the HTML mock."""
     score = analysis.get("match_score", 0)
@@ -1912,92 +2006,67 @@ def render_report_page(analysis: Dict[str, Any], name: str = "CV") -> None:
     
     # Extract other category metrics
     sections_metrics = analysis.get("sections_metrics", {}) or {}
-    sections_score = sections_metrics.get("score", subs.get("experience_alignment", score))
+    sections_score = sections_metrics.get("score", subs.get("experience_alignment", score)) or 0
+    sections_details = sections_metrics.get("details", {}) or {}
+    
+    # Build Sections category items
+    sections_items_list = []
+    missing_sections = sections_details.get("missing_sections", [])
+    if missing_sections:
+        sections_items_list.append(("Essential Sections", "error", len(missing_sections)))
+    if not sections_details.get("has_contact", True):
+        sections_items_list.append(("Contact Information", "error", 1))
     
     ats_essentials_metrics = analysis.get("ats_essentials_metrics", {}) or {}
-    ats_essentials_score = ats_essentials_metrics.get("score", subs.get("ats_readiness", score))
+    ats_essentials_score = ats_essentials_metrics.get("score", subs.get("ats_readiness", score)) or 0
+    ats_essentials_details = ats_essentials_metrics.get("details", {}) or {}
+    
+    # Build ATS Essentials category items
+    ats_items_list = []
+    ats_issues = ats_essentials_details.get("issues", [])
+    if ats_essentials_details.get("standard_formatting", True):
+        ats_items_list.append(("File Format & Size", "ok", None))
+    else:
+        ats_items_list.append(("File Format & Size", "warn", 1))
+    if ats_issues:
+        ats_items_list.append(("Design", "warn" if len(ats_issues) > 0 else "ok", len(ats_issues)))
+    if ats_essentials_details.get("section_headers_present", False):
+        ats_items_list.append(("Email Address", "ok", None))
+        ats_items_list.append(("Hyperlink in Header", "ok", None))
     
     tailoring_metrics = analysis.get("tailoring_metrics", {}) or {}
-    tailoring_score = tailoring_metrics.get("score", subs.get("skills_alignment", score))
+    tailoring_score = tailoring_metrics.get("score", subs.get("skills_alignment", score)) or 0
+    tailoring_details = tailoring_metrics.get("details", {}) or {}
+    
+    # Build Tailoring category items (if score is available)
+    tailoring_items_list = []
+    if tailoring_score is not None and tailoring_score >= 0:
+        keyword_match = tailoring_details.get("keyword_match_rate", 0)
+        skill_match = tailoring_details.get("skill_match_rate", 0)
+        if keyword_match < 70:
+            tailoring_items_list.append(("Keyword Matching", "warn", keyword_match))
+        if skill_match < 70:
+            tailoring_items_list.append(("Skill Alignment", "warn", skill_match))
 
     categories = [
         ("Content", content_score, content_items_list),
-        ("Sections", sections_score, []),
-        ("ATS Essentials", ats_essentials_score, []),
-        ("Tailoring", tailoring_score, []),
+        ("Sections", sections_score, sections_items_list),
+        ("ATS Essentials", ats_essentials_score, ats_items_list),
+        ("Tailoring", tailoring_score, tailoring_items_list),
     ]
 
     # No report-shell wrapper (it was rendering as a bar); columns put Your Score and ATS Parse Rate side by side
     sidebar, main = st.columns([1, 1.6], gap="large")
 
     with sidebar:
-        # report-sidebar wrapper starts with score-card to avoid empty bar above Your Score
-        onclick_attr = 'onclick="scrollToSection(\"suggestions\")"' if issues > 0 else ''
-        clickable_class = 'clickable' if issues > 0 else ''
-        st.markdown(
-            f"""
-            <div class="report-sidebar">
-            <div class="score-card">
-                <div class="score-title text-muted" style="font-size:0.95rem;">Your Score</div>
-                <div class="score-number">{score}<span>/100</span></div>
-                <div class="issues-text {clickable_class}" {onclick_attr}>{issues} issues</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+        # Build the ENTIRE sidebar as ONE HTML string
+        sidebar_html = _build_sidebar_html(score, issues, categories)
+        st.markdown(sidebar_html, unsafe_allow_html=True)
 
-        for title, cat_score, items in categories:
-            badge_cls = get_score_color_class(cat_score)
-            st.markdown('<div class="category">', unsafe_allow_html=True)
-            st.markdown(
-                f"""
-                <div class="category-head">
-                    <span>{title}</span>
-                    <span class="category-score {badge_cls}">{cat_score}%</span>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-            for item in items:
-                item_label = item[0]
-                status = item[1]
-                score_val = item[2] if len(item) > 2 else None
-                badge = {
-                    "ok": "badge badge-ok",
-                    "warn": "badge badge-warn",
-                    "error": "badge badge-warn",  # Error status uses warn styling
-                    "lock": "badge badge-lock",
-                }.get(status, "badge badge-warn")  # Default to warn if status is unknown
-                # Show number (e.g. 65%) instead of "Review" when status is warn/error
-                if status in ["warn", "error"] and score_val is not None:
-                    badge_text = f"{score_val}%"
-                else:
-                    badge_text = {"ok": "No issues", "lock": "Locked"}.get(status, "Review")
-                # Section ID for scroll (must match detail-card id in main column)
-                section_id = item_label.lower().replace(" & ", "-").replace(" ", "-").replace("--", "-").strip("-")
-                # Icon: checkmark for ok, X for warn/error (reference website style)
-                icon_class = "icon-ok" if status == "ok" else "icon-warn"
-                icon_char = "✓" if status == "ok" else "✕"
-                # All subitems under Content (and any with a section) are clickable to scroll to that section
-                is_clickable = status != "lock"
-                clickable_class = "clickable" if is_clickable else ""
-                onclick_handler = f'onclick="scrollToSection(\"{section_id}\")"' if is_clickable else ""
-                st.markdown(
-                    f"""
-                    <div class="subitem {clickable_class}" {onclick_handler}>
-                        <span class="subitem-label-wrap">
-                            <span class="subitem-icon {icon_class}" aria-hidden="true">{icon_char}</span>
-                            <span>{item_label}</span>
-                        </span>
-                        <span class="{badge}">{badge_text}</span>
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
-            st.markdown("</div>", unsafe_allow_html=True)
+        # Inject JavaScript via components.html (guaranteed execution)
+        components.html(_build_sidebar_js(), height=0)
 
-        # Download buttons - placed outside HTML divs to ensure proper rendering
-        st.markdown("<br>", unsafe_allow_html=True)
+        # Download buttons
         st.download_button(
             "📄 Download report (Markdown)",
             data=build_report_md(name, analysis),
@@ -2014,7 +2083,6 @@ def render_report_page(analysis: Dict[str, Any], name: str = "CV") -> None:
             use_container_width=True,
             key="download_json_sidebar",
         )
-        st.markdown("</div>", unsafe_allow_html=True)
 
     with main:
         # Full ATS card in one markdown with report-main wrapper to avoid empty bar above ATS Parse Rate

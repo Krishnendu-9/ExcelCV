@@ -1,12 +1,35 @@
+"""
+Gemini Client Module
+
+This module handles communication with Google Gemini AI for CV analysis.
+It orchestrates AI analysis and blends it with programmatic scoring calculations.
+"""
+
 import json
 import re
-from collections import Counter
 from typing import Any, Dict, List, Optional
 
 import google.generativeai as genai
 import streamlit as st
 
 from src.config import get_api_key, preferred_models
+from src.scoring import (
+    blend_scores,
+    calculate_ats_essentials,
+    calculate_ats_parse_rate,
+    calculate_quantifying_impact,
+    calculate_repetition,
+    calculate_sections,
+    calculate_spelling_grammar,
+    calculate_tailoring,
+    get_metric_status,
+    normalize_score,
+)
+from src.scoring_constants import (
+    QUANTIFYING_IMPACT_THRESHOLDS,
+    REPETITION_THRESHOLDS,
+    SPELLING_GRAMMAR_THRESHOLDS,
+)
 
 
 def _is_quota_error(exc: Exception) -> bool:
@@ -297,358 +320,77 @@ CV:
 
     # Normalize and ensure keys exist
     def _as_list(val: Any) -> List[str]:
+        """Convert value to list of strings, filtering empty items."""
         if isinstance(val, list):
             return [str(item) for item in val if str(item).strip()]
         if isinstance(val, str) and val.strip():
             return [val.strip()]
         return []
 
-    score = parsed.get("match_score", 0)
-    try:
-        score = int(float(score))
-    except Exception:
-        score = 0
-    score = max(0, min(100, score))
-
+    # Normalize match score
+    score = normalize_score(parsed.get("match_score", 0))
     subscores = parsed.get("subscores", {}) or {}
 
-    def _score(val: Any) -> int:
-        try:
-            v = int(float(val))
-        except Exception:
-            v = 0
-        return max(0, min(100, v))
-
-    def _get_metric_status(score_val: int, ok_min: int = 80, warn_min: int = 60) -> str:
-        """Convert score to status: ok, warn, or error. Use metric-specific thresholds."""
-        if score_val >= ok_min:
-            return "ok"
-        elif score_val >= warn_min:
-            return "warn"
-        else:
-            return "error"
-
-    def _calculate_quantifying_impact(cv_text: str) -> tuple:
-        """Score 0-100 based on presence of numbers, %, $, and measurable results in CV text.
-        Returns (score, details_string)."""
-        import re as _re
-        text = (cv_text or "").strip()
-        if not text:
-            return 0, "No content to analyze."
-        lines = [ln.strip() for ln in _re.split(r"[\n•·\-]\s*", text) if ln.strip() and len(ln.strip()) > 10]
-        total = max(1, len(lines))
-        quantified = 0
-        for line in lines:
-            # Numbers (digits), percentages (e.g. 25%, 25 %), currency ($, USD), or quantity words
-            if _re.search(r"\d", line):
-                quantified += 1
-            elif _re.search(r"%|percent|\\$|usd|eur|k\b|million|billion|\d+x|\d+\s*%", line, _re.I):
-                quantified += 1
-            elif _re.search(
-                r"increas(e|ed|ing)|decreas(e|ed|ing)|reduc(e|ed|ing)|improv(e|ed|ing)|sav(e|ed|ing)|by\s+\d+",
-                line,
-                _re.I,
-            ):
-                quantified += 1
-        pct = (quantified / total) * 100
-        score = min(100, int(40 + pct * 0.6))  # 40–100 range so some bullets give 70+
-        details = (
-            f"{quantified} of {total} bullet points or lines contain numbers or measurable results."
-            if total else "No bullet points found."
-        )
-        return score, details
-
-    def _calculate_repetition(cv_text: str) -> tuple:
-        """Score 0-100: higher = less repetition. Based on word frequency (lower repeat ratio = better).
-        Returns (score, details_string)."""
-        import re as _re
-        text = (cv_text or "").strip().lower()
-        if not text:
-            return 0, "No content to analyze."
-        words = _re.findall(r"[a-z0-9]+", text)
-        total = len(words)
-        if total < 5:
-            return 80, "Too little text to assess repetition."
-        counts = Counter(words)
-        # Penalize: words repeated many times (e.g. same word 5+ times)
-        repeat_penalty = sum((c - 2) for w, c in counts.most_common(20) if c > 2)
-        # Unique ratio: more unique words = better
-        unique_ratio = len(counts) / total
-        # Score: base from unique ratio, minus penalty for heavy repetition
-        raw = min(100, int(50 + unique_ratio * 50 - min(40, repeat_penalty)))
-        score = max(0, raw)
-        top_repeated = [w for w, _ in counts.most_common(5) if counts[w] > 2]
-        details = (
-            f"Unique words: {len(counts)} of {total}. "
-            + (f"Consider varying: {', '.join(top_repeated[:3])}." if top_repeated else "Good variety.")
-        )
-        return score, details
-
-    def _calculate_spelling_grammar(cv_text: str) -> tuple:
-        """Heuristic score 0-100 for formatting/consistency (no spell-check lib). Penalize double spaces, etc.
-        Returns (score, details_string)."""
-        import re as _re
-        text = (cv_text or "").strip()
-        if not text:
-            return 0, "No content to analyze."
-        score = 100
-        issues = []
-        if _re.search(r"  +", text):
-            double = len(_re.findall(r"  +", text))
-            deduction = min(15, double * 2)
-            score -= deduction
-            issues.append("multiple consecutive spaces")
-        if _re.search(r"\s+([.,;:])\s*[a-z]", text):
-            # possible missing space after punctuation
-            issues.append("spacing after punctuation")
-            score -= min(10, len(_re.findall(r"\s+([.,;:])\s*[a-z]", text)) * 2)
-        # All-caps words (likely acronyms are ok; long all-caps might be shouting)
-        long_caps = _re.findall(r"\b[A-Z]{4,}\b", text)
-        if len(long_caps) > 3:
-            score -= min(10, len(long_caps))
-            issues.append("excessive all-caps")
-        score = max(0, min(100, score))
-        details = "No major formatting issues found." if score >= 85 else (
-            "Consider fixing: " + "; ".join(issues) + "." if issues else "Review formatting and punctuation."
-        )
-        return score, details
-
-    def _calculate_sections(cv_text: str) -> tuple:
-        """Score 0-100 based on presence of standard resume sections. Returns (score, details_dict)."""
-        text = (cv_text or "").strip().lower()
-        if not text:
-            return 0, {"missing_sections": ["Contact", "Experience", "Education", "Skills", "Summary/Objective"]}
-        section_keywords = {
-            "contact": ["contact", "email", "phone", "mobile", "address", "@", "linkedin"],
-            "experience": ["experience", "work history", "employment", "professional experience", "career"],
-            "education": ["education", "academic", "degree", "university", "college", "bachelor", "master", "phd"],
-            "skills": ["skills", "technical skills", "competencies", "expertise"],
-            "summary": ["summary", "objective", "profile", "about me", "professional summary"],
-        }
-        found = {}
-        missing = []
-        for name, keywords in section_keywords.items():
-            found[name] = any(kw in text for kw in keywords)
-            if not found[name]:
-                missing.append(name.replace("summary", "Summary/Objective").replace("contact", "Contact").replace("experience", "Experience").replace("education", "Education").replace("skills", "Skills").title())
-        # Score: 20 per section present, 100 if all 5
-        n = sum(1 for v in found.values() if v)
-        score = min(100, n * 20)
-        details = {
-            "has_contact": found.get("contact", False),
-            "has_experience": found.get("experience", False),
-            "has_education": found.get("education", False),
-            "has_skills": found.get("skills", False),
-            "has_summary": found.get("summary", False),
-            "missing_sections": missing,
-        }
-        return score, details
-
-    def _calculate_ats_essentials(cv_text: str) -> tuple:
-        """Score 0-100: section headers, text-based (we have text), no obvious format issues. Returns (score, details_dict)."""
-        text = (cv_text or "").strip()
-        if not text:
-            return 0, {"standard_formatting": False, "section_headers_present": False, "text_based": True, "issues": ["No content"]}
-        cv_lower = text.lower()
-        has_headers = any(h in cv_lower for h in ["experience", "education", "skills", "summary", "objective", "contact", "work", "employment"])
-        # Assume text-based since we received extracted text
-        text_based = True
-        issues = []
-        if not has_headers:
-            issues.append("Standard section headers not clearly found")
-        # Simple keyword density: at least some substantive words
-        words = re.findall(r"[a-z0-9]+", cv_lower)
-        word_count = len(words)
-        score = 60
-        if has_headers:
-            score += 25
-        if text_based:
-            score += 10
-        if word_count >= 200:
-            score += 5
-        score = min(100, score)
-        details = {
-            "standard_formatting": True,
-            "keyword_density": min(100, word_count // 5),
-            "section_headers_present": has_headers,
-            "text_based": text_based,
-            "issues": issues if issues else [],
-        }
-        return score, details
-
-    def _calculate_tailoring(cv_text: str, job_desc: str) -> tuple:
-        """Score 0-100 based on keyword overlap between CV and job description. Returns (score, details_dict)."""
-        cv = (cv_text or "").strip().lower()
-        jd = (job_desc or "").strip().lower()
-        if not jd:
-            return 80, {"keyword_match_rate": 80, "skill_match_rate": 80, "experience_relevance": 80, "alignment_score": 80}
-        if not cv:
-            return 0, {"keyword_match_rate": 0, "skill_match_rate": 0, "experience_relevance": 0, "alignment_score": 0}
-        # Extract significant words (3+ chars, alphabetic) from JD
-        jd_words = set(re.findall(r"[a-z]{3,}", jd))
-        cv_words = set(re.findall(r"[a-z]{3,}", cv))
-        # Remove very common words
-        stop = {"the", "and", "for", "with", "from", "this", "that", "have", "has", "are", "was", "were", "been", "being", "will", "your", "you", "their", "they", "would", "could", "should", "about", "when", "which", "what", "where", "into", "through", "during", "before", "after", "above", "below"}
-        jd_key = jd_words - stop
-        if not jd_key:
-            return 70, {"keyword_match_rate": 70, "skill_match_rate": 70, "experience_relevance": 70, "alignment_score": 70}
-        overlap = len(jd_key & cv_words) / len(jd_key)
-        keyword_match_rate = min(100, int(overlap * 100))
-        # Skill-like words (common in JDs): words that appear in both
-        skill_match = keyword_match_rate  # reuse for simplicity
-        alignment_score = int((keyword_match_rate + skill_match) / 2)
-        alignment_score = max(0, min(100, alignment_score))
-        details = {
-            "keyword_match_rate": keyword_match_rate,
-            "skill_match_rate": skill_match,
-            "experience_relevance": alignment_score,
-            "alignment_score": alignment_score,
-        }
-        return alignment_score, details
-
-    # Calculate ATS Parse Rate programmatically based on CV text quality
-    def _calculate_ats_parse_rate(cv_text: str, ai_parse_rate: Optional[int] = None) -> int:
-        """Calculate ATS parse rate based on CV text quality."""
-        text_length = len(cv_text.strip())
-        
-        # Base score from text extraction quality
-        if text_length >= 800:
-            base_score = 85  # Good text extraction
-        elif text_length >= 400:
-            base_score = 70  # Moderate text extraction
-        elif text_length >= 100:
-            base_score = 50  # Poor text extraction
-        else:
-            base_score = 20  # Very poor text extraction
-        
-        # Check for common ATS-friendly indicators
-        cv_lower = cv_text.lower()
-        has_sections = any(keyword in cv_lower for keyword in [
-            "experience", "education", "skills", "summary", "objective", "contact"
-        ])
-        if has_sections:
-            base_score = min(100, base_score + 10)
-        
-        # If AI provided a parse rate, average it with programmatic calculation
-        if ai_parse_rate is not None:
-            return int((base_score + ai_parse_rate) / 2)
-        return base_score
-
-    # Extract content metrics
+    # Extract and calculate content metrics
     content_metrics_raw = parsed.get("content_metrics", {}) or {}
-    ai_parse_rate = None
-    try:
-        ai_parse_rate = _score(content_metrics_raw.get("ats_parse_rate"))
-    except Exception:
-        pass
     
-    # Calculate final ATS parse rate (combine AI analysis with programmatic calculation)
-    ats_parse_rate = _calculate_ats_parse_rate(cv_text, ai_parse_rate)
+    # ATS Parse Rate: programmatic calculation (with optional AI blend)
+    ai_parse_rate = normalize_score(content_metrics_raw.get("ats_parse_rate")) if content_metrics_raw.get("ats_parse_rate") is not None else None
+    ats_parse_rate = calculate_ats_parse_rate(cv_text, ai_parse_rate)
     
     # Quantifying Impact: programmatic calculation (with optional AI blend)
     quant_impact_raw = content_metrics_raw.get("quantifying_impact", {}) or {}
-    quant_prog_score, quant_prog_details = _calculate_quantifying_impact(cv_text)
-    ai_quant = None
-    try:
-        ai_quant = _score(quant_impact_raw.get("score", 0))
-    except Exception:
-        pass
-    if ai_quant is not None and quant_impact_raw.get("score") is not None:
-        quant_score = int((quant_prog_score + ai_quant) / 2)
-        quant_details = quant_impact_raw.get("details", "").strip() or quant_prog_details
-    else:
-        quant_score = quant_prog_score
-        quant_details = quant_prog_details
-    quant_score = max(0, min(100, quant_score))
-    quant_status = _get_metric_status(quant_score, 70, 50)
+    quant_prog_score, quant_prog_details = calculate_quantifying_impact(cv_text)
+    ai_quant = normalize_score(quant_impact_raw.get("score")) if quant_impact_raw.get("score") is not None else None
+    quant_score = blend_scores(quant_prog_score, ai_quant)
+    quant_details = quant_impact_raw.get("details", "").strip() or quant_prog_details
+    quant_status = get_metric_status(quant_score, *QUANTIFYING_IMPACT_THRESHOLDS)
     
     # Repetition: programmatic calculation (with optional AI blend)
     repetition_raw = content_metrics_raw.get("repetition", {}) or {}
-    rep_prog_score, rep_prog_details = _calculate_repetition(cv_text)
-    ai_rep = None
-    try:
-        ai_rep = _score(repetition_raw.get("score", 0))
-    except Exception:
-        pass
-    if ai_rep is not None and repetition_raw.get("score") is not None:
-        rep_score = int((rep_prog_score + ai_rep) / 2)
-        rep_details = repetition_raw.get("details", "").strip() or rep_prog_details
-    else:
-        rep_score = rep_prog_score
-        rep_details = rep_prog_details
-    rep_score = max(0, min(100, rep_score))
-    rep_status = _get_metric_status(rep_score, 80, 60)
+    rep_prog_score, rep_prog_details = calculate_repetition(cv_text)
+    ai_rep = normalize_score(repetition_raw.get("score")) if repetition_raw.get("score") is not None else None
+    rep_score = blend_scores(rep_prog_score, ai_rep)
+    rep_details = repetition_raw.get("details", "").strip() or rep_prog_details
+    rep_status = get_metric_status(rep_score, *REPETITION_THRESHOLDS)
     
     # Spelling & Grammar: programmatic calculation (with optional AI blend)
     spelling_raw = content_metrics_raw.get("spelling_grammar", {}) or {}
-    spell_prog_score, spell_prog_details = _calculate_spelling_grammar(cv_text)
-    ai_spell = None
-    try:
-        ai_spell = _score(spelling_raw.get("score", 0))
-    except Exception:
-        pass
-    if ai_spell is not None and spelling_raw.get("score") is not None:
-        spell_score = int((spell_prog_score + ai_spell) / 2)
-        spell_details = spelling_raw.get("details", "").strip() or spell_prog_details
-    else:
-        spell_score = spell_prog_score
-        spell_details = spell_prog_details
-    spell_score = max(0, min(100, spell_score))
-    spell_status = _get_metric_status(spell_score, 90, 70)
+    spell_prog_score, spell_prog_details = calculate_spelling_grammar(cv_text)
+    ai_spell = normalize_score(spelling_raw.get("score")) if spelling_raw.get("score") is not None else None
+    spell_score = blend_scores(spell_prog_score, ai_spell)
+    spell_details = spelling_raw.get("details", "").strip() or spell_prog_details
+    spell_status = get_metric_status(spell_score, *SPELLING_GRAMMAR_THRESHOLDS)
     
     # Sections: programmatic (with optional AI blend)
     sections_raw = parsed.get("sections_metrics", {}) or {}
-    sections_prog_score, sections_prog_details = _calculate_sections(cv_text)
-    ai_sections = None
-    try:
-        ai_sections = _score(sections_raw.get("score", 0))
-    except Exception:
-        pass
-    if ai_sections is not None and sections_raw.get("score") is not None:
-        sections_score = int((sections_prog_score + ai_sections) / 2)
+    sections_prog_score, sections_prog_details = calculate_sections(cv_text)
+    ai_sections = normalize_score(sections_raw.get("score")) if sections_raw.get("score") is not None else None
+    sections_score = blend_scores(sections_prog_score, ai_sections)
+    if ai_sections is not None and isinstance(sections_raw.get("details"), dict):
         sections_details = sections_raw.get("details", sections_prog_details)
-        if not isinstance(sections_details, dict):
-            sections_details = sections_prog_details
     else:
-        sections_score = sections_prog_score
         sections_details = sections_prog_details
-    sections_score = max(0, min(100, sections_score))
 
     # ATS Essentials: programmatic (with optional AI blend)
     ats_essentials_raw = parsed.get("ats_essentials_metrics", {}) or {}
-    ats_prog_score, ats_prog_details = _calculate_ats_essentials(cv_text)
-    ai_ats = None
-    try:
-        ai_ats = _score(ats_essentials_raw.get("score", 0))
-    except Exception:
-        pass
-    if ai_ats is not None and ats_essentials_raw.get("score") is not None:
-        ats_essentials_score = int((ats_prog_score + ai_ats) / 2)
+    ats_prog_score, ats_prog_details = calculate_ats_essentials(cv_text)
+    ai_ats = normalize_score(ats_essentials_raw.get("score")) if ats_essentials_raw.get("score") is not None else None
+    ats_essentials_score = blend_scores(ats_prog_score, ai_ats)
+    if ai_ats is not None and isinstance(ats_essentials_raw.get("details"), dict):
         ats_essentials_details = ats_essentials_raw.get("details", ats_prog_details)
-        if not isinstance(ats_essentials_details, dict):
-            ats_essentials_details = ats_prog_details
     else:
-        ats_essentials_score = ats_prog_score
         ats_essentials_details = ats_prog_details
-    ats_essentials_score = max(0, min(100, ats_essentials_score))
 
     # Tailoring: programmatic (CV vs job description; with optional AI blend)
     tailoring_raw = parsed.get("tailoring_metrics", {}) or {}
-    tailoring_prog_score, tailoring_prog_details = _calculate_tailoring(cv_text, job_desc)
-    ai_tailoring = None
-    try:
-        ai_tailoring = _score(tailoring_raw.get("score", 0))
-    except Exception:
-        pass
-    if ai_tailoring is not None and tailoring_raw.get("score") is not None:
-        tailoring_score = int((tailoring_prog_score + ai_tailoring) / 2)
+    tailoring_prog_score, tailoring_prog_details = calculate_tailoring(cv_text, job_desc)
+    ai_tailoring = normalize_score(tailoring_raw.get("score")) if tailoring_raw.get("score") is not None else None
+    tailoring_score = blend_scores(tailoring_prog_score, ai_tailoring)
+    if ai_tailoring is not None and isinstance(tailoring_raw.get("details"), dict):
         tailoring_details = tailoring_raw.get("details", tailoring_prog_details)
-        if not isinstance(tailoring_details, dict):
-            tailoring_details = tailoring_prog_details
     else:
-        tailoring_score = tailoring_prog_score
         tailoring_details = tailoring_prog_details
-    tailoring_score = max(0, min(100, tailoring_score))
 
     return {
         "match_score": score,
@@ -657,9 +399,9 @@ CV:
         "suggestions": _as_list(parsed.get("suggestions", [])),
         "missing_keywords": _as_list(parsed.get("missing_keywords", [])),
         "subscores": {
-            "skills_alignment": _score(subscores.get("skills_alignment", score)),
-            "experience_alignment": _score(subscores.get("experience_alignment", score)),
-            "ats_readiness": _score(subscores.get("ats_readiness", score)),
+            "skills_alignment": normalize_score(subscores.get("skills_alignment", score)),
+            "experience_alignment": normalize_score(subscores.get("experience_alignment", score)),
+            "ats_readiness": normalize_score(subscores.get("ats_readiness", score)),
         },
         "content_metrics": {
             "ats_parse_rate": ats_parse_rate,

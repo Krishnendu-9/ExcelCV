@@ -95,6 +95,39 @@ STATUS_LOCK = "lock"
 MIN_SCORE = 0
 MAX_SCORE = 100
 
+# Synonym suggestions for repeated words (common resume action verbs)
+WORD_SYNONYMS: Dict[str, list] = {
+    "designed": ["planned", "created", "developed"],
+    "developed": ["enhanced", "expanded", "improved"],
+    "managed": ["directed", "led", "coordinated"],
+    "implemented": ["executed", "deployed", "launched"],
+    "created": ["built", "produced", "designed"],
+    "improved": ["enhanced", "optimized", "refined"],
+    "built": ["constructed", "created", "assembled"],
+    "worked": ["collaborated", "contributed", "operated"],
+    "used": ["utilized", "leveraged", "applied"],
+    "made": ["produced", "created", "constructed"],
+    "helped": ["assisted", "supported", "facilitated"],
+    "responsible": ["accountable", "tasked with", "oversaw"],
+    "led": ["directed", "guided", "spearheaded"],
+    "handled": ["managed", "oversaw", "addressed"],
+    "supported": ["assisted", "aided", "facilitated"],
+    "maintained": ["preserved", "sustained", "managed"],
+    "performed": ["executed", "conducted", "carried out"],
+    "provided": ["delivered", "supplied", "offered"],
+    "conducted": ["performed", "executed", "carried out"],
+    "assisted": ["supported", "helped", "contributed to"],
+    "established": ["founded", "initiated", "set up"],
+    "analyzed": ["evaluated", "examined", "assessed"],
+    "prepared": ["compiled", "organized", "assembled"],
+    "ensured": ["guaranteed", "verified", "confirmed"],
+    "collaborated": ["partnered", "cooperated", "teamed up"],
+    "contributed": ["supported", "aided", "participated"],
+    "integrated": ["combined", "merged", "incorporated"],
+    "deployed": ["launched", "released", "rolled out"],
+    "optimized": ["improved", "enhanced", "streamlined"],
+}
+
 
 def get_metric_thresholds(metric_name: str) -> Tuple[int, int]:
     """

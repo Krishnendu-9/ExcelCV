@@ -14,9 +14,9 @@ import streamlit as st
 
 from src.config import get_api_key, preferred_models
 from src.scoring import (
-    blend_scores,
     calculate_ats_essentials,
     calculate_ats_parse_rate,
+    calculate_contact_info,
     calculate_quantifying_impact,
     calculate_repetition,
     calculate_sections,
@@ -68,7 +68,7 @@ def _pick_model_id() -> str:
                 return m.name
     except Exception:
         pass
-    return "models/gemini-1.5-flash-latest"
+    return "models/gemini-2.0-flash"
 
 
 def _extract_json_from_text(text: str) -> str:
@@ -105,7 +105,14 @@ def _normalize_model_name(model: Optional[str]) -> Optional[str]:
     return model
 
 
-def analyze_cv_with_gemini(cv_text: str, job_desc: str, mode: str = "General Review", debug: bool = False) -> Dict[str, Any]:
+def analyze_cv_with_gemini(
+    cv_text: str,
+    job_desc: str,
+    mode: str = "General Review",
+    debug: bool = False,
+    file_name: str = "",
+    file_size_bytes: int = 0,
+) -> Dict[str, Any]:
     """Call Gemini to analyze CV vs job description and return JSON-friendly dict."""
     api_key = get_api_key()
     if not api_key:
@@ -233,10 +240,10 @@ CV:
     tried: List[str] = []
     used_model = None
 
-    # Generation config to encourage JSON output
+    # Generation config: temperature=0 for deterministic output
     generation_config = {
-        "temperature": 0.1,  # Lower temperature for more consistent JSON
-        "top_p": 0.95,
+        "temperature": 0.0,
+        "top_p": 1.0,
     }
     
     for candidate in preferred:
@@ -331,77 +338,91 @@ CV:
     score = normalize_score(parsed.get("match_score", 0))
     subscores = parsed.get("subscores", {}) or {}
 
-    # Extract and calculate content metrics
-    content_metrics_raw = parsed.get("content_metrics", {}) or {}
-    
-    # ATS Parse Rate: programmatic calculation (with optional AI blend)
-    ai_parse_rate = normalize_score(content_metrics_raw.get("ats_parse_rate")) if content_metrics_raw.get("ats_parse_rate") is not None else None
-    ats_parse_rate = calculate_ats_parse_rate(cv_text, ai_parse_rate)
-    
-    # Quantifying Impact: programmatic calculation (with optional AI blend)
-    quant_impact_raw = content_metrics_raw.get("quantifying_impact", {}) or {}
-    quant_prog_score, quant_prog_details = calculate_quantifying_impact(cv_text)
-    ai_quant = normalize_score(quant_impact_raw.get("score")) if quant_impact_raw.get("score") is not None else None
-    quant_score = blend_scores(quant_prog_score, ai_quant)
-    quant_details = quant_impact_raw.get("details", "").strip() or quant_prog_details
+    # ── Programmatic-only scores (deterministic — same CV always = same score) ──
+
+    # ATS Parse Rate: purely programmatic
+    ats_parse_rate = calculate_ats_parse_rate(cv_text)
+
+    # Quantifying Impact: purely programmatic
+    quant_prog_score, quant_prog_data = calculate_quantifying_impact(cv_text)
+    quant_score = quant_prog_score
+    quant_details = quant_prog_data["details"]
     quant_status = get_metric_status(quant_score, *QUANTIFYING_IMPACT_THRESHOLDS)
-    
-    # Repetition: programmatic calculation (with optional AI blend)
-    repetition_raw = content_metrics_raw.get("repetition", {}) or {}
-    rep_prog_score, rep_prog_details = calculate_repetition(cv_text)
-    ai_rep = normalize_score(repetition_raw.get("score")) if repetition_raw.get("score") is not None else None
-    rep_score = blend_scores(rep_prog_score, ai_rep)
-    rep_details = repetition_raw.get("details", "").strip() or rep_prog_details
+
+    # Repetition: purely programmatic
+    rep_prog_score, rep_prog_data = calculate_repetition(cv_text)
+    rep_score = rep_prog_score
+    rep_details = rep_prog_data["details"]
     rep_status = get_metric_status(rep_score, *REPETITION_THRESHOLDS)
-    
-    # Spelling & Grammar: programmatic calculation (with optional AI blend)
-    spelling_raw = content_metrics_raw.get("spelling_grammar", {}) or {}
-    spell_prog_score, spell_prog_details = calculate_spelling_grammar(cv_text)
-    ai_spell = normalize_score(spelling_raw.get("score")) if spelling_raw.get("score") is not None else None
-    spell_score = blend_scores(spell_prog_score, ai_spell)
-    spell_details = spelling_raw.get("details", "").strip() or spell_prog_details
+
+    # Spelling & Grammar: purely programmatic
+    spell_prog_score, spell_prog_data = calculate_spelling_grammar(cv_text)
+    spell_score = spell_prog_score
+    spell_details = spell_prog_data["details"]
     spell_status = get_metric_status(spell_score, *SPELLING_GRAMMAR_THRESHOLDS)
-    
-    # Sections: programmatic (with optional AI blend)
-    sections_raw = parsed.get("sections_metrics", {}) or {}
+
+    # Contact Information: purely programmatic
+    contact_info = calculate_contact_info(cv_text)
+
+    # Sections: purely programmatic
     sections_prog_score, sections_prog_details = calculate_sections(cv_text)
-    ai_sections = normalize_score(sections_raw.get("score")) if sections_raw.get("score") is not None else None
-    sections_score = blend_scores(sections_prog_score, ai_sections)
-    if ai_sections is not None and isinstance(sections_raw.get("details"), dict):
-        sections_details = sections_raw.get("details", sections_prog_details)
-    else:
-        sections_details = sections_prog_details
+    sections_score = sections_prog_score
 
-    # ATS Essentials: programmatic (with optional AI blend)
-    ats_essentials_raw = parsed.get("ats_essentials_metrics", {}) or {}
-    ats_prog_score, ats_prog_details = calculate_ats_essentials(cv_text)
-    ai_ats = normalize_score(ats_essentials_raw.get("score")) if ats_essentials_raw.get("score") is not None else None
-    ats_essentials_score = blend_scores(ats_prog_score, ai_ats)
-    if ai_ats is not None and isinstance(ats_essentials_raw.get("details"), dict):
-        ats_essentials_details = ats_essentials_raw.get("details", ats_prog_details)
-    else:
-        ats_essentials_details = ats_prog_details
+    # ATS Essentials: purely programmatic
+    ats_prog_score, ats_prog_details = calculate_ats_essentials(cv_text, file_name, file_size_bytes)
+    ats_essentials_score = ats_prog_score
 
-    # Tailoring: programmatic (CV vs job description; with optional AI blend)
-    tailoring_raw = parsed.get("tailoring_metrics", {}) or {}
+    # Use the cleaned email from contact_info (has PDF icon artifact removal)
+    ci_emails = [c for c in contact_info.get("found", []) if c.get("type") == "email"]
+    if ci_emails:
+        clean_email = ci_emails[0].get("value", "")
+        ats_prog_details["email_check"] = {
+            "found": True,
+            "email": clean_email,
+            "is_professional": ats_prog_details.get("email_check", {}).get("is_professional", True),
+        }
+
+    # Tailoring: purely programmatic (CV vs job description keyword overlap)
     tailoring_prog_score, tailoring_prog_details = calculate_tailoring(cv_text, job_desc)
-    ai_tailoring = normalize_score(tailoring_raw.get("score")) if tailoring_raw.get("score") is not None else None
-    tailoring_score = blend_scores(tailoring_prog_score, ai_tailoring)
-    if ai_tailoring is not None and isinstance(tailoring_raw.get("details"), dict):
-        tailoring_details = tailoring_raw.get("details", tailoring_prog_details)
+    tailoring_score = tailoring_prog_score
+
+    # ── Compute match_score PROGRAMMATICALLY (deterministic) ──
+    # Weighted average of all sub-scores so the same CV + same JD = same score
+    # Weights: Content quality (30%), Tailoring/JD match (25%), Sections (15%),
+    #          ATS Essentials (15%), Contact completeness (15%)
+    content_avg = int((ats_parse_rate + quant_score + rep_score + spell_score) / 4)
+    contact_score_val = contact_info.get("score", 0)
+
+    if job_desc and job_desc.strip():
+        # JD provided: tailoring has significant weight
+        match_score = int(
+            content_avg * 0.30
+            + tailoring_score * 0.25
+            + sections_score * 0.15
+            + ats_essentials_score * 0.15
+            + contact_score_val * 0.15
+        )
     else:
-        tailoring_details = tailoring_prog_details
+        # No JD: redistribute tailoring weight to other metrics
+        match_score = int(
+            content_avg * 0.35
+            + sections_score * 0.25
+            + ats_essentials_score * 0.25
+            + contact_score_val * 0.15
+        )
+
+    match_score = max(0, min(100, match_score))
 
     return {
-        "match_score": score,
+        "match_score": match_score,
         "strengths": _as_list(parsed.get("strengths", [])),
         "missing_skills": _as_list(parsed.get("missing_skills", [])),
         "suggestions": _as_list(parsed.get("suggestions", [])),
         "missing_keywords": _as_list(parsed.get("missing_keywords", [])),
         "subscores": {
-            "skills_alignment": normalize_score(subscores.get("skills_alignment", score)),
-            "experience_alignment": normalize_score(subscores.get("experience_alignment", score)),
-            "ats_readiness": normalize_score(subscores.get("ats_readiness", score)),
+            "skills_alignment": normalize_score(subscores.get("skills_alignment", match_score)),
+            "experience_alignment": normalize_score(subscores.get("experience_alignment", match_score)),
+            "ats_readiness": normalize_score(subscores.get("ats_readiness", match_score)),
         },
         "content_metrics": {
             "ats_parse_rate": ats_parse_rate,
@@ -409,29 +430,35 @@ CV:
                 "score": quant_score,
                 "status": quant_status,
                 "details": quant_details,
+                "total_lines": quant_prog_data.get("total_lines", 0),
+                "quantified_count": quant_prog_data.get("quantified_count", 0),
+                "non_quantified_lines": quant_prog_data.get("non_quantified_lines", []),
             },
             "repetition": {
                 "score": rep_score,
                 "status": rep_status,
                 "details": rep_details,
+                "repeated_words": rep_prog_data.get("repeated_words", []),
             },
             "spelling_grammar": {
                 "score": spell_score,
                 "status": spell_status,
                 "details": spell_details,
+                "issues_list": spell_prog_data.get("issues_list", []),
             },
         },
+        "contact_info": contact_info,
         "sections_metrics": {
             "score": sections_score,
-            "details": sections_details
+            "details": sections_prog_details,
         },
         "ats_essentials_metrics": {
             "score": ats_essentials_score,
-            "details": ats_essentials_details
+            "details": ats_prog_details,
         },
         "tailoring_metrics": {
             "score": tailoring_score,
-            "details": tailoring_details
+            "details": tailoring_prog_details,
         }
     }
 

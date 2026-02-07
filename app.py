@@ -74,7 +74,12 @@ def run_single_analysis(job_description: str, uploaded_cv) -> Optional[Tuple[Dic
     with st.spinner(f"Analyzing {uploaded_cv.name} with Gemini..."):
         try:
             analysis = analyze_cv_with_gemini(
-                cv_text=cv_text, job_desc=job_description, mode=mode, debug=debug
+                cv_text=cv_text,
+                job_desc=job_description,
+                mode=mode,
+                debug=debug,
+                file_name=getattr(uploaded_cv, "name", "resume.pdf"),
+                file_size_bytes=getattr(uploaded_cv, "size", 0),
             )
             return (analysis, cv_text)
         except RuntimeError as exc:
@@ -302,6 +307,7 @@ def render_upload_page() -> None:
                 st.session_state["job_description"] = jd
                 st.session_state["analysis"] = analysis
                 st.session_state["cv_name"] = getattr(uploaded_cv, "name", "CV.pdf")
+                st.session_state["cv_file_size"] = getattr(uploaded_cv, "size", 0)
                 st.session_state["issues"] = issue_count(analysis)
                 st.session_state["analysis_mode"] = st.session_state.get("mode", "General Review")
                 st.session_state["page"] = "report"
@@ -317,7 +323,12 @@ def _reanalyze_with_mode(cv_text: str, job_description: str, mode: str, debug: b
     with st.spinner(f"Re-analyzing with {mode} mode..."):
         try:
             return analyze_cv_with_gemini(
-                cv_text=cv_text, job_desc=job_description, mode=mode, debug=debug
+                cv_text=cv_text,
+                job_desc=job_description,
+                mode=mode,
+                debug=debug,
+                file_name=st.session_state.get("cv_name", "resume.pdf"),
+                file_size_bytes=st.session_state.get("cv_file_size", 0),
             )
         except RuntimeError as exc:
             st.error(str(exc))

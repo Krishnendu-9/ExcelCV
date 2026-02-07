@@ -875,16 +875,9 @@ def inject_base_css(theme: str = "light") -> None:
                 gap: 20px;
             }}
             /* Make the columns container fill viewport height */
+            /* Report layout: two columns with sticky sidebar */
             [data-testid="stHorizontalBlock"] {{
                 align-items: flex-start !important;
-            }}
-            /* Sidebar column: sticky */
-            [data-testid="stHorizontalBlock"] > [data-testid="column"]:first-child {{
-                position: sticky !important;
-                top: 0 !important;
-                align-self: flex-start !important;
-                max-height: 100vh !important;
-                overflow-y: auto !important;
             }}
             .report-sidebar {{
                 background: var(--bg-sidebar);
@@ -1106,6 +1099,178 @@ def inject_base_css(theme: str = "light") -> None:
             }}
             .progress-fill.dark {{
                 background: linear-gradient(90deg, var(--accent), #0ea5e9);
+            }}
+            /* Issue detail cards - for showing specific problems */
+            .issue-card {{
+                background: var(--bg-secondary);
+                border: 1px solid var(--border-light);
+                border-radius: 12px;
+                padding: 20px;
+                margin-top: 14px;
+                text-align: center;
+            }}
+            .issue-card .issue-icon {{
+                font-size: 2rem;
+                margin-bottom: 8px;
+            }}
+            .issue-card .issue-count {{
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                background: #ef4444;
+                color: #fff;
+                border-radius: 50%;
+                width: 28px;
+                height: 28px;
+                font-size: 0.85rem;
+                font-weight: 700;
+                position: relative;
+                top: -15px;
+                left: -8px;
+            }}
+            .issue-card .issue-heading {{
+                font-size: 1.15rem;
+                font-weight: 700;
+                color: var(--text-primary);
+                margin-bottom: 6px;
+            }}
+            .issue-card .issue-desc {{
+                color: var(--text-secondary);
+                font-size: 0.95rem;
+                margin-bottom: 12px;
+            }}
+            .issue-item {{
+                background: rgba(239, 68, 68, 0.12);
+                border: 1px solid rgba(239, 68, 68, 0.3);
+                border-radius: 10px;
+                padding: 12px 16px;
+                margin-top: 8px;
+                text-align: left;
+                display: flex;
+                align-items: flex-start;
+                gap: 10px;
+                color: var(--text-primary);
+                font-size: 0.92rem;
+                line-height: 1.5;
+            }}
+            .issue-item .issue-x {{
+                color: #ef4444;
+                font-weight: 700;
+                font-size: 1rem;
+                flex-shrink: 0;
+                margin-top: 1px;
+            }}
+            .issue-item-ok {{
+                background: rgba(16, 185, 129, 0.1);
+                border: 1px solid rgba(16, 185, 129, 0.3);
+            }}
+            .issue-item-ok .issue-x {{
+                color: #10b981;
+            }}
+            /* Contact Information rows */
+            .contact-row {{
+                display: flex;
+                align-items: flex-start;
+                gap: 12px;
+                padding: 14px 18px;
+                margin-top: 10px;
+                border-radius: 10px;
+                background: rgba(255,255,255,0.04);
+                border: 1px solid rgba(255,255,255,0.08);
+            }}
+            .contact-icon {{
+                font-size: 1.1rem;
+                font-weight: 700;
+                flex-shrink: 0;
+                margin-top: 1px;
+            }}
+            .contact-icon.found {{
+                color: #10b981;
+            }}
+            .contact-icon.missing {{
+                color: #ef4444;
+            }}
+            .contact-label {{
+                font-weight: 600;
+                color: var(--text-primary);
+                white-space: nowrap;
+            }}
+            .contact-sep {{
+                color: var(--text-muted);
+                flex-shrink: 0;
+            }}
+            .contact-value {{
+                color: var(--text-primary);
+                word-break: break-all;
+            }}
+            .contact-msg {{
+                color: var(--text-muted);
+                font-size: 0.9rem;
+                word-break: normal;
+            }}
+            /* Repeated word tags */
+            .repeat-group {{
+                display: flex;
+                flex-wrap: wrap;
+                align-items: center;
+                gap: 10px;
+                margin-top: 10px;
+                margin-bottom: 6px;
+                text-align: left;
+            }}
+            .repeat-word-tag {{
+                display: inline-block;
+                padding: 6px 14px;
+                border-radius: 8px;
+                background: #dc2626;
+                color: #fff;
+                font-weight: 600;
+                font-size: 0.9rem;
+            }}
+            .repeat-suggestion {{
+                display: inline-block;
+                padding: 6px 12px;
+                border-radius: 8px;
+                background: var(--bg-card);
+                border: 1px solid var(--border-color);
+                color: var(--text-primary);
+                font-size: 0.88rem;
+            }}
+            .repeat-label {{
+                color: var(--text-secondary);
+                font-size: 0.88rem;
+                white-space: nowrap;
+            }}
+            /* Spelling issue tags */
+            .spell-issue-row {{
+                display: flex;
+                flex-wrap: wrap;
+                align-items: center;
+                gap: 8px;
+                margin-top: 8px;
+                text-align: left;
+            }}
+            .spell-tag {{
+                display: inline-block;
+                padding: 5px 12px;
+                border-radius: 8px;
+                background: rgba(239, 68, 68, 0.15);
+                border: 1px solid rgba(239, 68, 68, 0.3);
+                color: var(--text-primary);
+                font-size: 0.88rem;
+            }}
+            .spell-tag-label {{
+                font-weight: 600;
+                color: #ef4444;
+                margin-right: 4px;
+            }}
+            /* Good status card */
+            .good-card {{
+                background: rgba(16, 185, 129, 0.08);
+                border: 1px solid rgba(16, 185, 129, 0.25);
+            }}
+            .good-card .issue-heading {{
+                color: #10b981;
             }}
             .list-tag {{
                 display: inline-block;
@@ -1863,10 +2028,8 @@ def _build_sidebar_html(score: int, issues: int, categories: list) -> str:
                                }.get(status, "badge badge-warn")
 
                 if status in ("warn", "error"):
-                    if score_val is not None and isinstance(score_val, (int, float)) and score_val <= 100:
-                        badge_text = f"{int(score_val)}%"
-                    elif score_val is not None:
-                        badge_text = f"{score_val} {'issue' if score_val == 1 else 'issues'}"
+                    if score_val is not None and isinstance(score_val, (int, float)):
+                        badge_text = f"{int(score_val)} {'issue' if int(score_val) == 1 else 'issues'}"
                     else:
                         badge_text = "Review"
                 else:
@@ -1906,7 +2069,6 @@ def _build_sidebar_js() -> str:
             var head = doc.getElementById('cat-head-' + categoryId);
             var items = doc.getElementById('cat-items-' + categoryId);
             if (!head || !items) return;
-
             if (head.classList.contains('expanded')) {
                 head.classList.remove('expanded');
                 items.classList.remove('expanded');
@@ -1918,15 +2080,90 @@ def _build_sidebar_js() -> str:
             }
         }
 
-        // Scroll to a section in the main (right) column
+        // ── Manual sticky sidebar using transform (works regardless of overflow) ──
+        var stickySidebarActive = false;
+        function setupStickySidebar() {
+            if (stickySidebarActive) return;
+            var sidebar = doc.querySelector('.report-sidebar');
+            if (!sidebar) return;
+            var leftCol = sidebar.closest('[data-testid="column"]');
+            if (!leftCol) return;
+
+            // Find the actual scroll container
+            var scrollContainer = null;
+            var el = leftCol.parentElement;
+            while (el && el !== doc.documentElement) {
+                var cs = window.parent.getComputedStyle(el);
+                var oy = cs.overflowY;
+                if ((oy === 'auto' || oy === 'scroll') && el.scrollHeight > el.clientHeight) {
+                    scrollContainer = el;
+                    break;
+                }
+                el = el.parentElement;
+            }
+            if (!scrollContainer) {
+                scrollContainer = doc.querySelector('section.main');
+                if (!scrollContainer) scrollContainer = doc.documentElement;
+            }
+
+            // Calculate the initial top offset of the sidebar relative to scrollContainer
+            function getSidebarOffsetTop() {
+                var rect = leftCol.getBoundingClientRect();
+                var contRect = scrollContainer.getBoundingClientRect();
+                return rect.top - contRect.top + scrollContainer.scrollTop;
+            }
+
+            var sidebarOrigTop = getSidebarOffsetTop();
+            var pinOffset = 10; // px from top when pinned
+            var sidebarH = leftCol.offsetHeight;
+
+            function onScroll() {
+                var scrollTop = scrollContainer.scrollTop;
+                var contHeight = scrollContainer.clientHeight;
+                // Recalculate sidebar height in case content changed
+                sidebarH = sidebar.offsetHeight;
+
+                if (scrollTop > sidebarOrigTop - pinOffset) {
+                    var translateY = scrollTop - sidebarOrigTop + pinOffset;
+                    // Don't let sidebar go past the bottom of its parent
+                    var parent = leftCol.parentElement;
+                    if (parent) {
+                        var maxTranslate = parent.offsetHeight - sidebarH - 20;
+                        if (translateY > maxTranslate && maxTranslate > 0) {
+                            translateY = maxTranslate;
+                        }
+                    }
+                    sidebar.style.setProperty('transform', 'translateY(' + translateY + 'px)', 'important');
+                } else {
+                    sidebar.style.setProperty('transform', 'translateY(0px)', 'important');
+                }
+            }
+
+            scrollContainer.addEventListener('scroll', onScroll, { passive: true });
+            onScroll(); // Initial check
+            stickySidebarActive = true;
+
+            // Store for scrollToSection
+            window.parent.__scrollContainer = scrollContainer;
+        }
+
+        // Scroll to a section in the main content area
         function scrollToSection(sectionId) {
             var el = doc.getElementById(sectionId);
             if (!el) return;
 
-            // Simple and reliable: scrollIntoView on the parent window
-            el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            var sc = window.parent.__scrollContainer;
+            if (sc) {
+                // Calculate target position relative to scroll container
+                var elRect = el.getBoundingClientRect();
+                var scRect = sc.getBoundingClientRect();
+                var targetTop = elRect.top - scRect.top + sc.scrollTop - 20;
+                sc.scrollTo({ top: targetTop, behavior: 'smooth' });
+            } else {
+                el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
 
-            // Brief highlight effect
+            // Brief highlight
             el.style.transition = 'background-color 0.3s ease';
             var origBg = el.style.backgroundColor;
             el.style.backgroundColor = 'rgba(16,185,129,0.15)';
@@ -1937,79 +2174,47 @@ def _build_sidebar_js() -> str:
         function handleClick(e) {
             var t = e.target;
             if (!t || !t.closest) return;
-
-            // Category header click -> toggle
             var head = t.closest('.category-head');
             if (head && head.id && head.id.indexOf('cat-head-') === 0) {
-                var catId = head.id.replace('cat-head-', '');
-                toggleCategory(catId);
+                toggleCategory(head.id.replace('cat-head-', ''));
                 e.stopPropagation();
                 e.preventDefault();
                 return;
             }
-            // Sub-item click -> scroll
             var subitem = t.closest('.subitem');
             if (subitem) {
                 var sid = subitem.getAttribute('data-section-id');
-                if (sid) {
-                    scrollToSection(sid);
-                    e.stopPropagation();
-                    e.preventDefault();
-                    return;
-                }
+                if (sid) { scrollToSection(sid); e.stopPropagation(); e.preventDefault(); return; }
             }
-            // Issues text click -> scroll
             var issueEl = t.closest('.issues-text');
             if (issueEl) {
                 var isid = issueEl.getAttribute('data-section-id');
-                if (isid) {
-                    scrollToSection(isid);
-                    e.stopPropagation();
-                    e.preventDefault();
-                    return;
-                }
+                if (isid) { scrollToSection(isid); e.stopPropagation(); e.preventDefault(); return; }
             }
         }
 
-        // Remove previous listener if any, then attach new one
         if (window.parent.__sidebarClickHandler) {
             doc.removeEventListener('click', window.parent.__sidebarClickHandler, true);
         }
         window.parent.__sidebarClickHandler = handleClick;
         doc.addEventListener('click', handleClick, true);
 
-        // Also attach direct click handlers to all subitems as backup
+        // Direct handlers as backup
         function attachDirectHandlers() {
-            var subitems = doc.querySelectorAll('.subitem[data-section-id]');
-            subitems.forEach(function(item) {
+            doc.querySelectorAll('.subitem[data-section-id]').forEach(function(item) {
                 if (item.getAttribute('data-direct-bound')) return;
                 item.setAttribute('data-direct-bound', '1');
                 item.style.cursor = 'pointer';
                 item.addEventListener('click', function(ev) {
                     var secId = item.getAttribute('data-section-id');
                     if (secId) scrollToSection(secId);
-                    ev.stopPropagation();
-                    ev.preventDefault();
-                });
-            });
-            var issues = doc.querySelectorAll('.issues-text[data-section-id]');
-            issues.forEach(function(item) {
-                if (item.getAttribute('data-direct-bound')) return;
-                item.setAttribute('data-direct-bound', '1');
-                item.style.cursor = 'pointer';
-                item.addEventListener('click', function(ev) {
-                    var secId = item.getAttribute('data-section-id');
-                    if (secId) scrollToSection(secId);
-                    ev.stopPropagation();
-                    ev.preventDefault();
+                    ev.stopPropagation(); ev.preventDefault();
                 });
             });
         }
-        // Run direct attachment with retries
         attachDirectHandlers();
         setTimeout(attachDirectHandlers, 500);
-        setTimeout(attachDirectHandlers, 1000);
-        setTimeout(attachDirectHandlers, 2000);
+        setTimeout(attachDirectHandlers, 1500);
 
         // Auto-expand Content on load
         function initContent() {
@@ -2021,15 +2226,23 @@ def _build_sidebar_js() -> str:
                 items.classList.add('expanded');
             }
         }
-        // Retry until elements exist
+
+        // Run setup repeatedly to beat Streamlit re-renders
         var attempts = 0;
         var initTimer = setInterval(function() {
             initContent();
+            setupStickySidebar();
+            attachDirectHandlers();
             attempts++;
-            if (attempts > 20 || doc.getElementById('cat-head-content')) {
-                clearInterval(initTimer);
-            }
-        }, 200);
+            if (attempts > 40) clearInterval(initTimer);
+        }, 250);
+
+        // Also watch for DOM changes and re-apply
+        if (doc.body) {
+            new MutationObserver(function() {
+                setupStickySidebar();
+            }).observe(doc.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['style'] });
+        }
     })();
     </script>
     """
@@ -2070,42 +2283,87 @@ def render_report_page(analysis: Dict[str, Any], name: str = "CV") -> None:
     sections_score = sections_metrics.get("score", subs.get("experience_alignment", score)) or 0
     sections_details = sections_metrics.get("details", {}) or {}
     
+    # Extract contact info
+    contact_info = analysis.get("contact_info", {}) or {}
+    contact_found = contact_info.get("found", [])
+    contact_missing = contact_info.get("missing", [])
+    contact_score = contact_info.get("score", 0)
+
     # Build Sections category items
     sections_items_list = []
     missing_sections = sections_details.get("missing_sections", [])
     if missing_sections:
         sections_items_list.append(("Essential Sections", "error", len(missing_sections)))
-    if not sections_details.get("has_contact", True):
-        sections_items_list.append(("Contact Information", "error", 1))
+    else:
+        sections_items_list.append(("Essential Sections", "ok", None))
+    # Contact Information sub-item with real detection
+    if contact_missing:
+        sections_items_list.append(("Contact Information", "error", len(contact_missing)))
+    else:
+        sections_items_list.append(("Contact Information", "ok", None))
     
     ats_essentials_metrics = analysis.get("ats_essentials_metrics", {}) or {}
     ats_essentials_score = ats_essentials_metrics.get("score", subs.get("ats_readiness", score)) or 0
     ats_essentials_details = ats_essentials_metrics.get("details", {}) or {}
     
+    # Extract ATS sub-section details
+    file_format_info = ats_essentials_details.get("file_format", {}) or {}
+    email_check_info = ats_essentials_details.get("email_check", {}) or {}
+    header_links_info = ats_essentials_details.get("header_links", {}) or {}
+
     # Build ATS Essentials category items
     ats_items_list = []
     ats_issues = ats_essentials_details.get("issues", [])
-    if ats_essentials_details.get("standard_formatting", True):
-        ats_items_list.append(("File Format & Size", "ok", None))
-    else:
-        ats_items_list.append(("File Format & Size", "warn", 1))
+
+    # File Format & Size
+    ff_ok = file_format_info.get("is_pdf", True) and file_format_info.get("size_ok", True)
+    ats_items_list.append(("File Format & Size", "ok" if ff_ok else "warn", None if ff_ok else 1))
+
+    # Design
     if ats_issues:
-        ats_items_list.append(("Design", "warn" if len(ats_issues) > 0 else "ok", len(ats_issues)))
-    if ats_essentials_details.get("section_headers_present", False):
+        ats_items_list.append(("Design", "warn", len(ats_issues)))
+
+    # Email Address
+    email_found = email_check_info.get("found", False)
+    email_prof = email_check_info.get("is_professional", True)
+    if email_found and email_prof:
         ats_items_list.append(("Email Address", "ok", None))
-        ats_items_list.append(("Hyperlink in Header", "ok", None))
+    elif email_found:
+        ats_items_list.append(("Email Address", "warn", 1))
+    else:
+        ats_items_list.append(("Email Address", "error", 1))
+
+    # Hyperlink in Header
+    has_links = header_links_info.get("has_links", False)
+    ats_items_list.append(("Hyperlink in Header", "ok" if has_links else "warn", None if has_links else 1))
     
+    # Build Insights category items
+    strengths_list = analysis.get("strengths", [])
+    missing_skills_list = analysis.get("missing_skills", [])
+    missing_keywords_list = analysis.get("missing_keywords", [])
+    suggestions_list = analysis.get("suggestions", [])
+
+    insights_items_list = [
+        ("Strengths", "ok" if strengths_list else "warn", len(strengths_list) if strengths_list else None),
+        ("Missing Skills", "warn" if missing_skills_list else "ok", len(missing_skills_list) if missing_skills_list else None),
+        ("Missing Keywords", "warn" if missing_keywords_list else "ok", len(missing_keywords_list) if missing_keywords_list else None),
+        ("Suggestions", "ok" if suggestions_list else "warn", len(suggestions_list) if suggestions_list else None),
+    ]
+    # Insights score: based on ratio of strengths vs gaps
+    total_insights = len(strengths_list) + len(missing_skills_list) + len(missing_keywords_list)
+    insights_score = int((len(strengths_list) / total_insights) * 100) if total_insights else 80
+
     categories = [
         ("Content", content_score, content_items_list),
         ("Sections", sections_score, sections_items_list),
         ("ATS Essentials", ats_essentials_score, ats_items_list),
+        ("Insights", insights_score, insights_items_list),
     ]
 
-    # No report-shell wrapper (it was rendering as a bar); columns put Your Score and ATS Parse Rate side by side
+    # Two-column layout: scoring sidebar + main content
     sidebar, main = st.columns([1, 1.6], gap="large")
 
     with sidebar:
-        # Build the ENTIRE sidebar as ONE HTML string
         sidebar_html = _build_sidebar_html(score, issues, categories)
         st.markdown(sidebar_html, unsafe_allow_html=True)
 
@@ -2131,172 +2389,491 @@ def render_report_page(analysis: Dict[str, Any], name: str = "CV") -> None:
         )
 
     with main:
-        # Full ATS card in one markdown with report-main wrapper to avoid empty bar above ATS Parse Rate
-        ats_parse_rate_value = content_metrics.get("ats_parse_rate", 0)
-        ats_badge_class = "badge-ok" if ats_parse_rate_value >= 80 else "badge-warn" if ats_parse_rate_value >= 60 else "badge-warn"
-        ats_badge_text = "Excellent" if ats_parse_rate_value >= 80 else "Good" if ats_parse_rate_value >= 60 else "Needs Improvement"
+        # ── ATS Parse Rate ──
+        ats_val = content_metrics.get("ats_parse_rate", 0)
+        ats_badge_cls = "badge-ok" if ats_val >= 80 else "badge-warn"
+        ats_badge_txt = "Excellent" if ats_val >= 80 else ("Good" if ats_val >= 60 else "Needs Improvement")
+        ats_msg = (
+            f"Great! We parsed {ats_val}% of your resume successfully."
+            if ats_val >= 80
+            else f"We could parse {ats_val}% of your resume. Consider improving formatting for better ATS compatibility."
+        )
+        ats_card_cls = "good-card" if ats_val >= 80 else ""
         st.markdown(
             f"""
             <div class="report-main">
             <div class="detail-card section-anchor" id="ats-parse-rate">
-            <div class="detail-head">
-                <h3>ATS Parse Rate</h3>
-                <span class="badge {ats_badge_class}">{ats_badge_text}</span>
-            </div>
-            <div class="section-body">
-            <p class="section-body-item text-description">A high parse rate ensures the ATS can read your resume, experience, and skills.</p>
-            <div class="progress-track dark">
-                <div class="progress-fill dark" style="width:{ats_parse_rate_value}%"></div>
-            </div>
-            <div style="display:flex;justify-content:space-between;font-size:0.9rem;" class="text-muted">
-                <span>Score</span><span>{ats_parse_rate_value}%</span>
-            </div>
-            </div>
-            </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-        # Content metric cards (scores and status from backend programmatic + optional AI logic)
-        quant_score = quant_impact.get("score", 0)
-        quant_status = quant_impact.get("status", "ok")
-        quant_details = quant_impact.get("details", "")
-        quant_badge = "ok" if quant_status == "ok" else "warn"
-        quant_label = "No issues" if quant_status == "ok" else f"{quant_score}%"
-        st.markdown(
-            f"""
-            <div class="detail-card section-anchor" id="quantifying-impact">
-            <div class="detail-head">
-                <h3>Quantifying Impact</h3>
-                <span class="badge badge-{quant_badge}">{quant_label}</span>
-            </div>
-            <div class="section-body">
-            <p class="section-body-item text-description">Your resume should include quantifiable achievements with numbers, metrics, and measurable results.</p>
-            <div class="progress-track dark">
-                <div class="progress-fill dark" style="width:{quant_score}%"></div>
-            </div>
-            <div style="display:flex;justify-content:space-between;font-size:0.9rem;" class="text-muted">
-                <span>Score</span><span>{quant_score}%</span>
-            </div>
-            {f'<p class="section-body-item text-description" style="margin-top:8px;font-size:0.9rem;">{quant_details}</p>' if quant_details else ''}
-            </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-        rep_score = repetition.get("score", 0)
-        rep_status = repetition.get("status", "ok")
-        rep_details = repetition.get("details", "")
-        rep_badge = "ok" if rep_status == "ok" else "warn"
-        rep_label = "No issues" if rep_status == "ok" else f"{rep_score}%"
-        st.markdown(
-            f"""
-            <div class="detail-card section-anchor" id="repetition">
-            <div class="detail-head">
-                <h3>Repetition</h3>
-                <span class="badge badge-{rep_badge}">{rep_label}</span>
-            </div>
-            <div class="section-body">
-            <p class="section-body-item text-description">Avoid excessive repetition of words and phrases to improve readability and professionalism.</p>
-            <div class="progress-track dark">
-                <div class="progress-fill dark" style="width:{rep_score}%"></div>
-            </div>
-            <div style="display:flex;justify-content:space-between;font-size:0.9rem;" class="text-muted">
-                <span>Score (higher = less repetition)</span><span>{rep_score}%</span>
-            </div>
-            {f'<p class="section-body-item text-description" style="margin-top:8px;font-size:0.9rem;">{rep_details}</p>' if rep_details else ''}
-            </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-        spell_score = spelling_grammar.get("score", 0)
-        spell_status = spelling_grammar.get("status", "ok")
-        spell_details = spelling_grammar.get("details", "")
-        spell_badge = "ok" if spell_status == "ok" else "warn"
-        spell_label = "No issues" if spell_status == "ok" else f"{spell_score}%"
-        st.markdown(
-            f"""
-            <div class="detail-card section-anchor" id="spelling-grammar">
-            <div class="detail-head">
-                <h3>Spelling & Grammar</h3>
-                <span class="badge badge-{spell_badge}">{spell_label}</span>
-            </div>
-            <div class="section-body">
-            <p class="section-body-item text-description">Ensure your resume is free of spelling and grammatical errors for a professional appearance.</p>
-            <div class="progress-track dark">
-                <div class="progress-fill dark" style="width:{spell_score}%"></div>
-            </div>
-            <div style="display:flex;justify-content:space-between;font-size:0.9rem;" class="text-muted">
-                <span>Score</span><span>{spell_score}%</span>
-            </div>
-            {f'<p class="section-body-item text-description" style="margin-top:8px;font-size:0.9rem;">{spell_details}</p>' if spell_details else ''}
-            </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-        # Strengths and gaps
-        def render_list_block(title: str, items: List[str], badge: str, section_id: str = None) -> None:
-            if section_id:
-                st.markdown(f'<div class="detail-card section-anchor" id="{section_id}">', unsafe_allow_html=True)
-            else:
-                st.markdown('<div class="detail-card">', unsafe_allow_html=True)
-            st.markdown(
-                f"""
                 <div class="detail-head">
-                    <h3>{title}</h3>
-                    <span class="badge {badge}">{len(items) or '0'} items</span>
+                    <h3>ATS Parse Rate</h3>
+                    <span class="badge {ats_badge_cls}">{ats_badge_txt}</span>
                 </div>
                 <div class="section-body">
-                """,
-                unsafe_allow_html=True,
-            )
-            if items:
-                for idx, item in enumerate(items, 1):
-                    item_html = _markdown_inline_to_html(item)
-                    st.markdown(
-                        f'<p class="section-body-item text-primary"><strong>{idx}.</strong> {item_html}</p>',
-                        unsafe_allow_html=True,
-                    )
-            else:
-                st.markdown(
-                    '<p class="section-body-item text-muted">Nothing noted here yet.</p>',
-                    unsafe_allow_html=True,
-                )
-            st.markdown("</div></div>", unsafe_allow_html=True)
-
-        render_list_block("Strengths", analysis.get("strengths", []), "badge-ok")
-        render_list_block("Missing skills", analysis.get("missing_skills", []), "badge-warn", "missing-skills")
-        render_list_block("Missing keywords (ATS)", analysis.get("missing_keywords", []), "badge-warn", "missing-keywords")
-
-        # Suggestions (same section-body layout as other sections)
-        suggestions = analysis.get("suggestions", [])
-        st.markdown('<div class="detail-card section-anchor" id="suggestions">', unsafe_allow_html=True)
-        st.markdown(
-            f"""
-            <div class="detail-head">
-                <h3>Suggestions</h3>
-                <span class="badge badge-ok">{len(suggestions) or '0'} tips</span>
+                    <p class="section-body-item text-description">A high parse rate ensures the ATS can read your resume, experience, and skills.</p>
+                    <div class="progress-track dark"><div class="progress-fill dark" style="width:{ats_val}%"></div></div>
+                    <div style="display:flex;justify-content:space-between;font-size:0.9rem;" class="text-muted">
+                        <span>Score</span><span>{ats_val}%</span>
+                    </div>
+                    <div class="issue-card {ats_card_cls}" style="margin-top:14px;">
+                        <div class="issue-heading">{ats_msg}</div>
+                    </div>
+                </div>
             </div>
-            <div class="section-body">
+            </div>
             """,
             unsafe_allow_html=True,
         )
-        if suggestions:
-            for idx, suggestion in enumerate(suggestions, 1):
-                suggestion_html = _markdown_inline_to_html(suggestion)
-                st.markdown(
-                    f'<p class="section-body-item text-primary"><strong>{idx}.</strong> {suggestion_html}</p>',
-                    unsafe_allow_html=True,
-                )
+
+        # ── Quantifying Impact ──
+        q_score = quant_impact.get("score", 0)
+        q_status = quant_impact.get("status", "ok")
+        q_details = quant_impact.get("details", "")
+        q_non_quant = quant_impact.get("non_quantified_lines", [])
+        q_total = quant_impact.get("total_lines", 0)
+        q_count = quant_impact.get("quantified_count", 0)
+        q_badge = "ok" if q_status == "ok" else "warn"
+        q_label = "No issues" if q_status == "ok" else f"{q_score}%"
+        q_issue_count = len(q_non_quant)
+
+        quant_html = f"""
+        <div class="detail-card section-anchor" id="quantifying-impact">
+            <div class="detail-head">
+                <h3>Quantifying Impact</h3>
+                <span class="badge badge-{q_badge}">{q_label}</span>
+            </div>
+            <div class="section-body">
+                <p class="section-body-item text-description">Your resume should include quantifiable achievements with numbers, metrics, and measurable results.</p>
+                <div class="progress-track dark"><div class="progress-fill dark" style="width:{q_score}%"></div></div>
+                <div style="display:flex;justify-content:space-between;font-size:0.9rem;" class="text-muted">
+                    <span>Score</span><span>{q_score}%</span>
+                </div>"""
+
+        if q_non_quant:
+            quant_html += f"""
+                <div class="issue-card" style="margin-top:14px;">
+                    <div class="issue-heading">Your experience section lacks quantifiable achievements</div>
+                    <div class="issue-desc">{q_count} of {q_total} bullet points contain numbers. The following need quantification:</div>"""
+            for line in q_non_quant:
+                safe_line = line.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                quant_html += f'<div class="issue-item"><span class="issue-x">&#10005;</span><span>{safe_line}</span></div>'
+            quant_html += '</div>'
+        elif q_status == "ok":
+            quant_html += """
+                <div class="issue-card good-card" style="margin-top:14px;">
+                    <div class="issue-heading">Great job! Your achievements are well quantified.</div>
+                </div>"""
+
+        quant_html += '</div></div>'
+        st.markdown(quant_html, unsafe_allow_html=True)
+
+        # ── Repetition ──
+        r_score = repetition.get("score", 0)
+        r_status = repetition.get("status", "ok")
+        r_repeated = repetition.get("repeated_words", [])
+        r_badge = "ok" if r_status == "ok" else "warn"
+        r_label = "No issues" if r_status == "ok" else f"{r_score}%"
+
+        rep_html = f"""
+        <div class="detail-card section-anchor" id="repetition">
+            <div class="detail-head">
+                <h3>Repetition</h3>
+                <span class="badge badge-{r_badge}">{r_label}</span>
+            </div>
+            <div class="section-body">
+                <p class="section-body-item text-description">Avoid excessive repetition of words and phrases to improve readability and professionalism.</p>
+                <div class="progress-track dark"><div class="progress-fill dark" style="width:{r_score}%"></div></div>
+                <div style="display:flex;justify-content:space-between;font-size:0.9rem;" class="text-muted">
+                    <span>Score (higher = less repetition)</span><span>{r_score}%</span>
+                </div>"""
+
+        if r_repeated:
+            rep_html += f"""
+                <div class="issue-card" style="margin-top:14px;">
+                    <div class="issue-heading">The following words are repeated frequently in your resume:</div>"""
+            for rw in r_repeated:
+                word = rw.get("word", "")
+                count = rw.get("count", 0)
+                suggestions = rw.get("suggestions", [])
+                rep_html += '<div class="repeat-group">'
+                rep_html += f'<span class="repeat-word-tag">{count} times: {word}</span>'
+                if suggestions:
+                    rep_html += '<span class="repeat-label">try replacing with</span>'
+                    for s in suggestions:
+                        rep_html += f'<span class="repeat-suggestion">{s}</span>'
+                rep_html += '</div>'
+            rep_html += '</div>'
+        elif r_status == "ok":
+            rep_html += """
+                <div class="issue-card good-card" style="margin-top:14px;">
+                    <div class="issue-heading">Good variety in language and phrasing throughout the resume.</div>
+                </div>"""
+
+        rep_html += '</div></div>'
+        st.markdown(rep_html, unsafe_allow_html=True)
+
+        # ── Spelling & Grammar ──
+        s_score = spelling_grammar.get("score", 0)
+        s_status = spelling_grammar.get("status", "ok")
+        s_issues = spelling_grammar.get("issues_list", [])
+        s_badge = "ok" if s_status == "ok" else "warn"
+        s_label = "No issues" if s_status == "ok" else f"{len(s_issues)} issues"
+
+        spell_html = f"""
+        <div class="detail-card section-anchor" id="spelling-grammar">
+            <div class="detail-head">
+                <h3>Spelling &amp; Grammar</h3>
+                <span class="badge badge-{s_badge}">{s_label}</span>
+            </div>
+            <div class="section-body">
+                <p class="section-body-item text-description">Ensure your resume is free of spelling and grammatical errors for a professional appearance.</p>
+                <div class="progress-track dark"><div class="progress-fill dark" style="width:{s_score}%"></div></div>
+                <div style="display:flex;justify-content:space-between;font-size:0.9rem;" class="text-muted">
+                    <span>Score</span><span>{s_score}%</span>
+                </div>"""
+
+        if s_issues:
+            total_issues = sum(i.get("count", 0) for i in s_issues)
+            spell_html += f"""
+                <div class="issue-card" style="margin-top:14px;">
+                    <div class="issue-heading">We found the following issues in your resume:</div>"""
+            for issue in s_issues:
+                label = issue.get("label", "Issue")
+                examples = issue.get("examples", [])
+                count = issue.get("count", 0)
+                spell_html += f'<div class="spell-issue-row"><span class="spell-tag"><span class="spell-tag-label">{count}x</span> {label}</span></div>'
+                if examples:
+                    for ex in examples[:2]:
+                        safe_ex = str(ex).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                        spell_html += f'<div class="issue-item"><span class="issue-x">&#10005;</span><span style="font-family:monospace;font-size:0.85rem;">{safe_ex}</span></div>'
+            spell_html += '</div>'
+        elif s_status == "ok":
+            spell_html += """
+                <div class="issue-card good-card" style="margin-top:14px;">
+                    <div class="issue-heading">No significant spelling or grammar errors detected.</div>
+                </div>"""
+
+        spell_html += '</div></div>'
+        st.markdown(spell_html, unsafe_allow_html=True)
+
+        # ── Essential Sections ──
+        # Standard sections every resume should have
+        essential_sections_map = [
+            ("contact", "Contact", sections_details.get("has_contact", False)),
+            ("experience", "Experience", sections_details.get("has_experience", False)),
+            ("education", "Education", sections_details.get("has_education", False)),
+            ("skills", "Skills", sections_details.get("has_skills", False)),
+            ("summary", "Summary/Objective", sections_details.get("has_summary", False)),
+        ]
+        es_found = [s for s in essential_sections_map if s[2]]
+        es_missing = [s for s in essential_sections_map if not s[2]]
+        es_badge = "ok" if not es_missing else "warn"
+        es_label = "All found" if not es_missing else f"{len(es_missing)} missing"
+
+        es_html = f"""
+        <div class="detail-card section-anchor" id="essential-sections">
+            <div class="detail-head">
+                <h3>Essential Sections</h3>
+                <span class="badge badge-{es_badge}">{es_label}</span>
+            </div>
+            <div class="section-body">"""
+
+        if es_missing:
+            es_html += """
+                <div class="issue-card" style="margin-top:10px;">
+                    <div class="issue-heading">We've found the following <strong>essential sections</strong> in your resume. However, some are missing:</div>"""
         else:
-            st.markdown('<p class="section-body-item text-muted">No suggestions provided.</p>', unsafe_allow_html=True)
-        st.markdown("</div></div>", unsafe_allow_html=True)
+            es_html += """
+                <div class="issue-card good-card" style="margin-top:10px;">
+                    <div class="issue-heading">All essential sections are present in your resume:</div>"""
+
+        for _key, label, present in essential_sections_map:
+            icon_cls = "found" if present else "missing"
+            icon_char = "&#10003;" if present else "&#10005;"
+            es_html += f"""
+                    <div class="contact-row">
+                        <span class="contact-icon {icon_cls}">{icon_char}</span>
+                        <span class="contact-label">{label}</span>
+                    </div>"""
+
+        es_html += "</div></div></div>"
+        st.markdown(es_html, unsafe_allow_html=True)
+
+        # ── Contact Information ──
+        ci_badge = "ok" if not contact_missing else "warn"
+        ci_label = "All found" if not contact_missing else f"{len(contact_missing)} missing"
+
+        contact_html = f"""
+        <div class="detail-card section-anchor" id="contact-information">
+            <div class="detail-head">
+                <h3>Contact Information</h3>
+                <span class="badge badge-{ci_badge}">{ci_label}</span>
+            </div>
+            <div class="section-body">"""
+
+        # Found contacts
+        if contact_found:
+            contact_html += """
+                <div class="issue-card good-card" style="margin-top:10px;">
+                    <div class="issue-heading">We've found the following contact information in your resume:</div>"""
+            for item in contact_found:
+                label = item.get("label", "")
+                value = item.get("value", "")
+                safe_val = str(value).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                contact_html += f"""
+                    <div class="contact-row">
+                        <span class="contact-icon found">&#10003;</span>
+                        <span class="contact-label">{label}:</span>
+                        <span class="contact-sep">&mdash;</span>
+                        <span class="contact-value">{safe_val}</span>
+                    </div>"""
+            contact_html += "</div>"
+
+        # Missing contacts
+        if contact_missing:
+            contact_html += """
+                <div class="issue-card" style="margin-top:14px;">
+                    <div class="issue-heading">Although, you are missing essential contact information:</div>"""
+            for item in contact_missing:
+                label = item.get("label", "")
+                message = item.get("message", "")
+                safe_msg = str(message).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                contact_html += f"""
+                    <div class="contact-row">
+                        <span class="contact-icon missing">&#10005;</span>
+                        <span class="contact-label">{label}</span>
+                        <span class="contact-sep">&mdash;</span>
+                        <span class="contact-value contact-msg">{safe_msg}</span>
+                    </div>"""
+            contact_html += "</div>"
+        elif not contact_found:
+            contact_html += """
+                <div class="issue-card" style="margin-top:14px;">
+                    <div class="issue-heading">No contact information could be extracted from your resume.</div>
+                </div>"""
+
+        contact_html += "</div></div>"
+        st.markdown(contact_html, unsafe_allow_html=True)
+
+        # ── File Format & Size ──
+        ff_is_pdf = file_format_info.get("is_pdf", True)
+        ff_size_ok = file_format_info.get("size_ok", True)
+        ff_name = file_format_info.get("file_name", "")
+        ff_size_kb = file_format_info.get("file_size_kb", 0)
+        ff_size_mb = file_format_info.get("file_size_mb", 0)
+        ff_all_good = ff_is_pdf and ff_size_ok
+        ff_badge = "ok" if ff_all_good else "warn"
+        ff_badge_txt = "No issues" if ff_all_good else "Issues found"
+        ff_ext = ff_name.rsplit(".", 1)[-1].upper() if "." in ff_name else "PDF"
+
+        ff_html = f"""
+        <div class="detail-card section-anchor" id="file-format-size">
+            <div class="detail-head">
+                <h3>File Format &amp; Size</h3>
+                <span class="badge badge-{ff_badge}">{ff_badge_txt}</span>
+            </div>
+            <div class="section-body">
+                <p class="section-body-item text-description">
+                    When you're uploading your resume on platforms like Indeed, you're likely to meet a file size limit.
+                    Ideally, your resume should be less than 2MB in size. Your file type also plays an important role
+                    in ATS screening. PDF files are preferred as the text can be easily read by the applicant tracking system.
+                </p>"""
+
+        if ff_all_good:
+            size_str = f"{ff_size_kb:.0f}KB" if ff_size_kb < 1024 else f"{ff_size_mb:.1f}MB"
+            ff_html += f"""
+                <div class="issue-card good-card" style="margin-top:14px;text-align:center;">
+                    <div class="issue-heading" style="font-size:1.1rem;">Good job!</div>
+                    <div class="text-description" style="margin-top:6px;">
+                        Your resume file is <strong>{size_str}</strong> and your file type is <strong>{ff_ext}</strong>.
+                    </div>
+                </div>"""
+        else:
+            ff_issues_html = ""
+            if not ff_is_pdf:
+                ff_issues_html += f"""
+                    <div class="contact-row">
+                        <span class="contact-icon missing">&#10005;</span>
+                        <span class="contact-value contact-msg">Your file type is <strong>{ff_ext}</strong>. PDF is the preferred format for ATS systems.</span>
+                    </div>"""
+            if not ff_size_ok:
+                ff_issues_html += f"""
+                    <div class="contact-row">
+                        <span class="contact-icon missing">&#10005;</span>
+                        <span class="contact-value contact-msg">Your file is <strong>{ff_size_mb:.1f}MB</strong>. It should be under 2MB for most platforms.</span>
+                    </div>"""
+            ff_html += f"""
+                <div class="issue-card" style="margin-top:14px;">
+                    <div class="issue-heading">File format or size issues detected:</div>
+                    {ff_issues_html}
+                </div>"""
+
+        ff_html += "</div></div>"
+        st.markdown(ff_html, unsafe_allow_html=True)
+
+        # ── Email Address ──
+        em_found = email_check_info.get("found", False)
+        em_email = email_check_info.get("email", "")
+        em_prof = email_check_info.get("is_professional", True)
+        em_badge = "ok" if (em_found and em_prof) else "warn"
+        em_badge_txt = "No issues" if (em_found and em_prof) else ("Unprofessional" if em_found else "Not found")
+
+        safe_email = str(em_email).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+        em_html = f"""
+        <div class="detail-card section-anchor" id="email-address">
+            <div class="detail-head">
+                <h3>Email Address</h3>
+                <span class="badge badge-{em_badge}">{em_badge_txt}</span>
+            </div>
+            <div class="section-body">
+                <p class="section-body-item text-description">
+                    Emails are important in today's world. It's one of the go-to ways for recruiters to get in touch with you,
+                    especially if you're applying for a job that's remote and in another country.
+                </p>"""
+
+        if em_found and em_prof:
+            em_html += f"""
+                <div class="issue-card good-card" style="margin-top:14px;text-align:center;">
+                    <div class="issue-heading" style="font-size:1.1rem;">Good job!</div>
+                    <div class="text-description" style="margin-top:6px;">Your email address seems professional.</div>
+                    <div style="margin-top:12px;padding:8px 20px;border-radius:8px;background:rgba(255,255,255,0.08);display:inline-block;font-size:0.95rem;color:var(--text-primary);">
+                        {safe_email}
+                    </div>
+                </div>"""
+        elif em_found:
+            em_html += f"""
+                <div class="issue-card" style="margin-top:14px;text-align:center;">
+                    <div class="issue-heading">Your email address may not appear professional:</div>
+                    <div style="margin-top:12px;padding:8px 20px;border-radius:8px;background:rgba(255,255,255,0.08);display:inline-block;font-size:0.95rem;color:var(--text-primary);">
+                        {safe_email}
+                    </div>
+                    <div class="text-description" style="margin-top:8px;">Consider using a professional email format (e.g. firstname.lastname@domain.com).</div>
+                </div>"""
+        else:
+            em_html += """
+                <div class="issue-card" style="margin-top:14px;">
+                    <div class="issue-heading">No email address was found in your resume.</div>
+                    <div class="text-description" style="margin-top:6px;">Include a professional email address so recruiters can contact you.</div>
+                </div>"""
+
+        em_html += "</div></div>"
+        st.markdown(em_html, unsafe_allow_html=True)
+
+        # ── Header Links ──
+        hl_has = header_links_info.get("has_links", False)
+        hl_links = header_links_info.get("links", [])
+        hl_full = header_links_info.get("has_full_url", False)
+        hl_badge = "ok" if hl_has else "warn"
+        hl_badge_txt = "No issues" if hl_has else "Not found"
+
+        hl_html = f"""
+        <div class="detail-card section-anchor" id="header-links">
+            <div class="detail-head">
+                <h3>Header Links</h3>
+                <span class="badge badge-{hl_badge}">{hl_badge_txt}</span>
+            </div>
+            <div class="section-body">"""
+
+        if hl_has and hl_full:
+            hl_html += """
+                <div class="issue-card good-card" style="margin-top:10px;text-align:center;">
+                    <div class="issue-heading" style="font-size:1.1rem;">Full link detected</div>
+                    <div class="text-description" style="margin-top:6px;">
+                        Your header includes a complete URL, ensuring proper recognition by ATS systems.
+                    </div>
+                </div>"""
+            if hl_links:
+                hl_html += '<div style="margin-top:10px;">'
+                for link in hl_links:
+                    safe_link = str(link).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                    hl_html += f"""
+                    <div class="contact-row">
+                        <span class="contact-icon found">&#10003;</span>
+                        <span class="contact-value">{safe_link}</span>
+                    </div>"""
+                hl_html += '</div>'
+        elif hl_has:
+            hl_html += """
+                <div class="issue-card" style="margin-top:10px;text-align:center;">
+                    <div class="issue-heading">Partial link detected</div>
+                    <div class="text-description" style="margin-top:6px;">
+                        We found link references in your header, but consider using complete URLs (e.g. https://linkedin.com/in/yourname)
+                        for better ATS recognition.
+                    </div>
+                </div>"""
+        else:
+            hl_html += """
+                <div class="issue-card" style="margin-top:10px;">
+                    <div class="issue-heading">No links found in your resume header</div>
+                    <div class="text-description" style="margin-top:6px;">
+                        Include links to your LinkedIn profile, GitHub, or portfolio in your resume header.
+                        ATS systems often look for these to verify your online presence.
+                    </div>
+                </div>"""
+
+        hl_html += "</div></div>"
+        st.markdown(hl_html, unsafe_allow_html=True)
+
+        # ── Strengths ──
+        def _build_list_card(title: str, items: List[str], section_id: str,
+                             badge_type: str, badge_label: str, icon: str, empty_msg: str) -> str:
+            """Build a uniform detail-card HTML string for list-based sections."""
+            html = f"""
+            <div class="detail-card section-anchor" id="{section_id}">
+                <div class="detail-head">
+                    <h3>{title}</h3>
+                    <span class="badge badge-{badge_type}">{badge_label}</span>
+                </div>
+                <div class="section-body">"""
+            if items:
+                html += '<div class="issue-card good-card" style="margin-top:10px;">' if badge_type == "ok" else '<div class="issue-card" style="margin-top:10px;">'
+                for idx, item in enumerate(items, 1):
+                    safe_item = _markdown_inline_to_html(item)
+                    html += f"""
+                    <div class="contact-row" style="align-items:flex-start;">
+                        <span class="contact-icon {'found' if badge_type == 'ok' else 'missing'}">{icon}</span>
+                        <span class="contact-value" style="line-height:1.5;">{safe_item}</span>
+                    </div>"""
+                html += "</div>"
+            else:
+                html += f"""
+                <div class="issue-card good-card" style="margin-top:10px;text-align:center;">
+                    <div class="issue-heading">{empty_msg}</div>
+                </div>"""
+            html += "</div></div>"
+            return html
+
+        strengths_html = _build_list_card(
+            "Strengths", strengths_list, "strengths",
+            "ok", f"{len(strengths_list)} found" if strengths_list else "None",
+            "&#10003;", "No specific strengths identified yet."
+        )
+        st.markdown(strengths_html, unsafe_allow_html=True)
+
+        # ── Missing Skills ──
+        missing_skills_html = _build_list_card(
+            "Missing Skills", missing_skills_list, "missing-skills",
+            "warn" if missing_skills_list else "ok",
+            f"{len(missing_skills_list)} missing" if missing_skills_list else "All covered",
+            "&#10005;", "No missing skills detected — great job!"
+        )
+        st.markdown(missing_skills_html, unsafe_allow_html=True)
+
+        # ── Missing Keywords (ATS) ──
+        missing_kw_html = _build_list_card(
+            "Missing Keywords (ATS)", missing_keywords_list, "missing-keywords",
+            "warn" if missing_keywords_list else "ok",
+            f"{len(missing_keywords_list)} missing" if missing_keywords_list else "All covered",
+            "&#10005;", "No missing ATS keywords detected — your resume is well-optimized!"
+        )
+        st.markdown(missing_kw_html, unsafe_allow_html=True)
+
+        # ── Suggestions ──
+        suggestions_html = _build_list_card(
+            "Suggestions", suggestions_list, "suggestions",
+            "ok", f"{len(suggestions_list)} tips" if suggestions_list else "None",
+            "💡", "No additional suggestions at this time."
+        )
+        st.markdown(suggestions_html, unsafe_allow_html=True)
 
         # Download buttons in main content area for better visibility
         st.markdown("<br>", unsafe_allow_html=True)

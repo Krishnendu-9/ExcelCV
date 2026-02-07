@@ -24,15 +24,12 @@ def preferred_models() -> List[Optional[str]]:
     if user_model:
         models.append(user_model.strip())
     
-    # Add fallback models
+    # Add fallback models (ordered: fast & cheap first, then more capable)
     models.extend([
-        "models/gemini-2.0-flash-exp",
-        "models/gemini-1.5-flash-latest",
-        "models/gemini-1.5-flash",
-        "models/gemini-1.5-flash-8b",
-        "models/gemini-1.5-flash-001",
-        "models/gemini-1.5-pro",
-        "models/gemini-pro",
+        "models/gemini-2.0-flash",
+        "models/gemini-2.0-flash-lite",
+        "models/gemini-2.5-flash",
+        "models/gemini-2.5-pro",
     ])
     return models
 

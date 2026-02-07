@@ -874,6 +874,18 @@ def inject_base_css(theme: str = "light") -> None:
                 grid-template-columns: 360px 1fr;
                 gap: 20px;
             }}
+            /* Make the columns container fill viewport height */
+            [data-testid="stHorizontalBlock"] {{
+                align-items: flex-start !important;
+            }}
+            /* Sidebar column: sticky */
+            [data-testid="stHorizontalBlock"] > [data-testid="column"]:first-child {{
+                position: sticky !important;
+                top: 0 !important;
+                align-self: flex-start !important;
+                max-height: 100vh !important;
+                overflow-y: auto !important;
+            }}
             .report-sidebar {{
                 background: var(--bg-sidebar);
                 border: 1px solid var(--border-light);
@@ -1906,11 +1918,15 @@ def _build_sidebar_js() -> str:
             }
         }
 
-        // Scroll to a section in the main column
+        // Scroll to a section in the main (right) column
         function scrollToSection(sectionId) {
             var el = doc.getElementById(sectionId);
             if (!el) return;
+
+            // Simple and reliable: scrollIntoView on the parent window
             el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+            // Brief highlight effect
             el.style.transition = 'background-color 0.3s ease';
             var origBg = el.style.backgroundColor;
             el.style.backgroundColor = 'rgba(16,185,129,0.15)';
@@ -1919,36 +1935,81 @@ def _build_sidebar_js() -> str:
 
         // Event delegation on parent document
         function handleClick(e) {
+            var t = e.target;
+            if (!t || !t.closest) return;
+
             // Category header click -> toggle
-            var head = e.target.closest ? e.target.closest('[id^="cat-head-"]') : null;
-            if (head) {
+            var head = t.closest('.category-head');
+            if (head && head.id && head.id.indexOf('cat-head-') === 0) {
                 var catId = head.id.replace('cat-head-', '');
                 toggleCategory(catId);
                 e.stopPropagation();
+                e.preventDefault();
                 return;
             }
             // Sub-item click -> scroll
-            var subitem = e.target.closest ? e.target.closest('.subitem.clickable') : null;
-            if (subitem && subitem.getAttribute('data-section-id')) {
-                scrollToSection(subitem.getAttribute('data-section-id'));
-                e.stopPropagation();
-                return;
+            var subitem = t.closest('.subitem');
+            if (subitem) {
+                var sid = subitem.getAttribute('data-section-id');
+                if (sid) {
+                    scrollToSection(sid);
+                    e.stopPropagation();
+                    e.preventDefault();
+                    return;
+                }
             }
             // Issues text click -> scroll
-            var issueEl = e.target.closest ? e.target.closest('.issues-text.clickable') : null;
-            if (issueEl && issueEl.getAttribute('data-section-id')) {
-                scrollToSection(issueEl.getAttribute('data-section-id'));
-                e.stopPropagation();
-                return;
+            var issueEl = t.closest('.issues-text');
+            if (issueEl) {
+                var isid = issueEl.getAttribute('data-section-id');
+                if (isid) {
+                    scrollToSection(isid);
+                    e.stopPropagation();
+                    e.preventDefault();
+                    return;
+                }
             }
         }
 
-        // Remove previous listener if any
+        // Remove previous listener if any, then attach new one
         if (window.parent.__sidebarClickHandler) {
             doc.removeEventListener('click', window.parent.__sidebarClickHandler, true);
         }
         window.parent.__sidebarClickHandler = handleClick;
         doc.addEventListener('click', handleClick, true);
+
+        // Also attach direct click handlers to all subitems as backup
+        function attachDirectHandlers() {
+            var subitems = doc.querySelectorAll('.subitem[data-section-id]');
+            subitems.forEach(function(item) {
+                if (item.getAttribute('data-direct-bound')) return;
+                item.setAttribute('data-direct-bound', '1');
+                item.style.cursor = 'pointer';
+                item.addEventListener('click', function(ev) {
+                    var secId = item.getAttribute('data-section-id');
+                    if (secId) scrollToSection(secId);
+                    ev.stopPropagation();
+                    ev.preventDefault();
+                });
+            });
+            var issues = doc.querySelectorAll('.issues-text[data-section-id]');
+            issues.forEach(function(item) {
+                if (item.getAttribute('data-direct-bound')) return;
+                item.setAttribute('data-direct-bound', '1');
+                item.style.cursor = 'pointer';
+                item.addEventListener('click', function(ev) {
+                    var secId = item.getAttribute('data-section-id');
+                    if (secId) scrollToSection(secId);
+                    ev.stopPropagation();
+                    ev.preventDefault();
+                });
+            });
+        }
+        // Run direct attachment with retries
+        attachDirectHandlers();
+        setTimeout(attachDirectHandlers, 500);
+        setTimeout(attachDirectHandlers, 1000);
+        setTimeout(attachDirectHandlers, 2000);
 
         // Auto-expand Content on load
         function initContent() {
@@ -2034,25 +2095,10 @@ def render_report_page(analysis: Dict[str, Any], name: str = "CV") -> None:
         ats_items_list.append(("Email Address", "ok", None))
         ats_items_list.append(("Hyperlink in Header", "ok", None))
     
-    tailoring_metrics = analysis.get("tailoring_metrics", {}) or {}
-    tailoring_score = tailoring_metrics.get("score", subs.get("skills_alignment", score)) or 0
-    tailoring_details = tailoring_metrics.get("details", {}) or {}
-    
-    # Build Tailoring category items (if score is available)
-    tailoring_items_list = []
-    if tailoring_score is not None and tailoring_score >= 0:
-        keyword_match = tailoring_details.get("keyword_match_rate", 0)
-        skill_match = tailoring_details.get("skill_match_rate", 0)
-        if keyword_match < 70:
-            tailoring_items_list.append(("Keyword Matching", "warn", keyword_match))
-        if skill_match < 70:
-            tailoring_items_list.append(("Skill Alignment", "warn", skill_match))
-
     categories = [
         ("Content", content_score, content_items_list),
         ("Sections", sections_score, sections_items_list),
         ("ATS Essentials", ats_essentials_score, ats_items_list),
-        ("Tailoring", tailoring_score, tailoring_items_list),
     ]
 
     # No report-shell wrapper (it was rendering as a bar); columns put Your Score and ATS Parse Rate side by side

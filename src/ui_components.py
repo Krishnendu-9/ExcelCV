@@ -112,7 +112,7 @@ def inject_base_css(theme: str = "light") -> None:
                 --accent-2: #7c6bff;
                 --warm-hover-bg: #faf6db;
                 --warm-hover-border: #f5e6a8;
-                --warm-hover-glow: 0 0 20px rgba(250, 246, 219, 0.6), 0 0 40px rgba(250, 246, 219, 0.4), inset 0 0 15px rgba(250, 246, 219, 0.2);
+                --warm-hover-glow: 0 0 20px rgba(250, 246, 219, 0.6), 0 0 40px rgba(250, 246, 219, 0.4);
                 --button-bg: {'#ffffff' if is_light else '#1f2937'};
                 --button-text: {'#111827' if is_light else '#e5e7eb'};
                 --button-border: {'rgba(0, 0, 0, 0.15)' if is_light else 'rgba(255, 255, 255, 0.1)'};
@@ -144,6 +144,11 @@ def inject_base_css(theme: str = "light") -> None:
             .stFileUploader [data-testid="stFileUploaderDropzone"] span,
             .stFileUploader [data-testid="stFileUploaderDropzone"] small {{
                 color: var(--text-primary) !important;
+            }}
+            /* Explicitly remove any default box-shadow from dropzone - NO GLOW by default */
+            .stFileUploader [data-testid="stFileUploaderDropzone"],
+            [data-testid="stFileUploaderDropzone"] {{
+                box-shadow: none !important;
             }}
             /* Force dropzone text visible in light theme (Streamlit may override with light gray) */
             {'.stFileUploader [data-testid="stFileUploaderDropzone"], .stFileUploader [data-testid="stFileUploaderDropzone"] * {{ color: #374151 !important; }}' if is_light else ''}
@@ -325,15 +330,25 @@ def inject_base_css(theme: str = "light") -> None:
             }}
             .theme-toggle:hover,
             button[key="theme_toggle"]:hover,
-            [data-testid="stAppViewContainer"] button[key="theme_toggle"]:hover {{
-                box-shadow: 0 0 20px rgba(250, 246, 219, 0.6), 0 0 40px rgba(250, 246, 219, 0.4), inset 0 0 15px rgba(250, 246, 219, 0.2) !important;
+            [data-testid="stAppViewContainer"] button[key="theme_toggle"]:hover,
+            .stButton button[key="theme_toggle"]:hover,
+            button[data-baseweb="button"][key="theme_toggle"]:hover,
+            [data-testid="baseButton-secondary"][key="theme_toggle"]:hover,
+            button:has([data-testid="baseButton-secondary"])[key="theme_toggle"]:hover,
+            body button[key="theme_toggle"]:hover,
+            html body button[key="theme_toggle"]:hover {{
+                box-shadow: 0 0 20px rgba(250, 246, 219, 0.6), 0 0 40px rgba(250, 246, 219, 0.4) !important;
                 border-color: #f5e6a8 !important;
+                background-color: var(--button-bg) !important;
+                background: var(--button-bg) !important;
+                background-image: none !important;
             }}
             .theme-toggle:hover *,
             button[key="theme_toggle"]:hover *,
             [data-testid="stAppViewContainer"] button[key="theme_toggle"]:hover * {{
                 background-color: transparent !important;
                 background: transparent !important;
+                background-image: none !important;
             }}
             .theme-toggle:hover div,
             .theme-toggle:hover span,
@@ -343,6 +358,7 @@ def inject_base_css(theme: str = "light") -> None:
             button[key="theme_toggle"]:hover p {{
                 background-color: transparent !important;
                 background: transparent !important;
+                background-image: none !important;
             }}
             
             /* Hide Streamlit's deploy button */
@@ -526,21 +542,24 @@ def inject_base_css(theme: str = "light") -> None:
             
             /* Style text area */
             .stTextArea textarea {{
-                background: var(--bg-card);
-                border: 1px solid var(--border-color);
-                border-radius: 12px;
-                color: var(--text-primary);
-                padding: 12px 16px;
-                font-size: 0.95rem;
-                transition: all 0.2s ease;
+                background: var(--bg-card) !important;
+                border: 1px solid var(--border-color) !important;
+                border-radius: 12px !important;
+                color: var(--text-primary) !important;
+                padding: 12px 16px !important;
+                font-size: 0.95rem !important;
+                transition: all 0.2s ease !important;
+                box-shadow: none !important;
             }}
             .stTextArea textarea:hover {{
-                box-shadow: 0 0 20px rgba(250, 246, 219, 0.6), 0 0 40px rgba(250, 246, 219, 0.4), inset 0 0 15px rgba(250, 246, 219, 0.2) !important;
+                box-shadow: 0 0 20px rgba(250, 246, 219, 0.6), 0 0 40px rgba(250, 246, 219, 0.4) !important;
                 border-color: #f5e6a8 !important;
+                background: var(--bg-card) !important;
+                background-color: var(--bg-card) !important;
             }}
             .stTextArea textarea:focus {{
                 border-color: #f5e6a8 !important;
-                box-shadow: 0 0 20px rgba(250, 246, 219, 0.6), 0 0 40px rgba(250, 246, 219, 0.4), inset 0 0 15px rgba(250, 246, 219, 0.2) !important;
+                box-shadow: 0 0 20px rgba(250, 246, 219, 0.6), 0 0 40px rgba(250, 246, 219, 0.4) !important;
             }}
             /* Target the label container that comes before textarea */
             .stTextArea > div:first-child,
@@ -614,10 +633,7 @@ def inject_base_css(theme: str = "light") -> None:
                 background: #f9fafb !important;
                 transition: all 0.2s ease;
             }}
-            body.theme-light .stFileUploader:hover {{
-                border-color: #f5e6a8 !important;
-                background: var(--warm-hover-bg) !important;
-            }}
+            /* Removed .stFileUploader:hover - only dropzone should glow, not the container */
             /* Style file uploader label - Professional styling matching Job description - Multiple selectors */
             .stFileUploader label,
             .stFileUploader > label,
@@ -656,10 +672,7 @@ def inject_base_css(theme: str = "light") -> None:
                 border: 2px solid rgba(255, 255, 255, 0.1) !important;
                 background: #111827 !important;
             }}
-            body.theme-dark .stFileUploader:hover {{
-                border-color: #f5e6a8 !important;
-                background: var(--warm-hover-bg) !important;
-            }}
+            /* Removed .stFileUploader:hover - only dropzone should glow, not the container */
             /* Additional specificity for dark mode - Professional styling with accent line */
             body.theme-dark .stFileUploader label,
             body.theme-dark .stFileUploader > label,
@@ -719,15 +732,22 @@ def inject_base_css(theme: str = "light") -> None:
                 color: var(--text-primary) !important;
             }}
             
-            /* Fix file uploader drag and drop area */
+            /* Fix file uploader drag and drop area - Match textarea styling EXACTLY */
             .stFileUploader [data-testid="stFileUploaderDropzone"] {{
-                background-color: var(--bg-secondary) !important;
-                border: 2px solid var(--border-color) !important;
+                background: var(--bg-card) !important;
+                border: 1px solid var(--border-color) !important;
+                border-radius: 12px !important;
                 color: var(--text-primary) !important;
+                padding: 12px 16px !important;
+                font-size: 0.95rem !important;
+                transition: all 0.2s ease !important;
+                box-shadow: none !important;
             }}
             .stFileUploader [data-testid="stFileUploaderDropzone"]:hover {{
-                box-shadow: 0 0 20px rgba(250, 246, 219, 0.6), 0 0 40px rgba(250, 246, 219, 0.4), inset 0 0 15px rgba(250, 246, 219, 0.2) !important;
+                box-shadow: 0 0 20px rgba(250, 246, 219, 0.6), 0 0 40px rgba(250, 246, 219, 0.4) !important;
                 border-color: #f5e6a8 !important;
+                background: var(--bg-card) !important;
+                background-color: var(--bg-card) !important;
             }}
             
             /* (Browse Files uses variable-based button rules above) */
@@ -1189,16 +1209,21 @@ def inject_base_css(theme: str = "light") -> None:
                 border: 1px solid var(--button-border) !important;
                 box-shadow: var(--button-shadow) !important;
             }}
-            /* Warm Sun hover for buttons in col_actions (Upload another resume, theme toggle) - Full button coverage */
+            /* Warm Sun hover for buttons in col_actions (Upload another resume, theme toggle) - Boundary-only glow, NO background */
             [data-testid="stHorizontalBlock"]:has(.report-hero) > div:last-child button:hover,
-            [data-testid="stHorizontalBlock"]:has(.report-hero) > div:last-child button:hover *,
             [data-testid="stHorizontalBlock"]:has(.report-hero) > div:last-child .stButton > button:hover,
+            [data-testid="stHorizontalBlock"]:has(.report-hero) > div:last-child button[data-testid]:hover {{
+                box-shadow: 0 0 20px rgba(250, 246, 219, 0.6), 0 0 40px rgba(250, 246, 219, 0.4) !important;
+                border-color: #f5e6a8 !important;
+                background-color: var(--button-bg) !important;
+                background: var(--button-bg) !important;
+                background-image: none !important;
+            }}
+            [data-testid="stHorizontalBlock"]:has(.report-hero) > div:last-child button:hover *,
             [data-testid="stHorizontalBlock"]:has(.report-hero) > div:last-child .stButton > button:hover *,
-            [data-testid="stHorizontalBlock"]:has(.report-hero) > div:last-child button[data-testid]:hover,
             [data-testid="stHorizontalBlock"]:has(.report-hero) > div:last-child button[data-testid]:hover * {{
-                background-color: var(--warm-hover-bg) !important;
-                background: var(--warm-hover-bg) !important;
-                border-color: var(--warm-hover-border) !important;
+                background-color: transparent !important;
+                background: transparent !important;
             }}
             /* Ensure nested text elements remain visible */
             [data-testid="stHorizontalBlock"]:has(.report-hero) > div:last-child button:hover div,
@@ -1226,11 +1251,11 @@ def inject_base_css(theme: str = "light") -> None:
             .report-sidebar .stButton > button:hover,
             .report-sidebar .stButton button:hover,
             .report-sidebar button:hover {{
-                background-color: var(--button-hover-bg) !important;
-                background: var(--button-hover-bg) !important;
+                box-shadow: 0 0 20px rgba(250, 246, 219, 0.6), 0 0 40px rgba(250, 246, 219, 0.4) !important;
+                border-color: #f5e6a8 !important;
+                background-color: var(--button-bg) !important;
+                background: var(--button-bg) !important;
                 color: var(--button-text) !important;
-                border-color: var(--button-hover-border) !important;
-                box-shadow: var(--button-hover-shadow) !important;
             }}
             .report-main .stButton > button:hover *,
             .report-main .stButton button:hover *,
@@ -1466,65 +1491,132 @@ def inject_base_css(theme: str = "light") -> None:
                         }}
                         
                         // Fix theme toggle button - force theme colors and warm hover (APPLY TO ALL INSTANCES)
-                        // Try multiple selectors to ensure we find it
-                        const themeBtnSelectors = [
-                            'button[key="theme_toggle"]',
-                            '.theme-toggle',
-                            '[data-testid="stAppViewContainer"] button[key="theme_toggle"]'
-                        ];
-                        
-                        themeBtnSelectors.forEach(selector => {{
-                            document.querySelectorAll(selector).forEach(themeBtn => {{
-                                if (themeBtn && !themeBtn.hasAttribute('data-theme-glow-applied')) {{
-                                    themeBtn.setAttribute('data-theme-glow-applied', 'true');
-                                    
-                                    const btnBg = bgColor === '#ffffff' ? '#ffffff' : '#1f2937';
-                                    const btnText = bgColor === '#ffffff' ? '#111827' : '#e5e7eb';
-                                    const btnBorder = bgColor === '#ffffff' ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)';
-                                    themeBtn.style.setProperty('background-color', btnBg, 'important');
-                                    themeBtn.style.setProperty('background', btnBg, 'important');
-                                    themeBtn.style.setProperty('color', btnText, 'important');
-                                    themeBtn.style.setProperty('border-color', btnBorder, 'important');
-                                    
-                                    // Fix any nested divs
-                                    const btnDivs = themeBtn.querySelectorAll('div, span, p');
-                                    btnDivs.forEach(div => {{
-                                        div.style.setProperty('background-color', 'transparent', 'important');
-                                        div.style.setProperty('color', btnText, 'important');
-                                    }});
-                                    
-                                    // Add Warm Sun glow hover effect - using #faf6db color
-                                    const warmHoverBorder = '#f5e6a8';
-                                    const warmGlow = '0 0 20px rgba(250, 246, 219, 0.6), 0 0 40px rgba(250, 246, 219, 0.4), inset 0 0 15px rgba(250, 246, 219, 0.2)';
-                                    
-                                    themeBtn.addEventListener('mouseenter', function() {{
-                                        this.style.setProperty('box-shadow', warmGlow, 'important');
-                                        this.style.setProperty('border-color', warmHoverBorder, 'important');
-                                        // Ensure nested elements remain transparent
-                                        const allNested = this.querySelectorAll('*');
-                                        allNested.forEach(el => {{
-                                            if (el && el.tagName !== 'SVG') {{
-                                                el.style.setProperty('background-color', 'transparent', 'important');
-                                                el.style.setProperty('background', 'transparent', 'important');
-                                            }}
-                                        }});
-                                    }}, true);
-                                    
-                                    themeBtn.addEventListener('mouseleave', function() {{
-                                        this.style.removeProperty('box-shadow');
-                                        this.style.setProperty('border-color', btnBorder, 'important');
-                                    }}, true);
-                                }}
+                        function fixThemeButtonGlow() {{
+                            // Try multiple selectors to ensure we find it - MORE AGGRESSIVE
+                            const themeBtnSelectors = [
+                                'button[key="theme_toggle"]',
+                                '.theme-toggle',
+                                '[data-testid="stAppViewContainer"] button[key="theme_toggle"]',
+                                '.stButton button[key="theme_toggle"]',
+                                'button[data-baseweb="button"][key="theme_toggle"]',
+                                '[data-testid="baseButton-secondary"][key="theme_toggle"]',
+                                'button:has([data-testid="baseButton-secondary"])[key="theme_toggle"]'
+                            ];
+                            
+                            themeBtnSelectors.forEach(selector => {{
+                                document.querySelectorAll(selector).forEach(themeBtn => {{
+                                    if (themeBtn) {{
+                                        const btnBg = bgColor === '#ffffff' ? '#ffffff' : '#1f2937';
+                                        const btnText = bgColor === '#ffffff' ? '#111827' : '#e5e7eb';
+                                        const btnBorder = bgColor === '#ffffff' ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)';
+                                        
+                                        // Continuously enforce no background glow
+                                        if (!themeBtn.matches(':hover')) {{
+                                            themeBtn.style.setProperty('background-color', btnBg, 'important');
+                                            themeBtn.style.setProperty('background', btnBg, 'important');
+                                            themeBtn.style.setProperty('background-image', 'none', 'important');
+                                        }}
+                                        
+                                        if (!themeBtn.hasAttribute('data-theme-glow-applied')) {{
+                                            themeBtn.setAttribute('data-theme-glow-applied', 'true');
+                                            
+                                            themeBtn.style.setProperty('background-color', btnBg, 'important');
+                                            themeBtn.style.setProperty('background', btnBg, 'important');
+                                            themeBtn.style.setProperty('color', btnText, 'important');
+                                            themeBtn.style.setProperty('border-color', btnBorder, 'important');
+                                            
+                                            // Fix any nested divs
+                                            const btnDivs = themeBtn.querySelectorAll('div, span, p');
+                                            btnDivs.forEach(div => {{
+                                                div.style.setProperty('background-color', 'transparent', 'important');
+                                                div.style.setProperty('background', 'transparent', 'important');
+                                                div.style.setProperty('background-image', 'none', 'important');
+                                                div.style.setProperty('color', btnText, 'important');
+                                            }});
+                                            
+                                            // Add Warm Sun glow hover effect - boundary-only glow (matching textarea/dropzone)
+                                            const warmHoverBorder = '#f5e6a8';
+                                            const warmGlow = '0 0 20px rgba(250, 246, 219, 0.6), 0 0 40px rgba(250, 246, 219, 0.4)';
+                                            
+                                            themeBtn.addEventListener('mouseenter', function(e) {{
+                                                e.stopPropagation();
+                                                this.style.setProperty('box-shadow', warmGlow, 'important');
+                                                this.style.setProperty('border-color', warmHoverBorder, 'important');
+                                                // Keep background unchanged - NO background glow
+                                                this.style.setProperty('background-color', btnBg, 'important');
+                                                this.style.setProperty('background', btnBg, 'important');
+                                                this.style.setProperty('background-image', 'none', 'important');
+                                                // Ensure nested elements remain transparent
+                                                const allNested = this.querySelectorAll('*');
+                                                allNested.forEach(el => {{
+                                                    if (el && el.tagName !== 'SVG') {{
+                                                        el.style.setProperty('background-color', 'transparent', 'important');
+                                                        el.style.setProperty('background', 'transparent', 'important');
+                                                        el.style.setProperty('background-image', 'none', 'important');
+                                                    }}
+                                                }});
+                                            }}, true);
+                                            
+                                            // Also add mouseover as backup
+                                            themeBtn.addEventListener('mouseover', function(e) {{
+                                                e.stopPropagation();
+                                                this.style.setProperty('box-shadow', warmGlow, 'important');
+                                                this.style.setProperty('border-color', warmHoverBorder, 'important');
+                                                this.style.setProperty('background-color', btnBg, 'important');
+                                                this.style.setProperty('background', btnBg, 'important');
+                                                this.style.setProperty('background-image', 'none', 'important');
+                                            }}, true);
+                                            
+                                            themeBtn.addEventListener('mouseleave', function(e) {{
+                                                e.stopPropagation();
+                                                this.style.removeProperty('box-shadow');
+                                                this.style.setProperty('border-color', btnBorder, 'important');
+                                            }}, true);
+                                            
+                                            // Also add mouseout as backup
+                                            themeBtn.addEventListener('mouseout', function(e) {{
+                                                e.stopPropagation();
+                                                this.style.removeProperty('box-shadow');
+                                                this.style.setProperty('border-color', btnBorder, 'important');
+                                            }}, true);
+                                        }}
+                                    }}
+                                }});
                             }});
+                        }}
+                        
+                        // Run continuously to prevent background glow - AGGRESSIVE
+                        fixThemeButtonGlow();
+                        setTimeout(fixThemeButtonGlow, 10);
+                        setTimeout(fixThemeButtonGlow, 50);
+                        setTimeout(fixThemeButtonGlow, 100);
+                        setTimeout(fixThemeButtonGlow, 200);
+                        setInterval(fixThemeButtonGlow, 50);
+                        
+                        // Also run on DOM changes to catch dynamically added buttons
+                        if (document.body) {{
+                            new MutationObserver(() => {{
+                                setTimeout(fixThemeButtonGlow, 5);
+                            }}).observe(document.body, {{
+                                childList: true,
+                                subtree: true,
+                                attributes: true,
+                                attributeFilter: ['key', 'class', 'data-testid']
+                            }});
+                        }}
+                        
+                        // Run on all events
+                        ['DOMContentLoaded', 'load', 'pageshow'].forEach(event => {{
+                            window.addEventListener(event, fixThemeButtonGlow);
                         }});
                         
-                        // Apply Warm Sun glow hover to textarea - using #faf6db color
+                        // Apply Warm Sun glow hover to textarea - boundary glow only (no background/inset)
                         document.querySelectorAll('.stTextArea textarea').forEach(textarea => {{
                             if (textarea) {{
                                 const warmHoverBorder = '#f5e6a8';
-                                const warmGlow = '0 0 20px rgba(250, 246, 219, 0.6), 0 0 40px rgba(250, 246, 219, 0.4), inset 0 0 15px rgba(250, 246, 219, 0.2)';
+                                const warmGlow = '0 0 20px rgba(250, 246, 219, 0.6), 0 0 40px rgba(250, 246, 219, 0.4)';
                                 textarea.addEventListener('mouseenter', function() {{
-                                    this.style.cssText += 'box-shadow: ' + warmGlow + ' !important; border-color: ' + warmHoverBorder + ' !important;';
+                                    this.style.cssText += 'box-shadow: ' + warmGlow + ' !important; border-color: ' + warmHoverBorder + ' !important; background: var(--bg-card) !important; background-color: var(--bg-card) !important;';
                                 }});
                                 textarea.addEventListener('mouseleave', function() {{
                                     if (!this.matches(':focus')) {{
@@ -1534,62 +1626,112 @@ def inject_base_css(theme: str = "light") -> None:
                             }}
                         }});
                         
-                        // Apply Warm Sun glow hover to file uploader - using #faf6db color
-                        document.querySelectorAll('.stFileUploader').forEach(uploader => {{
-                            if (uploader) {{
-                                const warmHoverBorder = '#f5e6a8';
-                                const warmGlow = '0 0 20px rgba(250, 246, 219, 0.6), 0 0 40px rgba(250, 246, 219, 0.4), inset 0 0 15px rgba(250, 246, 219, 0.2)';
-                                uploader.addEventListener('mouseenter', function() {{
-                                    this.style.cssText += 'box-shadow: ' + warmGlow + ' !important; border-color: ' + warmHoverBorder + ' !important;';
-                                }});
-                                uploader.addEventListener('mouseleave', function() {{
-                                    this.style.cssText = this.style.cssText.replace(/box-shadow:\\s*[^;]+/g, '').replace(/border-color:\\s*[^;]+/g, '');
-                                }});
-                            }}
-                        }});
+                        /* Removed .stFileUploader hover - only dropzone should glow, matching textarea behavior */
                         
-                        // Apply Warm Sun glow hover to dropzone - EXACTLY matching textarea (same glow, no background change)
-                        document.querySelectorAll('.stFileUploader [data-testid="stFileUploaderDropzone"]').forEach(dropzone => {{
-                            if (dropzone && !dropzone.hasAttribute('data-glow-applied')) {{
-                                dropzone.setAttribute('data-glow-applied', 'true');
-                                // EXACT same values as textarea - only box-shadow and border-color, NO background
-                                const warmHoverBorder = '#f5e6a8';
-                                const warmGlow = '0 0 20px rgba(250, 246, 219, 0.6), 0 0 40px rgba(250, 246, 219, 0.4), inset 0 0 15px rgba(250, 246, 219, 0.2)';
-                                dropzone.addEventListener('mouseenter', function() {{
-                                    this.style.cssText += 'box-shadow: ' + warmGlow + ' !important; border-color: ' + warmHoverBorder + ' !important;';
-                                }});
-                                dropzone.addEventListener('mouseleave', function() {{
-                                    this.style.cssText = this.style.cssText.replace(/box-shadow:\\s*[^;]+/g, '').replace(/border-color:\\s*[^;]+/g, '');
-                                }});
-                            }}
-                        }});
+                        // Apply Warm Sun glow hover to dropzone - EXACTLY matching textarea hover style
+                        function fixDropzoneGlow() {{
+                            document.querySelectorAll('.stFileUploader [data-testid="stFileUploaderDropzone"]').forEach(dropzone => {{
+                                if (dropzone) {{
+                                    // Always remove box-shadow when not hovered (continuously enforce)
+                                    if (!dropzone.matches(':hover')) {{
+                                        dropzone.style.setProperty('box-shadow', 'none', 'important');
+                                    }}
+                                    // Always enforce background stays the same - NO background glow
+                                    const dropzoneBg = bgColor === '#ffffff' ? '#ffffff' : '#1f2937';
+                                    dropzone.style.setProperty('background', dropzoneBg, 'important');
+                                    dropzone.style.setProperty('background-color', dropzoneBg, 'important');
+                                    
+                                    if (!dropzone.hasAttribute('data-glow-applied')) {{
+                                        dropzone.setAttribute('data-glow-applied', 'true');
+                                        
+                                        // Explicitly remove any default box-shadow first (matching textarea behavior)
+                                        dropzone.style.setProperty('box-shadow', 'none', 'important');
+                                        
+                                        // EXACT same values and approach as textarea - boundary glow only (no background/inset)
+                                        const warmHoverBorder = '#f5e6a8';
+                                        const warmGlow = '0 0 20px rgba(250, 246, 219, 0.6), 0 0 40px rgba(250, 246, 219, 0.4)';
+                                        
+                                        const dropzoneBg = bgColor === '#ffffff' ? '#ffffff' : '#1f2937';
+                                        dropzone.addEventListener('mouseenter', function() {{
+                                            this.style.setProperty('box-shadow', warmGlow, 'important');
+                                            this.style.setProperty('border-color', warmHoverBorder, 'important');
+                                            // Explicitly prevent background color change - NO background glow
+                                            this.style.setProperty('background', dropzoneBg, 'important');
+                                            this.style.setProperty('background-color', dropzoneBg, 'important');
+                                        }});
+                                        
+                                        dropzone.addEventListener('mouseleave', function() {{
+                                            this.style.setProperty('box-shadow', 'none', 'important');
+                                            this.style.removeProperty('border-color');
+                                        }});
+                                    }}
+                                }}
+                            }});
+                        }}
                         
-                        // Apply Warm Sun hover to "Upload another resume" button - standard style, no shadow
-                        document.querySelectorAll('button').forEach(btn => {{
-                            if (btn && (btn.textContent && btn.textContent.includes('Upload another resume'))) {{
-                                // Use Warm Sun color for both light and dark modes
-                                const warmHoverBg = '#faf6db';
-                                const warmHoverBorder = '#f5e6a8';
-                                
-                                // Remove any existing event listeners by cloning
-                                const newBtn = btn.cloneNode(true);
-                                btn.parentNode.replaceChild(newBtn, btn);
-                                
-                                newBtn.addEventListener('mouseenter', function() {{
-                                    this.style.cssText += 'background-color: ' + warmHoverBg + ' !important; background: ' + warmHoverBg + ' !important; border-color: ' + warmHoverBorder + ' !important;';
-                                    // Apply to all nested elements for full button coverage
-                                    const allNested = this.querySelectorAll('*');
-                                    allNested.forEach(el => {{
-                                        if (el && el.tagName !== 'SVG') {{
-                                            el.style.cssText += 'background-color: transparent !important; background: transparent !important;';
-                                        }}
-                                    }});
-                                }});
-                                newBtn.addEventListener('mouseleave', function() {{
-                                    this.style.cssText = this.style.cssText.replace(/background-color:\\s*[^;]+/g, '').replace(/background:\\s*[^;]+/g, '').replace(/border-color:\\s*[^;]+/g, '');
-                                }});
-                            }}
-                        }});
+                        // Run immediately and continuously to prevent any default glow
+                        fixDropzoneGlow();
+                        setInterval(fixDropzoneGlow, 50);
+                        
+                        // Also run on DOM changes
+                        if (document.body) {{
+                            new MutationObserver(() => {{
+                                setTimeout(fixDropzoneGlow, 5);
+                            }}).observe(document.body, {{
+                                childList: true,
+                                subtree: true
+                            }});
+                        }}
+                        
+                        // Apply Warm Sun hover to "Upload another resume" button - boundary-only glow (matching textarea/dropzone)
+                        function fixUploadButtonGlow() {{
+                            document.querySelectorAll('button').forEach(btn => {{
+                                if (btn && (btn.textContent && btn.textContent.includes('Upload another resume'))) {{
+                                    const btnBg = bgColor === '#ffffff' ? '#ffffff' : '#1f2937';
+                                    
+                                    // Continuously enforce no background glow
+                                    if (!btn.matches(':hover')) {{
+                                        btn.style.setProperty('background', btnBg, 'important');
+                                        btn.style.setProperty('background-color', btnBg, 'important');
+                                        btn.style.setProperty('background-image', 'none', 'important');
+                                    }}
+                                    
+                                    if (!btn.hasAttribute('data-upload-glow-applied')) {{
+                                        btn.setAttribute('data-upload-glow-applied', 'true');
+                                        
+                                        const warmHoverBorder = '#f5e6a8';
+                                        const warmGlow = '0 0 20px rgba(250, 246, 219, 0.6), 0 0 40px rgba(250, 246, 219, 0.4)';
+                                        
+                                        btn.addEventListener('mouseenter', function() {{
+                                            this.style.setProperty('box-shadow', warmGlow, 'important');
+                                            this.style.setProperty('border-color', warmHoverBorder, 'important');
+                                            // Keep background unchanged - NO background glow
+                                            this.style.setProperty('background', btnBg, 'important');
+                                            this.style.setProperty('background-color', btnBg, 'important');
+                                            this.style.setProperty('background-image', 'none', 'important');
+                                            // Ensure nested elements remain transparent
+                                            const allNested = this.querySelectorAll('*');
+                                            allNested.forEach(el => {{
+                                                if (el && el.tagName !== 'SVG') {{
+                                                    el.style.setProperty('background-color', 'transparent', 'important');
+                                                    el.style.setProperty('background', 'transparent', 'important');
+                                                    el.style.setProperty('background-image', 'none', 'important');
+                                                }}
+                                            }});
+                                        }});
+                                        
+                                        btn.addEventListener('mouseleave', function() {{
+                                            this.style.setProperty('box-shadow', 'none', 'important');
+                                            this.style.removeProperty('border-color');
+                                        }});
+                                    }}
+                                }}
+                            }});
+                        }}
+                        
+                        // Run continuously to prevent background glow
+                        fixUploadButtonGlow();
+                        setInterval(fixUploadButtonGlow, 50);
                         
                         // Fix ALL secondary buttons
                         document.querySelectorAll('button[data-testid="baseButton-secondary"]').forEach(btn => {{

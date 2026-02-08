@@ -2172,23 +2172,192 @@ def _build_sidebar_js() -> str:
                             w.style.width = (r.width - padding * 2) + 'px';
                         }
                     }
+                    // Also update right column scroll container on resize
+                    setupScrollableContent();
+                });
+            }
+        }
+
+        /* ─── 2.5. Setup scrollable right content area ─── */
+        function setupScrollableContent() {
+            // Find the right column (the one containing .report-main or detail-card)
+            var rightCol = null;
+            var leftCol = null;
+            
+            // First find left column to identify right column
+            doc.querySelectorAll('.report-sidebar').forEach(function(el) {
+                if (!el.closest('#' + WRAPPER_ID)) {
+                    leftCol = el.closest('[data-testid="column"]');
+                }
+            });
+            
+            if (!leftCol) return;
+            
+            // Find the right column (sibling of left column)
+            var horizontalBlock = leftCol.closest('[data-testid="stHorizontalBlock"]');
+            if (!horizontalBlock) return;
+            
+            var columns = horizontalBlock.querySelectorAll('[data-testid="column"]');
+            if (columns.length < 2) return;
+            
+            // The right column should be the one that's not the left column
+            for (var i = 0; i < columns.length; i++) {
+                if (columns[i] !== leftCol) {
+                    rightCol = columns[i];
+                    break;
+                }
+            }
+            
+            if (!rightCol) return;
+            
+            // Make the right column scrollable with fixed height
+            var colRect = rightCol.getBoundingClientRect();
+            if (colRect.width < 50) return; // not rendered yet
+            
+            // Calculate available height (viewport height minus some padding)
+            var viewportHeight = win.innerHeight;
+            var topOffset = 10; // Match sidebar top offset
+            var maxHeight = viewportHeight - (topOffset * 2);
+            
+            // Hide the original visually but keep it in layout to preserve column width
+            rightCol.style.setProperty('visibility', 'hidden', 'important');
+            rightCol.style.setProperty('height', rightCol.offsetHeight + 'px', 'important');
+            
+            // Remove IDs from original so getElementById finds the clone's elements
+            rightCol.querySelectorAll('[id]').forEach(function(el) {
+                el.setAttribute('data-orig-id', el.id);
+                el.removeAttribute('id');
+            });
+            
+            // Create or reuse the fixed wrapper for right content
+            var RIGHT_WRAPPER_ID = 'right-content-fixed-wrapper';
+            var rightWrapper = doc.getElementById(RIGHT_WRAPPER_ID);
+            if (!rightWrapper) {
+                rightWrapper = doc.createElement('div');
+                rightWrapper.id = RIGHT_WRAPPER_ID;
+                doc.body.appendChild(rightWrapper);
+            }
+            
+            // Position the wrapper exactly over the right column, fixed to viewport
+            var padding = 8;
+            rightWrapper.style.cssText =
+                'position:fixed;' +
+                'top:' + topOffset + 'px;' +
+                'left:' + (colRect.left + padding) + 'px;' +
+                'width:' + (colRect.width - padding * 2) + 'px;' +
+                'max-height:' + maxHeight + 'px;' +
+                'overflow-y:auto;' +
+                'overflow-x:hidden;' +
+                'z-index:1;' +
+                'pointer-events:auto;';
+            
+            // Deep-clone the right column content into the wrapper
+            var clone = rightCol.cloneNode(true);
+            clone.style.setProperty('visibility', 'visible', 'important');
+            clone.style.removeProperty('height');
+            clone.style.removeProperty('position');
+            
+            // Restore IDs on the clone (so scrollToSection finds them)
+            clone.querySelectorAll('[data-orig-id]').forEach(function(el) {
+                el.id = el.getAttribute('data-orig-id');
+                el.removeAttribute('data-orig-id');
+            });
+            
+            rightWrapper.innerHTML = '';
+            rightWrapper.appendChild(clone);
+            
+            // Store reference to right column wrapper for scrolling
+            win.__rightContentColumn = rightWrapper;
+            
+            // Handle window resize: reposition wrapper
+            if (!win.__rightContentResizeBound) {
+                win.__rightContentResizeBound = true;
+                win.addEventListener('resize', function() {
+                    var col = null;
+                    doc.querySelectorAll('.report-sidebar').forEach(function(el) {
+                        if (!el.closest('#' + WRAPPER_ID)) {
+                            var lc = el.closest('[data-testid="column"]');
+                            if (lc) {
+                                var hb = lc.closest('[data-testid="stHorizontalBlock"]');
+                                if (hb) {
+                                    var cols = hb.querySelectorAll('[data-testid="column"]');
+                                    for (var j = 0; j < cols.length; j++) {
+                                        if (cols[j] !== lc) {
+                                            col = cols[j];
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    });
+                    if (col) {
+                        var r = col.getBoundingClientRect();
+                        var w = doc.getElementById(RIGHT_WRAPPER_ID);
+                        if (w) {
+                            w.style.left = (r.left + padding) + 'px';
+                            w.style.width = (r.width - padding * 2) + 'px';
+                        }
+                    }
                 });
             }
         }
 
         /* ─── 3. Scroll to a section in the main content ─── */
         function scrollToSection(sectionId) {
-            var el = doc.getElementById(sectionId);
-            if (!el) return;
-
-            // Use scrollIntoView — sidebar is fixed, so it won't move
-            el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-
-            // Brief highlight animation
-            el.style.transition = 'background-color 0.3s ease';
-            var origBg = el.style.backgroundColor;
-            el.style.backgroundColor = 'rgba(16,185,129,0.15)';
-            setTimeout(function() { el.style.backgroundColor = origBg; }, 1200);
+            // Get the scrollable container (right column wrapper)
+            var scrollContainer = win.__rightContentColumn;
+            if (!scrollContainer) {
+                // Fallback: try to find it again
+                setupScrollableContent();
+                scrollContainer = win.__rightContentColumn;
+            }
+            
+            if (scrollContainer) {
+                // Find the element within the scrollable container (clone)
+                var el = scrollContainer.querySelector('#' + sectionId);
+                if (!el) {
+                    // If not found in clone, try original (fallback)
+                    el = doc.getElementById(sectionId);
+                    if (!el) return;
+                    // Fallback to original behavior
+                    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    return;
+                }
+                
+                // Calculate scroll position within the container
+                var containerRect = scrollContainer.getBoundingClientRect();
+                var elementRect = el.getBoundingClientRect();
+                
+                // Calculate the scroll position needed
+                var scrollTop = scrollContainer.scrollTop;
+                var elementTop = elementRect.top - containerRect.top + scrollTop;
+                
+                // Scroll with smooth behavior
+                scrollContainer.scrollTo({
+                    top: elementTop - 10, // 10px offset from top
+                    behavior: 'smooth'
+                });
+                
+                // Brief highlight animation
+                el.style.transition = 'background-color 0.3s ease';
+                var origBg = el.style.backgroundColor || '';
+                el.style.backgroundColor = 'rgba(16,185,129,0.15)';
+                setTimeout(function() { 
+                    el.style.backgroundColor = origBg; 
+                }, 1200);
+            } else {
+                // Fallback to original behavior if container not found
+                var el = doc.getElementById(sectionId);
+                if (!el) return;
+                el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                
+                // Brief highlight animation
+                el.style.transition = 'background-color 0.3s ease';
+                var origBg = el.style.backgroundColor || '';
+                el.style.backgroundColor = 'rgba(16,185,129,0.15)';
+                setTimeout(function() { el.style.backgroundColor = origBg; }, 1200);
+            }
         }
 
         /* ─── 4. Event delegation for clicks (works on both original and clone) ─── */
@@ -2235,6 +2404,7 @@ def _build_sidebar_js() -> str:
         /* ─── 6. Master setup: run everything ─── */
         function runAll() {
             setupFixedSidebar();
+            setupScrollableContent();
             initContent();
         }
 

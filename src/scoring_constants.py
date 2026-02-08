@@ -30,14 +30,10 @@ QUANTIFY_BASE_SCORE = 40  # Base score (minimum)
 QUANTIFY_SCORE_MULTIPLIER = 0.6  # Multiplier for percentage
 
 # Repetition - Scoring Parameters
-REPETITION_MIN_WORDS = 5  # Minimum words to assess
-REPETITION_BASE_SCORE = 50  # Base score
-REPETITION_UNIQUE_RATIO_MULTIPLIER = 50  # Multiplier for unique ratio
-REPETITION_MAX_PENALTY = 40  # Maximum penalty for heavy repetition
-REPETITION_PENALTY_THRESHOLD = 2  # Words repeated more than this get penalty
-REPETITION_TOP_WORDS_TO_CHECK = 20  # Check top N most common words
-REPETITION_TOP_WORDS_TO_SUGGEST = 5  # Suggest top N repeated words
-REPETITION_SUGGEST_THRESHOLD = 2  # Only suggest words repeated more than this
+REPETITION_MIN_WORDS = 20  # Minimum words to assess
+REPETITION_VERB_REPEAT_THRESHOLD = 3  # Flag verbs repeated >= this many times
+REPETITION_PENALTY_PER_EXTRA = 12  # Score penalty per extra repeat beyond threshold-1
+REPETITION_MAX_FLAGGED_DISPLAY = 8  # Max repeated words to show in UI
 
 # Spelling & Grammar - Penalty Values
 SPELLING_BASE_SCORE = 100
@@ -49,6 +45,37 @@ SPELLING_ALL_CAPS_THRESHOLD = 3  # More than this many all-caps words
 SPELLING_ALL_CAPS_MIN_LENGTH = 4  # Minimum length for all-caps penalty
 SPELLING_ALL_CAPS_MAX_PENALTY = 10
 SPELLING_GOOD_SCORE_THRESHOLD = 85
+
+# Technical acronyms & common CV terms that are legitimately all-caps.
+# These are excluded from the "excessive all-caps" check.
+TECH_ACRONYMS: set = {
+    # ── AI / ML ──
+    "BERT", "BART", "CLIP", "DALL", "LSTM", "YOLO", "RCNN", "CUDA", "RLHF",
+    "LLAMA", "LLMS", "GPTS", "GGUF", "GGML", "LORA", "ONNX", "MLIR",
+    "NLTK", "DLIB", "ADAM",
+    # ── Programming / Frameworks ──
+    "HTML", "SCSS", "SASS", "LESS", "JSON", "YAML", "TOML", "AJAX", "CORS",
+    "REST", "SOAP", "GRPC", "WASM", "MERN", "MEAN", "LAMP",
+    "FAST", "NUXT", "NEXT",
+    # ── Cloud / DevOps / Infra ──
+    "AZURE", "NGINX", "KAFKA", "REDIS", "MQTT", "HELM", "KUBE", "ISTIO",
+    "CICD", "JIRA", "ASANA", "TRELLO", "LINUX", "UNIX", "BASH",
+    # ── Databases ──
+    "MYSQL", "MSSQL", "PSQL", "NOSQL", "SQLITE", "MONGO",
+    # ── Protocols / Networking ──
+    "HTTP", "HTTPS", "SMTP", "IMAP", "SFTP", "AMQP", "LDAP",
+    # ── Methodologies ──
+    "AGILE", "SCRUM", "SDLC", "ITIL", "LEAN", "SAFE",
+    # ── File Formats ──
+    "JPEG", "TIFF", "XLSX", "DOCX", "PPTX", "AVRO",
+    # ── Architecture / Patterns ──
+    "CRUD", "MVVM", "SAAS", "PAAS", "IAAS", "FAAS",
+    # ── Common CV section headers (intentionally uppercase) ──
+    "EXPERIENCE", "EDUCATION", "SKILLS", "PROJECTS", "SUMMARY",
+    "CERTIFICATIONS", "ACHIEVEMENTS", "AWARDS", "PUBLICATIONS",
+    "CONTACT", "OBJECTIVE", "INTERESTS", "ACTIVITIES",
+    "PROFESSIONAL", "TECHNICAL", "VOLUNTEER", "REFERENCES",
+}
 
 # Sections - Scoring Parameters
 SECTIONS_SCORE_PER_SECTION = 20  # Points per section found
@@ -95,37 +122,129 @@ STATUS_LOCK = "lock"
 MIN_SCORE = 0
 MAX_SCORE = 100
 
-# Synonym suggestions for repeated words (common resume action verbs)
+# Synonym suggestions for repeated words (resume action verbs & descriptive words).
+# Only words in this dictionary are flagged for repetition – this keeps the
+# analysis focused on actionable feedback (words the user CAN replace).
 WORD_SYNONYMS: Dict[str, list] = {
-    "designed": ["planned", "created", "developed"],
-    "developed": ["enhanced", "expanded", "improved"],
-    "managed": ["directed", "led", "coordinated"],
-    "implemented": ["executed", "deployed", "launched"],
-    "created": ["built", "produced", "designed"],
-    "improved": ["enhanced", "optimized", "refined"],
-    "built": ["constructed", "created", "assembled"],
-    "worked": ["collaborated", "contributed", "operated"],
-    "used": ["utilized", "leveraged", "applied"],
-    "made": ["produced", "created", "constructed"],
-    "helped": ["assisted", "supported", "facilitated"],
-    "responsible": ["accountable", "tasked with", "oversaw"],
-    "led": ["directed", "guided", "spearheaded"],
-    "handled": ["managed", "oversaw", "addressed"],
-    "supported": ["assisted", "aided", "facilitated"],
-    "maintained": ["preserved", "sustained", "managed"],
-    "performed": ["executed", "conducted", "carried out"],
-    "provided": ["delivered", "supplied", "offered"],
-    "conducted": ["performed", "executed", "carried out"],
-    "assisted": ["supported", "helped", "contributed to"],
-    "established": ["founded", "initiated", "set up"],
+    # ── Past-tense action verbs (bullet-point starters) ──
+    "achieved": ["accomplished", "attained", "earned"],
+    "administered": ["managed", "directed", "supervised"],
     "analyzed": ["evaluated", "examined", "assessed"],
-    "prepared": ["compiled", "organized", "assembled"],
-    "ensured": ["guaranteed", "verified", "confirmed"],
+    "analysed": ["evaluated", "examined", "assessed"],
+    "applied": ["utilized", "employed", "leveraged"],
+    "architected": ["designed", "structured", "engineered"],
+    "assembled": ["compiled", "gathered", "organized"],
+    "assisted": ["supported", "helped", "contributed to"],
+    "automated": ["streamlined", "mechanized", "systematized"],
+    "built": ["constructed", "developed", "created"],
     "collaborated": ["partnered", "cooperated", "teamed up"],
+    "communicated": ["conveyed", "presented", "articulated"],
+    "compiled": ["assembled", "gathered", "collected"],
+    "completed": ["finished", "accomplished", "finalized"],
+    "conducted": ["performed", "executed", "carried out"],
+    "configured": ["set up", "customized", "arranged"],
     "contributed": ["supported", "aided", "participated"],
-    "integrated": ["combined", "merged", "incorporated"],
+    "coordinated": ["organized", "managed", "arranged"],
+    "created": ["designed", "produced", "built"],
+    "customized": ["tailored", "adapted", "modified"],
+    "delivered": ["provided", "produced", "supplied"],
     "deployed": ["launched", "released", "rolled out"],
+    "designed": ["planned", "created", "architected"],
+    "developed": ["built", "created", "engineered"],
+    "directed": ["led", "managed", "guided"],
+    "documented": ["recorded", "cataloged", "detailed"],
+    "drove": ["led", "spearheaded", "championed"],
+    "enabled": ["empowered", "facilitated", "allowed"],
+    "engineered": ["designed", "built", "developed"],
+    "enhanced": ["improved", "upgraded", "strengthened"],
+    "ensured": ["guaranteed", "verified", "confirmed"],
+    "established": ["founded", "initiated", "set up"],
+    "evaluated": ["assessed", "analyzed", "reviewed"],
+    "executed": ["implemented", "performed", "carried out"],
+    "expanded": ["grew", "extended", "broadened"],
+    "facilitated": ["enabled", "supported", "coordinated"],
+    "formulated": ["devised", "designed", "developed"],
+    "generated": ["produced", "created", "yielded"],
+    "guided": ["mentored", "directed", "advised"],
+    "handled": ["managed", "oversaw", "addressed"],
+    "headed": ["led", "directed", "managed"],
+    "helped": ["assisted", "supported", "facilitated"],
+    "identified": ["discovered", "recognized", "pinpointed"],
+    "implemented": ["executed", "deployed", "launched"],
+    "improved": ["enhanced", "optimized", "refined"],
+    "increased": ["boosted", "raised", "expanded"],
+    "initiated": ["started", "launched", "introduced"],
+    "integrated": ["combined", "merged", "incorporated"],
+    "investigated": ["researched", "examined", "explored"],
+    "launched": ["introduced", "released", "deployed"],
+    "led": ["directed", "guided", "spearheaded"],
+    "leveraged": ["utilized", "harnessed", "capitalized on"],
+    "maintained": ["preserved", "sustained", "managed"],
+    "managed": ["directed", "led", "coordinated"],
+    "mentored": ["guided", "coached", "trained"],
+    "migrated": ["transitioned", "transferred", "moved"],
+    "modernized": ["updated", "upgraded", "revamped"],
+    "monitored": ["tracked", "observed", "supervised"],
+    "negotiated": ["brokered", "mediated", "arranged"],
+    "operated": ["ran", "managed", "administered"],
     "optimized": ["improved", "enhanced", "streamlined"],
+    "organized": ["arranged", "coordinated", "structured"],
+    "oversaw": ["supervised", "managed", "directed"],
+    "partnered": ["collaborated", "cooperated", "allied"],
+    "performed": ["executed", "conducted", "carried out"],
+    "pioneered": ["introduced", "innovated", "initiated"],
+    "planned": ["organized", "arranged", "strategized"],
+    "prepared": ["compiled", "organized", "assembled"],
+    "presented": ["demonstrated", "showcased", "exhibited"],
+    "processed": ["handled", "managed", "dealt with"],
+    "produced": ["created", "generated", "delivered"],
+    "programmed": ["coded", "developed", "scripted"],
+    "provided": ["delivered", "supplied", "offered"],
+    "published": ["released", "issued", "distributed"],
+    "reduced": ["decreased", "minimized", "cut"],
+    "researched": ["investigated", "studied", "explored"],
+    "resolved": ["fixed", "addressed", "rectified"],
+    "restructured": ["reorganized", "revamped", "transformed"],
+    "reviewed": ["assessed", "evaluated", "examined"],
+    "secured": ["obtained", "acquired", "protected"],
+    "simplified": ["streamlined", "clarified", "condensed"],
+    "spearheaded": ["led", "championed", "drove"],
+    "standardized": ["normalized", "unified", "formalized"],
+    "streamlined": ["simplified", "optimized", "improved"],
+    "strengthened": ["reinforced", "enhanced", "fortified"],
+    "supervised": ["oversaw", "directed", "managed"],
+    "supported": ["assisted", "aided", "facilitated"],
+    "trained": ["coached", "mentored", "instructed"],
+    "transformed": ["converted", "revamped", "modernized"],
+    "updated": ["revised", "upgraded", "modernized"],
+    "upgraded": ["enhanced", "improved", "modernized"],
+    "utilized": ["leveraged", "employed", "applied"],
+    "validated": ["verified", "confirmed", "authenticated"],
+    "worked": ["collaborated", "contributed", "operated"],
+    "wrote": ["authored", "composed", "drafted"],
+    "made": ["produced", "created", "constructed"],
+    "used": ["utilized", "leveraged", "applied"],
+    "responsible": ["accountable", "tasked with", "oversaw"],
+    # ── Present-participle forms (appear in bullet continuations) ──
+    "ensuring": ["guaranteeing", "maintaining", "securing"],
+    "handling": ["managing", "processing", "dealing with"],
+    "processing": ["handling", "analyzing", "computing"],
+    "implementing": ["deploying", "executing", "applying"],
+    "enhancing": ["improving", "boosting", "strengthening"],
+    "increasing": ["boosting", "raising", "expanding"],
+    "reducing": ["minimizing", "decreasing", "cutting"],
+    "improving": ["enhancing", "refining", "advancing"],
+    "supporting": ["facilitating", "enabling", "assisting"],
+    "using": ["utilizing", "leveraging", "employing"],
+    "achieving": ["attaining", "accomplishing", "reaching"],
+    "managing": ["directing", "overseeing", "coordinating"],
+    "developing": ["building", "creating", "engineering"],
+    "building": ["constructing", "developing", "creating"],
+    "designing": ["planning", "creating", "architecting"],
+    "integrating": ["combining", "merging", "incorporating"],
+    "deploying": ["launching", "releasing", "rolling out"],
+    "optimizing": ["improving", "enhancing", "streamlining"],
+    "leading": ["directing", "guiding", "spearheading"],
 }
 
 

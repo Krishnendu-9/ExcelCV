@@ -874,8 +874,7 @@ def inject_base_css(theme: str = "light") -> None:
                 grid-template-columns: 360px 1fr;
                 gap: 20px;
             }}
-            /* Make the columns container fill viewport height */
-            /* Report layout: two columns with sticky sidebar */
+            /* Report layout: two columns */
             [data-testid="stHorizontalBlock"] {{
                 align-items: flex-start !important;
             }}
@@ -2027,7 +2026,18 @@ def _build_sidebar_html(score: int, issues: int, categories: list) -> str:
                                "error": "badge badge-warn", "lock": "badge badge-lock"
                                }.get(status, "badge badge-warn")
 
-                if status in ("warn", "error"):
+                # For Content category metrics (ATS Parse Rate, Quantifying Impact, Repetition, Spelling & Grammar),
+                # always show percentage score, not issue count
+                is_content_metric = item_label in ("ATS Parse Rate", "Quantifying Impact", "Repetition", "Spelling & Grammar")
+                
+                if is_content_metric:
+                    # Always show percentage for content metrics
+                    if score_val is not None and isinstance(score_val, (int, float)):
+                        badge_text = f"{int(score_val)}%"
+                    else:
+                        badge_text = "N/A"
+                elif status in ("warn", "error"):
+                    # For other metrics, show issue count if available
                     if score_val is not None and isinstance(score_val, (int, float)):
                         badge_text = f"{int(score_val)} {'issue' if int(score_val) == 1 else 'issues'}"
                     else:
@@ -2063,8 +2073,10 @@ def _build_sidebar_js() -> str:
     <script>
     (function() {
         var doc = window.parent.document;
+        var win = window.parent;
+        var WRAPPER_ID = 'sidebar-fixed-clone-wrapper';
 
-        // Toggle expand/collapse for a category
+        /* ─── 1. Toggle expand/collapse for a category ─── */
         function toggleCategory(categoryId) {
             var head = doc.getElementById('cat-head-' + categoryId);
             var items = doc.getElementById('cat-items-' + categoryId);
@@ -2080,100 +2092,110 @@ def _build_sidebar_js() -> str:
             }
         }
 
-        // ── Manual sticky sidebar using transform (works regardless of overflow) ──
-        var stickySidebarActive = false;
-        function setupStickySidebar() {
-            if (stickySidebarActive) return;
-            var sidebar = doc.querySelector('.report-sidebar');
-            if (!sidebar) return;
-            var leftCol = sidebar.closest('[data-testid="column"]');
+        /* ─── 2. Fixed sidebar via clone on document.body ─── */
+        function setupFixedSidebar() {
+            // Find the ORIGINAL sidebar (the one inside the Streamlit column)
+            var original = null;
+            doc.querySelectorAll('.report-sidebar').forEach(function(el) {
+                if (!el.closest('#' + WRAPPER_ID)) {
+                    original = el;
+                }
+            });
+            if (!original) return;
+
+            var leftCol = original.closest('[data-testid="column"]');
             if (!leftCol) return;
 
-            // Find the actual scroll container
-            var scrollContainer = null;
-            var el = leftCol.parentElement;
-            while (el && el !== doc.documentElement) {
-                var cs = window.parent.getComputedStyle(el);
-                var oy = cs.overflowY;
-                if ((oy === 'auto' || oy === 'scroll') && el.scrollHeight > el.clientHeight) {
-                    scrollContainer = el;
-                    break;
-                }
-                el = el.parentElement;
-            }
-            if (!scrollContainer) {
-                scrollContainer = doc.querySelector('section.main');
-                if (!scrollContainer) scrollContainer = doc.documentElement;
-            }
+            var colRect = leftCol.getBoundingClientRect();
+            if (colRect.width < 50) return; // not rendered yet
 
-            // Calculate the initial top offset of the sidebar relative to scrollContainer
-            function getSidebarOffsetTop() {
-                var rect = leftCol.getBoundingClientRect();
-                var contRect = scrollContainer.getBoundingClientRect();
-                return rect.top - contRect.top + scrollContainer.scrollTop;
+            // Hide the original visually but keep it in layout to preserve column width
+            original.style.setProperty('visibility', 'hidden', 'important');
+            original.style.setProperty('height', original.offsetHeight + 'px', 'important');
+
+            // Remove IDs from original so getElementById finds the clone's elements
+            original.querySelectorAll('[id]').forEach(function(el) {
+                el.setAttribute('data-orig-id', el.id);
+                el.removeAttribute('id');
+            });
+
+            // Create or reuse the fixed wrapper on document.body
+            var wrapper = doc.getElementById(WRAPPER_ID);
+            if (!wrapper) {
+                wrapper = doc.createElement('div');
+                wrapper.id = WRAPPER_ID;
+                doc.body.appendChild(wrapper);
             }
 
-            var sidebarOrigTop = getSidebarOffsetTop();
-            var pinOffset = 10; // px from top when pinned
-            var sidebarH = leftCol.offsetHeight;
+            // Position the wrapper exactly over the left column, fixed to viewport
+            var padding = 8;
+            wrapper.style.cssText =
+                'position:fixed;' +
+                'top:10px;' +
+                'left:' + (colRect.left + padding) + 'px;' +
+                'width:' + (colRect.width - padding * 2) + 'px;' +
+                'max-height:calc(100vh - 20px);' +
+                'overflow-y:auto;' +
+                'z-index:9999;' +
+                'pointer-events:auto;';
 
-            function onScroll() {
-                var scrollTop = scrollContainer.scrollTop;
-                var contHeight = scrollContainer.clientHeight;
-                // Recalculate sidebar height in case content changed
-                sidebarH = sidebar.offsetHeight;
+            // Deep-clone the sidebar into the wrapper
+            var clone = original.cloneNode(true);
+            clone.style.setProperty('visibility', 'visible', 'important');
+            clone.style.removeProperty('height');
 
-                if (scrollTop > sidebarOrigTop - pinOffset) {
-                    var translateY = scrollTop - sidebarOrigTop + pinOffset;
-                    // Don't let sidebar go past the bottom of its parent
-                    var parent = leftCol.parentElement;
-                    if (parent) {
-                        var maxTranslate = parent.offsetHeight - sidebarH - 20;
-                        if (translateY > maxTranslate && maxTranslate > 0) {
-                            translateY = maxTranslate;
+            // Restore IDs on the clone (so toggleCategory / scrollToSection find them)
+            clone.querySelectorAll('[data-orig-id]').forEach(function(el) {
+                el.id = el.getAttribute('data-orig-id');
+                el.removeAttribute('data-orig-id');
+            });
+
+            wrapper.innerHTML = '';
+            wrapper.appendChild(clone);
+
+            // Store a flag so we don't repeat unnecessarily
+            win.__sidebarFixedDone = true;
+
+            // Handle window resize: reposition wrapper
+            if (!win.__sidebarResizeBound) {
+                win.__sidebarResizeBound = true;
+                win.addEventListener('resize', function() {
+                    var col = null;
+                    doc.querySelectorAll('.report-sidebar').forEach(function(el) {
+                        if (!el.closest('#' + WRAPPER_ID)) col = el.closest('[data-testid="column"]');
+                    });
+                    if (col) {
+                        var r = col.getBoundingClientRect();
+                        var w = doc.getElementById(WRAPPER_ID);
+                        if (w) {
+                            w.style.left = (r.left + padding) + 'px';
+                            w.style.width = (r.width - padding * 2) + 'px';
                         }
                     }
-                    sidebar.style.setProperty('transform', 'translateY(' + translateY + 'px)', 'important');
-                } else {
-                    sidebar.style.setProperty('transform', 'translateY(0px)', 'important');
-                }
+                });
             }
-
-            scrollContainer.addEventListener('scroll', onScroll, { passive: true });
-            onScroll(); // Initial check
-            stickySidebarActive = true;
-
-            // Store for scrollToSection
-            window.parent.__scrollContainer = scrollContainer;
         }
 
-        // Scroll to a section in the main content area
+        /* ─── 3. Scroll to a section in the main content ─── */
         function scrollToSection(sectionId) {
             var el = doc.getElementById(sectionId);
             if (!el) return;
 
-            var sc = window.parent.__scrollContainer;
-            if (sc) {
-                // Calculate target position relative to scroll container
-                var elRect = el.getBoundingClientRect();
-                var scRect = sc.getBoundingClientRect();
-                var targetTop = elRect.top - scRect.top + sc.scrollTop - 20;
-                sc.scrollTo({ top: targetTop, behavior: 'smooth' });
-            } else {
-                el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }
+            // Use scrollIntoView — sidebar is fixed, so it won't move
+            el.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
-            // Brief highlight
+            // Brief highlight animation
             el.style.transition = 'background-color 0.3s ease';
             var origBg = el.style.backgroundColor;
             el.style.backgroundColor = 'rgba(16,185,129,0.15)';
             setTimeout(function() { el.style.backgroundColor = origBg; }, 1200);
         }
 
-        // Event delegation on parent document
+        /* ─── 4. Event delegation for clicks (works on both original and clone) ─── */
         function handleClick(e) {
             var t = e.target;
             if (!t || !t.closest) return;
+
             var head = t.closest('.category-head');
             if (head && head.id && head.id.indexOf('cat-head-') === 0) {
                 toggleCategory(head.id.replace('cat-head-', ''));
@@ -2193,30 +2215,13 @@ def _build_sidebar_js() -> str:
             }
         }
 
-        if (window.parent.__sidebarClickHandler) {
-            doc.removeEventListener('click', window.parent.__sidebarClickHandler, true);
+        if (win.__sidebarClickHandler) {
+            doc.removeEventListener('click', win.__sidebarClickHandler, true);
         }
-        window.parent.__sidebarClickHandler = handleClick;
+        win.__sidebarClickHandler = handleClick;
         doc.addEventListener('click', handleClick, true);
 
-        // Direct handlers as backup
-        function attachDirectHandlers() {
-            doc.querySelectorAll('.subitem[data-section-id]').forEach(function(item) {
-                if (item.getAttribute('data-direct-bound')) return;
-                item.setAttribute('data-direct-bound', '1');
-                item.style.cursor = 'pointer';
-                item.addEventListener('click', function(ev) {
-                    var secId = item.getAttribute('data-section-id');
-                    if (secId) scrollToSection(secId);
-                    ev.stopPropagation(); ev.preventDefault();
-                });
-            });
-        }
-        attachDirectHandlers();
-        setTimeout(attachDirectHandlers, 500);
-        setTimeout(attachDirectHandlers, 1500);
-
-        // Auto-expand Content on load
+        /* ─── 5. Auto-expand Content category ─── */
         function initContent() {
             var head = doc.getElementById('cat-head-content');
             var items = doc.getElementById('cat-items-content');
@@ -2227,21 +2232,43 @@ def _build_sidebar_js() -> str:
             }
         }
 
-        // Run setup repeatedly to beat Streamlit re-renders
+        /* ─── 6. Master setup: run everything ─── */
+        function runAll() {
+            setupFixedSidebar();
+            initContent();
+        }
+
+        // Run with increasing delays to catch Streamlit's async rendering
+        setTimeout(runAll, 300);
+        setTimeout(runAll, 600);
+        setTimeout(runAll, 1000);
+        setTimeout(runAll, 2000);
+
         var attempts = 0;
         var initTimer = setInterval(function() {
-            initContent();
-            setupStickySidebar();
-            attachDirectHandlers();
+            runAll();
             attempts++;
-            if (attempts > 40) clearInterval(initTimer);
-        }, 250);
+            if (attempts > 30) clearInterval(initTimer);
+        }, 500);
 
-        // Also watch for DOM changes and re-apply
+        // Re-run on DOM changes (Streamlit re-renders)
         if (doc.body) {
-            new MutationObserver(function() {
-                setupStickySidebar();
-            }).observe(doc.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['style'] });
+            var debounce = null;
+            new MutationObserver(function(mutations) {
+                // Only re-run if the sidebar was recreated by Streamlit
+                var needsRedo = false;
+                doc.querySelectorAll('.report-sidebar').forEach(function(el) {
+                    if (!el.closest('#' + WRAPPER_ID) &&
+                        el.style.visibility !== 'hidden') {
+                        needsRedo = true;
+                    }
+                });
+                if (needsRedo) {
+                    win.__sidebarFixedDone = false;
+                    clearTimeout(debounce);
+                    debounce = setTimeout(runAll, 200);
+                }
+            }).observe(doc.body, { childList: true, subtree: true });
         }
     })();
     </script>
@@ -2369,24 +2396,6 @@ def render_report_page(analysis: Dict[str, Any], name: str = "CV") -> None:
 
         # Inject JavaScript via components.html (guaranteed execution)
         components.html(_build_sidebar_js(), height=0)
-
-        # Download buttons
-        st.download_button(
-            "📄 Download report (Markdown)",
-            data=build_report_md(name, analysis),
-            file_name=f"{name}-analysis.md",
-            mime="text/markdown",
-            use_container_width=True,
-            key="download_md_sidebar",
-        )
-        st.download_button(
-            "💾 Download JSON",
-            data=json.dumps(analysis, indent=2),
-            file_name=f"{name}-analysis.json",
-            mime="application/json",
-            use_container_width=True,
-            key="download_json_sidebar",
-        )
 
     with main:
         # ── ATS Parse Rate ──

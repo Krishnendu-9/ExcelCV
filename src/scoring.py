@@ -28,16 +28,11 @@ from src.scoring_constants import (
     MAX_SCORE,
     MIN_SCORE,
     QUANTIFY_BASE_SCORE,
-    QUANTIFY_MIN_LINE_LENGTH,
     QUANTIFY_SCORE_MULTIPLIER,
-    REPETITION_BASE_SCORE,
-    REPETITION_MAX_PENALTY,
     REPETITION_MIN_WORDS,
-    REPETITION_PENALTY_THRESHOLD,
-    REPETITION_SUGGEST_THRESHOLD,
-    REPETITION_TOP_WORDS_TO_CHECK,
-    REPETITION_TOP_WORDS_TO_SUGGEST,
-    REPETITION_UNIQUE_RATIO_MULTIPLIER,
+    REPETITION_VERB_REPEAT_THRESHOLD,
+    REPETITION_PENALTY_PER_EXTRA,
+    REPETITION_MAX_FLAGGED_DISPLAY,
     SECTIONS_MAX_SCORE,
     SECTIONS_SCORE_PER_SECTION,
     SECTION_KEYWORDS,
@@ -48,9 +43,8 @@ from src.scoring_constants import (
     SPELLING_DOUBLE_SPACE_MAX_PENALTY,
     SPELLING_DOUBLE_SPACE_PENALTY_PER_INSTANCE,
     SPELLING_GOOD_SCORE_THRESHOLD,
-    SPELLING_PUNCTUATION_MAX_PENALTY,
-    SPELLING_PUNCTUATION_PENALTY_PER_INSTANCE,
     STOP_WORDS,
+    TECH_ACRONYMS,
     TAILORING_DEFAULT_SCORE_NO_CV,
     TAILORING_DEFAULT_SCORE_NO_JD,
     TAILORING_DEFAULT_SCORE_NO_KEYWORDS,
@@ -130,13 +124,308 @@ def calculate_ats_parse_rate(cv_text: str) -> int:
     return base_score
 
 
+def _extract_experience_sections(cv_text: str) -> str:
+    """
+    Extract text from experience and project sections of a CV.
+
+    Identifies section headers and returns only the content between
+    experience/project headers and the next section header.
+    Falls back to the full text if no clear sections are detected.
+    """
+    text = (cv_text or "").strip()
+    if not text:
+        return ""
+
+    lines = text.split("\n")
+
+    # Patterns for experience / project section headers
+    exp_pattern = re.compile(
+        r"^(?:professional\s+)?(?:work\s+)?experience"
+        r"|^work\s+history|^employment(?:\s+history)?"
+        r"|^career(?:\s+history)?"
+        r"|^(?:personal|academic|key|side)?\s*projects?"
+        r"|^internships?",
+        re.I,
+    )
+
+    # Patterns for ANY section header (used to find where sections end)
+    any_section_pattern = re.compile(
+        r"^(?:professional\s+)?(?:work\s+)?experience"
+        r"|^work\s+history|^employment(?:\s+history)?"
+        r"|^career(?:\s+history)?"
+        r"|^(?:personal|academic|key|side)?\s*projects?"
+        r"|^internships?"
+        r"|^education|^academic\s+(?:background|qualifications?)"
+        r"|^(?:technical\s+)?skills?|^core\s+competenc|^expertise"
+        r"|^(?:professional\s+)?summary|^objectives?|^profiles?"
+        r"|^about\s+me"
+        r"|^contact(?:\s+(?:info|information|details))?"
+        r"|^personal\s+(?:information|details)"
+        r"|^certifications?|^licen[sc]es?"
+        r"|^awards?|^honou?rs?|^achievements?"
+        r"|^languages?|^interests?|^hobbies|^references"
+        r"|^publications?|^volunteer(?:ing)?|^activities"
+        r"|^training|^courses?|^extracurricular",
+        re.I,
+    )
+
+    # Detect section boundaries
+    section_starts: list = []  # [(line_index, is_experience_section)]
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if not stripped:
+            continue
+        # Section headers are typically short and standalone
+        clean = re.sub(r"[:\-–—|/\\]+$", "", stripped).strip()
+        if len(clean) > 60:
+            continue
+        if any_section_pattern.search(clean):
+            is_exp = bool(exp_pattern.search(clean))
+            section_starts.append((i, is_exp))
+
+    if not section_starts:
+        # No recognisable sections → return full text as fallback
+        return text
+
+    # Collect text from experience-related sections only
+    chunks: list = []
+    for idx, (start_line, is_exp) in enumerate(section_starts):
+        if not is_exp:
+            continue
+        end_line = (
+            section_starts[idx + 1][0]
+            if idx + 1 < len(section_starts)
+            else len(lines)
+        )
+        chunk = "\n".join(lines[start_line + 1 : end_line])
+        chunks.append(chunk)
+
+    return "\n".join(chunks) if chunks else text
+
+
+# Common bullet-point lead characters found in PDF-extracted text
+_BULLET_CHARS_RE = re.compile(r"^[•·▪▸►➤\u2022\u2023\u25E6\u2043\u2219\*]\s*")
+
+# Date patterns that appear in job-title / header lines
+_DATE_RANGE_RE = re.compile(
+    r"(?:(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|"
+    r"Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)"
+    r"\.?\s*)?\d{4}\s*[-–—/]+\s*"
+    r"(?:(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|"
+    r"Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)"
+    r"\.?\s*)?(?:Present|Current|Now|\d{4})",
+    re.I,
+)
+
+# Past-tense action verbs that typically START a resume bullet point.
+# Used to detect bullet boundaries in PDF-extracted text where the
+# bullet character (•) may be absent or already stripped.
+_ACTION_VERB_START_RE = re.compile(
+    r"^(?:Accelerated|Achieved|Administered|Analyzed|Analysed|Applied|"
+    r"Architected|Assembled|Assisted|Automated|"
+    r"Built|Coached|Collaborated|Communicated|Compiled|Completed|"
+    r"Conducted|Configured|Consolidated|Constructed|Contributed|"
+    r"Coordinated|Created|Customized|"
+    r"Decreased|Delivered|Deployed|Designed|Developed|Directed|"
+    r"Drove|"
+    r"Eliminated|Enabled|Engineered|Enhanced|Ensured|Established|"
+    r"Evaluated|Executed|Expanded|"
+    r"Facilitated|Formulated|Founded|"
+    r"Generated|Guided|"
+    r"Handled|Headed|"
+    r"Identified|Implemented|Improved|Increased|Initiated|Integrated|"
+    r"Introduced|Investigated|"
+    r"Launched|Led|Leveraged|"
+    r"Maintained|Managed|Mentored|Migrated|Modernized|Monitored|"
+    r"Negotiated|"
+    r"Operated|Optimized|Orchestrated|Organized|Overhauled|Oversaw|"
+    r"Partnered|Performed|Pioneered|Planned|Prepared|Presented|"
+    r"Produced|Programmed|Provided|Published|"
+    r"Rebuilt|Reconciled|Redesigned|Reduced|Re-?engineered|"
+    r"Refactored|Resolved|Restructured|Revamped|Reviewed|"
+    r"Secured|Set\s+up|Simplified|Spearheaded|Standardized|"
+    r"Streamlined|Strengthened|Supervised|Supported|"
+    r"Trained|Transformed|Translated|Troubleshot|"
+    r"Unified|Updated|Upgraded|Utilized|"
+    r"Validated|Wrote)\b",
+)
+
+
+def _rejoin_pdf_lines(text: str) -> list:
+    """
+    Reassemble PDF-fragmented text into complete bullet points.
+
+    PDF text extraction breaks lines at visual line-wrap boundaries, so one
+    bullet point spanning 2-3 visual lines becomes 2-3 separate ``\\n``-separated
+    lines.  This function:
+      1. Fixes hyphenated word breaks  (``prop-\\nerty`` → ``property``)
+      2. Detects bullet boundaries via bullet chars (•) **and** action-verb starts
+      3. Joins continuation lines with the previous bullet
+      4. Returns a list of complete text items (bullets + non-bullet lines)
+    """
+    if not text or not text.strip():
+        return []
+
+    # ── Step 1: fix hyphenated word breaks at line endings ──
+    # "prop-\nerty" → "property",  "conser-\nvation" → "conservation"
+    text = re.sub(r"-\s*\n\s*([a-z])", r"\1", text)
+
+    # ── Step 2: walk lines, merging continuations ──
+    raw_lines = text.split("\n")
+    items: list = []
+    current = ""
+
+    for raw in raw_lines:
+        stripped = raw.strip()
+
+        # Blank line → flush current item
+        if not stripped:
+            if current:
+                items.append(current)
+                current = ""
+            continue
+
+        # Does this line start with a bullet character?
+        is_bullet_start = bool(_BULLET_CHARS_RE.match(stripped))
+
+        if is_bullet_start:
+            # Save previous item, start a new bullet (strip the marker)
+            if current:
+                items.append(current)
+            current = _BULLET_CHARS_RE.sub("", stripped).strip()
+            continue
+
+        # Does this line start with a past-tense action verb?
+        # (very strong signal that a new bullet point begins here)
+        is_action_start = bool(_ACTION_VERB_START_RE.match(stripped))
+
+        if is_action_start:
+            if current:
+                items.append(current)
+            current = stripped
+            continue
+
+        # If there's no current buffer, start a new item
+        if not current:
+            current = stripped
+            continue
+
+        # ── Decide: continuation of current item  vs  new item ──
+        prev_ends_sentence = current.rstrip()[-1:] in ".!?;"
+        starts_lower = stripped[0:1].islower()
+
+        # Continuation when:  previous line didn't end a sentence, OR
+        #                     this line starts with a lowercase letter
+        if not prev_ends_sentence or starts_lower:
+            current = current.rstrip() + " " + stripped
+        else:
+            items.append(current)
+            current = stripped
+
+    if current:
+        items.append(current)
+
+    return items
+
+
+def _is_experience_bullet(line: str) -> bool:
+    """
+    Return True if *line* looks like an experience / achievement bullet point
+    rather than a job title, company name, date range, or section header.
+
+    Expects *line* to already be rejoined (not a PDF fragment).
+    """
+    stripped = line.strip()
+
+    # Too short → likely a title, company name, or date
+    if len(stripped) < 35:
+        return False
+
+    # Lines that contain a date-range pattern are usually job-title / header lines
+    # e.g. "Junior AI Developer AKC Techno Solz, Feb 2025 – Present"
+    if _DATE_RANGE_RE.search(stripped):
+        return False
+
+    # Lines that are mostly just a job-title / company-name pattern
+    # (high ratio of title-case words, no verb-like content)
+    words = stripped.split()
+    if len(words) <= 10:
+        title_words = sum(1 for w in words if w[0:1].isupper() and len(w) > 1)
+        if title_words / max(1, len(words)) >= 0.6:
+            return False
+
+    # Skip lines that look like a tech-stack / skills listing
+    # e.g. "Python, Computer Vision, TensorFlow, OpenCV"
+    if len(words) <= 12:
+        comma_count = stripped.count(",")
+        if comma_count >= 3 and comma_count >= len(words) // 2:
+            return False
+
+    # Skip lines that look like location / company-name combos
+    # e.g. "ABC Corp, New York, NY" or "Remote | Full-time"
+    if len(stripped) < 70 and re.match(r"^[A-Z][\w\s&.,]+(?:\|[^|]+)?$", stripped):
+        comma_count = stripped.count(",")
+        if comma_count >= 2 or re.search(
+            r"\b(?:remote|full[\s-]?time|part[\s-]?time|contract|freelance|hybrid)\b",
+            stripped,
+            re.I,
+        ):
+            return False
+
+    return True
+
+
+def _line_has_metric(line: str) -> bool:
+    """
+    Return True only if the line contains a **real quantifiable metric** —
+    an actual number, percentage, dollar amount, or measurable result.
+
+    Vague improvement words (improved, reduced, increasing) WITHOUT
+    accompanying numbers do NOT count as quantification.
+
+    Date/year references embedded in the text (from PDF extraction merging
+    company info) are stripped before checking so they don't produce false
+    positives.
+    """
+    # ── Strip date / year references ──
+    # Remove "Month Year" patterns  (e.g. "Feb 2025", "January 2024")
+    cleaned = re.sub(
+        r"(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|"
+        r"Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|"
+        r"Dec(?:ember)?)\.?\s*\d{1,4}",
+        "",
+        line,
+        flags=re.I,
+    )
+    # Remove standalone 4-digit years (1990–2039 covers typical CVs)
+    cleaned = re.sub(r"\b(?:19|20)\d{2}\b", "", cleaned)
+    # Remove "– Present" / "– Current" date-range tails left over
+    cleaned = re.sub(r"[-–—]\s*(?:Present|Current|Now)\b", "", cleaned, flags=re.I)
+
+    # ── Check if any digit remains → actual metric ──
+    if re.search(r"\d", cleaned):
+        return True
+
+    # ── Written-out large-scale numbers (without digits) ──
+    if re.search(r"\b(?:million|billion|trillion)\b", cleaned, re.I):
+        return True
+
+    return False
+
+
 def calculate_quantifying_impact(cv_text: str) -> Tuple[int, Dict]:
     """
-    Score 0-100 based on presence of numbers, %, $, and measurable results in CV text.
-    
+    Score 0-100 based on presence of numbers, %, $, and measurable results
+    in experience / project bullet points of the CV.
+
+    Only analyses lines from the experience and project sections, filtering
+    out names, section headers, job titles, company names, and date lines.
+    PDF-wrapped lines are rejoined before analysis so each bullet point is
+    treated as a single item.
+
     Args:
         cv_text: The CV text to analyze
-    
+
     Returns:
         Tuple of (score, details_dict) with keys:
             details: summary string
@@ -152,59 +441,64 @@ def calculate_quantifying_impact(cv_text: str) -> Tuple[int, Dict]:
             "quantified_count": 0,
             "non_quantified_lines": [],
         }
-    
-    # Split into lines/bullets
-    lines = [
-        ln.strip()
-        for ln in re.split(r"[\n•·\-]\s*", text)
-        if ln.strip() and len(ln.strip()) > QUANTIFY_MIN_LINE_LENGTH
-    ]
-    total = max(1, len(lines))
+
+    # 1) Extract only the experience / project sections
+    experience_text = _extract_experience_sections(text)
+
+    # 2) Rejoin PDF-fragmented lines into complete bullet points
+    all_items = _rejoin_pdf_lines(experience_text)
+
+    # 3) Keep only lines that look like genuine achievement/responsibility bullets
+    lines = [item for item in all_items if _is_experience_bullet(item)]
+
+    if not lines:
+        # No experience bullet points found — give a moderate baseline score
+        return QUANTIFY_BASE_SCORE, {
+            "details": "No experience bullet points detected to analyse.",
+            "total_lines": 0,
+            "quantified_count": 0,
+            "non_quantified_lines": [],
+        }
+
+    total = len(lines)
     quantified = 0
     non_quantified = []
-    
+
     for line in lines:
-        has_metric = False
-        if re.search(r"\d", line):
-            has_metric = True
-        elif re.search(r"%|percent|\$|usd|eur|k\b|million|billion|\d+x|\d+\s*%", line, re.I):
-            has_metric = True
-        elif re.search(
-            r"increas(e|ed|ing)|decreas(e|ed|ing)|reduc(e|ed|ing)|improv(e|ed|ing)|sav(e|ed|ing)|by\s+\d+",
-            line,
-            re.I,
-        ):
-            has_metric = True
-        
-        if has_metric:
+        if _line_has_metric(line):
             quantified += 1
         else:
             non_quantified.append(line)
-    
+
     pct = (quantified / total) * 100
     score = min(MAX_SCORE, int(QUANTIFY_BASE_SCORE + pct * QUANTIFY_SCORE_MULTIPLIER))
-    
+
     details = (
         f"{quantified} of {total} bullet points contain numbers or measurable results."
         if total
         else "No bullet points found."
     )
-    
+
     return score, {
         "details": details,
         "total_lines": total,
         "quantified_count": quantified,
-        "non_quantified_lines": non_quantified[:10],  # Limit to 10 for display
+        "non_quantified_lines": non_quantified[:15],  # Limit for display
     }
 
 
 def calculate_repetition(cv_text: str) -> Tuple[int, Dict]:
     """
-    Score 0-100: higher = less repetition. Based on word frequency.
-    
+    Score 0-100: higher = less repetition.
+
+    Focuses on **action verbs and descriptive words** that the candidate can
+    actually replace with synonyms (words present in ``WORD_SYNONYMS``).
+    Generic domain terms like "data", "system", "application" are ignored
+    because flagging them is not actionable.
+
     Args:
         cv_text: The CV text to analyze
-    
+
     Returns:
         Tuple of (score, details_dict) with keys:
             details: summary string
@@ -213,69 +507,77 @@ def calculate_repetition(cv_text: str) -> Tuple[int, Dict]:
     text = (cv_text or "").strip().lower()
     if not text:
         return 0, {"details": "No content to analyze.", "repeated_words": []}
-    
+
     words = re.findall(r"[a-z]+", text)
     total = len(words)
-    
+
     if total < REPETITION_MIN_WORDS:
-        return 80, {"details": "Too little text to assess repetition.", "repeated_words": []}
-    
-    counts = Counter(words)
-    
-    # Penalize: words repeated many times
-    repeat_penalty = sum(
-        (c - REPETITION_PENALTY_THRESHOLD)
-        for w, c in counts.most_common(REPETITION_TOP_WORDS_TO_CHECK)
-        if c > REPETITION_PENALTY_THRESHOLD
-    )
-    
-    unique_ratio = len(counts) / total
-    
-    raw = min(
-        MAX_SCORE,
-        int(
-            REPETITION_BASE_SCORE
-            + unique_ratio * REPETITION_UNIQUE_RATIO_MULTIPLIER
-            - min(REPETITION_MAX_PENALTY, repeat_penalty)
-        ),
-    )
-    score = max(MIN_SCORE, raw)
-    
-    # Build repeated words with synonym suggestions
-    repeated_words = []
-    for word, count in counts.most_common(REPETITION_TOP_WORDS_TO_SUGGEST):
-        if count <= REPETITION_SUGGEST_THRESHOLD:
-            break
-        # Skip very short or stop words
-        if len(word) < 4 or word in STOP_WORDS:
+        return MAX_SCORE, {
+            "details": "Too little text to assess repetition.",
+            "repeated_words": [],
+        }
+
+    # Count frequencies only for words that have synonym suggestions.
+    # Skip present-participle (-ing) forms: these are structural connector
+    # words in mid-sentence ("...using Django", "...ensuring availability")
+    # and not the bullet-starting action verbs that recruiters want varied.
+    verb_counts: Dict[str, int] = {}
+    for w in words:
+        if w in WORD_SYNONYMS and not w.endswith("ing"):
+            verb_counts[w] = verb_counts.get(w, 0) + 1
+
+    # Flag verbs repeated >= threshold times
+    flagged: list[Dict[str, Any]] = []
+    for word, count in sorted(verb_counts.items(), key=lambda x: -x[1]):
+        if count < REPETITION_VERB_REPEAT_THRESHOLD:
             continue
-        suggestions = WORD_SYNONYMS.get(word, [])
-        repeated_words.append({
+        flagged.append({
             "word": word,
             "count": count,
-            "suggestions": suggestions[:3],
+            "suggestions": WORD_SYNONYMS[word][:3],
         })
-    
-    top_names = [rw["word"] for rw in repeated_words[:3]]
+
+    # ── Scoring ──
+    # Start at 100; deduct for each extra repeat beyond (threshold − 1).
+    penalty = 0
+    for item in flagged:
+        extra = item["count"] - (REPETITION_VERB_REPEAT_THRESHOLD - 1)
+        penalty += extra * REPETITION_PENALTY_PER_EXTRA
+    score = max(MIN_SCORE, min(MAX_SCORE, 100 - penalty))
+
+    top_names = [f["word"] for f in flagged[:3]]
     details = (
-        f"Unique words: {len(counts)} of {total}. "
-        + (f"Consider varying: {', '.join(top_names)}." if top_names else "Good variety.")
+        f"Checked {len(verb_counts)} action verbs across {total} words. "
+        + (
+            f"Consider varying: {', '.join(top_names)}."
+            if top_names
+            else "Good variety in action verbs."
+        )
     )
-    
+
     return score, {
         "details": details,
-        "repeated_words": repeated_words[:8],  # Limit to 8 for display
+        "repeated_words": flagged[:REPETITION_MAX_FLAGGED_DISPLAY],
     }
 
 
 def calculate_spelling_grammar(cv_text: str) -> Tuple[int, Dict]:
     """
-    Heuristic score 0-100 for formatting/consistency (no spell-check lib).
-    Penalizes double spaces, spacing issues, excessive all-caps.
-    
+    Heuristic score 0-100 for formatting / consistency (no spell-check lib).
+
+    Checks performed:
+      1. Multiple consecutive spaces
+      2. Excessive all-caps words (excluding known tech acronyms & CV headers)
+      3. Inconsistent bullet-point characters
+      4. Bullet points missing ending punctuation (on *rejoined* lines only)
+
+    Note: "Incorrect spacing around punctuation" was removed because PDF text
+    extraction routinely introduces phantom spaces before commas / periods
+    that do not exist in the actual document.
+
     Args:
         cv_text: The CV text to analyze
-    
+
     Returns:
         Tuple of (score, details_dict) with keys:
             details: summary string
@@ -284,17 +586,25 @@ def calculate_spelling_grammar(cv_text: str) -> Tuple[int, Dict]:
     text = (cv_text or "").strip()
     if not text:
         return 0, {"details": "No content to analyze.", "issues_list": []}
-    
+
     score = SPELLING_BASE_SCORE
-    issue_labels = []
-    issues_list = []
-    
-    # Check for double spaces
-    double_matches = re.findall(r".{0,20}  +.{0,20}", text)
-    if double_matches:
-        double_count = len(re.findall(r"  +", text))
-        deduction = min(SPELLING_DOUBLE_SPACE_MAX_PENALTY,
-                        double_count * SPELLING_DOUBLE_SPACE_PENALTY_PER_INSTANCE)
+    issue_labels: list[str] = []
+    issues_list: list[Dict] = []
+
+    # ── 1. Multiple consecutive spaces ──
+    # Only flag runs of exactly 2 spaces between content characters.
+    # Runs of 3+ spaces are almost always PDF column-alignment artefacts
+    # (e.g. "Junior AI Developer                AKC Techno Solz") and should
+    # not be reported as formatting errors.
+    double_count = len(re.findall(r"(?<!\s)  (?!\s)", text))
+    if double_count > 0:
+        double_matches = re.findall(
+            r".{0,20}(?<!\s)  (?!\s).{0,20}", text
+        )
+        deduction = min(
+            SPELLING_DOUBLE_SPACE_MAX_PENALTY,
+            double_count * SPELLING_DOUBLE_SPACE_PENALTY_PER_INSTANCE,
+        )
         score -= deduction
         issue_labels.append("multiple consecutive spaces")
         issues_list.append({
@@ -303,36 +613,26 @@ def calculate_spelling_grammar(cv_text: str) -> Tuple[int, Dict]:
             "count": double_count,
             "examples": [m.strip() for m in double_matches[:3]],
         })
-    
-    # Check for spacing after punctuation
-    punct_matches = re.findall(r".{0,15}\s+[.,;:]\s*[a-z].{0,15}", text)
-    if punct_matches:
-        punct_count = len(punct_matches)
-        deduction = min(SPELLING_PUNCTUATION_MAX_PENALTY,
-                        punct_count * SPELLING_PUNCTUATION_PENALTY_PER_INSTANCE)
-        score -= deduction
-        issue_labels.append("spacing around punctuation")
-        issues_list.append({
-            "type": "punctuation",
-            "label": "Incorrect spacing around punctuation",
-            "count": punct_count,
-            "examples": [m.strip() for m in punct_matches[:3]],
-        })
-    
-    # Check for excessive all-caps
-    long_caps = re.findall(rf"\b[A-Z]{{{SPELLING_ALL_CAPS_MIN_LENGTH},}}\b", text)
-    if len(long_caps) > SPELLING_ALL_CAPS_THRESHOLD:
-        score -= min(SPELLING_ALL_CAPS_MAX_PENALTY, len(long_caps))
+
+    # ── 2. Excessive all-caps words (skip tech acronyms & section headers) ──
+    long_caps = re.findall(
+        rf"\b[A-Z]{{{SPELLING_ALL_CAPS_MIN_LENGTH},}}\b", text
+    )
+    non_tech_caps = [w for w in long_caps if w not in TECH_ACRONYMS]
+    if len(non_tech_caps) > SPELLING_ALL_CAPS_THRESHOLD:
+        score -= min(SPELLING_ALL_CAPS_MAX_PENALTY, len(non_tech_caps))
         issue_labels.append("excessive all-caps words")
         issues_list.append({
             "type": "all_caps",
             "label": "Excessive all-caps words",
-            "count": len(long_caps),
-            "examples": list(set(long_caps))[:5],
+            "count": len(non_tech_caps),
+            "examples": list(dict.fromkeys(non_tech_caps))[:5],
         })
-    
-    # Check for inconsistent bullet characters
-    bullet_chars = re.findall(r"^[\s]*([•·▪▸►➤\-\*])", text, re.MULTILINE)
+
+    # ── 3. Inconsistent bullet-point characters ──
+    bullet_chars = re.findall(
+        r"^[\s]*([•·▪▸►➤\-\*])", text, re.MULTILINE
+    )
     unique_bullets = set(bullet_chars)
     if len(unique_bullets) > 2:
         issues_list.append({
@@ -341,20 +641,28 @@ def calculate_spelling_grammar(cv_text: str) -> Tuple[int, Dict]:
             "count": len(unique_bullets),
             "examples": list(unique_bullets),
         })
-    
-    # Check for missing periods at end of bullet points
-    lines = [ln.strip() for ln in text.split("\n") if len(ln.strip()) > 20]
-    lines_no_period = [ln for ln in lines if ln and ln[-1] not in ".!?:;"]
-    if len(lines_no_period) > 3:
+
+    # ── 4. Bullet points missing ending punctuation ──
+    # Use PDF-line rejoining so we check *complete* bullets, not fragments.
+    experience_text = _extract_experience_sections(text)
+    bullets = _rejoin_pdf_lines(experience_text)
+    real_bullets = [b for b in bullets if _is_experience_bullet(b)]
+    bullets_no_period = [
+        b for b in real_bullets if b and b.rstrip()[-1:] not in ".!?:;"
+    ]
+    if len(bullets_no_period) > 2:
         issues_list.append({
             "type": "missing_period",
             "label": "Bullet points missing ending punctuation",
-            "count": len(lines_no_period),
-            "examples": [ln[:80] + ("..." if len(ln) > 80 else "") for ln in lines_no_period[:3]],
+            "count": len(bullets_no_period),
+            "examples": [
+                b[:80] + ("..." if len(b) > 80 else "")
+                for b in bullets_no_period[:3]
+            ],
         })
-    
+
     score = max(MIN_SCORE, min(MAX_SCORE, score))
-    
+
     details = (
         "No significant spelling or grammar errors detected."
         if score >= SPELLING_GOOD_SCORE_THRESHOLD
@@ -364,7 +672,7 @@ def calculate_spelling_grammar(cv_text: str) -> Tuple[int, Dict]:
             else "Review formatting and punctuation."
         )
     )
-    
+
     return score, {
         "details": details,
         "issues_list": issues_list,

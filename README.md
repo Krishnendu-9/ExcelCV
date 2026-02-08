@@ -39,7 +39,7 @@ A professional CV analysis tool built with Streamlit and Google Gemini AI. This 
 #### Step 3: Upload CV
 - Click "Upload resume (PDF only)" or drag and drop
 - Supported format: PDF only
-- Maximum file size: 10MB
+- Maximum file size: 2MB
 - Best results with text-based PDFs (not scanned images)
 
 #### Step 4: Analyze

@@ -18,8 +18,11 @@ from src.ui_components import (
     inject_base_css,
     issue_count,
     render_report_page,
+    render_upload_landing_sections,
     render_upload_preview_card,
 )
+
+ANALYSIS_MODES = ("General Review", "ATS Scan")
 
 
 def run_single_analysis(job_description: str, uploaded_cv) -> Optional[Tuple[Dict[str, Any], str]]:
@@ -89,7 +92,7 @@ def run_single_analysis(job_description: str, uploaded_cv) -> Optional[Tuple[Dic
     return None
 
 
-def render_theme_toggle(standalone: bool = True) -> None:
+def render_theme_toggle(standalone: bool = True, key: str = "theme_toggle") -> None:
     """Render the theme switch button. If standalone=False, only the button (for use inside a column)."""
     if standalone:
         col_spacer, col_btn = st.columns([6, 1], gap="small")
@@ -102,12 +105,33 @@ def render_theme_toggle(standalone: bool = True) -> None:
         theme_label = "Dark" if current_theme == "light" else "Light"
         if st.button(
             theme_icon,
-            key="theme_toggle",
+            key=key,
             use_container_width=True,
             help=f"Switch to {theme_label} mode",
         ):
             st.session_state["theme"] = "dark" if current_theme == "light" else "light"
             st.rerun()
+
+
+def render_top_controls() -> None:
+    """Render global controls (analysis mode, debug, theme) for all pages."""
+    col_mode, col_debug, col_theme = st.columns([2.2, 1.1, 0.5], gap="small")
+
+    with col_mode:
+        st.selectbox(
+            "Analysis mode",
+            options=list(ANALYSIS_MODES),
+            key="mode",
+            help="General Review is holistic. ATS Scan is strict on keyword/format alignment.",
+        )
+    with col_debug:
+        st.checkbox(
+            "Debug mode",
+            key="debug",
+            help="Show raw AI response and parsing diagnostics.",
+        )
+    with col_theme:
+        render_theme_toggle(standalone=False, key="theme_toggle_global")
 
 
 def inject_file_uploader_spacing_css() -> None:
@@ -232,6 +256,8 @@ def main() -> None:
         st.session_state["theme"] = "light"
     if "page" not in st.session_state:
         st.session_state["page"] = "upload"
+    if "mode" not in st.session_state:
+        st.session_state["mode"] = ANALYSIS_MODES[0]
     if "debug" not in st.session_state:
         st.session_state["debug"] = False
 
@@ -254,8 +280,10 @@ def main() -> None:
     # Reload on browser back/forward so URL and page stay in sync
     inject_back_button_sync()
 
+    # Global controls visible on both upload and report pages.
+    render_top_controls()
+
     if st.session_state["page"] == "upload":
-        render_theme_toggle()
         render_upload_page()
     else:
         render_report_view()
@@ -316,6 +344,8 @@ def render_upload_page() -> None:
 
     with right:
         render_upload_preview_card()
+
+    render_upload_landing_sections()
 
 
 def _reanalyze_with_mode(cv_text: str, job_description: str, mode: str, debug: bool) -> Optional[Dict[str, Any]]:
@@ -395,7 +425,6 @@ def render_report_view() -> None:
             unsafe_allow_html=True,
         )
     with col_actions:
-        render_theme_toggle(standalone=False)
         if st.button("Upload another resume", use_container_width=True, help="Upload a new resume"):
             st.session_state["analysis"] = None
             st.session_state["page"] = "upload"

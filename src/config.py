@@ -31,5 +31,14 @@ def preferred_models() -> List[Optional[str]]:
         "models/gemini-2.5-flash",
         "models/gemini-2.5-pro",
     ])
-    return models
+
+    # Preserve order while removing duplicates and empty values.
+    seen = set()
+    unique_models: List[Optional[str]] = []
+    for model in models:
+        if not model or model in seen:
+            continue
+        seen.add(model)
+        unique_models.append(model)
+    return unique_models
 

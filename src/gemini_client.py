@@ -105,6 +105,11 @@ def _normalize_model_name(model: Optional[str]) -> Optional[str]:
     return model
 
 
+def _as_dict(value: Any) -> Dict[str, Any]:
+    """Return a dict or an empty dict when value is not a dict."""
+    return value if isinstance(value, dict) else {}
+
+
 def analyze_cv_with_gemini(
     cv_text: str,
     job_desc: str,
@@ -121,7 +126,11 @@ def analyze_cv_with_gemini(
     genai.configure(api_key=api_key)
     preferred_raw = preferred_models()
     # Normalize model names to ensure they have the 'models/' prefix
-    preferred = [_normalize_model_name(m) for m in preferred_raw if _normalize_model_name(m)]
+    preferred: List[str] = []
+    for model_name in preferred_raw:
+        normalized = _normalize_model_name(model_name)
+        if normalized:
+            preferred.append(normalized)
 
     # Different prompts based on mode
     if mode == "ATS Scan":
@@ -236,7 +245,6 @@ CV:
 """
 
     raw_text = ""
-    last_exc: Optional[Exception] = None
     tried: List[str] = []
     used_model = None
 
@@ -271,7 +279,6 @@ CV:
             used_model = candidate
             break
         except Exception as exc:  # pragma: no cover - depends on network
-            last_exc = exc
             continue
     else:
         # All preferred models failed; try one auto-picked model
@@ -325,18 +332,35 @@ CV:
             st.error(error_msg)
         raise ValueError("AI response was not in expected JSON format. Enable debug mode to see details.") from exc
 
+    if not isinstance(parsed, dict):
+        if debug:
+            st.warning("AI response JSON was valid but not an object. Continuing with safe defaults.")
+        parsed = {}
+
     # Normalize and ensure keys exist
-    def _as_list(val: Any) -> List[str]:
+    def _as_list(val: Any, max_items: int = 40) -> List[str]:
         """Convert value to list of strings, filtering empty items."""
+        items: List[str] = []
         if isinstance(val, list):
-            return [str(item) for item in val if str(item).strip()]
-        if isinstance(val, str) and val.strip():
-            return [val.strip()]
-        return []
+            items = [str(item).strip() for item in val if str(item).strip()]
+        elif isinstance(val, str) and val.strip():
+            items = [val.strip()]
+
+        # Keep stable order and avoid duplicates/noisy large payloads.
+        seen = set()
+        unique_items: List[str] = []
+        for item in items:
+            if item in seen:
+                continue
+            seen.add(item)
+            unique_items.append(item)
+            if len(unique_items) >= max_items:
+                break
+        return unique_items
 
     # Normalize match score
     score = normalize_score(parsed.get("match_score", 0))
-    subscores = parsed.get("subscores", {}) or {}
+    subscores = _as_dict(parsed.get("subscores"))
 
     # ── Programmatic-only scores (deterministic — same CV always = same score) ──
 

@@ -17,6 +17,16 @@ This project addresses the critical need for resume optimization in today's comp
 - Support two analysis modes: General Review and ATS Scan
 - Enable real-time mode switching without re-uploading
 
+### 1.3 Our Approach
+
+Our approach was to design the AI CV Reviewer as a modular, testable system that balances AI capabilities with deterministic logic and a strong focus on user experience.
+
+- **User‑centred problem framing**: We started by analysing how real candidates and recruiters evaluate resumes, then captured these needs in a detailed PRD and metrics specification before writing code.
+- **Hybrid AI + rules design**: Instead of relying solely on the Gemini model, we defined clear, programmatic metrics (ATS parse rate, repetition, quantifying impact, etc.) and blended them with AI outputs for stable, explainable scores.
+- **Layered architecture**: We separated concerns into UI, business logic, data processing, and configuration modules so that the interface, scoring logic, and AI integration can evolve independently.
+- **Iterative prototyping**: Using Streamlit, we quickly built vertical slices (upload → analysis → report) and refined them through repeated testing with different CV/JD pairs.
+- **Evidence‑driven refinement**: We added comprehensive logging, debug views, and targeted test cases, then tuned thresholds, prompts, and UI behaviour based on observed results, performance measurements, and user feedback.
+
 ---
 
 ## 2. Implementation Details

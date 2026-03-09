@@ -265,6 +265,11 @@ streamlit run app.py
 - Open browser to `http://localhost:8501`
 - Start analyzing CVs!
 
+### Run automated tests
+```bash
+py -3 -m unittest discover -s tests -v
+```
+
 ---
 
 ## ⚙️ Configuration

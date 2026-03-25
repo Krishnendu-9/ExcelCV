@@ -7,6 +7,8 @@ It orchestrates AI analysis and blends it with programmatic scoring calculations
 
 import json
 import re
+import time
+from functools import lru_cache
 from typing import Any, Dict, List, Optional
 
 import google.generativeai as genai
@@ -59,6 +61,27 @@ def _user_friendly_quota_message(exc: Exception) -> str:
     )
 
 
+def _is_retryable_error(exc: Exception) -> bool:
+    """Return True for transient transport/service errors worth retrying."""
+    if _is_quota_error(exc):
+        return False
+    msg = str(exc).lower()
+    transient_markers = (
+        "timeout",
+        "timed out",
+        "deadline exceeded",
+        "service unavailable",
+        "temporarily unavailable",
+        "connection reset",
+        "connection aborted",
+        "internal",
+        "500",
+        "503",
+    )
+    return any(marker in msg for marker in transient_markers)
+
+
+@lru_cache(maxsize=1)
 def _pick_model_id() -> str:
     """Pick a working model id by listing available models."""
     try:
@@ -90,6 +113,31 @@ def _extract_json_from_text(text: str) -> str:
     return text.strip()
 
 
+def _extract_response_text(response: Any) -> str:
+    """Safely extract text from Gemini responses across SDK response shapes."""
+    text = getattr(response, "text", "") or ""
+    if text.strip():
+        return text.strip()
+
+    # Fallback shape: response.candidates[].content.parts[].text
+    candidates = getattr(response, "candidates", []) or []
+    parts_text: List[str] = []
+    for candidate in candidates:
+        content = getattr(candidate, "content", None)
+        parts = getattr(content, "parts", []) if content is not None else []
+        for part in parts:
+            part_text = getattr(part, "text", "") or ""
+            if part_text.strip():
+                parts_text.append(part_text.strip())
+    return "\n".join(parts_text).strip()
+
+
+def _sanitize_prompt_text(text: str, limit: int) -> str:
+    """Trim and normalize input text to keep prompts stable and size-bounded."""
+    compact = " ".join((text or "").replace("\x00", " ").split())
+    return compact[:limit]
+
+
 def _normalize_model_name(model: Optional[str]) -> Optional[str]:
     """Ensure model name has the 'models/' prefix if it's a valid model identifier."""
     if not model:
@@ -110,6 +158,33 @@ def _as_dict(value: Any) -> Dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
 
+def _generate_with_retry(model: genai.GenerativeModel, prompt: str, generation_config: Dict[str, Any]) -> Any:
+    """Generate content with a short retry on transient errors."""
+    attempts = 2
+    for attempt in range(attempts):
+        try:
+            # Try with JSON response format if supported (for newer models)
+            try:
+                return model.generate_content(
+                    prompt,
+                    generation_config=genai.types.GenerationConfig(
+                        **generation_config,
+                        response_mime_type="application/json",
+                    ),
+                )
+            except (AttributeError, TypeError, ValueError):
+                return model.generate_content(
+                    prompt,
+                    generation_config=genai.types.GenerationConfig(**generation_config),
+                )
+        except Exception as exc:
+            if attempt < attempts - 1 and _is_retryable_error(exc):
+                time.sleep(1.0 + attempt)
+                continue
+            raise
+    raise RuntimeError("Unexpected generation failure")
+
+
 def analyze_cv_with_gemini(
     cv_text: str,
     job_desc: str,
@@ -119,6 +194,9 @@ def analyze_cv_with_gemini(
     file_size_bytes: int = 0,
 ) -> Dict[str, Any]:
     """Call Gemini to analyze CV vs job description and return JSON-friendly dict."""
+    if not cv_text or not cv_text.strip():
+        raise ValueError("CV text is empty. Please upload a text-based PDF CV.")
+
     api_key = get_api_key()
     if not api_key:
         raise RuntimeError("Missing GOOGLE_API_KEY. Set it in your .env file.")
@@ -159,6 +237,9 @@ PRIORITY FOCUS:
 
 Be BALANCED in scoring. Consider the overall fit and potential, not just exact keyword matches.
 """
+
+    job_desc_prompt = _sanitize_prompt_text(job_desc, 4000)
+    cv_text_prompt = _sanitize_prompt_text(cv_text, 6000)
 
     prompt = f"""{analysis_focus}
 
@@ -238,15 +319,16 @@ CALCULATION GUIDELINES:
 Start your response with {{ and end with }}. No other text before or after.
 
 Job Description:
-\"\"\"{job_desc.strip()[:4000]}\"\"\"
+\"\"\"{job_desc_prompt}\"\"\"
 
 CV:
-\"\"\"{cv_text.strip()[:6000]}\"\"\"
+\"\"\"{cv_text_prompt}\"\"\"
 """
 
     raw_text = ""
     tried: List[str] = []
     used_model = None
+    last_exception: Optional[Exception] = None
 
     # Generation config: temperature=0 for deterministic output
     generation_config = {
@@ -260,25 +342,14 @@ CV:
         tried.append(candidate)
         try:
             model = genai.GenerativeModel(candidate)
-            # Try with JSON response format if supported (for newer models)
-            try:
-                response = model.generate_content(
-                    prompt,
-                    generation_config=genai.types.GenerationConfig(
-                        **generation_config,
-                        response_mime_type="application/json"
-                    )
-                )
-            except (AttributeError, TypeError, ValueError):
-                # Fallback for models that don't support response_mime_type
-                response = model.generate_content(
-                    prompt,
-                    generation_config=genai.types.GenerationConfig(**generation_config)
-                )
-            raw_text = response.text or ""
+            response = _generate_with_retry(model, prompt, generation_config)
+            raw_text = _extract_response_text(response)
+            if not raw_text:
+                raise ValueError("Empty response text from model.")
             used_model = candidate
             break
         except Exception as exc:  # pragma: no cover - depends on network
+            last_exception = exc
             continue
     else:
         # All preferred models failed; try one auto-picked model
@@ -286,24 +357,18 @@ CV:
         tried.append(auto_model)
         try:
             model = genai.GenerativeModel(auto_model)
-            try:
-                response = model.generate_content(
-                    prompt,
-                    generation_config=genai.types.GenerationConfig(
-                        **generation_config,
-                        response_mime_type="application/json"
-                    )
-                )
-            except (AttributeError, TypeError, ValueError):
-                response = model.generate_content(
-                    prompt,
-                    generation_config=genai.types.GenerationConfig(**generation_config)
-                )
-            raw_text = response.text or ""
+            response = _generate_with_retry(model, prompt, generation_config)
+            raw_text = _extract_response_text(response)
+            if not raw_text:
+                raise ValueError("Empty response text from model.")
             used_model = auto_model
         except Exception as exc:  # pragma: no cover - depends on network
             if _is_quota_error(exc):
                 raise RuntimeError(_user_friendly_quota_message(exc)) from exc
+            if last_exception:
+                raise RuntimeError(
+                    f"Gemini API error after trying {tried}: {exc} (last preferred model error: {last_exception})"
+                ) from exc
             raise RuntimeError(f"Gemini API error after trying {tried}: {exc}") from exc
 
     if debug:

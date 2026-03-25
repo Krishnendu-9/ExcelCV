@@ -1,8 +1,8 @@
-# AI CV Reviewer - Project Report
+# ExcelCV: GenAI-Powered Vibecoded CV Reviewer - Project Report
 
 ## 1. Introduction
 
-The AI CV Reviewer is a professional web application built using Streamlit and Google Gemini AI that evaluates resumes against job descriptions. The system provides comprehensive ATS (Applicant Tracking System) readiness scores, keyword analysis, and actionable improvement suggestions to help job seekers optimize their resumes for better job application success rates.
+The ExcelCV: GenAI-Powered Vibecoded CV Reviewer is a professional web application built using Streamlit and Google Gemini AI that evaluates resumes against job descriptions. The system provides comprehensive ATS (Applicant Tracking System) readiness scores, keyword analysis, and actionable improvement suggestions to help job seekers optimize their resumes for better job application success rates.
 
 ### 1.1 Project Overview
 
@@ -19,7 +19,7 @@ This project addresses the critical need for resume optimization in today's comp
 
 ### 1.3 Our Approach
 
-Our approach was to design the AI CV Reviewer as a modular, testable system that balances AI capabilities with deterministic logic and a strong focus on user experience.
+Our approach was to design the ExcelCV: GenAI-Powered Vibecoded CV Reviewer as a modular, testable system that balances AI capabilities with deterministic logic and a strong focus on user experience.
 
 - **User‑centred problem framing**: We started by analysing how real candidates and recruiters evaluate resumes, then captured these needs in a detailed PRD and metrics specification before writing code.
 - **Hybrid AI + rules design**: Instead of relying solely on the Gemini model, we defined clear, programmatic metrics (ATS parse rate, repetition, quantifying impact, etc.) and blended them with AI outputs for stable, explainable scores.
@@ -751,7 +751,7 @@ Based on testing with 50+ sample resumes:
 
 ### 4.1 Conclusion
 
-The AI CV Reviewer project successfully delivers a comprehensive resume analysis tool that combines the power of Google Gemini AI with programmatic scoring algorithms. The application addresses a real-world need in the job market by helping job seekers optimize their resumes for ATS systems and improve their chances of landing interviews.
+The ExcelCV: GenAI-Powered Vibecoded CV Reviewer project successfully delivers a comprehensive resume analysis tool that combines the power of Google Gemini AI with programmatic scoring algorithms. The application addresses a real-world need in the job market by helping job seekers optimize their resumes for ATS systems and improve their chances of landing interviews.
 
 **Key Achievements**:
 

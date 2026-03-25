@@ -52,7 +52,7 @@ def render_upload_landing_sections() -> None:
         """
         <div class="landing-extended">
             <div class="landing-band">
-                <p class="landing-kicker">ExcelCV - Free GenAI Resume Reviewer</p>
+                <p class="landing-kicker">ExcelCV</p>
                 <h2 class="landing-title">A complete resume check workflow, without the paywall</h2>
                 <p class="landing-subtitle">You get ATS diagnostics, content quality checks, job-description alignment, and downloadable reports in one flow. Built for students and early-career job seekers.</p>
             </div>
@@ -84,19 +84,19 @@ def render_upload_landing_sections() -> None:
             </div>
             <div class="landing-mode-shell">
                 <div class="landing-mode-card">
-                    <p class="mode-eyebrow">Mode 1</p>
-                    <h4>General Review</h4>
-                    <p>Balanced assessment of clarity, relevance, and overall resume quality.</p>
+                    <p class="mode-eyebrow">Scoring</p>
+                    <h4>Standard scoring system</h4>
+                    <p>One consistent score model for ATS readiness, content quality, and resume strength.</p>
                 </div>
                 <div class="landing-mode-card">
-                    <p class="mode-eyebrow">Mode 2</p>
-                    <h4>ATS Scan</h4>
-                    <p>Strict keyword and format-focused pass for ATS optimization scenarios.</p>
+                    <p class="mode-eyebrow">Coverage</p>
+                    <h4>ATS + content checks</h4>
+                    <p>Keyword fit, section health, impact quantification, repetition, and grammar in one pass.</p>
                 </div>
                 <div class="landing-mode-card">
-                    <p class="mode-eyebrow">Debug</p>
-                    <h4>Transparent AI output</h4>
-                    <p>Enable debug mode to inspect raw model responses while troubleshooting.</p>
+                    <p class="mode-eyebrow">Output</p>
+                    <h4>Clear action plan</h4>
+                    <p>Get practical, section-level suggestions you can apply directly to your next resume revision.</p>
                 </div>
             </div>
             <div class="landing-flow">
@@ -113,7 +113,7 @@ def render_upload_landing_sections() -> None:
                 <div class="landing-step">
                     <span class="step-num">03</span>
                     <h4>Review and improve</h4>
-                    <p>Switch analysis modes, inspect gaps, and apply suggestions before your next application.</p>
+                    <p>Inspect gaps, apply suggestions, and iterate before your next application.</p>
                 </div>
             </div>
             <div class="landing-proof-grid">
@@ -122,8 +122,8 @@ def render_upload_landing_sections() -> None:
                     <p class="proof-value">100% Free</p>
                 </div>
                 <div class="proof-tile">
-                    <p class="proof-label">Analysis modes</p>
-                    <p class="proof-value">2 Modes</p>
+                    <p class="proof-label">Scoring system</p>
+                    <p class="proof-value">Standard</p>
                 </div>
                 <div class="proof-tile">
                     <p class="proof-label">Report exports</p>
@@ -141,8 +141,8 @@ def render_upload_landing_sections() -> None:
                     <p>No. This project is intentionally free to use with the core feature set available in-app.</p>
                 </div>
                 <div class="landing-faq-item">
-                    <h4>Can I compare ATS Scan and General Review results?</h4>
-                    <p>Yes. Change mode from the top controls to re-run analysis using stored CV text and JD.</p>
+                    <h4>How is the final score calculated?</h4>
+                    <p>We use one standard scoring system that combines ATS readiness, content quality, and resume fundamentals.</p>
                 </div>
                 <div class="landing-faq-item">
                     <h4>What file type is supported?</h4>
@@ -161,4 +161,6 @@ def render_upload_landing_sections() -> None:
         landing_html,
         unsafe_allow_html=True,
     )
+
+
 

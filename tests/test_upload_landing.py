@@ -14,7 +14,7 @@ class UploadLandingTests(unittest.TestCase):
         html = args[0]
 
         self.assertIn("landing-extended", html)
-        self.assertIn("Free GenAI Resume Reviewer", html)
+        self.assertIn("ExcelCV", html)
         self.assertIn("ATS parse diagnostics", html)
         self.assertIn("Frequently asked questions", html)
         self.assertTrue(kwargs.get("unsafe_allow_html"))

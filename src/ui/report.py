@@ -22,7 +22,7 @@ def _build_sidebar_html(score: int, issues: int, categories: list) -> str:
     issues_attr = 'data-section-id="suggestions"' if issues > 0 else ''
 
     html = f"""
-    <div class="report-sidebar">
+    <div class="report-sidebar" style="position:sticky;top:10px;max-height:calc(100vh - 20px);overflow-y:auto;">
         <div class="score-card">
             <div class="score-title text-muted" style="font-size:0.95rem;">Your Score</div>
             <div class="score-number">{score}<span>/100</span></div>
@@ -95,385 +95,6 @@ def _build_sidebar_html(score: int, issues: int, categories: list) -> str:
 
     html += '</div>'  # close report-sidebar
     return html
-
-
-
-def _build_sidebar_js() -> str:
-    """Build JavaScript for sidebar interactions. Runs in components.html iframe."""
-    return """
-    <script>
-    (function() {
-        var doc = window.parent.document;
-        var win = window.parent;
-        var WRAPPER_ID = 'sidebar-fixed-clone-wrapper';
-
-        /* ─── 1. Toggle expand/collapse for a category ─── */
-        function toggleCategory(categoryId) {
-            var head = doc.getElementById('cat-head-' + categoryId);
-            var items = doc.getElementById('cat-items-' + categoryId);
-            if (!head || !items) return;
-            if (head.classList.contains('expanded')) {
-                head.classList.remove('expanded');
-                items.classList.remove('expanded');
-                items.classList.add('collapsed');
-            } else {
-                head.classList.add('expanded');
-                items.classList.remove('collapsed');
-                items.classList.add('expanded');
-            }
-        }
-
-        /* ─── 2. Fixed sidebar via clone on document.body ─── */
-        function setupFixedSidebar() {
-            // Find the ORIGINAL sidebar (the one inside the Streamlit column)
-            var original = null;
-            doc.querySelectorAll('.report-sidebar').forEach(function(el) {
-                if (!el.closest('#' + WRAPPER_ID)) {
-                    original = el;
-                }
-            });
-            if (!original) return;
-
-            var leftCol = original.closest('[data-testid="column"]');
-            if (!leftCol) return;
-
-            var colRect = leftCol.getBoundingClientRect();
-            if (colRect.width < 50) return; // not rendered yet
-
-            // Hide the original visually but keep it in layout to preserve column width
-            original.style.setProperty('visibility', 'hidden', 'important');
-            original.style.setProperty('height', original.offsetHeight + 'px', 'important');
-
-            // Remove IDs from original so getElementById finds the clone's elements
-            original.querySelectorAll('[id]').forEach(function(el) {
-                el.setAttribute('data-orig-id', el.id);
-                el.removeAttribute('id');
-            });
-
-            // Create or reuse the fixed wrapper on document.body
-            var wrapper = doc.getElementById(WRAPPER_ID);
-            if (!wrapper) {
-                wrapper = doc.createElement('div');
-                wrapper.id = WRAPPER_ID;
-                doc.body.appendChild(wrapper);
-            }
-
-            // Position the wrapper exactly over the left column, fixed to viewport
-            var padding = 8;
-            wrapper.style.cssText =
-                'position:fixed;' +
-                'top:10px;' +
-                'left:' + (colRect.left + padding) + 'px;' +
-                'width:' + (colRect.width - padding * 2) + 'px;' +
-                'max-height:calc(100vh - 20px);' +
-                'overflow-y:auto;' +
-                'z-index:9999;' +
-                'pointer-events:auto;';
-
-            // Deep-clone the sidebar into the wrapper
-            var clone = original.cloneNode(true);
-            clone.style.setProperty('visibility', 'visible', 'important');
-            clone.style.removeProperty('height');
-
-            // Restore IDs on the clone (so toggleCategory / scrollToSection find them)
-            clone.querySelectorAll('[data-orig-id]').forEach(function(el) {
-                el.id = el.getAttribute('data-orig-id');
-                el.removeAttribute('data-orig-id');
-            });
-
-            wrapper.innerHTML = '';
-            wrapper.appendChild(clone);
-
-            // Store a flag so we don't repeat unnecessarily
-            win.__sidebarFixedDone = true;
-
-            // Handle window resize: reposition wrapper
-            if (!win.__sidebarResizeBound) {
-                win.__sidebarResizeBound = true;
-                win.addEventListener('resize', function() {
-                    var col = null;
-                    doc.querySelectorAll('.report-sidebar').forEach(function(el) {
-                        if (!el.closest('#' + WRAPPER_ID)) col = el.closest('[data-testid="column"]');
-                    });
-                    if (col) {
-                        var r = col.getBoundingClientRect();
-                        var w = doc.getElementById(WRAPPER_ID);
-                        if (w) {
-                            w.style.left = (r.left + padding) + 'px';
-                            w.style.width = (r.width - padding * 2) + 'px';
-                        }
-                    }
-                    // Also update right column scroll container on resize
-                    setupScrollableContent();
-                });
-            }
-        }
-
-        /* ─── 2.5. Setup scrollable right content area ─── */
-        function setupScrollableContent() {
-            // Find the right column (the one containing .report-main or detail-card)
-            var rightCol = null;
-            var leftCol = null;
-            
-            // First find left column to identify right column
-            doc.querySelectorAll('.report-sidebar').forEach(function(el) {
-                if (!el.closest('#' + WRAPPER_ID)) {
-                    leftCol = el.closest('[data-testid="column"]');
-                }
-            });
-            
-            if (!leftCol) return;
-            
-            // Find the right column (sibling of left column)
-            var horizontalBlock = leftCol.closest('[data-testid="stHorizontalBlock"]');
-            if (!horizontalBlock) return;
-            
-            var columns = horizontalBlock.querySelectorAll('[data-testid="column"]');
-            if (columns.length < 2) return;
-            
-            // The right column should be the one that's not the left column
-            for (var i = 0; i < columns.length; i++) {
-                if (columns[i] !== leftCol) {
-                    rightCol = columns[i];
-                    break;
-                }
-            }
-            
-            if (!rightCol) return;
-            
-            // Make the right column scrollable with fixed height
-            var colRect = rightCol.getBoundingClientRect();
-            if (colRect.width < 50) return; // not rendered yet
-            
-            // Calculate available height (viewport height minus some padding)
-            var viewportHeight = win.innerHeight;
-            var topOffset = 10; // Match sidebar top offset
-            var maxHeight = viewportHeight - (topOffset * 2);
-            
-            // Hide the original visually but keep it in layout to preserve column width
-            rightCol.style.setProperty('visibility', 'hidden', 'important');
-            rightCol.style.setProperty('height', rightCol.offsetHeight + 'px', 'important');
-            
-            // Remove IDs from original so getElementById finds the clone's elements
-            rightCol.querySelectorAll('[id]').forEach(function(el) {
-                el.setAttribute('data-orig-id', el.id);
-                el.removeAttribute('id');
-            });
-            
-            // Create or reuse the fixed wrapper for right content
-            var RIGHT_WRAPPER_ID = 'right-content-fixed-wrapper';
-            var rightWrapper = doc.getElementById(RIGHT_WRAPPER_ID);
-            if (!rightWrapper) {
-                rightWrapper = doc.createElement('div');
-                rightWrapper.id = RIGHT_WRAPPER_ID;
-                doc.body.appendChild(rightWrapper);
-            }
-            
-            // Position the wrapper exactly over the right column, fixed to viewport
-            var padding = 8;
-            rightWrapper.style.cssText =
-                'position:fixed;' +
-                'top:' + topOffset + 'px;' +
-                'left:' + (colRect.left + padding) + 'px;' +
-                'width:' + (colRect.width - padding * 2) + 'px;' +
-                'max-height:' + maxHeight + 'px;' +
-                'overflow-y:auto;' +
-                'overflow-x:hidden;' +
-                'z-index:1;' +
-                'pointer-events:auto;';
-            
-            // Deep-clone the right column content into the wrapper
-            var clone = rightCol.cloneNode(true);
-            clone.style.setProperty('visibility', 'visible', 'important');
-            clone.style.removeProperty('height');
-            clone.style.removeProperty('position');
-            
-            // Restore IDs on the clone (so scrollToSection finds them)
-            clone.querySelectorAll('[data-orig-id]').forEach(function(el) {
-                el.id = el.getAttribute('data-orig-id');
-                el.removeAttribute('data-orig-id');
-            });
-            
-            rightWrapper.innerHTML = '';
-            rightWrapper.appendChild(clone);
-            
-            // Store reference to right column wrapper for scrolling
-            win.__rightContentColumn = rightWrapper;
-            
-            // Handle window resize: reposition wrapper
-            if (!win.__rightContentResizeBound) {
-                win.__rightContentResizeBound = true;
-                win.addEventListener('resize', function() {
-                    var col = null;
-                    doc.querySelectorAll('.report-sidebar').forEach(function(el) {
-                        if (!el.closest('#' + WRAPPER_ID)) {
-                            var lc = el.closest('[data-testid="column"]');
-                            if (lc) {
-                                var hb = lc.closest('[data-testid="stHorizontalBlock"]');
-                                if (hb) {
-                                    var cols = hb.querySelectorAll('[data-testid="column"]');
-                                    for (var j = 0; j < cols.length; j++) {
-                                        if (cols[j] !== lc) {
-                                            col = cols[j];
-                                            break;
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    });
-                    if (col) {
-                        var r = col.getBoundingClientRect();
-                        var w = doc.getElementById(RIGHT_WRAPPER_ID);
-                        if (w) {
-                            w.style.left = (r.left + padding) + 'px';
-                            w.style.width = (r.width - padding * 2) + 'px';
-                        }
-                    }
-                });
-            }
-        }
-
-        /* ─── 3. Scroll to a section in the main content ─── */
-        function scrollToSection(sectionId) {
-            // Get the scrollable container (right column wrapper)
-            var scrollContainer = win.__rightContentColumn;
-            if (!scrollContainer) {
-                // Fallback: try to find it again
-                setupScrollableContent();
-                scrollContainer = win.__rightContentColumn;
-            }
-            
-            if (scrollContainer) {
-                // Find the element within the scrollable container (clone)
-                var el = scrollContainer.querySelector('#' + sectionId);
-                if (!el) {
-                    // If not found in clone, try original (fallback)
-                    el = doc.getElementById(sectionId);
-                    if (!el) return;
-                    // Fallback to original behavior
-                    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                    return;
-                }
-                
-                // Calculate scroll position within the container
-                var containerRect = scrollContainer.getBoundingClientRect();
-                var elementRect = el.getBoundingClientRect();
-                
-                // Calculate the scroll position needed
-                var scrollTop = scrollContainer.scrollTop;
-                var elementTop = elementRect.top - containerRect.top + scrollTop;
-                
-                // Scroll with smooth behavior
-                scrollContainer.scrollTo({
-                    top: elementTop - 10, // 10px offset from top
-                    behavior: 'smooth'
-                });
-                
-                // Brief highlight animation
-                el.style.transition = 'background-color 0.3s ease';
-                var origBg = el.style.backgroundColor || '';
-                el.style.backgroundColor = 'rgba(16,185,129,0.15)';
-                setTimeout(function() { 
-                    el.style.backgroundColor = origBg; 
-                }, 1200);
-            } else {
-                // Fallback to original behavior if container not found
-                var el = doc.getElementById(sectionId);
-                if (!el) return;
-                el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                
-                // Brief highlight animation
-                el.style.transition = 'background-color 0.3s ease';
-                var origBg = el.style.backgroundColor || '';
-                el.style.backgroundColor = 'rgba(16,185,129,0.15)';
-                setTimeout(function() { el.style.backgroundColor = origBg; }, 1200);
-            }
-        }
-
-        /* ─── 4. Event delegation for clicks (works on both original and clone) ─── */
-        function handleClick(e) {
-            var t = e.target;
-            if (!t || !t.closest) return;
-
-            var head = t.closest('.category-head');
-            if (head && head.id && head.id.indexOf('cat-head-') === 0) {
-                toggleCategory(head.id.replace('cat-head-', ''));
-                e.stopPropagation();
-                e.preventDefault();
-                return;
-            }
-            var subitem = t.closest('.subitem');
-            if (subitem) {
-                var sid = subitem.getAttribute('data-section-id');
-                if (sid) { scrollToSection(sid); e.stopPropagation(); e.preventDefault(); return; }
-            }
-            var issueEl = t.closest('.issues-text');
-            if (issueEl) {
-                var isid = issueEl.getAttribute('data-section-id');
-                if (isid) { scrollToSection(isid); e.stopPropagation(); e.preventDefault(); return; }
-            }
-        }
-
-        if (win.__sidebarClickHandler) {
-            doc.removeEventListener('click', win.__sidebarClickHandler, true);
-        }
-        win.__sidebarClickHandler = handleClick;
-        doc.addEventListener('click', handleClick, true);
-
-        /* ─── 5. Auto-expand Content category ─── */
-        function initContent() {
-            var head = doc.getElementById('cat-head-content');
-            var items = doc.getElementById('cat-items-content');
-            if (head && items && !head.classList.contains('expanded')) {
-                head.classList.add('expanded');
-                items.classList.remove('collapsed');
-                items.classList.add('expanded');
-            }
-        }
-
-        /* ─── 6. Master setup: run everything ─── */
-        function runAll() {
-            setupFixedSidebar();
-            setupScrollableContent();
-            initContent();
-        }
-
-        // Run with increasing delays to catch Streamlit's async rendering
-        setTimeout(runAll, 300);
-        setTimeout(runAll, 600);
-        setTimeout(runAll, 1000);
-        setTimeout(runAll, 2000);
-
-        var attempts = 0;
-        var initTimer = setInterval(function() {
-            runAll();
-            attempts++;
-            if (attempts > 30) clearInterval(initTimer);
-        }, 500);
-
-        // Re-run on DOM changes (Streamlit re-renders)
-        if (doc.body) {
-            var debounce = null;
-            new MutationObserver(function(mutations) {
-                // Only re-run if the sidebar was recreated by Streamlit
-                var needsRedo = false;
-                doc.querySelectorAll('.report-sidebar').forEach(function(el) {
-                    if (!el.closest('#' + WRAPPER_ID) &&
-                        el.style.visibility !== 'hidden') {
-                        needsRedo = true;
-                    }
-                });
-                if (needsRedo) {
-                    win.__sidebarFixedDone = false;
-                    clearTimeout(debounce);
-                    debounce = setTimeout(runAll, 200);
-                }
-            }).observe(doc.body, { childList: true, subtree: true });
-        }
-    })();
-    </script>
-    """
 
 
 
@@ -944,7 +565,7 @@ def _render_download_buttons(name: str, analysis: Dict[str, Any]) -> None:
     col1, col2 = st.columns(2, gap="medium")
     with col1:
         st.download_button(
-            "ðŸ“„ Download Markdown Report",
+            "Download Markdown Report",
             data=build_report_md(name, analysis),
             file_name=f"{name}-analysis.md",
             mime="text/markdown",
@@ -953,7 +574,7 @@ def _render_download_buttons(name: str, analysis: Dict[str, Any]) -> None:
         )
     with col2:
         st.download_button(
-            "ðŸ’¾ Download JSON Export",
+            "Download JSON Export",
             data=json.dumps(analysis, indent=2),
             file_name=f"{name}-analysis.json",
             mime="application/json",
@@ -962,6 +583,122 @@ def _render_download_buttons(name: str, analysis: Dict[str, Any]) -> None:
         )
 
 
+
+def _build_sidebar_js() -> str:
+    """
+    Build JavaScript for sidebar interactions.
+
+    This simplified implementation intentionally avoids DOM cloning/fixed wrappers.
+    It keeps interactions stable across Streamlit rerenders: category toggle,
+    scroll-to-section, and default expansion of the Content group.
+    """
+    return """
+    <script>
+    (function() {
+        var doc = window.parent.document;
+        var win = window.parent;
+
+        function toggleCategory(categoryId) {
+            var head = doc.getElementById('cat-head-' + categoryId);
+            var items = doc.getElementById('cat-items-' + categoryId);
+            if (!head || !items) return;
+
+            if (head.classList.contains('expanded')) {
+                head.classList.remove('expanded');
+                items.classList.remove('expanded');
+                items.classList.add('collapsed');
+                return;
+            }
+
+            head.classList.add('expanded');
+            items.classList.remove('collapsed');
+            items.classList.add('expanded');
+        }
+
+        function scrollToSection(sectionId) {
+            var el = doc.getElementById(sectionId);
+            if (!el) return;
+
+            el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+            el.style.transition = 'background-color 0.3s ease';
+            var origBg = el.style.backgroundColor || '';
+            el.style.backgroundColor = 'rgba(16,185,129,0.15)';
+            setTimeout(function() {
+                el.style.backgroundColor = origBg;
+            }, 1200);
+        }
+
+        function handleClick(e) {
+            var t = e.target;
+            if (!t || !t.closest) return;
+
+            var head = t.closest('.category-head');
+            if (head && head.id && head.id.indexOf('cat-head-') === 0) {
+                toggleCategory(head.id.replace('cat-head-', ''));
+                e.stopPropagation();
+                e.preventDefault();
+                return;
+            }
+
+            var subitem = t.closest('.subitem');
+            if (subitem) {
+                var sid = subitem.getAttribute('data-section-id');
+                if (sid) {
+                    scrollToSection(sid);
+                    e.stopPropagation();
+                    e.preventDefault();
+                    return;
+                }
+            }
+
+            var issueEl = t.closest('.issues-text');
+            if (issueEl) {
+                var isid = issueEl.getAttribute('data-section-id');
+                if (isid) {
+                    scrollToSection(isid);
+                    e.stopPropagation();
+                    e.preventDefault();
+                }
+            }
+        }
+
+        if (win.__sidebarSimpleClickHandler) {
+            doc.removeEventListener('click', win.__sidebarSimpleClickHandler, true);
+        }
+        win.__sidebarSimpleClickHandler = handleClick;
+        doc.addEventListener('click', handleClick, true);
+
+        function initContent() {
+            var head = doc.getElementById('cat-head-content');
+            var items = doc.getElementById('cat-items-content');
+            if (head && items && !head.classList.contains('expanded')) {
+                head.classList.add('expanded');
+                items.classList.remove('collapsed');
+                items.classList.add('expanded');
+            }
+        }
+
+        function runInit() {
+            initContent();
+        }
+
+        setTimeout(runInit, 250);
+        setTimeout(runInit, 600);
+
+        if (doc.body) {
+            if (win.__sidebarSimpleObserver) {
+                win.__sidebarSimpleObserver.disconnect();
+            }
+            win.__sidebarSimpleObserver = new MutationObserver(function() {
+                clearTimeout(win.__sidebarSimpleInitTimeout);
+                win.__sidebarSimpleInitTimeout = setTimeout(runInit, 150);
+            });
+            win.__sidebarSimpleObserver.observe(doc.body, { childList: true, subtree: true });
+        }
+    })();
+    </script>
+    """
 def render_report_page(analysis: Dict[str, Any], name: str = "CV") -> None:
     """Render the two-column report view inspired by the HTML mock."""
     score = analysis.get("match_score", 0)
@@ -1127,7 +864,7 @@ def render_report_page(analysis: Dict[str, Any], name: str = "CV") -> None:
             "suggestions",
             "ok",
             f"{len(suggestions_list)} tips" if suggestions_list else "None",
-            "💡",
+            "Tip",
             "No additional suggestions at this time.",
         )
         st.markdown(suggestions_html, unsafe_allow_html=True)

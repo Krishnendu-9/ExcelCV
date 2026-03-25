@@ -273,6 +273,11 @@ def inject_base_css(theme: str = "light") -> None:
                 overflow: hidden !important;
                 border: none !important;
             }}
+            /* Nudge the first controls row flush to top */
+            [data-testid="stMainBlockContainer"] [data-testid="stHorizontalBlock"]:has(.stSelectbox):first-child {{
+                margin-top: 10px !important;
+                padding-top: 0 !important;
+            }}
             
             /* Hide Streamlit's default file size limit text */
             .stFileUploader > div > div > small {{
@@ -307,8 +312,23 @@ def inject_base_css(theme: str = "light") -> None:
                 padding-bottom: 0 !important;
                 margin-top: 0 !important;
                 margin-bottom: 0 !important;
-                max-width: 1400px;
+                max-width: 1240px;
                 background: transparent !important;
+            }}
+            /* Collapse invisible markdown/script injection containers so top controls start at page top */
+            [data-testid="stMainBlockContainer"] {{
+                padding-top: 0 !important;
+                margin-top: 0 !important;
+            }}
+            [data-testid="stMainBlockContainer"] [data-testid="stElementContainer"]:has(> [data-testid="stMarkdownContainer"] > style),
+            [data-testid="stMainBlockContainer"] [data-testid="stElementContainer"]:has(> [data-testid="stMarkdownContainer"] > script),
+            [data-testid="stMainBlockContainer"] .element-container:has(style),
+            [data-testid="stMainBlockContainer"] .element-container:has(script) {{
+                margin: 0 !important;
+                padding: 0 !important;
+                min-height: 0 !important;
+                height: 0 !important;
+                overflow: hidden !important;
             }}
             .block-container {{
                 padding-top: 0 !important;
@@ -332,16 +352,16 @@ def inject_base_css(theme: str = "light") -> None:
                 align-items: center;
                 gap: 12px;
                 padding: 12px 0 8px;
-                margin-bottom: 8px;
+                margin-bottom: 6px;
             }}
             .brand-mark {{
                 width: 38px;
                 height: 38px;
-                border-radius: 10px;
+                border-radius: 14px;
                 background: linear-gradient(135deg, #10b981, #7c6bff);
                 display: grid;
                 place-items: center;
-                font-weight: 800;
+                font-weight: 900;
                 color: #ffffff;
                 font-size: 1.2rem;
             }}
@@ -356,10 +376,138 @@ def inject_base_css(theme: str = "light") -> None:
                 color: var(--text-primary); 
             }}
             .brand-subtitle {{ 
-                color: var(--text-muted); 
+                color: var(--text-secondary); 
                 font-size: 0.85rem; 
             }}
-            
+            .site-brand {{
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                min-height: 56px;
+                padding-top: 4px;
+            }}
+            .site-logo-shell {{
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                gap: 10px;
+                border-radius: 12px;
+                padding: 4px 6px;
+                line-height: 1;
+            }}
+            body.theme-dark .site-logo-shell {{
+                background: linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(244, 249, 255, 0.9));
+                border: 1px solid rgba(255, 255, 255, 0.7);
+                box-shadow: 0 8px 18px rgba(0, 0, 0, 0.28);
+            }}
+            .site-logo-wordmark {{
+                height: 50px;
+                width: auto;
+                max-width: 100%;
+                display: block;
+                object-fit: contain;
+                object-position: left center;
+            }}
+            .site-logo-badge {{
+                width: 52px;
+                height: 52px;
+                border-radius: 14px;
+                background: linear-gradient(135deg, #10b981, #22d3ee);
+                color: #ffffff;
+                font-weight: 900;
+                font-size: 1rem;
+                display: grid;
+                place-items: center;
+                letter-spacing: 0.03em;
+                box-shadow: 0 10px 24px rgba(16, 185, 129, 0.25);
+            }}
+            .site-brand-copy {{
+                display: flex;
+                align-items: center;
+            }}
+            .site-name {{
+                color: var(--text-primary);
+                font-size: 1.95rem;
+                font-weight: 900;
+                letter-spacing: 0.012em;
+                margin: 0;
+                line-height: 1;
+            }}
+            .site-nav {{
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 12px;
+                flex-wrap: nowrap;
+                padding-top: 4px;
+            }}
+            .site-nav-item {{
+                display: inline-flex;
+                align-items: center;
+                padding: 10px 16px;
+                border-radius: 999px;
+                border: 1px solid var(--border-color);
+                background: var(--bg-card);
+                color: var(--text-secondary);
+                font-size: 1.04rem;
+                font-weight: 700;
+                line-height: 1;
+            }}
+            .theme-toggle-gap {{
+                height: 4px;
+            }}
+            .st-key-theme_toggle_header {{
+                margin-top: 0 !important;
+            }}
+            .site-header-rule {{
+                height: 1px;
+                margin: 6px 0 6px;
+                background: var(--border-light);
+            }}
+            @media (max-width: 1200px) {{
+                .site-name {{
+                    font-size: 1.75rem;
+                }}
+                .site-logo-shell {{
+                    padding: 3px 5px;
+                }}
+                .site-logo-wordmark {{
+                    height: 44px;
+                }}
+                .site-logo-badge {{
+                    width: 52px;
+                    height: 52px;
+                    font-size: 1rem;
+                }}
+            }}
+            @media (max-width: 980px) {{
+                .site-nav {{
+                    justify-content: center;
+                    gap: 8px;
+                    flex-wrap: wrap;
+                }}
+                .site-nav-item {{
+                    font-size: 0.82rem;
+                    padding: 7px 10px;
+                }}
+                .site-name {{
+                    font-size: 1.35rem;
+                }}
+                .site-logo-shell {{
+                    padding: 2px 4px;
+                }}
+                .site-logo-wordmark {{
+                    height: 38px;
+                }}
+                .site-logo-badge {{
+                    width: 42px;
+                    height: 42px;
+                    font-size: 0.9rem;
+                }}
+                .theme-toggle-gap {{
+                    height: 2px;
+                }}
+            }}
             /* Fix selectbox cursor issue and theme */
             div[data-baseweb="select"] input,
             div[data-baseweb="select"] > div,
@@ -408,7 +556,7 @@ def inject_base_css(theme: str = "light") -> None:
             .stSelectbox label {{
                 color: var(--text-primary) !important;
                 font-size: 0.9rem;
-                font-weight: 600;
+                font-weight: 700;
             }}
 
             /* Style checkbox label (Debug mode) to ensure visibility in both themes */
@@ -486,12 +634,12 @@ def inject_base_css(theme: str = "light") -> None:
             .stTextArea > div:first-child > label {{
                 color: {'#1f2937' if is_light else '#f9fafb'} !important;
                 font-weight: 700 !important;
-                font-size: 1.35rem !important;
-                margin-bottom: 12px !important;
-                margin-top: 6px !important;
+                font-size: 1.28rem !important;
+                margin-bottom: 0 !important;
+                margin-top: 0 !important;
                 display: block !important;
-                letter-spacing: 0.03em !important;
-                line-height: 1.6 !important;
+                letter-spacing: 0.01em !important;
+                line-height: 1.2 !important;
             }}
             /* Style text area label - Professional and prominent styling - Multiple selectors for maximum coverage */
             .stTextArea label,
@@ -506,12 +654,12 @@ def inject_base_css(theme: str = "light") -> None:
             form .stTextArea > label {{
                 color: {'#1f2937' if is_light else '#f9fafb'} !important;
                 font-weight: 700 !important;
-                font-size: 1.35rem !important;
-                margin-bottom: 12px !important;
-                margin-top: 6px !important;
+                font-size: 1.28rem !important;
+                margin-bottom: 0 !important;
+                margin-top: 0 !important;
                 display: block !important;
-                letter-spacing: 0.03em !important;
-                line-height: 1.6 !important;
+                letter-spacing: 0.01em !important;
+                line-height: 1.2 !important;
                 font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
                 text-transform: none !important;
             }}
@@ -521,9 +669,9 @@ def inject_base_css(theme: str = "light") -> None:
             body.theme-light [data-testid="stTextArea"] label,
             body.theme-light .stForm .stTextArea label {{
                 color: #1f2937 !important;
-                border-bottom: 2px solid rgba(124, 107, 255, 0.25) !important;
-                padding-bottom: 10px !important;
-                margin-bottom: 18px !important;
+                border-bottom: none !important;
+                padding-bottom: 0 !important;
+                margin-bottom: 0 !important;
             }}
             /* Additional specificity for dark mode - Professional styling with accent line */
             body.theme-dark .stTextArea label,
@@ -531,9 +679,9 @@ def inject_base_css(theme: str = "light") -> None:
             body.theme-dark [data-testid="stTextArea"] label,
             body.theme-dark .stForm .stTextArea label {{
                 color: #f9fafb !important;
-                border-bottom: 2px solid rgba(124, 107, 255, 0.35) !important;
-                padding-bottom: 10px !important;
-                margin-bottom: 18px !important;
+                border-bottom: none !important;
+                padding-bottom: 0 !important;
+                margin-bottom: 0 !important;
             }}
             /* Target label text content directly */
             .stTextArea label p,
@@ -546,9 +694,9 @@ def inject_base_css(theme: str = "light") -> None:
             
             /* Style file uploader (Upload PDF/browse file) - LIGHT MODE */
             body.theme-light .stFileUploader {{
-                border: 2px solid rgba(0, 0, 0, 0.1) !important;
+                border: 1px solid rgba(0, 0, 0, 0.1) !important;
                 border-radius: 12px;
-                padding: 24px;
+                padding: 0;
                 background: #f9fafb !important;
                 transition: all 0.2s ease;
             }}
@@ -566,12 +714,12 @@ def inject_base_css(theme: str = "light") -> None:
             form .stFileUploader > label {{
                 color: {'#1f2937' if is_light else '#f9fafb'} !important;
                 font-weight: 700 !important;
-                font-size: 1.35rem !important;
-                margin-bottom: 12px !important;
-                margin-top: 6px !important;
+                font-size: 1.28rem !important;
+                margin-bottom: 0 !important;
+                margin-top: 0 !important;
                 display: block !important;
-                letter-spacing: 0.03em !important;
-                line-height: 1.6 !important;
+                letter-spacing: 0.01em !important;
+                line-height: 1.2 !important;
                 font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
                 text-transform: none !important;
             }}
@@ -581,14 +729,14 @@ def inject_base_css(theme: str = "light") -> None:
             body.theme-light [data-testid="stFileUploader"] label,
             body.theme-light .stForm .stFileUploader label {{
                 color: #1f2937 !important;
-                border-bottom: 2px solid rgba(124, 107, 255, 0.25) !important;
-                padding-bottom: 10px !important;
-                margin-bottom: 18px !important;
+                border-bottom: none !important;
+                padding-bottom: 0 !important;
+                margin-bottom: 0 !important;
             }}
             
             /* Style file uploader - DARK MODE */
             body.theme-dark .stFileUploader {{
-                border: 2px solid rgba(255, 255, 255, 0.1) !important;
+                border: 1px solid rgba(255, 255, 255, 0.1) !important;
                 background: #111827 !important;
             }}
             /* Removed .stFileUploader:hover - only dropzone should glow, not the container */
@@ -598,9 +746,9 @@ def inject_base_css(theme: str = "light") -> None:
             body.theme-dark [data-testid="stFileUploader"] label,
             body.theme-dark .stForm .stFileUploader label {{
                 color: #f9fafb !important;
-                border-bottom: 2px solid rgba(124, 107, 255, 0.35) !important;
-                padding-bottom: 10px !important;
-                margin-bottom: 18px !important;
+                border-bottom: none !important;
+                padding-bottom: 0 !important;
+                margin-bottom: 0 !important;
             }}
             /* Target file uploader label text content directly */
             .stFileUploader label p,
@@ -670,6 +818,7 @@ def inject_base_css(theme: str = "light") -> None:
             }}
             .hero-copy {{
                 padding-right: 12px;
+                margin-top: 0 !important;
             }}
             .eyebrow {{
                 text-transform: uppercase;
@@ -682,8 +831,8 @@ def inject_base_css(theme: str = "light") -> None:
             .hero-title {{
                 font-size: 3.5rem;
                 line-height: 1.05;
-                margin: 0 0 10px;
-                font-weight: 800;
+                margin: 0 0 6px;
+                font-weight: 900;
                 color: var(--text-primary);
             }}
             .hero-title span {{ 
@@ -692,11 +841,31 @@ def inject_base_css(theme: str = "light") -> None:
             .hero-subtitle {{
                 color: var(--text-secondary);
                 font-size: 1.1rem;
-                margin-bottom: 16px;
+                margin-bottom: 6px;
                 line-height: 1.6;
             }}
+            .hero-chip-row {{
+                display: flex;
+                flex-wrap: wrap;
+                gap: 8px;
+                margin: 6px 0 0;
+            }}
+            .hero-chip {{
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                border-radius: 999px;
+                padding: 6px 11px;
+                background: linear-gradient(145deg, var(--bg-card), var(--bg-secondary));
+                border: 1px solid var(--border-color);
+                color: var(--text-primary);
+                font-size: 0.8rem;
+                font-weight: 700;
+                letter-spacing: 0.01em;
+                margin: 0;
+            }}
             .privacy-note {{
-                color: var(--text-muted);
+                color: var(--text-secondary);
                 font-size: 0.85rem;
                 margin-top: 8px;
                 margin-bottom: 12px;
@@ -708,8 +877,22 @@ def inject_base_css(theme: str = "light") -> None:
                 background: var(--bg-sidebar);
                 border: 1px solid var(--border-light);
                 border-radius: 20px;
-                padding: 24px;
+                padding: 16px;
+                margin-top: 0;
                 box-shadow: inset 0 1px 0 var(--border-light);
+            }}
+            /* Keep hero text and scorecard aligned higher on first fold. */
+            [data-testid="stHorizontalBlock"]:has(.hero-copy) {{
+                margin-top: 0 !important;
+                align-items: flex-start !important;
+            }}
+            [data-testid="stHorizontalBlock"]:has(.hero-copy) > div {{
+                margin-top: 0 !important;
+                padding-top: 0 !important;
+            }}
+            [data-testid="stHorizontalBlock"]:has(.hero-copy) > div:last-child [data-testid="stVerticalBlock"] > div {{
+                margin-top: 0 !important;
+                margin-bottom: 6px !important;
             }}
             .landing-extended {{
                 margin-top: 28px;
@@ -817,7 +1000,7 @@ def inject_base_css(theme: str = "light") -> None:
             }}
             .step-num {{
                 display: inline-block;
-                margin-bottom: 8px;
+                margin-bottom: 6px;
                 padding: 4px 8px;
                 border-radius: 999px;
                 background: rgba(16, 185, 129, 0.12);
@@ -840,7 +1023,7 @@ def inject_base_css(theme: str = "light") -> None:
                 margin-top: 18px;
                 display: grid;
                 grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-                gap: 10px;
+                gap: 14px;
             }}
             .proof-tile {{
                 background: var(--bg-sidebar);
@@ -850,7 +1033,7 @@ def inject_base_css(theme: str = "light") -> None:
             }}
             .proof-label {{
                 margin: 0;
-                color: var(--text-muted);
+                color: var(--text-secondary);
                 font-size: 0.8rem;
             }}
             .proof-value {{
@@ -861,10 +1044,10 @@ def inject_base_css(theme: str = "light") -> None:
             }}
             .landing-faq {{
                 margin-top: 20px;
-                padding-top: 8px;
+                padding-top: 2px;
             }}
             .landing-faq h3 {{
-                margin: 0 0 10px;
+                margin: 0 0 6px;
                 color: var(--text-primary);
                 font-size: 1.2rem;
             }}
@@ -878,7 +1061,7 @@ def inject_base_css(theme: str = "light") -> None:
             .landing-faq-item h4 {{
                 margin: 0;
                 color: var(--text-primary);
-                font-weight: 600;
+                font-weight: 700;
             }}
             .landing-faq-item p {{
                 margin: 10px 0 0;
@@ -886,10 +1069,108 @@ def inject_base_css(theme: str = "light") -> None:
                 line-height: 1.55;
                 font-size: 0.92rem;
             }}
+            .landing-feature-card,
+            .landing-mode-card,
+            .landing-step,
+            .proof-tile,
+            .landing-faq-item {{
+                opacity: 0;
+                transform: translateY(10px);
+                animation: landing-fade-up 0.45s ease forwards;
+            }}
+            .landing-feature-grid .landing-feature-card:nth-child(1),
+            .landing-mode-shell .landing-mode-card:nth-child(1),
+            .landing-flow .landing-step:nth-child(1),
+            .landing-proof-grid .proof-tile:nth-child(1),
+            .landing-faq .landing-faq-item:nth-child(2) {{
+                animation-delay: 0.04s;
+            }}
+            .landing-feature-grid .landing-feature-card:nth-child(2),
+            .landing-mode-shell .landing-mode-card:nth-child(2),
+            .landing-flow .landing-step:nth-child(2),
+            .landing-proof-grid .proof-tile:nth-child(2),
+            .landing-faq .landing-faq-item:nth-child(3) {{
+                animation-delay: 0.08s;
+            }}
+            .landing-feature-grid .landing-feature-card:nth-child(3),
+            .landing-mode-shell .landing-mode-card:nth-child(3),
+            .landing-flow .landing-step:nth-child(3),
+            .landing-proof-grid .proof-tile:nth-child(3),
+            .landing-faq .landing-faq-item:nth-child(4) {{
+                animation-delay: 0.12s;
+            }}
+            .landing-feature-grid .landing-feature-card:nth-child(4),
+            .landing-proof-grid .proof-tile:nth-child(4),
+            .landing-faq .landing-faq-item:nth-child(5) {{
+                animation-delay: 0.16s;
+            }}
+            .landing-feature-grid .landing-feature-card:nth-child(5) {{
+                animation-delay: 0.2s;
+            }}
+            .landing-feature-grid .landing-feature-card:nth-child(6) {{
+                animation-delay: 0.24s;
+            }}
+            @keyframes landing-fade-up {{
+                to {{
+                    opacity: 1;
+                    transform: translateY(0);
+                }}
+            }}
+            @media (max-width: 1100px) {{
+                .hero-title {{
+                    font-size: 2.8rem;
+                }}
+                .upload-preview {{
+                    padding: 18px;
+                    margin-top: 10px;
+                }}
+                .landing-extended {{
+                    padding: 22px;
+                }}
+            }}
+            @media (max-width: 768px) {{
+                .hero-title {{
+                    font-size: 2.15rem;
+                    line-height: 1.12;
+                }}
+                .hero-subtitle {{
+                    font-size: 1rem;
+                }}
+                .hero-chip {{
+                    font-size: 0.76rem;
+                    padding: 6px 9px;
+                }}
+                .upload-preview {{
+                    margin-top: 0;
+                }}
+                .landing-title {{
+                    font-size: 1.6rem;
+                }}
+                .landing-subtitle {{
+                    font-size: 0.95rem;
+                }}
+                .landing-feature-grid,
+                .landing-mode-shell,
+                .landing-flow {{
+                    grid-template-columns: 1fr;
+                    gap: 14px;
+                }}
+            }}
+            @media (prefers-reduced-motion: reduce) {{
+                .landing-feature-card,
+                .landing-mode-card,
+                .landing-step,
+                .proof-tile,
+                .landing-faq-item {{
+                    opacity: 1;
+                    transform: none;
+                    animation: none;
+                }}
+            }}
             .preview-card {{
                 background: var(--bg-card) !important;
                 border-radius: 18px;
-                padding: 24px 24px 16px;
+                padding: 18px 18px 12px;
                 color: var(--text-primary) !important;
                 box-shadow: 0 20px 60px var(--shadow);
                 border: 1px solid var(--border-light);
@@ -903,7 +1184,7 @@ def inject_base_css(theme: str = "light") -> None:
                 display: flex;
                 align-items: center;
                 justify-content: space-between;
-                margin-bottom: 14px;
+                margin-bottom: 10px;
             }}
             .preview-badge {{
                 background: rgba(16, 185, 129, 0.15);
@@ -929,24 +1210,24 @@ def inject_base_css(theme: str = "light") -> None:
                 font-size: 1.8rem; 
             }}
             .preview-score .den {{ 
-                color: var(--text-muted); 
+                color: var(--text-secondary); 
             }}
             .pill-row {{
                 display: flex;
                 gap: 8px;
                 flex-wrap: wrap;
-                margin: 6px 0 14px;
+                margin: 4px 0 10px;
             }}
             .pill {{
                 background: var(--bg-secondary);
                 color: var(--text-primary);
                 padding: 6px 10px;
-                border-radius: 10px;
-                font-size: 0.82rem;
-                font-weight: 600;
+                border-radius: 14px;
+                font-size: 0.98rem;
+                font-weight: 700;
             }}
             .progress-shell {{
-                margin: 16px 0 8px;
+                margin: 12px 0 6px;
             }}
             .progress-track {{
                 width: 100%;
@@ -964,7 +1245,7 @@ def inject_base_css(theme: str = "light") -> None:
                 display: flex;
                 justify-content: space-between;
                 align-items: center;
-                padding: 10px 0;
+                padding: 8px 0;
                 border-bottom: 1px solid var(--border-color);
                 background-color: transparent !important;
             }}
@@ -1068,15 +1349,15 @@ def inject_base_css(theme: str = "light") -> None:
             }}
             .score-number {{ 
                 font-size: 2.8rem; 
-                font-weight: 800; 
+                font-weight: 900; 
                 color: #fcd34d; 
             }}
             .score-number span {{ 
                 font-size: 1rem; 
-                color: var(--text-muted); 
+                color: var(--text-secondary); 
             }}
             .issues-text {{ 
-                color: var(--text-muted); 
+                color: var(--text-secondary); 
                 font-size: 0.95rem; 
             }}
             .issues-text.clickable {{
@@ -1099,10 +1380,11 @@ def inject_base_css(theme: str = "light") -> None:
                 display: flex;
                 justify-content: space-between;
                 align-items: center;
-                margin-bottom: 8px;
+                margin-bottom: 6px;
                 color: var(--text-primary);
                 font-weight: 700;
                 letter-spacing: 0.03em;
+                box-shadow: 0 10px 24px rgba(16, 185, 129, 0.25);
                 cursor: pointer;
                 user-select: none;
                 transition: color 0.2s ease;
@@ -1121,7 +1403,7 @@ def inject_base_css(theme: str = "light") -> None:
                 display: inline-block;
                 transition: transform 0.3s ease;
                 font-size: 0.85rem;
-                color: var(--text-muted);
+                color: var(--text-secondary);
                 margin-left: 4px;
             }}
             .category-head.expanded .category-chevron {{
@@ -1143,7 +1425,7 @@ def inject_base_css(theme: str = "light") -> None:
             }}
             .category-score {{
                 padding: 6px 10px;
-                border-radius: 10px;
+                border-radius: 14px;
                 font-weight: 700;
                 font-size: 0.95rem;
             }}
@@ -1163,8 +1445,8 @@ def inject_base_css(theme: str = "light") -> None:
                 display: flex;
                 align-items: center;
                 justify-content: space-between;
-                gap: 10px;
-                color: var(--text-muted);
+                gap: 14px;
+                color: var(--text-secondary);
                 padding: 8px 0;
                 font-size: 0.92rem;
             }}
@@ -1242,7 +1524,7 @@ def inject_base_css(theme: str = "light") -> None:
                 border: 1px solid var(--border-light);
                 border-radius: 14px;
                 padding: 16px 18px;
-                margin-bottom: 14px;
+                margin-bottom: 10px;
             }}
             .detail-head {{
                 display: flex;
@@ -1259,7 +1541,7 @@ def inject_base_css(theme: str = "light") -> None:
                 margin: 0;
             }}
             .section-body-item {{
-                margin-bottom: 8px;
+                margin-bottom: 6px;
                 line-height: 1.45;
                 color: var(--text-primary);
             }}
@@ -1283,7 +1565,7 @@ def inject_base_css(theme: str = "light") -> None:
             }}
             .issue-card .issue-icon {{
                 font-size: 2rem;
-                margin-bottom: 8px;
+                margin-bottom: 6px;
             }}
             .issue-card .issue-count {{
                 display: inline-flex;
@@ -1314,13 +1596,13 @@ def inject_base_css(theme: str = "light") -> None:
             .issue-item {{
                 background: rgba(239, 68, 68, 0.12);
                 border: 1px solid rgba(239, 68, 68, 0.3);
-                border-radius: 10px;
+                border-radius: 14px;
                 padding: 12px 16px;
                 margin-top: 8px;
                 text-align: left;
                 display: flex;
                 align-items: flex-start;
-                gap: 10px;
+                gap: 14px;
                 color: var(--text-primary);
                 font-size: 0.92rem;
                 line-height: 1.5;
@@ -1346,7 +1628,7 @@ def inject_base_css(theme: str = "light") -> None:
                 gap: 12px;
                 padding: 14px 18px;
                 margin-top: 10px;
-                border-radius: 10px;
+                border-radius: 14px;
                 background: rgba(255,255,255,0.04);
                 border: 1px solid rgba(255,255,255,0.08);
             }}
@@ -1363,12 +1645,12 @@ def inject_base_css(theme: str = "light") -> None:
                 color: #ef4444;
             }}
             .contact-label {{
-                font-weight: 600;
+                font-weight: 700;
                 color: var(--text-primary);
                 white-space: nowrap;
             }}
             .contact-sep {{
-                color: var(--text-muted);
+                color: var(--text-secondary);
                 flex-shrink: 0;
             }}
             .contact-value {{
@@ -1376,7 +1658,7 @@ def inject_base_css(theme: str = "light") -> None:
                 word-break: break-all;
             }}
             .contact-msg {{
-                color: var(--text-muted);
+                color: var(--text-secondary);
                 font-size: 0.9rem;
                 word-break: normal;
             }}
@@ -1385,7 +1667,7 @@ def inject_base_css(theme: str = "light") -> None:
                 display: flex;
                 flex-wrap: wrap;
                 align-items: center;
-                gap: 10px;
+                gap: 14px;
                 margin-top: 10px;
                 margin-bottom: 6px;
                 text-align: left;
@@ -1396,7 +1678,7 @@ def inject_base_css(theme: str = "light") -> None:
                 border-radius: 8px;
                 background: #dc2626;
                 color: #fff;
-                font-weight: 600;
+                font-weight: 700;
                 font-size: 0.9rem;
             }}
             .repeat-suggestion {{
@@ -1432,7 +1714,7 @@ def inject_base_css(theme: str = "light") -> None:
                 font-size: 0.88rem;
             }}
             .spell-tag-label {{
-                font-weight: 600;
+                font-weight: 700;
                 color: #ef4444;
                 margin-right: 4px;
             }}
@@ -1447,7 +1729,7 @@ def inject_base_css(theme: str = "light") -> None:
             .list-tag {{
                 display: inline-block;
                 padding: 6px 10px;
-                border-radius: 10px;
+                border-radius: 14px;
                 background: var(--bg-secondary);
                 color: var(--text-primary);
                 margin-right: 8px;
@@ -1461,7 +1743,7 @@ def inject_base_css(theme: str = "light") -> None:
                 color: var(--text-secondary); 
             }}
             .text-muted {{ 
-                color: var(--text-muted); 
+                color: var(--text-secondary); 
             }}
             .text-description {{ 
                 color: var(--text-secondary); 
@@ -1662,7 +1944,7 @@ def inject_base_css(theme: str = "light") -> None:
                             if (label) {{
                                 const labelColor = bgColor === '#ffffff' ? '#1f2937' : '#f9fafb';
                                 const borderColor = bgColor === '#ffffff' ? 'rgba(124, 107, 255, 0.25)' : 'rgba(124, 107, 255, 0.35)';
-                                label.style.cssText += 'color: ' + labelColor + ' !important; font-weight: 700 !important; font-size: 1.35rem !important; margin-bottom: 12px !important; margin-top: 6px !important; display: block !important; letter-spacing: 0.03em !important; line-height: 1.6 !important; border-bottom: 2px solid ' + borderColor + ' !important; padding-bottom: 10px !important; margin-bottom: 18px !important;';
+                                label.style.cssText += 'color: ' + labelColor + ' !important; font-weight: 700 !important; font-size: 1.28rem !important; margin-bottom: 0 !important; margin-top: 0 !important; display: block !important; letter-spacing: 0.01em !important; line-height: 1.2 !important; border-bottom: none !important; padding-bottom: 0 !important;';
                                 // Also style any nested elements
                                 const nestedElements = label.querySelectorAll('p, span, *');
                                 nestedElements.forEach(el => {{
@@ -1678,7 +1960,7 @@ def inject_base_css(theme: str = "light") -> None:
                             if (label) {{
                                 const labelColor = bgColor === '#ffffff' ? '#1f2937' : '#f9fafb';
                                 const borderColor = bgColor === '#ffffff' ? 'rgba(124, 107, 255, 0.25)' : 'rgba(124, 107, 255, 0.35)';
-                                label.style.cssText += 'color: ' + labelColor + ' !important; font-weight: 700 !important; font-size: 1.35rem !important; margin-bottom: 12px !important; margin-top: 6px !important; display: block !important; letter-spacing: 0.03em !important; line-height: 1.6 !important; border-bottom: 2px solid ' + borderColor + ' !important; padding-bottom: 10px !important; margin-bottom: 18px !important;';
+                                label.style.cssText += 'color: ' + labelColor + ' !important; font-weight: 700 !important; font-size: 1.28rem !important; margin-bottom: 0 !important; margin-top: 0 !important; display: block !important; letter-spacing: 0.01em !important; line-height: 1.2 !important; border-bottom: none !important; padding-bottom: 0 !important;';
                                 // Also style any nested elements
                                 const nestedElements = label.querySelectorAll('p, span, *');
                                 nestedElements.forEach(el => {{
@@ -1692,7 +1974,7 @@ def inject_base_css(theme: str = "light") -> None:
                         // Fix file uploader - force theme colors
                         document.querySelectorAll('.stFileUploader').forEach(uploader => {{
                             if (uploader) {{
-                                uploader.style.cssText += 'background-color: ' + (bgColor === '#ffffff' ? '#f9fafb' : '#111827') + ' !important; border-color: ' + (bgColor === '#ffffff' ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)') + ' !important;';
+                                uploader.style.cssText += 'background-color: ' + (bgColor === '#ffffff' ? '#f9fafb' : '#111827') + ' !important; border-color: ' + (bgColor === '#ffffff' ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)') + ' !important; padding: 0 !important;';
                                 
                                 // Fix Browse Files button inside uploader
                                 const browseBtn = uploader.querySelector('button, [data-baseweb="button"]');

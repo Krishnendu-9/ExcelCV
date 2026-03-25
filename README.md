@@ -1,4 +1,4 @@
-# AI CV Reviewer
+# ExcelCV: GenAI-Powered Vibecoded CV Reviewer
 
 A professional CV analysis tool built with Streamlit and Google Gemini AI. This application evaluates CVs against job descriptions, providing ATS readiness scores, keyword analysis, and actionable improvement suggestions.
 

@@ -1,6 +1,6 @@
 # CV Review Metrics Documentation
 
-This document explains how each metric and score is calculated in the AI CV Reviewer application.
+This document explains how each metric and score is calculated in the ExcelCV: GenAI-Powered Vibecoded CV Reviewer application.
 
 ## Overview
 

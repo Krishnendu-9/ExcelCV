@@ -1,14 +1,19 @@
 """
-AI CV Reviewer - Main Streamlit Application
+ExcelCV: GenAI-Powered Vibecoded CV Reviewer - Main Streamlit Application
 
 A professional CV analysis tool that uses Google Gemini AI to evaluate
 CVs against job descriptions, providing ATS readiness scores, keyword
 analysis, and actionable improvement suggestions.
 """
 
+import base64
+from functools import lru_cache
+from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
+from uuid import uuid4
 
 import streamlit as st
+import streamlit.components.v1 as components
 
 from src.config import MAX_FILE_BYTES, MAX_FILE_MB
 from src.gemini_client import analyze_cv_with_gemini
@@ -22,10 +27,28 @@ from src.ui_components import (
     render_upload_preview_card,
 )
 
-ANALYSIS_MODES = ("General Review", "ATS Scan")
+STANDARD_ANALYSIS_MODE = "General Review"
 
 
-def run_single_analysis(job_description: str, uploaded_cv) -> Optional[Tuple[Dict[str, Any], str]]:
+@lru_cache(maxsize=1)
+def _load_logo_data_uri() -> str:
+    """Return logo as a data URI for stable rendering inside HTML markup."""
+    base_dir = Path(__file__).resolve().parent / "templates"
+    logo_path = base_dir / "ExcelCV_clean.png"
+    if not logo_path.exists():
+        logo_path = base_dir / "ExcelCV.png"
+    try:
+        encoded = base64.b64encode(logo_path.read_bytes()).decode("ascii")
+    except OSError:
+        return ""
+    return f"data:image/png;base64,{encoded}"
+
+
+def run_single_analysis(
+    job_description: str,
+    uploaded_cv,
+    status_container: Optional[Any] = None,
+) -> Optional[Tuple[Dict[str, Any], str]]:
     """
     Process a single CV analysis workflow.
 
@@ -57,38 +80,40 @@ def run_single_analysis(job_description: str, uploaded_cv) -> Optional[Tuple[Dic
         st.error("Could not read this PDF. Please upload a text-based PDF CV.")
         return None
 
-    # Show preview
-    preview = cv_text[:500]
-    if len(cv_text) > 500:
-        preview += "..."
+    # Show progress in the requested area (right panel under scorecard when provided).
+    progress_area = status_container if status_container is not None else st.container()
 
-    with st.expander(f"Preview CV Text: {uploaded_cv.name}"):
-        st.write(preview)
+    with progress_area:
+        # Keep upload-page live status compact so progress remains visible above the fold.
+        if status_container is None:
+            preview = cv_text[:500]
+            if len(cv_text) > 500:
+                preview += "..."
+            with st.expander(f"Preview CV Text: {uploaded_cv.name}"):
+                st.write(preview)
 
-    # Show parse confidence
-    label, cls = parse_confidence_chip(cv_text)
-    st.markdown(f"<span class='{cls}'>{label}</span>", unsafe_allow_html=True)
+        # Show parse confidence
+        label, cls = parse_confidence_chip(cv_text)
+        st.markdown(f"<span class='{cls}'>{label}</span>", unsafe_allow_html=True)
 
-    # Get mode and debug settings
-    mode = st.session_state.get("mode", "General Review")
-    debug = st.session_state.get("debug", False)
-
-    # Run analysis
-    with st.spinner(f"Analyzing {uploaded_cv.name} with Gemini..."):
-        try:
-            analysis = analyze_cv_with_gemini(
-                cv_text=cv_text,
-                job_desc=job_description,
-                mode=mode,
-                debug=debug,
-                file_name=getattr(uploaded_cv, "name", "resume.pdf"),
-                file_size_bytes=getattr(uploaded_cv, "size", 0),
-            )
-            return (analysis, cv_text)
-        except RuntimeError as exc:
-            st.error(str(exc))
-        except ValueError as exc:
-            st.error(str(exc))
+        # Use one standard analysis mode for a consistent scoring workflow.
+        mode = STANDARD_ANALYSIS_MODE
+        # Run analysis
+        with st.spinner(f"Analyzing {uploaded_cv.name} with Gemini..."):
+            try:
+                analysis = analyze_cv_with_gemini(
+                    cv_text=cv_text,
+                    job_desc=job_description,
+                    mode=mode,
+                    debug=False,
+                    file_name=getattr(uploaded_cv, "name", "resume.pdf"),
+                    file_size_bytes=getattr(uploaded_cv, "size", 0),
+                )
+                return (analysis, cv_text)
+            except RuntimeError as exc:
+                st.error(str(exc))
+            except ValueError as exc:
+                st.error(str(exc))
     return None
 
 
@@ -101,7 +126,7 @@ def render_theme_toggle(standalone: bool = True, key: str = "theme_toggle") -> N
         container = st.container()
     with container:
         current_theme = st.session_state.get("theme", "light")
-        theme_icon = "☀️" if current_theme == "light" else "🌙"
+        theme_icon = "\u2600\ufe0f" if current_theme == "light" else "\U0001F319"
         theme_label = "Dark" if current_theme == "light" else "Light"
         if st.button(
             theme_icon,
@@ -113,25 +138,48 @@ def render_theme_toggle(standalone: bool = True, key: str = "theme_toggle") -> N
             st.rerun()
 
 
-def render_top_controls() -> None:
-    """Render global controls (analysis mode, debug, theme) for all pages."""
-    col_mode, col_debug, col_theme = st.columns([2.2, 1.1, 0.5], gap="small")
+def render_site_header() -> None:
+    """Render top branded header similar to modern landing pages."""
+    col_brand, col_nav, col_theme = st.columns([1.3, 2.15, 0.55], gap="small")
+    logo_src = _load_logo_data_uri()
+    logo_content_html = (
+        f'<img src="{logo_src}" alt="ExcelCV logo" class="site-logo-wordmark" />'
+        if logo_src
+        else '<div class="site-logo-badge">EC</div><div class="site-brand-copy"><div class="site-name">ExcelCV</div></div>'
+    )
+    logo_target_url = f"/?page=upload&_reload={uuid4().hex}"
+    logo_html = (
+        f'<a href="{logo_target_url}" target="_self" class="site-logo-link" aria-label="Go to homepage">'
+        f'<div class="site-logo-shell">{logo_content_html}</div></a>'
+    )
 
-    with col_mode:
-        st.selectbox(
-            "Analysis mode",
-            options=list(ANALYSIS_MODES),
-            key="mode",
-            help="General Review is holistic. ATS Scan is strict on keyword/format alignment.",
+    with col_brand:
+        st.markdown(
+            f"""
+            <div class="site-brand">
+                {logo_html}
+            </div>
+            """,
+            unsafe_allow_html=True,
         )
-    with col_debug:
-        st.checkbox(
-            "Debug mode",
-            key="debug",
-            help="Show raw AI response and parsing diagnostics.",
+
+    with col_nav:
+        st.markdown(
+            """
+            <div class="site-nav">
+                <span class="site-nav-item">Resume Checker</span>
+                <span class="site-nav-item">ATS Insights</span>
+                <span class="site-nav-item">Instant Report</span>
+            </div>
+            """,
+            unsafe_allow_html=True,
         )
+
     with col_theme:
-        render_theme_toggle(standalone=False, key="theme_toggle_global")
+        st.markdown('<div class="theme-toggle-gap" aria-hidden="true"></div>', unsafe_allow_html=True)
+        render_theme_toggle(standalone=False, key="theme_toggle_header")
+
+    st.markdown('<div class="site-header-rule"></div>', unsafe_allow_html=True)
 
 
 def inject_file_uploader_spacing_css() -> None:
@@ -142,6 +190,20 @@ def inject_file_uploader_spacing_css() -> None:
     st.markdown(
         """
         <style>
+        /* Remove residual top whitespace above top controls */
+        [data-testid="stAppViewContainer"] > section.main,
+        [data-testid="stMainBlockContainer"],
+        .main .block-container {
+            padding-top: 0 !important;
+            margin-top: 0 !important;
+        }
+        [data-testid="stMainBlockContainer"] > div:first-child,
+        [data-testid="stMainBlockContainer"] .element-container:first-child,
+        [data-testid="stMainBlockContainer"] [data-testid="stHorizontalBlock"]:first-child {
+            padding-top: 0 !important;
+            margin-top: 0 !important;
+        }
+
         /* ── Position labels directly on top of boxes - Clean design ── */
 
         /* Textarea labels - Job description - Position directly on top */
@@ -159,9 +221,9 @@ def inject_file_uploader_spacing_css() -> None:
         body.theme-dark .stTextArea label,
         body.theme-dark .stTextArea > label,
         body.theme-dark [data-testid="stTextArea"] label {
-            margin-bottom: 4px !important;
+            margin-bottom: 2px !important;
             margin-top: 0 !important;
-            padding-bottom: 6px !important;
+            padding-bottom: 2px !important;
         }
 
         /* File uploader labels - Upload resume - Position directly on top */
@@ -179,9 +241,9 @@ def inject_file_uploader_spacing_css() -> None:
         body.theme-dark .stFileUploader label,
         body.theme-dark .stFileUploader > label,
         body.theme-dark [data-testid="stFileUploader"] label {
-            margin-bottom: 4px !important;
+            margin-bottom: 0 !important;
             margin-top: 0 !important;
-            padding-bottom: 6px !important;
+            padding-bottom: 0 !important;
         }
 
         /* Remove ALL gaps between label containers and input boxes */
@@ -206,7 +268,7 @@ def inject_file_uploader_spacing_css() -> None:
         /* Ensure textarea sits directly below label with no gap */
         .stTextArea textarea {
             margin-top: 0 !important;
-            padding-top: 12px !important;
+            padding-top: 10px !important;
         }
 
         /* Ensure dropzone sits directly below label with no gap */
@@ -214,8 +276,8 @@ def inject_file_uploader_spacing_css() -> None:
         section[data-testid="stFileUploadDropzone"],
         .stFileUploader [data-testid="stFileUploaderDropzone"] {
             margin-top: 0 !important;
-            padding-top: 0.75rem !important;
-            padding-bottom: 0.75rem !important;
+            padding-top: 0.5rem !important;
+            padding-bottom: 0.5rem !important;
         }
 
         /* Remove any wrapper gaps completely */
@@ -237,16 +299,406 @@ def inject_file_uploader_spacing_css() -> None:
             margin-top: 0 !important;
             margin-bottom: 0 !important;
         }
+
+        /* Tighten top controls and form rhythm so submit button stays above the fold on laptop screens */
+        .stSelectbox,
+        .stCheckbox,
+        .stSelectbox label,
+        .stCheckbox label {
+            margin-top: 0 !important;
+            margin-bottom: 2px !important;
+            padding-top: 0 !important;
+            padding-bottom: 0 !important;
+            line-height: 1.2 !important;
+        }
+        .stForm [data-testid="stVerticalBlock"] > div {
+            margin-top: 0 !important;
+            margin-bottom: 6px !important;
+        }
+        .stForm .stCaptionContainer {
+            margin-top: 0 !important;
+            margin-bottom: 2px !important;
+        }
         </style>
         """,
         unsafe_allow_html=True,
     )
 
 
+def inject_compact_header_css() -> None:
+    """Compact and vertically align the top header row to the theme switch baseline."""
+    st.markdown(
+        """
+        <style>
+        /* Fixed top bar styling; JS handles fixed positioning + spacer */
+        [data-testid="stHorizontalBlock"]:has(.site-brand) {
+            align-items: center !important;
+            min-height: 78px !important;
+            margin: 0 !important;
+            padding: 10px 22px 9px !important;
+            box-sizing: border-box !important;
+            background: var(--bg-primary) !important;
+            border-top: none !important;
+            border-bottom: 1px solid var(--border-light) !important;
+            backdrop-filter: none !important;
+        }
+        [data-testid="stHorizontalBlock"]:has(.site-brand) > div {
+            display: flex !important;
+            align-items: center !important;
+        }
+        .site-brand {
+            min-height: 56px !important;
+            padding-top: 0 !important;
+            margin: 0 !important;
+        }
+        .site-logo-link {
+            display: inline-flex !important;
+            align-items: center !important;
+            text-decoration: none !important;
+            cursor: pointer !important;
+            position: relative !important;
+            z-index: 30 !important;
+            pointer-events: auto !important;
+            border: none !important;
+            background: transparent !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            outline: none !important;
+            -webkit-appearance: none !important;
+            appearance: none !important;
+            user-select: none !important;
+            -webkit-user-select: none !important;
+        }
+        .site-logo-link * {
+            pointer-events: none !important;
+        }
+        .site-logo-shell {
+            padding: 2px 4px !important;
+        }
+        .site-logo-wordmark {
+            height: 56px !important;
+        }
+        .site-nav {
+            padding-top: 0 !important;
+            min-height: 56px !important;
+            align-items: center !important;
+        }
+        .site-nav-item {
+            padding: 8px 14px !important;
+            font-size: 1rem !important;
+            line-height: 1 !important;
+        }
+        .theme-toggle-gap {
+            height: 0 !important;
+        }
+        .st-key-theme_toggle_header {
+            margin-top: 0 !important;
+            margin-bottom: 0 !important;
+        }
+        .site-header-rule {
+            display: none !important;
+        }
+        #excelcv-fixed-header-spacer {
+            display: block !important;
+            width: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            pointer-events: none !important;
+        }
+        @media (max-width: 980px) {
+            [data-testid="stHorizontalBlock"]:has(.site-brand) {
+                padding: 8px 12px 7px !important;
+            }
+            .site-logo-wordmark {
+                height: 44px !important;
+            }
+            .site-nav-item {
+                padding: 7px 11px !important;
+                font-size: 0.84rem !important;
+            }
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def inject_fixed_top_bar() -> None:
+    """Keep the header fixed at the top with a spacer to avoid content overlap."""
+    components.html(
+        """
+        <script>
+        (function() {
+            var target = window.parent && window.parent !== window ? window.parent : window;
+            var doc = target.document;
+            var HEADER_SELECTOR = '[data-testid="stHorizontalBlock"]:has(.site-brand)';
+            var SPACER_ID = 'excelcv-fixed-header-spacer';
+            var BAR_HEIGHT = 78;
+
+            function getHeader() {
+                var header = doc.querySelector(HEADER_SELECTOR);
+                if (!header) return null;
+                var rect = header.getBoundingClientRect();
+                if (rect.width < 20 || rect.height < 20) return null;
+                return header;
+            }
+
+            function ensureSpacer(header) {
+                var spacer = doc.getElementById(SPACER_ID);
+                if (!spacer) {
+                    spacer = doc.createElement('div');
+                    spacer.id = SPACER_ID;
+                }
+                if (header.parentNode && spacer.nextSibling !== header) {
+                    header.parentNode.insertBefore(spacer, header);
+                }
+                return spacer;
+            }
+
+            function applyFixedHeader() {
+                var header = getHeader();
+                if (!header) return;
+
+                var rect = header.getBoundingClientRect();
+                var measured = Math.ceil(header.scrollHeight || header.offsetHeight || rect.height || BAR_HEIGHT);
+                var height = Math.max(BAR_HEIGHT, Math.min(90, measured));
+                var spacer = ensureSpacer(header);
+                var viewportWidth = Math.max(
+                    320,
+                    (doc.documentElement && doc.documentElement.clientWidth) || target.innerWidth || rect.width
+                );
+
+                spacer.style.height = (height + 1) + 'px';
+                spacer.style.width = '100%';
+                spacer.style.display = 'block';
+                spacer.style.pointerEvents = 'none';
+
+                header.style.position = 'fixed';
+                header.style.top = '0';
+                header.style.left = '0';
+                header.style.width = viewportWidth + 'px';
+                header.style.height = height + 'px';
+                header.style.minHeight = height + 'px';
+                header.style.zIndex = '1300';
+                header.style.margin = '0';
+                header.style.padding = '10px 22px 9px';
+                header.style.boxSizing = 'border-box';
+                header.style.background = 'var(--bg-primary, #0b0f17)';
+                header.style.borderTop = 'none';
+                header.style.borderBottom = '1px solid var(--border-light, rgba(148,163,184,0.24))';
+
+                doc.querySelectorAll('.site-header-rule').forEach(function(rule) {
+                    rule.style.display = 'none';
+                    rule.style.height = '0';
+                    rule.style.margin = '0';
+                });
+            }
+
+            function scheduleApply() {
+                applyFixedHeader();
+                target.requestAnimationFrame(applyFixedHeader);
+                setTimeout(applyFixedHeader, 60);
+                setTimeout(applyFixedHeader, 220);
+            }
+
+            scheduleApply();
+
+            if (!target.__excelcvFixedHeaderResizeBound) {
+                target.__excelcvFixedHeaderResizeBound = true;
+                target.addEventListener('resize', scheduleApply);
+                target.addEventListener('scroll', scheduleApply, { passive: true });
+            }
+
+            if (target.__excelcvFixedHeaderObserver) {
+                target.__excelcvFixedHeaderObserver.disconnect();
+            }
+            target.__excelcvFixedHeaderObserver = new MutationObserver(function() {
+                scheduleApply();
+            });
+            target.__excelcvFixedHeaderObserver.observe(doc.body, { childList: true, subtree: true });
+        })();
+        </script>
+        """,
+        height=0,
+    )
+
+
+def inject_scroll_to_top_once() -> None:
+    """Scroll the page to top once after logo click on homepage."""
+    if not st.session_state.pop("_home_logo_scroll_top", False):
+        return
+    components.html(
+        """
+        <script>
+        (function() {
+            var target = window.parent && window.parent !== window ? window.parent : window;
+            function scrollTopNow() {
+                try {
+                    var doc = target.document;
+                    var nodes = [
+                        target,
+                        doc.scrollingElement,
+                        doc.documentElement,
+                        doc.body,
+                        doc.querySelector('[data-testid="stAppViewContainer"]'),
+                        doc.querySelector('[data-testid="stAppViewContainer"] > section.main'),
+                        doc.querySelector('section.main'),
+                        doc.querySelector('.main'),
+                        doc.querySelector('.main .block-container')
+                    ];
+                    nodes.forEach(function(node) {
+                        if (!node) return;
+                        if (node === target) {
+                            target.scrollTo(0, 0);
+                            return;
+                        }
+                        if (typeof node.scrollTo === 'function') {
+                            node.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+                        }
+                        node.scrollTop = 0;
+                        node.scrollLeft = 0;
+                    });
+                } catch (e) {}
+            }
+            scrollTopNow();
+            target.requestAnimationFrame(scrollTopNow);
+            setTimeout(scrollTopNow, 50);
+            setTimeout(scrollTopNow, 180);
+            setTimeout(scrollTopNow, 350);
+            setTimeout(scrollTopNow, 650);
+            setTimeout(scrollTopNow, 1100);
+            var attempts = 0;
+            var timer = setInterval(function() {
+                scrollTopNow();
+                attempts += 1;
+                if (attempts >= 12) {
+                    clearInterval(timer);
+                }
+            }, 120);
+        })();
+        </script>
+        """,
+        height=0,
+    )
+
+
+def inject_logo_home_click_behavior() -> None:
+    """Make logo click always open homepage in same window and land at top."""
+    components.html(
+        """
+        <script>
+        (function() {
+            var target = window.parent && window.parent !== window ? window.parent : window;
+            var doc = target.document;
+
+            function scrollTopNow() {
+                try {
+                    var nodes = [
+                        target,
+                        doc.scrollingElement,
+                        doc.documentElement,
+                        doc.body,
+                        doc.querySelector('[data-testid="stAppViewContainer"]'),
+                        doc.querySelector('[data-testid="stAppViewContainer"] > section.main'),
+                        doc.querySelector('section.main'),
+                        doc.querySelector('.main'),
+                        doc.querySelector('.main .block-container')
+                    ];
+                    nodes.forEach(function(node) {
+                        if (!node) return;
+                        if (node === target) {
+                            target.scrollTo(0, 0);
+                            return;
+                        }
+                        if (typeof node.scrollTo === 'function') {
+                            node.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+                        }
+                        node.scrollTop = 0;
+                        node.scrollLeft = 0;
+                    });
+                } catch (e) {}
+            }
+
+            function forceScrollTopBurst() {
+                scrollTopNow();
+                target.requestAnimationFrame(scrollTopNow);
+                [40, 120, 220, 380, 700, 1100].forEach(function(ms) {
+                    setTimeout(scrollTopNow, ms);
+                });
+            }
+
+            function onLogoClick(ev) {
+                ev.preventDefault();
+                ev.stopPropagation();
+                var current;
+                try {
+                    current = new URL(target.location.href);
+                } catch (e) {
+                    forceScrollTopBurst();
+                    return;
+                }
+
+                var currentPage = current.searchParams.get('page') || 'upload';
+                current.searchParams.set('page', 'upload');
+                current.searchParams.set('_home', String(Date.now()));
+                if (currentPage === 'upload') {
+                    current.searchParams.set('_reload', String(Date.now()));
+                }
+                target.location.assign(current.toString());
+            }
+
+            function bindLogoClick() {
+                var logos = doc.querySelectorAll('.site-logo-link');
+                logos.forEach(function(logo) {
+                    if (logo.getAttribute('data-logo-home-bound') === '1') return;
+                    logo.setAttribute('data-logo-home-bound', '1');
+                    logo.setAttribute('role', 'link');
+                    logo.setAttribute('tabindex', '0');
+                    logo.addEventListener('click', onLogoClick, true);
+                    logo.addEventListener('keydown', function(ev) {
+                        if (ev.key === 'Enter' || ev.key === ' ') {
+                            onLogoClick(ev);
+                        }
+                    }, true);
+                });
+            }
+
+            function consumeHomeFlagAndScroll() {
+                var current;
+                try {
+                    current = new URL(target.location.href);
+                } catch (e) {
+                    return;
+                }
+                if (!current.searchParams.has('_home')) return;
+
+                forceScrollTopBurst();
+                current.searchParams.delete('_home');
+                var newUrl = current.pathname + (current.searchParams.toString() ? ('?' + current.searchParams.toString()) : '');
+                target.history.replaceState({}, '', newUrl);
+            }
+
+            bindLogoClick();
+            consumeHomeFlagAndScroll();
+
+            if (target.__excelcvLogoHomeObserver) {
+                target.__excelcvLogoHomeObserver.disconnect();
+            }
+            target.__excelcvLogoHomeObserver = new MutationObserver(function() {
+                bindLogoClick();
+            });
+            target.__excelcvLogoHomeObserver.observe(doc.body, { childList: true, subtree: true });
+        })();
+        </script>
+        """,
+        height=0,
+    )
+
+
 def main() -> None:
     """Main application entry point."""
     st.set_page_config(
-        page_title="AI CV Reviewer | Resume Checker",
+        page_title="ExcelCV",
         layout="wide",
         initial_sidebar_state="collapsed",
     )
@@ -256,11 +708,6 @@ def main() -> None:
         st.session_state["theme"] = "light"
     if "page" not in st.session_state:
         st.session_state["page"] = "upload"
-    if "mode" not in st.session_state:
-        st.session_state["mode"] = ANALYSIS_MODES[0]
-    if "debug" not in st.session_state:
-        st.session_state["debug"] = False
-
     # Sync page with URL so browser back/forward works
     url_page = st.query_params.get("page")
     if url_page in ("upload", "report"):
@@ -271,27 +718,30 @@ def main() -> None:
         st.session_state["page"] = "upload"
         st.query_params["page"] = "upload"
 
-    # Inject CSS with current theme
-    inject_base_css(st.session_state["theme"])
-
-    # Inject the file-uploader spacing fix
-    inject_file_uploader_spacing_css()
-
-    # Reload on browser back/forward so URL and page stay in sync
-    inject_back_button_sync()
-
-    # Global controls visible on both upload and report pages.
-    render_top_controls()
+    # Global branded header visible on both upload and report pages.
+    render_site_header()
 
     if st.session_state["page"] == "upload":
         render_upload_page()
     else:
         render_report_view()
 
+    # Inject styles/scripts after visible UI so hidden injection containers
+    # do not push the first row down.
+    inject_base_css(st.session_state["theme"])
+    inject_file_uploader_spacing_css()
+    inject_compact_header_css()
+    inject_fixed_top_bar()
+    inject_back_button_sync()
+    inject_scroll_to_top_once()
+
 
 def render_upload_page() -> None:
     """Landing page: upload CV + JD."""
-    left, right = st.columns([1.05, 0.95], gap="large")
+    left, right = st.columns([1.0, 1.0], gap="medium")
+    with right:
+        render_upload_preview_card()
+        analysis_status_slot = st.container()
 
     with left:
         st.markdown(
@@ -301,6 +751,11 @@ def render_upload_page() -> None:
                 <p class="hero-subtitle">
                     Drop your resume, paste the JD, and get an ATS-ready report in seconds.
                 </p>
+                <div class="hero-chip-row">
+                    <span class="hero-chip">100% free</span>
+                    <span class="hero-chip">No signup</span>
+                    <span class="hero-chip">Session-only data</span>
+                </div>
             </div>
             """,
             unsafe_allow_html=True,
@@ -310,7 +765,7 @@ def render_upload_page() -> None:
             jd = st.text_area(
                 "Job description",
                 key="jd",
-                height=140,
+                height=120,
                 placeholder="Paste the role description, must-have skills, and seniority expectations.",
             )
             uploaded_cv = st.file_uploader(
@@ -320,15 +775,15 @@ def render_upload_page() -> None:
                 accept_multiple_files=False,
                 help="PDF recommended. Maximum file size: 2MB. Text-based PDFs work best.",
             )
+            submitted = st.form_submit_button("Upload & analyze", use_container_width=True)
             st.caption("Max 2MB per file.")
             st.markdown(
-                '<div class="privacy-note">🔒 Processed locally in-session. Nothing is stored.</div>',
+                '<div class="privacy-note">&#128274; Processed locally in-session. Nothing is stored.</div>',
                 unsafe_allow_html=True,
             )
-            submitted = st.form_submit_button("Upload & analyze", use_container_width=True)
 
         if submitted:
-            result = run_single_analysis(jd, uploaded_cv)
+            result = run_single_analysis(jd, uploaded_cv, status_container=analysis_status_slot)
             if result:
                 analysis, cv_text = result
                 st.session_state["cv_text"] = cv_text
@@ -337,34 +792,11 @@ def render_upload_page() -> None:
                 st.session_state["cv_name"] = getattr(uploaded_cv, "name", "CV.pdf")
                 st.session_state["cv_file_size"] = getattr(uploaded_cv, "size", 0)
                 st.session_state["issues"] = issue_count(analysis)
-                st.session_state["analysis_mode"] = st.session_state.get("mode", "General Review")
                 st.session_state["page"] = "report"
                 st.query_params["page"] = "report"
                 st.rerun()
 
-    with right:
-        render_upload_preview_card()
-
     render_upload_landing_sections()
-
-
-def _reanalyze_with_mode(cv_text: str, job_description: str, mode: str, debug: bool) -> Optional[Dict[str, Any]]:
-    """Re-run analysis with stored CV text and job description using the specified mode."""
-    with st.spinner(f"Re-analyzing with {mode} mode..."):
-        try:
-            return analyze_cv_with_gemini(
-                cv_text=cv_text,
-                job_desc=job_description,
-                mode=mode,
-                debug=debug,
-                file_name=st.session_state.get("cv_name", "resume.pdf"),
-                file_size_bytes=st.session_state.get("cv_file_size", 0),
-            )
-        except RuntimeError as exc:
-            st.error(str(exc))
-        except ValueError as exc:
-            st.error(str(exc))
-    return None
 
 
 def render_report_view() -> None:
@@ -377,32 +809,7 @@ def render_report_view() -> None:
         st.session_state["page"] = "upload"
         return
 
-    # Check if mode has changed and re-analyze if needed
-    current_mode = st.session_state.get("mode", "General Review")
-    stored_mode = st.session_state.get("analysis_mode", "General Review")
-    cv_text = st.session_state.get("cv_text")
-    job_description = st.session_state.get("job_description")
-    debug = st.session_state.get("debug", False)
-
-    # If mode changed and we have stored CV text and JD, re-analyze
-    if current_mode != stored_mode and cv_text and job_description:
-        new_analysis = _reanalyze_with_mode(cv_text, job_description, current_mode, debug)
-        if new_analysis:
-            st.session_state["analysis"] = new_analysis
-            st.session_state["issues"] = issue_count(new_analysis)
-            st.session_state["analysis_mode"] = current_mode
-            st.rerun()
-        else:
-            # If re-analysis failed, revert to stored mode
-            st.session_state["mode"] = stored_mode
-            st.error("⚠️ Re-analysis failed. Keeping previous results. Please try again.")
-
-    analysis_mode = st.session_state.get("analysis_mode", "General Review")
-    mode_description = (
-        "ATS-focused analysis emphasizing keyword matching and format compliance."
-        if analysis_mode == "ATS Scan"
-        else "Comprehensive review focusing on overall quality and content alignment."
-    )
+    mode_description = "Standard scoring across ATS readiness, content quality, and resume strength."
 
     # Marker for CSS/JS: center theme + Upload buttons with PDF section
     st.markdown('<div id="report-pdf-row-marker" aria-hidden="true"></div>', unsafe_allow_html=True)
@@ -412,12 +819,9 @@ def render_report_view() -> None:
             f"""
             <div class="report-hero">
                 <div>
-                    <p class="eyebrow">Resume report • {analysis_mode}</p>
+                    <p class="eyebrow">Resume report - Standard scoring</p>
                     <h2 class="report-title">{name}</h2>
                     <p class="hero-subtitle">{mode_description}</p>
-                    <p style="color:#9ca3af;font-size:0.85rem;margin-top:8px;">
-                        💡 Tip: Change the mode in the top bar to re-analyze with different criteria
-                    </p>
                 </div>
                 <div class="score-pill">{analysis.get("match_score", 0)} / 100</div>
             </div>

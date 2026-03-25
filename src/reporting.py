@@ -10,7 +10,7 @@ def build_report_md(name: str, analysis: Dict[str, Any]) -> str:
         return f"### {title}\n" + "\n".join([f"- {item}" for item in items]) + "\n"
 
     md = [
-        f"# CV Analysis Report — {name}",
+        f"# CV Analysis Report - {name}",
         f"- Match Score: {analysis.get('match_score', 0)}%",
         f"- Skills Alignment: {subs.get('skills_alignment', 0)}%",
         f"- Experience Alignment: {subs.get('experience_alignment', 0)}%",

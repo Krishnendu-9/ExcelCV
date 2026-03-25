@@ -23,7 +23,7 @@ python-dotenv
 
 In app.py, implement:
 
-Streamlit page with title: “AI CV Reviewer (GenAI Vibe Coded)”
+Streamlit page with title: “ExcelCV: GenAI-Powered Vibecoded CV Reviewer”
 
 Sidebar section with brief instructions: “Upload CV + Paste Job Description + Click Analyze”
 

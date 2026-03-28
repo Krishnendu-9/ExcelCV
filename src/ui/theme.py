@@ -1,4 +1,4 @@
-"""
+﻿"""
 Theme and base style injection utilities.
 """
 
@@ -171,7 +171,7 @@ def inject_base_css(theme: str = "light") -> None:
                 color: var(--button-text) !important;
                 border-color: var(--button-hover-border) !important;
             }}
-            /* Catch-all: every button in the app (e.g. Download Reports) – download buttons may sit outside .report-main in DOM */
+            /* Catch-all: every button in the app (e.g. Download Reports) - download buttons may sit outside .report-main in DOM */
             [data-testid="stAppViewContainer"] .stButton button,
             [data-testid="stAppViewContainer"] .stButton button *,
             [data-testid="stAppViewContainer"] button[data-testid="baseButton-primary"],
@@ -1283,7 +1283,7 @@ def inject_base_css(theme: str = "light") -> None:
                 color: var(--text-primary) !important;
             }}
 
-            /* Report page – center theme + Upload buttons with PDF section */
+            /* Report page - center theme + Upload buttons with PDF section */
             #report-pdf-row-marker {{
                 display: none !important;
                 height: 0 !important;
@@ -1336,8 +1336,12 @@ def inject_base_css(theme: str = "light") -> None:
                 background: var(--bg-sidebar);
                 border: 1px solid var(--border-light);
                 border-radius: 18px;
-                padding: 20px;
-                box-shadow: 0 14px 50px var(--shadow);
+                padding: 18px;
+                box-shadow: 0 10px 34px var(--shadow);
+                position: sticky !important;
+                top: 92px !important;
+                max-height: calc(100vh - 112px) !important;
+                overflow-y: auto !important;
             }}
             .score-card {{
                 background: linear-gradient(145deg, var(--bg-card), var(--bg-sidebar));
@@ -1383,8 +1387,7 @@ def inject_base_css(theme: str = "light") -> None:
                 margin-bottom: 6px;
                 color: var(--text-primary);
                 font-weight: 700;
-                letter-spacing: 0.03em;
-                box-shadow: 0 10px 24px rgba(16, 185, 129, 0.25);
+                letter-spacing: 0.02em;
                 cursor: pointer;
                 user-select: none;
                 transition: color 0.2s ease;
@@ -1513,18 +1516,67 @@ def inject_base_css(theme: str = "light") -> None:
             }}
 
             .report-main {{
-                background: var(--bg-card);
-                border: 1px solid var(--border-light);
-                border-radius: 18px;
-                padding: 20px;
-                box-shadow: 0 14px 50px var(--shadow);
+                display: flex;
+                flex-direction: column;
+                gap: 28px;
             }}
             .detail-card {{
                 background: var(--bg-secondary);
                 border: 1px solid var(--border-light);
                 border-radius: 14px;
                 padding: 16px 18px;
-                margin-bottom: 10px;
+                margin-bottom: 12px;
+                box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+            }}
+            .report-group-wrap {{
+                margin: 0;
+            }}
+            .report-group-wrap:last-of-type {{
+                margin-bottom: 0;
+            }}
+            .report-group {{
+                background: linear-gradient(140deg, var(--bg-card), var(--bg-sidebar));
+                border: 1px solid var(--border-light);
+                border-radius: 18px;
+                padding: 18px;
+                box-shadow: 0 12px 34px var(--shadow);
+                margin: 0;
+            }}
+            .report-group-head {{
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 12px;
+                margin-bottom: 14px;
+                padding: 4px 4px 2px;
+            }}
+            .report-group-head h3 {{
+                margin: 0;
+                font-size: 1.55rem;
+                color: var(--text-primary);
+                letter-spacing: 0.02em;
+            }}
+            .report-group-pill {{
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                padding: 7px 14px;
+                border-radius: 999px;
+                font-size: 0.82rem;
+                font-weight: 700;
+                color: var(--text-secondary);
+                background: rgba(17, 24, 39, 0.45);
+                border: 1px solid var(--border-color);
+                white-space: nowrap;
+            }}
+            .theme-light .report-group-pill {{
+                background: rgba(255, 255, 255, 0.72);
+                color: #4b5563;
+            }}
+            .report-group-body {{
+                display: flex;
+                flex-direction: column;
+                gap: 12px;
             }}
             .detail-head {{
                 display: flex;
@@ -1535,7 +1587,7 @@ def inject_base_css(theme: str = "light") -> None:
             .detail-head h3 {{ 
                 margin: 0; 
             }}
-            /* Shared body area for all report sections (Quantifying Impact, Spelling & Grammar, Strengths, etc.) – same as Suggestions */
+            /* Shared body area for all report sections (Quantifying Impact, Spelling & Grammar, Strengths, etc.) - same as Suggestions */
             .section-body {{
                 padding: 0 0 4px 0;
                 margin: 0;
@@ -1763,7 +1815,7 @@ def inject_base_css(theme: str = "light") -> None:
                 pointer-events: auto !important;
             }}
             
-            /* Report area buttons (Download Reports, etc.) use theme colors – light in light mode */
+            /* Report area buttons (Download Reports, etc.) use theme colors - light in light mode */
             .report-main .stButton > button,
             .report-main .stButton button,
             .report-main button[data-testid="baseButton-primary"],
@@ -1840,7 +1892,8 @@ def inject_base_css(theme: str = "light") -> None:
             
             /* Ensure no overlay blocks buttons */
             .report-sidebar,
-            .report-main {{
+            .report-main,
+            .report-group {{
                 position: relative;
                 z-index: 1;
             }}
@@ -2376,6 +2429,7 @@ def inject_base_css(theme: str = "light") -> None:
         """,
         unsafe_allow_html=True,
     )
+
 
 
 

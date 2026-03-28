@@ -22,7 +22,7 @@ def _build_sidebar_html(score: int, issues: int, categories: list) -> str:
     issues_attr = 'data-section-id="suggestions"' if issues > 0 else ''
 
     html = f"""
-    <div class="report-sidebar" style="position:sticky;top:10px;max-height:calc(100vh - 20px);overflow-y:auto;">
+    <div class="report-sidebar">
         <div class="score-card">
             <div class="score-title text-muted" style="font-size:0.95rem;">Your Score</div>
             <div class="score-number">{score}<span>/100</span></div>
@@ -113,7 +113,6 @@ def _build_ats_parse_rate_html(ats_val: int) -> str:
     )
     ats_card_cls = "good-card" if ats_val >= 80 else ""
     return f"""
-            <div class="report-main">
             <div class="detail-card section-anchor" id="ats-parse-rate">
                 <div class="detail-head">
                     <h3>ATS Parse Rate</h3>
@@ -130,8 +129,41 @@ def _build_ats_parse_rate_html(ats_val: int) -> str:
                     </div>
                 </div>
             </div>
-            </div>
             """
+
+
+def _build_design_html(ats_issues: List[str]) -> str:
+    """Build ATS design recommendations card."""
+    badge_type = "ok" if not ats_issues else "warn"
+    badge_text = "No issues" if not ats_issues else f"{len(ats_issues)} issues"
+    html = f"""
+        <div class="detail-card section-anchor" id="design">
+            <div class="detail-head">
+                <h3>Design</h3>
+                <span class="badge badge-{badge_type}">{badge_text}</span>
+            </div>
+            <div class="section-body">
+                <p class="section-body-item text-description">
+                    Keep your layout clean and ATS-friendly by avoiding heavy graphics, complex columns, and decorative elements that reduce parse quality.
+                </p>"""
+    if ats_issues:
+        html += """
+                <div class="issue-card" style="margin-top:10px;">
+                    <div class="issue-heading">Design elements to review:</div>"""
+        for issue in ats_issues:
+            html += f"""
+                    <div class="issue-item">
+                        <span class="issue-x">&#10005;</span>
+                        <span>{_escape_html(issue)}</span>
+                    </div>"""
+        html += "</div>"
+    else:
+        html += """
+                <div class="issue-card good-card" style="margin-top:10px;">
+                    <div class="issue-heading">Design is ATS-safe and easy to scan.</div>
+                </div>"""
+    html += "</div></div>"
+    return html
 
 
 def _build_quantifying_impact_html(quant_impact: Dict[str, Any]) -> str:
@@ -586,17 +618,14 @@ def _render_download_buttons(name: str, analysis: Dict[str, Any]) -> None:
 
 def _build_sidebar_js() -> str:
     """
-    Build JavaScript for sidebar interactions.
-
-    This simplified implementation intentionally avoids DOM cloning/fixed wrappers.
-    It keeps interactions stable across Streamlit rerenders: category toggle,
-    scroll-to-section, and default expansion of the Content group.
+    Build JavaScript for sidebar interactions + robust sticky/fixed score rail behavior.
     """
     return """
     <script>
     (function() {
         var doc = window.parent.document;
         var win = window.parent;
+        var FIXED_TOP = 94;
 
         function toggleCategory(categoryId) {
             var head = doc.getElementById('cat-head-' + categoryId);
@@ -663,6 +692,124 @@ def _build_sidebar_js() -> str:
             }
         }
 
+        function getActiveSidebarRail() {
+            var rails = Array.prototype.slice.call(doc.querySelectorAll('.report-sidebar'));
+            if (!rails.length) return null;
+            for (var i = rails.length - 1; i >= 0; i--) {
+                var rail = rails[i];
+                if (!rail || !rail.getBoundingClientRect) continue;
+                var style = win.getComputedStyle ? win.getComputedStyle(rail) : null;
+                if (style && (style.display === 'none' || style.visibility === 'hidden')) continue;
+                var rect = rail.getBoundingClientRect();
+                if (rect.width > 40 && rect.height > 40) return rail;
+            }
+            return rails[rails.length - 1];
+        }
+
+        function setupStickySidebar(forceRecalc) {
+            var rail = getActiveSidebarRail();
+            if (!rail) return;
+
+            var railParent = rail.parentElement;
+            var p = rail.parentElement;
+            while (p && p !== doc.body) {
+                if (p.getAttribute && p.getAttribute('data-testid') === 'column') {
+                    railParent = p;
+                }
+                p = p.parentElement;
+            }
+            if (!railParent) return;
+
+            if (!win.__reportRailState) {
+                win.__reportRailState = { startY: null, railEl: null, railParent: null };
+            }
+
+            var railChanged = win.__reportRailState.railEl !== rail;
+            var parentChanged = win.__reportRailState.railParent !== railParent;
+            if (railChanged || parentChanged) {
+                win.__reportRailState.railEl = rail;
+                win.__reportRailState.railParent = railParent;
+                win.__reportRailState.startY = null;
+                if (win.__reportRailPlaceholder && win.__reportRailPlaceholder.parentElement) {
+                    win.__reportRailPlaceholder.parentElement.removeChild(win.__reportRailPlaceholder);
+                }
+                win.__reportRailPlaceholder = null;
+            }
+
+            if (!win.__reportRailPlaceholder || win.__reportRailPlaceholder.parentElement !== railParent) {
+                var ph = doc.createElement('div');
+                ph.id = 'report-sidebar-placeholder';
+                ph.style.display = 'none';
+                ph.style.width = '100%';
+                ph.style.pointerEvents = 'none';
+                railParent.insertBefore(ph, rail);
+                win.__reportRailPlaceholder = ph;
+            }
+
+            var placeholder = win.__reportRailPlaceholder;
+            var maxHeight = Math.max(240, win.innerHeight - FIXED_TOP - 16);
+            var scrollY = win.pageYOffset || doc.documentElement.scrollTop || 0;
+
+            if (forceRecalc || win.__reportRailState.startY === null) {
+                var railRect0 = rail.getBoundingClientRect();
+                win.__reportRailState.startY = scrollY + railRect0.top - FIXED_TOP;
+            }
+
+            rail.style.visibility = 'visible';
+            rail.style.opacity = '1';
+
+            if (win.innerWidth < 1100) {
+                rail.style.position = 'sticky';
+                rail.style.top = FIXED_TOP + 'px';
+                rail.style.left = '';
+                rail.style.right = '';
+                rail.style.width = '';
+                rail.style.maxHeight = maxHeight + 'px';
+                rail.style.zIndex = '2';
+                if (placeholder) {
+                    placeholder.style.display = 'none';
+                    placeholder.style.height = '0px';
+                }
+                return;
+            }
+
+            var shouldFix = scrollY >= win.__reportRailState.startY;
+            if (!shouldFix) {
+                rail.style.position = 'sticky';
+                rail.style.top = FIXED_TOP + 'px';
+                rail.style.left = '';
+                rail.style.right = '';
+                rail.style.width = '';
+                rail.style.maxHeight = maxHeight + 'px';
+                rail.style.zIndex = '2';
+                if (placeholder) {
+                    placeholder.style.display = 'none';
+                    placeholder.style.height = '0px';
+                }
+                return;
+            }
+
+            if (placeholder) {
+                placeholder.style.display = 'block';
+                placeholder.style.height = rail.offsetHeight + 'px';
+            }
+
+            var anchorRect = placeholder && placeholder.getBoundingClientRect
+                ? placeholder.getBoundingClientRect()
+                : railParent.getBoundingClientRect();
+            if (anchorRect.width < 80 && railParent.getBoundingClientRect) {
+                anchorRect = railParent.getBoundingClientRect();
+            }
+
+            rail.style.position = 'fixed';
+            rail.style.top = FIXED_TOP + 'px';
+            rail.style.left = Math.max(12, anchorRect.left) + 'px';
+            rail.style.right = '';
+            rail.style.width = Math.max(260, anchorRect.width) + 'px';
+            rail.style.maxHeight = maxHeight + 'px';
+            rail.style.zIndex = '24';
+        }
+
         if (win.__sidebarSimpleClickHandler) {
             doc.removeEventListener('click', win.__sidebarSimpleClickHandler, true);
         }
@@ -681,9 +828,30 @@ def _build_sidebar_js() -> str:
 
         function runInit() {
             initContent();
+            setupStickySidebar(true);
         }
 
-        setTimeout(runInit, 250);
+        if (win.__reportRailScrollHandler) {
+            win.removeEventListener('scroll', win.__reportRailScrollHandler, true);
+        }
+        if (win.__reportRailResizeHandler) {
+            win.removeEventListener('resize', win.__reportRailResizeHandler, true);
+        }
+        win.__reportRailScrollHandler = function() {
+            clearTimeout(win.__reportRailTick);
+            win.__reportRailTick = setTimeout(function(){ setupStickySidebar(false); }, 20);
+        };
+        win.__reportRailResizeHandler = function() {
+            if (win.__reportRailState) {
+                win.__reportRailState.startY = null;
+            }
+            clearTimeout(win.__reportRailResizeTick);
+            win.__reportRailResizeTick = setTimeout(function(){ setupStickySidebar(true); }, 50);
+        };
+        win.addEventListener('scroll', win.__reportRailScrollHandler, true);
+        win.addEventListener('resize', win.__reportRailResizeHandler, true);
+
+        setTimeout(runInit, 200);
         setTimeout(runInit, 600);
 
         if (doc.body) {
@@ -692,13 +860,30 @@ def _build_sidebar_js() -> str:
             }
             win.__sidebarSimpleObserver = new MutationObserver(function() {
                 clearTimeout(win.__sidebarSimpleInitTimeout);
-                win.__sidebarSimpleInitTimeout = setTimeout(runInit, 150);
+                win.__sidebarSimpleInitTimeout = setTimeout(function() { setupStickySidebar(true); }, 120);
             });
             win.__sidebarSimpleObserver.observe(doc.body, { childList: true, subtree: true });
         }
     })();
     </script>
     """
+
+def _build_group_card(title: str, group_id: str, issues_found: int, body_html: str) -> str:
+    """Wrap detail cards in a report section block."""
+    issue_text = "No issues found" if issues_found <= 0 else f"{issues_found} issues found"
+    normalized_body = "\n".join(
+        line.strip()
+        for line in str(body_html).splitlines()
+        if line.strip()
+    )
+    return (
+        f'<div class="report-group section-anchor" id="{group_id}">'
+        f'<div class="report-group-head"><h3>{title}</h3><span class="report-group-pill">{issue_text}</span></div>'
+        f'<div class="report-group-body">{normalized_body}</div>'
+        '</div>'
+    )
+
+
 def render_report_page(analysis: Dict[str, Any], name: str = "CV") -> None:
     """Render the two-column report view inspired by the HTML mock."""
     score = analysis.get("match_score", 0)
@@ -781,7 +966,7 @@ def render_report_page(analysis: Dict[str, Any], name: str = "CV") -> None:
         ats_items_list.append(("Email Address", "error", 1))
 
     has_links = header_links_info.get("has_links", False)
-    ats_items_list.append(("Hyperlink in Header", "ok" if has_links else "warn", None if has_links else 1))
+    ats_items_list.append(("Header Links", "ok" if has_links else "warn", None if has_links else 1))
 
     # Build Insights category items
     strengths_list = analysis.get("strengths", [])
@@ -815,16 +1000,6 @@ def render_report_page(analysis: Dict[str, Any], name: str = "CV") -> None:
         components.html(_build_sidebar_js(), height=0)
 
     with main:
-        st.markdown(_build_ats_parse_rate_html(content_metrics.get("ats_parse_rate", 0)), unsafe_allow_html=True)
-        st.markdown(_build_quantifying_impact_html(quant_impact), unsafe_allow_html=True)
-        st.markdown(_build_repetition_html(repetition), unsafe_allow_html=True)
-        st.markdown(_build_spelling_grammar_html(spelling_grammar), unsafe_allow_html=True)
-        st.markdown(_build_essential_sections_html(sections_details), unsafe_allow_html=True)
-        st.markdown(_build_contact_information_html(contact_found, contact_missing), unsafe_allow_html=True)
-        st.markdown(_build_file_format_size_html(file_format_info), unsafe_allow_html=True)
-        st.markdown(_build_email_address_html(email_check_info), unsafe_allow_html=True)
-        st.markdown(_build_header_links_html(header_links_info), unsafe_allow_html=True)
-
         strengths_html = _build_list_card(
             "Strengths",
             strengths_list,
@@ -834,7 +1009,6 @@ def render_report_page(analysis: Dict[str, Any], name: str = "CV") -> None:
             "&#10003;",
             "No specific strengths identified yet.",
         )
-        st.markdown(strengths_html, unsafe_allow_html=True)
 
         missing_skills_html = _build_list_card(
             "Missing Skills",
@@ -843,9 +1017,8 @@ def render_report_page(analysis: Dict[str, Any], name: str = "CV") -> None:
             "warn" if missing_skills_list else "ok",
             f"{len(missing_skills_list)} missing" if missing_skills_list else "All covered",
             "&#10005;",
-            "No missing skills detected — great job!",
+            "No missing skills detected - great job!",
         )
-        st.markdown(missing_skills_html, unsafe_allow_html=True)
 
         missing_kw_html = _build_list_card(
             "Missing Keywords (ATS)",
@@ -854,9 +1027,8 @@ def render_report_page(analysis: Dict[str, Any], name: str = "CV") -> None:
             "warn" if missing_keywords_list else "ok",
             f"{len(missing_keywords_list)} missing" if missing_keywords_list else "All covered",
             "&#10005;",
-            "No missing ATS keywords detected — your resume is well-optimized!",
+            "No missing ATS keywords detected - your resume is well-optimized!",
         )
-        st.markdown(missing_kw_html, unsafe_allow_html=True)
 
         suggestions_html = _build_list_card(
             "Suggestions",
@@ -867,7 +1039,105 @@ def render_report_page(analysis: Dict[str, Any], name: str = "CV") -> None:
             "Tip",
             "No additional suggestions at this time.",
         )
-        st.markdown(suggestions_html, unsafe_allow_html=True)
+
+        content_issue_count = 0
+        if ats_parse_rate < 80:
+            content_issue_count += 1
+        if quant_impact.get("status", "ok") != "ok":
+            content_issue_count += max(1, len(quant_impact.get("non_quantified_lines", [])))
+        if repetition.get("status", "ok") != "ok":
+            content_issue_count += max(1, len(repetition.get("repeated_words", [])))
+        if spelling_grammar.get("status", "ok") != "ok":
+            content_issue_count += max(1, len(spelling_grammar.get("issues_list", [])))
+
+        sections_issue_count = len(missing_sections) + len(contact_missing)
+
+        ats_issue_count = 0
+        if not ff_ok:
+            ats_issue_count += 1
+        ats_issue_count += len(ats_issues)
+        if not (email_found and email_prof):
+            ats_issue_count += 1
+        if not has_links:
+            ats_issue_count += 1
+
+        insights_issue_count = len(missing_skills_list) + len(missing_keywords_list)
+
+        content_group_html = _build_group_card(
+            "Content",
+            "group-content",
+            content_issue_count,
+            "".join(
+                [
+                    _build_ats_parse_rate_html(content_metrics.get("ats_parse_rate", 0)),
+                    _build_quantifying_impact_html(quant_impact),
+                    _build_repetition_html(repetition),
+                    _build_spelling_grammar_html(spelling_grammar),
+                ]
+            ),
+        )
+        sections_group_html = _build_group_card(
+            "Sections",
+            "group-sections",
+            sections_issue_count,
+            "".join(
+                [
+                    _build_essential_sections_html(sections_details),
+                    _build_contact_information_html(contact_found, contact_missing),
+                ]
+            ),
+        )
+        ats_group_html = _build_group_card(
+            "ATS Essentials",
+            "group-ats-essentials",
+            ats_issue_count,
+            "".join(
+                [
+                    _build_file_format_size_html(file_format_info),
+                    _build_design_html(ats_issues),
+                    _build_email_address_html(email_check_info),
+                    _build_header_links_html(header_links_info),
+                ]
+            ),
+        )
+        insights_group_html = _build_group_card(
+            "Insights",
+            "group-insights",
+            insights_issue_count,
+            "".join(
+                [
+                    strengths_html,
+                    missing_skills_html,
+                    missing_kw_html,
+                    suggestions_html,
+                ]
+            ),
+        )
+
+        report_main_html = (
+            '<div class="report-main">'
+            f'<div class="report-group-wrap">{content_group_html}</div>'
+            f'<div class="report-group-wrap">{sections_group_html}</div>'
+            f'<div class="report-group-wrap">{ats_group_html}</div>'
+            f'<div class="report-group-wrap">{insights_group_html}</div>'
+            '</div>'
+        )
+        st.markdown(report_main_html, unsafe_allow_html=True)
 
         _render_download_buttons(name, analysis)
-        st.markdown("</div>", unsafe_allow_html=True)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

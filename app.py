@@ -327,29 +327,64 @@ def inject_file_uploader_spacing_css() -> None:
 
 def inject_compact_header_css() -> None:
     """Compact and vertically align the top header row to the theme switch baseline."""
-    st.markdown(
-        """
+    is_dark = st.session_state.get("theme", "light") == "dark"
+    header_bg = "rgba(6, 12, 28, 0.66)" if is_dark else "rgba(255, 255, 255, 0.56)"
+    header_border = "rgba(148, 163, 184, 0.24)" if is_dark else "rgba(148, 163, 184, 0.36)"
+    header_filter = (
+        "blur(12px) saturate(120%)"
+        if is_dark
+        else "blur(12px) saturate(108%) brightness(1.04)"
+    )
+    header_shadow = (
+        "0 4px 16px rgba(2, 6, 23, 0.20)"
+        if is_dark
+        else "0 2px 10px rgba(15, 23, 42, 0.07)"
+    )
+    css = """
         <style>
         /* Fixed top bar styling; JS handles fixed positioning + spacer */
         [data-testid="stHorizontalBlock"]:has(.site-brand) {
             align-items: center !important;
+            height: 78px !important;
             min-height: 78px !important;
+            max-height: 78px !important;
             margin: 0 !important;
-            padding: 10px 22px 9px !important;
+            padding: 0 22px !important;
             box-sizing: border-box !important;
-            background: var(--bg-primary) !important;
+            background: __HEADER_BG__ !important;
             border-top: none !important;
-            border-bottom: 1px solid var(--border-light) !important;
-            backdrop-filter: none !important;
+            border-bottom: 1px solid __HEADER_BORDER__ !important;
+            -webkit-backdrop-filter: __HEADER_FILTER__ !important;
+            backdrop-filter: __HEADER_FILTER__ !important;
+            box-shadow: __HEADER_SHADOW__ !important;
         }
         [data-testid="stHorizontalBlock"]:has(.site-brand) > div {
             display: flex !important;
             align-items: center !important;
+            height: 78px !important;
+            min-height: 78px !important;
+        }
+        [data-testid="stHorizontalBlock"]:has(.site-brand) > div > div {
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            height: 100% !important;
+            min-height: 100% !important;
+        }
+        [data-testid="stHorizontalBlock"]:has(.site-brand) [data-testid="stElementContainer"] {
+            margin-top: 0 !important;
+            margin-bottom: 0 !important;
+            padding-top: 0 !important;
+            padding-bottom: 0 !important;
         }
         .site-brand {
-            min-height: 56px !important;
+            min-height: 100% !important;
+            height: 100% !important;
             padding-top: 0 !important;
             margin: 0 !important;
+            display: flex !important;
+            align-items: center !important;
+            transform: none !important;
         }
         .site-logo-link {
             display: inline-flex !important;
@@ -380,7 +415,9 @@ def inject_compact_header_css() -> None:
         }
         .site-nav {
             padding-top: 0 !important;
-            min-height: 56px !important;
+            min-height: 100% !important;
+            height: 100% !important;
+            display: flex !important;
             align-items: center !important;
         }
         .site-nav-item {
@@ -394,6 +431,19 @@ def inject_compact_header_css() -> None:
         .st-key-theme_toggle_header {
             margin-top: 0 !important;
             margin-bottom: 0 !important;
+            display: flex !important;
+            align-items: center !important;
+            height: 100% !important;
+            transform: none !important;
+        }
+        .st-key-theme_toggle_header button {
+            margin-top: 0 !important;
+            margin-bottom: 0 !important;
+            min-height: 56px !important;
+            height: 56px !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
         }
         .site-header-rule {
             display: none !important;
@@ -407,7 +457,10 @@ def inject_compact_header_css() -> None:
         }
         @media (max-width: 980px) {
             [data-testid="stHorizontalBlock"]:has(.site-brand) {
-                padding: 8px 12px 7px !important;
+                height: 72px !important;
+                min-height: 72px !important;
+                max-height: 72px !important;
+                padding: 0 12px !important;
             }
             .site-logo-wordmark {
                 height: 44px !important;
@@ -418,15 +471,20 @@ def inject_compact_header_css() -> None:
             }
         }
         </style>
-        """,
-        unsafe_allow_html=True,
+        """
+    css = (
+        css.replace("__HEADER_BG__", header_bg)
+        .replace("__HEADER_BORDER__", header_border)
+        .replace("__HEADER_FILTER__", header_filter)
+        .replace("__HEADER_SHADOW__", header_shadow)
     )
+    st.markdown(css, unsafe_allow_html=True)
 
 
 def inject_fixed_top_bar() -> None:
     """Keep the header fixed at the top with a spacer to avoid content overlap."""
-    components.html(
-        """
+    theme_mode = st.session_state.get("theme", "light")
+    script = """
         <script>
         (function() {
             var target = window.parent && window.parent !== window ? window.parent : window;
@@ -434,6 +492,7 @@ def inject_fixed_top_bar() -> None:
             var HEADER_SELECTOR = '[data-testid="stHorizontalBlock"]:has(.site-brand)';
             var SPACER_ID = 'excelcv-fixed-header-spacer';
             var BAR_HEIGHT = 78;
+            var THEME_MODE = '__THEME_MODE__';
 
             function getHeader() {
                 var header = doc.querySelector(HEADER_SELECTOR);
@@ -460,8 +519,7 @@ def inject_fixed_top_bar() -> None:
                 if (!header) return;
 
                 var rect = header.getBoundingClientRect();
-                var measured = Math.ceil(header.scrollHeight || header.offsetHeight || rect.height || BAR_HEIGHT);
-                var height = Math.max(BAR_HEIGHT, Math.min(90, measured));
+                var height = BAR_HEIGHT;
                 var spacer = ensureSpacer(header);
                 var viewportWidth = Math.max(
                     320,
@@ -481,16 +539,46 @@ def inject_fixed_top_bar() -> None:
                 header.style.minHeight = height + 'px';
                 header.style.zIndex = '1300';
                 header.style.margin = '0';
-                header.style.padding = '10px 22px 9px';
+                header.style.padding = '0 22px';
                 header.style.boxSizing = 'border-box';
-                header.style.background = 'var(--bg-primary, #0b0f17)';
+                var darkTheme = THEME_MODE === 'dark';
+                header.style.background = darkTheme
+                    ? 'rgba(6, 12, 28, 0.66)'
+                    : 'rgba(255, 255, 255, 0.56)';
                 header.style.borderTop = 'none';
-                header.style.borderBottom = '1px solid var(--border-light, rgba(148,163,184,0.24))';
+                header.style.borderBottom = darkTheme
+                    ? '1px solid rgba(148, 163, 184, 0.24)'
+                    : '1px solid rgba(148, 163, 184, 0.36)';
+                header.style.backdropFilter = darkTheme
+                    ? 'blur(12px) saturate(120%)'
+                    : 'blur(12px) saturate(108%) brightness(1.04)';
+                header.style.webkitBackdropFilter = darkTheme
+                    ? 'blur(12px) saturate(120%)'
+                    : 'blur(12px) saturate(108%) brightness(1.04)';
+                header.style.boxShadow = darkTheme
+                    ? '0 4px 16px rgba(2, 6, 23, 0.20)'
+                    : '0 2px 10px rgba(15, 23, 42, 0.07)';
+                header.style.display = 'flex';
+                header.style.alignItems = 'center';
 
                 doc.querySelectorAll('.site-header-rule').forEach(function(rule) {
                     rule.style.display = 'none';
                     rule.style.height = '0';
                     rule.style.margin = '0';
+                });
+
+                // Hard center all topbar elements (logo/nav/theme) to the same
+                // vertical centerline of the topbar.
+                var headerRect = header.getBoundingClientRect();
+                var headerCenter = headerRect.top + (headerRect.height / 2);
+                ['.site-brand', '.site-nav', '.st-key-theme_toggle_header'].forEach(function(sel) {
+                    var el = header.querySelector(sel);
+                    if (!el) return;
+                    el.style.transform = 'translateY(0px)';
+                    var rect2 = el.getBoundingClientRect();
+                    var center2 = rect2.top + (rect2.height / 2);
+                    var delta2 = headerCenter - center2;
+                    el.style.transform = 'translateY(' + delta2.toFixed(2) + 'px)';
                 });
             }
 
@@ -518,9 +606,9 @@ def inject_fixed_top_bar() -> None:
             target.__excelcvFixedHeaderObserver.observe(doc.body, { childList: true, subtree: true });
         })();
         </script>
-        """,
-        height=0,
-    )
+        """
+    script = script.replace("__THEME_MODE__", theme_mode)
+    components.html(script, height=0)
 
 
 def inject_scroll_to_top_once() -> None:

@@ -1,4 +1,4 @@
-﻿"""
+"""
 Theme and base style injection utilities.
 """
 
@@ -29,9 +29,13 @@ def inject_back_button_sync() -> None:
         <script>
         (function() {
             var target = window.parent && window.parent !== window ? window.parent : window;
-            target.addEventListener('popstate', function() {
+            if (target.__excelcvBackSyncHandler) {
+                target.removeEventListener('popstate', target.__excelcvBackSyncHandler);
+            }
+            target.__excelcvBackSyncHandler = function() {
                 target.location.reload();
-            });
+            };
+            target.addEventListener('popstate', target.__excelcvBackSyncHandler);
         })();
         </script>
         """,
@@ -559,7 +563,7 @@ def inject_base_css(theme: str = "light") -> None:
                 font-weight: 700;
             }}
 
-            /* Style checkbox label (Debug mode) to ensure visibility in both themes */
+            /* Style checkbox labels to ensure visibility in both themes */
             .stCheckbox label,
             .stCheckbox label p,
             .stCheckbox label span,
@@ -1339,9 +1343,18 @@ def inject_base_css(theme: str = "light") -> None:
                 padding: 18px;
                 box-shadow: 0 10px 34px var(--shadow);
                 position: sticky !important;
-                top: 92px !important;
-                max-height: calc(100vh - 112px) !important;
+                top: var(--excelcv-report-top, 96px) !important;
+                max-height: calc(100vh - var(--excelcv-report-top, 96px) - 16px) !important;
                 overflow-y: auto !important;
+                overflow-x: visible !important;
+            }}
+            @media (max-width: 1099px) {{
+                .report-sidebar {{
+                    position: relative !important;
+                    top: auto !important;
+                    max-height: none !important;
+                    overflow: visible !important;
+                }}
             }}
             .score-card {{
                 background: linear-gradient(145deg, var(--bg-card), var(--bg-sidebar));
@@ -1891,11 +1904,13 @@ def inject_base_css(theme: str = "light") -> None:
             }}
             
             /* Ensure no overlay blocks buttons */
-            .report-sidebar,
             .report-main,
             .report-group {{
                 position: relative;
                 z-index: 1;
+            }}
+            .report-sidebar {{
+                z-index: 2;
             }}
         </style>
         <!-- Sidebar interactions handled by components.html in render_report_page -->

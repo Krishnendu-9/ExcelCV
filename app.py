@@ -7,6 +7,8 @@ analysis, and actionable improvement suggestions.
 """
 
 import base64
+import html
+import re
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
@@ -27,7 +29,13 @@ from src.ui_components import (
     render_upload_preview_card,
 )
 
-STANDARD_ANALYSIS_MODE = "General Review"
+def _sanitize_cv_filename(raw_name: str) -> str:
+    """Return a safe single-segment filename for display and downloads."""
+    safe_name = str(raw_name or "CV.pdf").strip()
+    safe_name = safe_name.replace("\\", "/").split("/")[-1]
+    safe_name = re.sub(r"[\r\n\t]+", " ", safe_name)
+    safe_name = re.sub(r'[<>:"/\\|?*]+', "-", safe_name).strip(" .")
+    return safe_name or "CV.pdf"
 
 
 @lru_cache(maxsize=1)
@@ -58,7 +66,7 @@ def run_single_analysis(
 
     Returns:
         (analysis_dict, cv_text) if successful, None otherwise. cv_text is returned
-        so the caller can store it for re-analysis without re-reading the PDF.
+        so the caller can keep extracted content in session.
     """
     if not job_description.strip():
         st.error("Please provide a job description.")
@@ -96,16 +104,12 @@ def run_single_analysis(
         label, cls = parse_confidence_chip(cv_text)
         st.markdown(f"<span class='{cls}'>{label}</span>", unsafe_allow_html=True)
 
-        # Use one standard analysis mode for a consistent scoring workflow.
-        mode = STANDARD_ANALYSIS_MODE
         # Run analysis
         with st.spinner(f"Analyzing {uploaded_cv.name} with Gemini..."):
             try:
                 analysis = analyze_cv_with_gemini(
                     cv_text=cv_text,
                     job_desc=job_description,
-                    mode=mode,
-                    debug=False,
                     file_name=getattr(uploaded_cv, "name", "resume.pdf"),
                     file_size_bytes=getattr(uploaded_cv, "size", 0),
                 )
@@ -611,65 +615,6 @@ def inject_fixed_top_bar() -> None:
     components.html(script, height=0)
 
 
-def inject_scroll_to_top_once() -> None:
-    """Scroll the page to top once after logo click on homepage."""
-    if not st.session_state.pop("_home_logo_scroll_top", False):
-        return
-    components.html(
-        """
-        <script>
-        (function() {
-            var target = window.parent && window.parent !== window ? window.parent : window;
-            function scrollTopNow() {
-                try {
-                    var doc = target.document;
-                    var nodes = [
-                        target,
-                        doc.scrollingElement,
-                        doc.documentElement,
-                        doc.body,
-                        doc.querySelector('[data-testid="stAppViewContainer"]'),
-                        doc.querySelector('[data-testid="stAppViewContainer"] > section.main'),
-                        doc.querySelector('section.main'),
-                        doc.querySelector('.main'),
-                        doc.querySelector('.main .block-container')
-                    ];
-                    nodes.forEach(function(node) {
-                        if (!node) return;
-                        if (node === target) {
-                            target.scrollTo(0, 0);
-                            return;
-                        }
-                        if (typeof node.scrollTo === 'function') {
-                            node.scrollTo({ top: 0, left: 0, behavior: 'auto' });
-                        }
-                        node.scrollTop = 0;
-                        node.scrollLeft = 0;
-                    });
-                } catch (e) {}
-            }
-            scrollTopNow();
-            target.requestAnimationFrame(scrollTopNow);
-            setTimeout(scrollTopNow, 50);
-            setTimeout(scrollTopNow, 180);
-            setTimeout(scrollTopNow, 350);
-            setTimeout(scrollTopNow, 650);
-            setTimeout(scrollTopNow, 1100);
-            var attempts = 0;
-            var timer = setInterval(function() {
-                scrollTopNow();
-                attempts += 1;
-                if (attempts >= 12) {
-                    clearInterval(timer);
-                }
-            }, 120);
-        })();
-        </script>
-        """,
-        height=0,
-    )
-
-
 def inject_logo_home_click_behavior() -> None:
     """Make logo click always open homepage in same window and land at top."""
     components.html(
@@ -821,7 +766,7 @@ def main() -> None:
     inject_compact_header_css()
     inject_fixed_top_bar()
     inject_back_button_sync()
-    inject_scroll_to_top_once()
+    inject_logo_home_click_behavior()
 
 
 def render_upload_page() -> None:
@@ -871,13 +816,18 @@ def render_upload_page() -> None:
             )
 
         if submitted:
-            result = run_single_analysis(jd, uploaded_cv, status_container=analysis_status_slot)
+            result = run_single_analysis(
+                jd,
+                uploaded_cv,
+                status_container=analysis_status_slot,
+            )
             if result:
                 analysis, cv_text = result
+                safe_cv_name = _sanitize_cv_filename(getattr(uploaded_cv, "name", "CV.pdf"))
                 st.session_state["cv_text"] = cv_text
                 st.session_state["job_description"] = jd
                 st.session_state["analysis"] = analysis
-                st.session_state["cv_name"] = getattr(uploaded_cv, "name", "CV.pdf")
+                st.session_state["cv_name"] = safe_cv_name
                 st.session_state["cv_file_size"] = getattr(uploaded_cv, "size", 0)
                 st.session_state["issues"] = issue_count(analysis)
                 st.session_state["page"] = "report"
@@ -891,13 +841,14 @@ def render_report_view() -> None:
     """Results page based on stored analysis."""
     analysis = st.session_state.get("analysis")
     name = st.session_state.get("cv_name", "CV")
+    safe_name = html.escape(str(name), quote=True)
 
     if not analysis:
         st.info("No analysis found. Upload a resume to get started.")
         st.session_state["page"] = "upload"
         return
 
-    mode_description = "Standard scoring across ATS readiness, content quality, and resume strength."
+    mode_description = "Standard scoring across ATS readiness, content quality, and overall resume strength."
 
     # Marker for CSS/JS: center theme + Upload buttons with PDF section
     st.markdown('<div id="report-pdf-row-marker" aria-hidden="true"></div>', unsafe_allow_html=True)
@@ -908,7 +859,7 @@ def render_report_view() -> None:
             <div class="report-hero">
                 <div>
                     <p class="eyebrow">Resume report - Standard scoring</p>
-                    <h2 class="report-title">{name}</h2>
+                    <h2 class="report-title">{safe_name}</h2>
                     <p class="hero-subtitle">{mode_description}</p>
                 </div>
                 <div class="score-pill">{analysis.get("match_score", 0)} / 100</div>
@@ -919,6 +870,13 @@ def render_report_view() -> None:
     with col_actions:
         if st.button("Upload another resume", use_container_width=True, help="Upload a new resume"):
             st.session_state["analysis"] = None
+            st.session_state.pop("cv_text", None)
+            st.session_state.pop("job_description", None)
+            st.session_state.pop("cv_name", None)
+            st.session_state.pop("cv_file_size", None)
+            st.session_state.pop("issues", None)
+            st.session_state.pop("jd", None)
+            st.session_state.pop("cvs", None)
             st.session_state["page"] = "upload"
             st.query_params["page"] = "upload"
             st.rerun()

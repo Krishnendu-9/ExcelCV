@@ -618,14 +618,23 @@ def _render_download_buttons(name: str, analysis: Dict[str, Any]) -> None:
 
 def _build_sidebar_js() -> str:
     """
-    Build JavaScript for sidebar interactions + robust sticky/fixed score rail behavior.
+    Build JavaScript for sidebar interactions + sticky top-offset sync.
     """
-    return """
+    js = """
     <script>
     (function() {
-        var doc = window.parent.document;
         var win = window.parent;
-        var FIXED_TOP = 94;
+        var doc = win.document;
+        var DESKTOP_MIN = 1100;
+        var DEFAULT_TOP = 96;
+        var MIN_TOP = 72;
+        var MAX_TOP = 220;
+        var TOP_GAP = 12;
+
+        if (win.__excelcvSidebarCleanup) {
+            try { win.__excelcvSidebarCleanup(); } catch (e) {}
+            win.__excelcvSidebarCleanup = null;
+        }
 
         function toggleCategory(categoryId) {
             var head = doc.getElementById('cat-head-' + categoryId);
@@ -649,7 +658,6 @@ def _build_sidebar_js() -> str:
             if (!el) return;
 
             el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-
             el.style.transition = 'background-color 0.3s ease';
             var origBg = el.style.backgroundColor || '';
             el.style.backgroundColor = 'rgba(16,185,129,0.15)';
@@ -692,122 +700,36 @@ def _build_sidebar_js() -> str:
             }
         }
 
-        function getActiveSidebarRail() {
-            var rails = Array.prototype.slice.call(doc.querySelectorAll('.report-sidebar'));
-            if (!rails.length) return null;
-            for (var i = rails.length - 1; i >= 0; i--) {
-                var rail = rails[i];
-                if (!rail || !rail.getBoundingClientRect) continue;
-                var style = win.getComputedStyle ? win.getComputedStyle(rail) : null;
-                if (style && (style.display === 'none' || style.visibility === 'hidden')) continue;
-                var rect = rail.getBoundingClientRect();
-                if (rect.width > 40 && rect.height > 40) return rail;
+        function computeStickyTop() {
+            var headers = Array.prototype.slice.call(
+                doc.querySelectorAll('[data-testid="stHorizontalBlock"]:has(.site-brand)')
+            );
+            var bestRect = null;
+
+            for (var i = 0; i < headers.length; i++) {
+                var h = headers[i];
+                if (!h || !h.getBoundingClientRect) continue;
+                var r = h.getBoundingClientRect();
+                if (!r || r.width < 120 || r.height < 24) continue;
+                if (r.bottom < 20 || r.top > 220) continue;
+                if (!bestRect || Math.abs(r.top) < Math.abs(bestRect.top)) {
+                    bestRect = r;
+                }
             }
-            return rails[rails.length - 1];
+
+            if (!bestRect) return DEFAULT_TOP;
+            var computed = Math.round(bestRect.bottom + TOP_GAP);
+            return Math.min(MAX_TOP, Math.max(MIN_TOP, computed));
         }
 
-        function setupStickySidebar(forceRecalc) {
-            var rail = getActiveSidebarRail();
-            if (!rail) return;
-
-            var railParent = rail.parentElement;
-            var p = rail.parentElement;
-            while (p && p !== doc.body) {
-                if (p.getAttribute && p.getAttribute('data-testid') === 'column') {
-                    railParent = p;
-                }
-                p = p.parentElement;
+        function syncStickyTop() {
+            var topValue = DEFAULT_TOP;
+            if (win.innerWidth >= DESKTOP_MIN) {
+                topValue = computeStickyTop();
             }
-            if (!railParent) return;
-
-            if (!win.__reportRailState) {
-                win.__reportRailState = { startY: null, railEl: null, railParent: null };
+            if (doc.documentElement && doc.documentElement.style) {
+                doc.documentElement.style.setProperty('--excelcv-report-top', topValue + 'px');
             }
-
-            var railChanged = win.__reportRailState.railEl !== rail;
-            var parentChanged = win.__reportRailState.railParent !== railParent;
-            if (railChanged || parentChanged) {
-                win.__reportRailState.railEl = rail;
-                win.__reportRailState.railParent = railParent;
-                win.__reportRailState.startY = null;
-                if (win.__reportRailPlaceholder && win.__reportRailPlaceholder.parentElement) {
-                    win.__reportRailPlaceholder.parentElement.removeChild(win.__reportRailPlaceholder);
-                }
-                win.__reportRailPlaceholder = null;
-            }
-
-            if (!win.__reportRailPlaceholder || win.__reportRailPlaceholder.parentElement !== railParent) {
-                var ph = doc.createElement('div');
-                ph.id = 'report-sidebar-placeholder';
-                ph.style.display = 'none';
-                ph.style.width = '100%';
-                ph.style.pointerEvents = 'none';
-                railParent.insertBefore(ph, rail);
-                win.__reportRailPlaceholder = ph;
-            }
-
-            var placeholder = win.__reportRailPlaceholder;
-            var maxHeight = Math.max(240, win.innerHeight - FIXED_TOP - 16);
-            var scrollY = win.pageYOffset || doc.documentElement.scrollTop || 0;
-
-            if (forceRecalc || win.__reportRailState.startY === null) {
-                var railRect0 = rail.getBoundingClientRect();
-                win.__reportRailState.startY = scrollY + railRect0.top - FIXED_TOP;
-            }
-
-            rail.style.visibility = 'visible';
-            rail.style.opacity = '1';
-
-            if (win.innerWidth < 1100) {
-                rail.style.position = 'sticky';
-                rail.style.top = FIXED_TOP + 'px';
-                rail.style.left = '';
-                rail.style.right = '';
-                rail.style.width = '';
-                rail.style.maxHeight = maxHeight + 'px';
-                rail.style.zIndex = '2';
-                if (placeholder) {
-                    placeholder.style.display = 'none';
-                    placeholder.style.height = '0px';
-                }
-                return;
-            }
-
-            var shouldFix = scrollY >= win.__reportRailState.startY;
-            if (!shouldFix) {
-                rail.style.position = 'sticky';
-                rail.style.top = FIXED_TOP + 'px';
-                rail.style.left = '';
-                rail.style.right = '';
-                rail.style.width = '';
-                rail.style.maxHeight = maxHeight + 'px';
-                rail.style.zIndex = '2';
-                if (placeholder) {
-                    placeholder.style.display = 'none';
-                    placeholder.style.height = '0px';
-                }
-                return;
-            }
-
-            if (placeholder) {
-                placeholder.style.display = 'block';
-                placeholder.style.height = rail.offsetHeight + 'px';
-            }
-
-            var anchorRect = placeholder && placeholder.getBoundingClientRect
-                ? placeholder.getBoundingClientRect()
-                : railParent.getBoundingClientRect();
-            if (anchorRect.width < 80 && railParent.getBoundingClientRect) {
-                anchorRect = railParent.getBoundingClientRect();
-            }
-
-            rail.style.position = 'fixed';
-            rail.style.top = FIXED_TOP + 'px';
-            rail.style.left = Math.max(12, anchorRect.left) + 'px';
-            rail.style.right = '';
-            rail.style.width = Math.max(260, anchorRect.width) + 'px';
-            rail.style.maxHeight = maxHeight + 'px';
-            rail.style.zIndex = '24';
         }
 
         if (win.__sidebarSimpleClickHandler) {
@@ -828,45 +750,51 @@ def _build_sidebar_js() -> str:
 
         function runInit() {
             initContent();
-            setupStickySidebar(true);
+            syncStickyTop();
         }
 
-        if (win.__reportRailScrollHandler) {
-            win.removeEventListener('scroll', win.__reportRailScrollHandler, true);
-        }
-        if (win.__reportRailResizeHandler) {
-            win.removeEventListener('resize', win.__reportRailResizeHandler, true);
-        }
-        win.__reportRailScrollHandler = function() {
-            clearTimeout(win.__reportRailTick);
-            win.__reportRailTick = setTimeout(function(){ setupStickySidebar(false); }, 20);
+        var onResize = function() {
+            clearTimeout(win.__excelcvSidebarResizeTick);
+            win.__excelcvSidebarResizeTick = setTimeout(function() {
+                syncStickyTop();
+            }, 30);
         };
-        win.__reportRailResizeHandler = function() {
-            if (win.__reportRailState) {
-                win.__reportRailState.startY = null;
-            }
-            clearTimeout(win.__reportRailResizeTick);
-            win.__reportRailResizeTick = setTimeout(function(){ setupStickySidebar(true); }, 50);
-        };
-        win.addEventListener('scroll', win.__reportRailScrollHandler, true);
-        win.addEventListener('resize', win.__reportRailResizeHandler, true);
 
-        setTimeout(runInit, 200);
-        setTimeout(runInit, 600);
-
-        if (doc.body) {
-            if (win.__sidebarSimpleObserver) {
-                win.__sidebarSimpleObserver.disconnect();
-            }
-            win.__sidebarSimpleObserver = new MutationObserver(function() {
-                clearTimeout(win.__sidebarSimpleInitTimeout);
-                win.__sidebarSimpleInitTimeout = setTimeout(function() { setupStickySidebar(true); }, 120);
+        var onScroll = function() {
+            if (win.__excelcvSidebarScrollTick) return;
+            win.__excelcvSidebarScrollTick = win.requestAnimationFrame(function() {
+                win.__excelcvSidebarScrollTick = null;
+                syncStickyTop();
             });
-            win.__sidebarSimpleObserver.observe(doc.body, { childList: true, subtree: true });
+        };
+
+        var observer = null;
+        if (doc.body) {
+            observer = new MutationObserver(function() {
+                clearTimeout(win.__excelcvSidebarInitTimeout);
+                win.__excelcvSidebarInitTimeout = setTimeout(runInit, 120);
+            });
+            observer.observe(doc.body, { childList: true, subtree: true });
         }
+
+        win.addEventListener('resize', onResize, true);
+        win.addEventListener('scroll', onScroll, true);
+
+        win.__excelcvSidebarCleanup = function() {
+            try { win.removeEventListener('resize', onResize, true); } catch (e) {}
+            try { win.removeEventListener('scroll', onScroll, true); } catch (e) {}
+            try { if (observer) observer.disconnect(); } catch (e) {}
+            try { if (win.__excelcvSidebarScrollTick) win.cancelAnimationFrame(win.__excelcvSidebarScrollTick); } catch (e) {}
+            win.__excelcvSidebarScrollTick = null;
+        };
+
+        setTimeout(runInit, 40);
+        setTimeout(runInit, 220);
+        setTimeout(runInit, 700);
     })();
     </script>
     """
+    return js
 
 def _build_group_card(title: str, group_id: str, issues_found: int, body_html: str) -> str:
     """Wrap detail cards in a report section block."""
@@ -1125,19 +1053,4 @@ def render_report_page(analysis: Dict[str, Any], name: str = "CV") -> None:
         st.markdown(report_main_html, unsafe_allow_html=True)
 
         _render_download_buttons(name, analysis)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 

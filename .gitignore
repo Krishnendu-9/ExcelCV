@@ -1,5 +1,5 @@
 # Python
-__pycache__/
+**pycache**/
 *.py[cod]
 *$py.class
 *.so
@@ -20,7 +20,7 @@ wheels/
 .installed.cfg
 *.egg
 
-# Virtual Environment
+# Virtual Environments
 venv/
 env/
 ENV/
@@ -30,7 +30,7 @@ ENV/
 .env
 .env.local
 
-# IDE
+# IDE / Editor
 .vscode/
 .idea/
 *.swp
@@ -40,12 +40,13 @@ ENV/
 # Streamlit
 .streamlit/
 
-# OS
+# OS Files
 .DS_Store
 Thumbs.db
 
 # Logs
 *.log
+streamlit_*.log
 
 # Test coverage
 .coverage
@@ -56,6 +57,6 @@ htmlcov/
 .ipynb_checkpoints
 
 # Project specific
-*.pdf
+tmp_pdf_preview/
+generated_reports/
 samples/
-

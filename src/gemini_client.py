@@ -6,13 +6,13 @@ It orchestrates AI analysis and blends it with programmatic scoring calculations
 """
 
 import json
+import logging
 import re
 import time
 from functools import lru_cache
 from typing import Any, Dict, List, Optional
 
 import google.generativeai as genai
-import streamlit as st
 
 from src.config import get_api_key, preferred_models
 from src.scoring import (
@@ -32,6 +32,8 @@ from src.scoring_constants import (
     REPETITION_THRESHOLDS,
     SPELLING_GRAMMAR_THRESHOLDS,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def _is_quota_error(exc: Exception) -> bool:
@@ -188,8 +190,6 @@ def _generate_with_retry(model: genai.GenerativeModel, prompt: str, generation_c
 def analyze_cv_with_gemini(
     cv_text: str,
     job_desc: str,
-    mode: str = "General Review",
-    debug: bool = False,
     file_name: str = "",
     file_size_bytes: int = 0,
 ) -> Dict[str, Any]:
@@ -210,22 +210,7 @@ def analyze_cv_with_gemini(
         if normalized:
             preferred.append(normalized)
 
-    # Different prompts based on mode
-    if mode == "ATS Scan":
-        analysis_focus = """
-You are an ATS (Applicant Tracking System) optimization specialist. Your primary goal is to evaluate how well this resume will pass through automated screening systems.
-
-PRIORITY FOCUS:
-1. Keyword matching: Extract ALL important keywords from the job description and check if they appear in the CV
-2. ATS format compliance: Check for proper section headers (Experience, Skills, Education, Contact), standard formatting, text-based PDF (not scanned images)
-3. Keyword density: Ensure critical skills and terms appear multiple times appropriately
-4. Section completeness: Verify all essential sections are present and properly labeled
-5. Missing keywords: Be EXTENSIVE in listing keywords from the JD that are missing from the CV
-
-Be STRICT in scoring. Missing keywords should be prominently flagged. ATS systems reject resumes that lack matching keywords.
-"""
-    else:  # General Review mode
-        analysis_focus = """
+    analysis_focus = """
 You are a career advisor and resume reviewer. Your goal is to provide comprehensive feedback on resume quality, content, and alignment with the job description.
 
 PRIORITY FOCUS:
@@ -327,7 +312,6 @@ CV:
 
     raw_text = ""
     tried: List[str] = []
-    used_model = None
     last_exception: Optional[Exception] = None
 
     # Generation config: temperature=0 for deterministic output
@@ -346,7 +330,6 @@ CV:
             raw_text = _extract_response_text(response)
             if not raw_text:
                 raise ValueError("Empty response text from model.")
-            used_model = candidate
             break
         except Exception as exc:  # pragma: no cover - depends on network
             last_exception = exc
@@ -361,7 +344,6 @@ CV:
             raw_text = _extract_response_text(response)
             if not raw_text:
                 raise ValueError("Empty response text from model.")
-            used_model = auto_model
         except Exception as exc:  # pragma: no cover - depends on network
             if _is_quota_error(exc):
                 raise RuntimeError(_user_friendly_quota_message(exc)) from exc
@@ -371,35 +353,20 @@ CV:
                 ) from exc
             raise RuntimeError(f"Gemini API error after trying {tried}: {exc}") from exc
 
-    if debug:
-        with st.expander("Debug: Raw AI Response"):
-            st.write(f"**Model used:** {used_model}")
-            st.code(raw_text, language="text")
-
     # Try to extract and parse JSON
     json_text = _extract_json_from_text(raw_text)
     
     if not json_text:
-        error_msg = f"Could not extract JSON from response. Raw response:\n\n{raw_text[:500]}"
-        if debug:
-            st.error(error_msg)
-        raise ValueError("AI response was not in expected JSON format. Enable debug mode to see the raw response.")
+        logger.warning("Gemini response JSON extraction failed. tried_models=%s raw_preview=%r", tried, raw_text[:800])
+        raise ValueError("AI response was not in expected JSON format.")
     
     try:
         parsed = json.loads(json_text)
     except json.JSONDecodeError as exc:
-        error_msg = (
-            f"Failed to parse JSON. Error: {exc}\n\n"
-            f"Extracted JSON text:\n{json_text[:1000]}\n\n"
-            f"Raw response (first 500 chars):\n{raw_text[:500]}"
-        )
-        if debug:
-            st.error(error_msg)
-        raise ValueError("AI response was not in expected JSON format. Enable debug mode to see details.") from exc
+        logger.warning("Gemini response JSON parse failed. tried_models=%s json_preview=%r raw_preview=%r error=%s", tried, json_text[:800], raw_text[:800], exc)
+        raise ValueError("AI response was not in expected JSON format.") from exc
 
     if not isinstance(parsed, dict):
-        if debug:
-            st.warning("AI response JSON was valid but not an object. Continuing with safe defaults.")
         parsed = {}
 
     # Normalize and ensure keys exist

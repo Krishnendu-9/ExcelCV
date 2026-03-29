@@ -1,6 +1,7 @@
 import unittest
 
 from src.scoring import (
+    calculate_ats_essentials,
     calculate_ats_parse_rate,
     calculate_sections,
     calculate_tailoring,
@@ -57,6 +58,12 @@ class ScoringTests(unittest.TestCase):
         self.assertGreater(high_score, low_score)
         self.assertIn("keyword_match_rate", high_details)
         self.assertIn("missing_keywords", high_details)
+
+    def test_ats_essentials_standard_formatting_reflects_header_detection(self) -> None:
+        score, details = calculate_ats_essentials("plain text without typical resume sections")
+        self.assertGreaterEqual(score, 0)
+        self.assertFalse(details.get("section_headers_present"))
+        self.assertFalse(details.get("standard_formatting"))
 
 
 if __name__ == "__main__":

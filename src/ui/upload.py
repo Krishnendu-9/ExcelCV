@@ -35,10 +35,10 @@ def render_upload_preview_card() -> None:
                         <span>Parse rate</span><span>90%</span>
                     </div>
                 </div>
-                <div class="list-row"><span>ATS Parse Rate</span><span>✓</span></div>
-                <div class="list-row"><span>Quantifying Impact</span><span>✓</span></div>
-                <div class="list-row"><span>Repetition</span><span>⚠</span></div>
-                <div class="list-row"><span>Spelling & Grammar</span><span>✕</span></div>
+                <div class="list-row"><span>ATS Parse Rate</span><span>&#10003;</span></div>
+                <div class="list-row"><span>Quantifying Impact</span><span>&#10003;</span></div>
+                <div class="list-row"><span>Repetition</span><span>&#9888;</span></div>
+                <div class="list-row"><span>Spelling & Grammar</span><span>&#10005;</span></div>
             </div>
         </div>
         """,

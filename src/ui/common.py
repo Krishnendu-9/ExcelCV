@@ -5,6 +5,7 @@ Common UI helper functions shared across upload/report rendering.
 import re
 from typing import Any, Dict
 
+
 def _markdown_inline_to_html(text: str) -> str:
     """Convert inline Markdown (**bold**, *italic*) to HTML so it renders correctly in unsafe_allow_html blocks."""
     if not text:
@@ -16,7 +17,6 @@ def _markdown_inline_to_html(text: str) -> str:
     # *italic* -> <em>italic</em>
     s = re.sub(r"\*(.+?)\*", r"<em>\1</em>", s)
     return s
-
 
 
 def get_score_color_class(score) -> str:
@@ -32,15 +32,13 @@ def get_score_color_class(score) -> str:
     return "score-low"
 
 
-
 def get_category_icon(score: int) -> str:
     """Get icon for category based on score."""
     if score >= 80:
-        return "✓"
+        return "&#10003;"
     if score >= 60:
-        return "⚠"
-    return "✗"
-
+        return "&#9888;"
+    return "&#10005;"
 
 
 def issue_count(analysis: Dict[str, Any]) -> int:
@@ -52,6 +50,3 @@ def issue_count(analysis: Dict[str, Any]) -> int:
     if analysis.get("match_score", 0) < 70:
         count += 1
     return max(count, 0)
-
-
-

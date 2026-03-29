@@ -854,7 +854,7 @@ def calculate_contact_info(cv_text: str) -> Dict[str, Any]:
     }
 
 
-def calculate_sections(cv_text: str) -> Tuple[int, Dict[str, any]]:
+def calculate_sections(cv_text: str) -> Tuple[int, Dict[str, Any]]:
     """
     Score 0-100 based on presence of standard resume sections.
     
@@ -1022,7 +1022,8 @@ def calculate_ats_essentials(cv_text: str, file_name: str = "", file_size_bytes:
     }
 
     details = {
-        "standard_formatting": True,
+        # Reflect actual formatting check result instead of always reporting True.
+        "standard_formatting": has_headers and text_based and not issues,
         "keyword_density": min(MAX_SCORE, word_count // ATS_ESSENTIALS_KEYWORD_DENSITY_DIVISOR),
         "section_headers_present": has_headers,
         "text_based": text_based,

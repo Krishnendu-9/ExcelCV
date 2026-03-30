@@ -748,10 +748,11 @@ def _build_sidebar_js() -> str:
             if (anchor && anchor.style) {
                 anchor.style.minHeight = '';
             }
-            sidebar.style.removeProperty('position');
-            sidebar.style.removeProperty('top');
-            sidebar.style.removeProperty('left');
-            sidebar.style.removeProperty('width');
+            // Keep sidebar in normal document flow when not pinned.
+            sidebar.style.setProperty('position', 'static', 'important');
+            sidebar.style.setProperty('top', 'auto', 'important');
+            sidebar.style.setProperty('left', 'auto', 'important');
+            sidebar.style.setProperty('width', 'auto', 'important');
             sidebar.style.removeProperty('max-height');
             sidebar.style.removeProperty('overflow-y');
             sidebar.style.removeProperty('z-index');
@@ -788,7 +789,23 @@ def _build_sidebar_js() -> str:
             if (doc.documentElement && doc.documentElement.style) {
                 doc.documentElement.style.setProperty('--excelcv-report-top', topValue + 'px');
             }
-            if (isDesktop) {
+            if (!isDesktop) {
+                unpinSidebar();
+                return;
+            }
+
+            var sidebar = doc.querySelector('.report-sidebar');
+            var anchor = sidebar ? sidebar.parentElement : null;
+            if (!sidebar || !anchor || !anchor.getBoundingClientRect) {
+                unpinSidebar();
+                return;
+            }
+
+            var rect = anchor.getBoundingClientRect();
+            var triggerTop = topValue + 6;            // Pin as soon as sidebar reaches the sticky threshold.
+            // This keeps the top PDF/action row untouched and prevents sidebar drop-outs.
+            var shouldPin = rect.top <= triggerTop;
+            if (shouldPin) {
                 pinSidebar(topValue);
             } else {
                 unpinSidebar();

@@ -1,4 +1,4 @@
-﻿import unittest
+import unittest
 
 from src.ui.common import get_category_icon
 

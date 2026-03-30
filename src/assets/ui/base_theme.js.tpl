@@ -10,6 +10,44 @@
                 
                 function forceTheme() {{
                     try {{
+                        const isThemeToggleButton = (btn) => {{
+                            if (!btn || !btn.closest) return false;
+                            const key = (btn.getAttribute('key') || '').toLowerCase();
+                            if (key === 'theme_toggle' || key === 'theme_toggle_header') return true;
+                            if (btn.closest('.st-key-theme_toggle_header, .st-key-theme_toggle, [class*="theme_toggle"]')) return true;
+                            const txt = (btn.textContent || '').trim();
+                            return txt === '🌙' || txt === '☀️' || txt === '☀';
+                        }};
+
+                        const resetThemeToggleVisuals = () => {{
+                            const targets = document.querySelectorAll(
+                                '.st-key-theme_toggle_header button, ' +
+                                '.st-key-theme_toggle_header [data-baseweb="button"], ' +
+                                '[class*="theme_toggle_header"] button, ' +
+                                '[class*="theme_toggle"] button'
+                            );
+                            targets.forEach(el => {{
+                                if (!el || !el.style) return;
+                                el.style.setProperty('background', 'transparent', 'important');
+                                el.style.setProperty('background-color', 'transparent', 'important');
+                                el.style.setProperty('background-image', 'none', 'important');
+                                el.style.setProperty('border', 'none', 'important');
+                                el.style.setProperty('box-shadow', 'none', 'important');
+                                el.style.setProperty('outline', 'none', 'important');
+                                el.style.setProperty('transition', 'none', 'important');
+                                el.querySelectorAll('*').forEach(child => {{
+                                    if (!child || !child.style) return;
+                                    child.style.setProperty('background', 'transparent', 'important');
+                                    child.style.setProperty('background-color', 'transparent', 'important');
+                                    child.style.setProperty('background-image', 'none', 'important');
+                                    child.style.setProperty('border', 'none', 'important');
+                                    child.style.setProperty('box-shadow', 'none', 'important');
+                                    child.style.setProperty('outline', 'none', 'important');
+                                    child.style.setProperty('transition', 'none', 'important');
+                                }});
+                            }});
+                        }};
+
                         // Apply theme class to body and html
                         if (document.body) {{
                             document.body.className = document.body.className.replace(/theme-\\w+/g, '').trim() + ' ' + themeClass;
@@ -135,7 +173,7 @@
                         
                         // Fix Upload & Analyze button - SAME PATTERN AS THEME TOGGLE - FORCE VISIBLE IN LIGHT MODE
                         document.querySelectorAll('form button[type="submit"], .stForm button[type="submit"], .stButton > button, button[type="submit"], button[data-testid="baseButton-primary"]').forEach(btn => {{
-                            if (btn && btn.getAttribute('key') !== 'theme_toggle') {{
+                            if (btn && !isThemeToggleButton(btn)) {{
                                 const btnBg = bgColor === '#ffffff' ? '#ffffff' : '#1f2937';
                                 const btnText = bgColor === '#ffffff' ? '#111827' : '#e5e7eb';
                                 const btnBorder = bgColor === '#ffffff' ? 'rgba(0,0,0,0.15)' : 'rgba(255,255,255,0.1)';
@@ -196,127 +234,8 @@
                             actionsCol.style.gap = '8px';
                         }}
                         
-                        // Fix theme toggle button - force theme colors and warm hover (APPLY TO ALL INSTANCES)
-                        function fixThemeButtonGlow() {{
-                            // Try multiple selectors to ensure we find it - MORE AGGRESSIVE
-                            const themeBtnSelectors = [
-                                'button[key="theme_toggle"]',
-                                '.theme-toggle',
-                                '[data-testid="stAppViewContainer"] button[key="theme_toggle"]',
-                                '.stButton button[key="theme_toggle"]',
-                                'button[data-baseweb="button"][key="theme_toggle"]',
-                                '[data-testid="baseButton-secondary"][key="theme_toggle"]',
-                                'button:has([data-testid="baseButton-secondary"])[key="theme_toggle"]'
-                            ];
-                            
-                            themeBtnSelectors.forEach(selector => {{
-                                document.querySelectorAll(selector).forEach(themeBtn => {{
-                        if (themeBtn) {{
-                                        const btnBg = bgColor === '#ffffff' ? '#ffffff' : '#1f2937';
-                                        const btnText = bgColor === '#ffffff' ? '#111827' : '#e5e7eb';
-                                        const btnBorder = bgColor === '#ffffff' ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)';
-                                        
-                                        // Continuously enforce no background glow
-                                        if (!themeBtn.matches(':hover')) {{
-                                            themeBtn.style.setProperty('background-color', btnBg, 'important');
-                                            themeBtn.style.setProperty('background', btnBg, 'important');
-                                            themeBtn.style.setProperty('background-image', 'none', 'important');
-                                        }}
-                                        
-                                        if (!themeBtn.hasAttribute('data-theme-glow-applied')) {{
-                                            themeBtn.setAttribute('data-theme-glow-applied', 'true');
-                                            
-                                            themeBtn.style.setProperty('background-color', btnBg, 'important');
-                                            themeBtn.style.setProperty('background', btnBg, 'important');
-                                            themeBtn.style.setProperty('color', btnText, 'important');
-                                            themeBtn.style.setProperty('border-color', btnBorder, 'important');
-                            
-                            // Fix any nested divs
-                                            const btnDivs = themeBtn.querySelectorAll('div, span, p');
-                            btnDivs.forEach(div => {{
-                                                div.style.setProperty('background-color', 'transparent', 'important');
-                                                div.style.setProperty('background', 'transparent', 'important');
-                                                div.style.setProperty('background-image', 'none', 'important');
-                                                div.style.setProperty('color', btnText, 'important');
-                                            }});
-                                            
-                                            // Add Warm Sun glow hover effect - boundary-only glow (matching textarea/dropzone)
-                                            const warmHoverBorder = '#f5e6a8';
-                                            const warmGlow = '0 0 20px rgba(250, 246, 219, 0.6), 0 0 40px rgba(250, 246, 219, 0.4)';
-                                            
-                                            themeBtn.addEventListener('mouseenter', function(e) {{
-                                                e.stopPropagation();
-                                                this.style.setProperty('box-shadow', warmGlow, 'important');
-                                                this.style.setProperty('border-color', warmHoverBorder, 'important');
-                                                // Keep background unchanged - NO background glow
-                                                this.style.setProperty('background-color', btnBg, 'important');
-                                                this.style.setProperty('background', btnBg, 'important');
-                                                this.style.setProperty('background-image', 'none', 'important');
-                                                // Ensure nested elements remain transparent
-                                                const allNested = this.querySelectorAll('*');
-                                                allNested.forEach(el => {{
-                                                    if (el && el.tagName !== 'SVG') {{
-                                                        el.style.setProperty('background-color', 'transparent', 'important');
-                                                        el.style.setProperty('background', 'transparent', 'important');
-                                                        el.style.setProperty('background-image', 'none', 'important');
-                                                    }}
-                                                }});
-                                            }}, true);
-                                            
-                                            // Also add mouseover as backup
-                                            themeBtn.addEventListener('mouseover', function(e) {{
-                                                e.stopPropagation();
-                                                this.style.setProperty('box-shadow', warmGlow, 'important');
-                                                this.style.setProperty('border-color', warmHoverBorder, 'important');
-                                                this.style.setProperty('background-color', btnBg, 'important');
-                                                this.style.setProperty('background', btnBg, 'important');
-                                                this.style.setProperty('background-image', 'none', 'important');
-                                            }}, true);
-                                            
-                                            themeBtn.addEventListener('mouseleave', function(e) {{
-                                                e.stopPropagation();
-                                                this.style.removeProperty('box-shadow');
-                                                this.style.setProperty('border-color', btnBorder, 'important');
-                                            }}, true);
-                                            
-                                            // Also add mouseout as backup
-                                            themeBtn.addEventListener('mouseout', function(e) {{
-                                                e.stopPropagation();
-                                                this.style.removeProperty('box-shadow');
-                                                this.style.setProperty('border-color', btnBorder, 'important');
-                                            }}, true);
-                                        }}
-                                    }}
-                                }});
-                            }});
-                        }}
-                        
-                        // Run continuously for a short warm-up period only.
-                        fixThemeButtonGlow();
-                        setTimeout(fixThemeButtonGlow, 10);
-                        setTimeout(fixThemeButtonGlow, 50);
-                        setTimeout(fixThemeButtonGlow, 100);
-                        setTimeout(fixThemeButtonGlow, 200);
-                        const themeBtnInterval = setInterval(fixThemeButtonGlow, 250);
-                        setTimeout(() => clearInterval(themeBtnInterval), 12000);
-                        
-                        // Also run on DOM changes to catch dynamically added buttons
-                        if (document.body) {{
-                            new MutationObserver(() => {{
-                                setTimeout(fixThemeButtonGlow, 5);
-                            }}).observe(document.body, {{
-                                childList: true,
-                                subtree: true,
-                                attributes: true,
-                                attributeFilter: ['key', 'class', 'data-testid']
-                            }});
-                        }}
-                        
-                        // Run on all events
-                        ['DOMContentLoaded', 'load', 'pageshow'].forEach(event => {{
-                            window.addEventListener(event, fixThemeButtonGlow);
-                        }});
-                        
+                        // Theme toggle styling is handled in app-level header CSS.
+
                         // Apply Warm Sun glow hover to textarea - boundary glow only (no background/inset)
                         document.querySelectorAll('.stTextArea textarea').forEach(textarea => {{
                             if (textarea) {{
@@ -444,7 +363,7 @@
                         
                         // Fix ALL secondary buttons
                         document.querySelectorAll('button[data-testid="baseButton-secondary"]').forEach(btn => {{
-                            if (btn) {{
+                            if (btn && !isThemeToggleButton(btn)) {{
                                 btn.style.cssText += 'background-color: ' + (bgColor === '#ffffff' ? '#ffffff' : '#1f2937') + ' !important; color: ' + (bgColor === '#ffffff' ? '#111827' : '#e5e7eb') + ' !important; border-color: ' + (bgColor === '#ffffff' ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)') + ' !important;';
                             }}
                         }});
@@ -467,7 +386,7 @@
                         const viewContainerAllButtons = document.querySelector('[data-testid="stAppViewContainer"]');
                         if (viewContainerAllButtons) {{
                             viewContainerAllButtons.querySelectorAll('button').forEach(btn => {{
-                                if (btn) {{
+                                if (btn && !isThemeToggleButton(btn)) {{
                                     const btnBg = bgColor === '#ffffff' ? '#ffffff' : '#1f2937';
                                     const btnText = bgColor === '#ffffff' ? '#111827' : '#e5e7eb';
                                     const btnBorder = bgColor === '#ffffff' ? 'rgba(0,0,0,0.15)' : 'rgba(255,255,255,0.1)';
@@ -484,6 +403,9 @@
                                 }}
                             }});
                         }}
+
+                        // Always reset theme toggle visuals last to keep it icon-only.
+                        resetThemeToggleVisuals();
                     }} catch(e) {{
                         console.error('Theme error:', e);
                     }}

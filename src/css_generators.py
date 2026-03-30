@@ -5,15 +5,13 @@ This module contains functions to generate CSS sections for the UI components.
 All CSS is generated programmatically to maintain consistency and ease of maintenance.
 """
 
-from typing import Dict
 from src.ui_constants import (
-    get_theme_colors,
-    WARM_HOVER_GLOW,
-    WARM_HOVER_BORDER,
     ACCENT_GREEN,
     ACCENT_PURPLE,
-    get_js_colors,
     THEME_BUTTON_SELECTORS,
+    WARM_HOVER_BORDER,
+    WARM_HOVER_GLOW,
+    get_theme_colors,
 )
 
 

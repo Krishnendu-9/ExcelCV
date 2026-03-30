@@ -203,7 +203,48 @@
                 color: var(--button-text) !important;
                 border-color: var(--button-hover-border) !important;
             }}
-            
+
+            /* Header theme switch must stay plain icon-only (no hover/background/border effects) */
+            [data-testid="stHorizontalBlock"]:has(.site-brand) button,
+            [data-testid="stHorizontalBlock"]:has(.site-brand) button:hover,
+            [data-testid="stHorizontalBlock"]:has(.site-brand) button:focus,
+            [data-testid="stHorizontalBlock"]:has(.site-brand) button:active {{
+                background: transparent !important;
+                background-color: transparent !important;
+                background-image: none !important;
+                border: none !important;
+                box-shadow: none !important;
+                outline: none !important;
+                min-width: 0 !important;
+                min-height: 0 !important;
+                width: auto !important;
+                height: auto !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                transition: none !important;
+                -webkit-appearance: none !important;
+                appearance: none !important;
+            }}
+            [data-testid="stHorizontalBlock"]:has(.site-brand) button *,
+            [data-testid="stHorizontalBlock"]:has(.site-brand) button:hover *,
+            [data-testid="stHorizontalBlock"]:has(.site-brand) button:focus *,
+            [data-testid="stHorizontalBlock"]:has(.site-brand) button:active * {{
+                background: transparent !important;
+                background-color: transparent !important;
+                background-image: none !important;
+                border: none !important;
+                box-shadow: none !important;
+                outline: none !important;
+                transition: none !important;
+            }}
+            [data-testid="stHorizontalBlock"]:has(.site-brand) button::before,
+            [data-testid="stHorizontalBlock"]:has(.site-brand) button::after {{
+                content: none !important;
+                background: transparent !important;
+                border: none !important;
+                box-shadow: none !important;
+            }}
+
             /* Hide Streamlit's deploy button */
             #MainMenu {{
                 visibility: hidden;

@@ -1,4 +1,4 @@
-﻿import unittest
+import unittest
 
 from app import _sanitize_cv_filename
 

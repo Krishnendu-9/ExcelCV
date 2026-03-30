@@ -1,3 +1,5 @@
+"""Application configuration and environment helpers."""
+
 import os
 from typing import List, Optional
 
@@ -14,6 +16,7 @@ MAX_FILE_BYTES = MAX_FILE_MB * 1024 * 1024
 
 
 def get_api_key() -> Optional[str]:
+    """Return Gemini API key from environment, if available."""
     return os.getenv("GOOGLE_API_KEY")
 
 
@@ -23,14 +26,16 @@ def preferred_models() -> List[Optional[str]]:
     user_model = os.getenv("GEMINI_MODEL")
     if user_model:
         models.append(user_model.strip())
-    
+
     # Add fallback models (ordered: fast & cheap first, then more capable)
-    models.extend([
-        "models/gemini-2.0-flash",
-        "models/gemini-2.0-flash-lite",
-        "models/gemini-2.5-flash",
-        "models/gemini-2.5-pro",
-    ])
+    models.extend(
+        [
+            "models/gemini-2.0-flash",
+            "models/gemini-2.0-flash-lite",
+            "models/gemini-2.5-flash",
+            "models/gemini-2.5-pro",
+        ]
+    )
 
     # Preserve order while removing duplicates and empty values.
     seen = set()

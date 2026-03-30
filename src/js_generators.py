@@ -5,13 +5,12 @@ This module contains functions to generate JavaScript code for dynamic UI behavi
 All JavaScript is generated programmatically to maintain consistency.
 """
 
-from typing import Tuple
 from src.ui_constants import (
-    WARM_HOVER_GLOW,
-    WARM_HOVER_BORDER,
-    THEME_BUTTON_SELECTORS,
     JS_TIMEOUT_DELAYS,
     JS_INTERVAL_MS,
+    THEME_BUTTON_SELECTORS,
+    WARM_HOVER_BORDER,
+    WARM_HOVER_GLOW,
     get_js_colors,
 )
 

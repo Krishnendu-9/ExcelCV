@@ -181,12 +181,10 @@ def render_theme_toggle(standalone: bool = True, key: str = "theme_toggle") -> N
     with container:
         current_theme = st.session_state.get("theme", "light")
         theme_icon = "\u2600\ufe0f" if current_theme == "light" else "\U0001F319"
-        theme_label = "Dark" if current_theme == "light" else "Light"
         if st.button(
             theme_icon,
             key=key,
-            use_container_width=True,
-            help=f"Switch to {theme_label} mode",
+            use_container_width=standalone,
         ):
             st.session_state["theme"] = "dark" if current_theme == "light" else "light"
             st.rerun()
@@ -381,10 +379,9 @@ def inject_file_uploader_spacing_css() -> None:
 
 
 def inject_compact_header_css() -> None:
-    """Compact and vertically align the top header row to the theme switch baseline."""
+    """Render a contained top bar visual style (geometry is fixed by JS sync)."""
     is_dark = st.session_state.get("theme", "light") == "dark"
     header_bg = "rgba(6, 12, 28, 0.66)" if is_dark else "rgba(255, 255, 255, 0.56)"
-    header_border = "rgba(148, 163, 184, 0.24)" if is_dark else "rgba(148, 163, 184, 0.36)"
     header_filter = (
         "blur(12px) saturate(120%)"
         if is_dark
@@ -393,38 +390,33 @@ def inject_compact_header_css() -> None:
     header_shadow = (
         "0 4px 16px rgba(2, 6, 23, 0.20)"
         if is_dark
-        else "0 2px 10px rgba(15, 23, 42, 0.07)"
+        else "none"
     )
     css = """
         <style>
-        /* Fixed top bar styling; JS handles fixed positioning + spacer */
+        /* Contained top bar (fixed geometry applied by inject_fixed_top_bar JS). */
         [data-testid="stHorizontalBlock"]:has(.site-brand) {
+            display: grid !important;
+            grid-template-columns: minmax(180px, 1.15fr) minmax(260px, 1.55fr) auto !important;
             align-items: center !important;
-            height: 78px !important;
-            min-height: 78px !important;
-            max-height: 78px !important;
-            margin: 0 !important;
-            padding: 0 22px !important;
+            gap: 10px !important;
+            width: min(1800px, calc(100vw - 90px)) !important;
+            margin: 0 auto !important;
+            padding: 10px 14px !important;
             box-sizing: border-box !important;
             background: __HEADER_BG__ !important;
-            border-top: none !important;
-            border-bottom: 1px solid __HEADER_BORDER__ !important;
+            border: none !important;
+            outline: none !important;
+            border-radius: 14px !important;
             -webkit-backdrop-filter: __HEADER_FILTER__ !important;
             backdrop-filter: __HEADER_FILTER__ !important;
             box-shadow: __HEADER_SHADOW__ !important;
         }
         [data-testid="stHorizontalBlock"]:has(.site-brand) > div {
-            display: flex !important;
-            align-items: center !important;
-            height: 78px !important;
-            min-height: 78px !important;
+            min-width: 0 !important;
         }
         [data-testid="stHorizontalBlock"]:has(.site-brand) > div > div {
-            display: flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-            height: 100% !important;
-            min-height: 100% !important;
+            min-width: 0 !important;
         }
         [data-testid="stHorizontalBlock"]:has(.site-brand) [data-testid="stElementContainer"] {
             margin-top: 0 !important;
@@ -433,13 +425,11 @@ def inject_compact_header_css() -> None:
             padding-bottom: 0 !important;
         }
         .site-brand {
-            min-height: 100% !important;
-            height: 100% !important;
+            min-height: 52px !important;
             padding-top: 0 !important;
             margin: 0 !important;
             display: flex !important;
             align-items: center !important;
-            transform: none !important;
         }
         .site-logo-link {
             display: inline-flex !important;
@@ -466,39 +456,110 @@ def inject_compact_header_css() -> None:
             padding: 2px 4px !important;
         }
         .site-logo-wordmark {
-            height: 56px !important;
+            height: 48px !important;
         }
         .site-nav {
-            padding-top: 0 !important;
-            min-height: 100% !important;
-            height: 100% !important;
             display: flex !important;
             align-items: center !important;
+            justify-content: center !important;
+            gap: 10px !important;
+            flex-wrap: nowrap !important;
+            overflow-x: auto !important;
+            scrollbar-width: none !important;
+            -ms-overflow-style: none !important;
+            white-space: nowrap !important;
+            min-width: 0 !important;
+        }
+        .site-nav::-webkit-scrollbar {
+            display: none !important;
         }
         .site-nav-item {
             padding: 8px 14px !important;
-            font-size: 1rem !important;
+            font-size: 0.95rem !important;
             line-height: 1 !important;
+            white-space: nowrap !important;
         }
         .theme-toggle-gap {
-            height: 0 !important;
+            display: none !important;
         }
         .st-key-theme_toggle_header {
             margin-top: 0 !important;
             margin-bottom: 0 !important;
             display: flex !important;
             align-items: center !important;
-            height: 100% !important;
-            transform: none !important;
+            justify-content: flex-end !important;
         }
-        .st-key-theme_toggle_header button {
+        .st-key-theme_toggle_header button,
+        .st-key-theme_toggle_header button[data-testid="baseButton-secondary"],
+        .st-key-theme_toggle_header [data-baseweb="button"],
+        .st-key-theme_toggle_header [data-baseweb="button"] > div,
+        .st-key-theme_toggle_header [data-baseweb="button"] > div > div {
+            all: unset !important;
             margin-top: 0 !important;
             margin-bottom: 0 !important;
-            min-height: 56px !important;
-            height: 56px !important;
-            display: flex !important;
+            min-height: 0 !important;
+            height: auto !important;
+            min-width: 0 !important;
+            width: auto !important;
+            padding: 0 !important;
+            display: inline-flex !important;
             align-items: center !important;
             justify-content: center !important;
+            border: none !important;
+            outline: none !important;
+            background: transparent !important;
+            background-color: transparent !important;
+            box-shadow: none !important;
+            border-radius: 12px !important;
+            cursor: pointer !important;
+            transition: none !important;
+        }
+        [data-testid="stAppViewContainer"] .st-key-theme_toggle_header button *,
+        [data-testid="stAppViewContainer"] .st-key-theme_toggle_header button[data-testid="baseButton-secondary"] *,
+        [data-testid="stAppViewContainer"] .st-key-theme_toggle_header [data-baseweb="button"] *,
+        [data-testid="stAppViewContainer"] .st-key-theme_toggle_header [data-baseweb="button"] > div *,
+        [data-testid="stAppViewContainer"] .st-key-theme_toggle_header [data-baseweb="button"] > div > div * {
+            all: unset !important;
+            border: none !important;
+            outline: none !important;
+            box-shadow: none !important;
+            background: transparent !important;
+            background-color: transparent !important;
+            background-image: none !important;
+            transition: none !important;
+            display: inline !important;
+        }
+        [data-testid="stAppViewContainer"] .st-key-theme_toggle_header button::before,
+        [data-testid="stAppViewContainer"] .st-key-theme_toggle_header button::after,
+        [data-testid="stAppViewContainer"] .st-key-theme_toggle_header [data-baseweb="button"]::before,
+        [data-testid="stAppViewContainer"] .st-key-theme_toggle_header [data-baseweb="button"]::after {
+            content: none !important;
+            border: none !important;
+            box-shadow: none !important;
+            background: transparent !important;
+        }
+        [data-testid="stAppViewContainer"] .st-key-theme_toggle_header button:hover,
+        [data-testid="stAppViewContainer"] .st-key-theme_toggle_header button:focus,
+        [data-testid="stAppViewContainer"] .st-key-theme_toggle_header button:active,
+        [data-testid="stAppViewContainer"] .st-key-theme_toggle_header button[data-testid="baseButton-secondary"]:hover,
+        [data-testid="stAppViewContainer"] .st-key-theme_toggle_header button[data-testid="baseButton-secondary"]:focus,
+        [data-testid="stAppViewContainer"] .st-key-theme_toggle_header button[data-testid="baseButton-secondary"]:active,
+        [data-testid="stAppViewContainer"] .st-key-theme_toggle_header [data-baseweb="button"]:hover,
+        [data-testid="stAppViewContainer"] .st-key-theme_toggle_header [data-baseweb="button"]:focus,
+        [data-testid="stAppViewContainer"] .st-key-theme_toggle_header [data-baseweb="button"]:active,
+        [data-testid="stAppViewContainer"] .st-key-theme_toggle_header [data-baseweb="button"]:hover > div,
+        [data-testid="stAppViewContainer"] .st-key-theme_toggle_header [data-baseweb="button"]:focus > div,
+        [data-testid="stAppViewContainer"] .st-key-theme_toggle_header [data-baseweb="button"]:active > div {
+            all: unset !important;
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            border: none !important;
+            outline: none !important;
+            box-shadow: none !important;
+            background: transparent !important;
+            background-color: transparent !important;
+            background-image: none !important;
         }
         .site-header-rule {
             display: none !important;
@@ -506,16 +567,17 @@ def inject_compact_header_css() -> None:
         #excelcv-fixed-header-spacer {
             display: block !important;
             width: 100% !important;
+            height: 96px !important;
             margin: 0 !important;
             padding: 0 !important;
             pointer-events: none !important;
         }
-        @media (max-width: 980px) {
+
+        @media (max-width: 1100px) {
             [data-testid="stHorizontalBlock"]:has(.site-brand) {
-                height: 72px !important;
-                min-height: 72px !important;
-                max-height: 72px !important;
-                padding: 0 12px !important;
+                grid-template-columns: minmax(170px, 1fr) minmax(220px, 1.35fr) auto !important;
+                width: calc(100vw - 34px) !important;
+                padding: 8px 10px !important;
             }
             .site-logo-wordmark {
                 height: 44px !important;
@@ -525,11 +587,27 @@ def inject_compact_header_css() -> None:
                 font-size: 0.84rem !important;
             }
         }
+
+        @media (max-width: 820px) {
+            [data-testid="stHorizontalBlock"]:has(.site-brand) {
+                grid-template-columns: 1fr auto !important;
+                width: calc(100vw - 20px) !important;
+                border-radius: 12px !important;
+            }
+            .site-nav {
+                display: none !important;
+            }
+            .site-logo-wordmark {
+                height: 38px !important;
+            }
+            #excelcv-fixed-header-spacer {
+                height: 88px !important;
+            }
+        }
         </style>
         """
     css = (
         css.replace("__HEADER_BG__", header_bg)
-        .replace("__HEADER_BORDER__", header_border)
         .replace("__HEADER_FILTER__", header_filter)
         .replace("__HEADER_SHADOW__", header_shadow)
     )
@@ -537,24 +615,41 @@ def inject_compact_header_css() -> None:
 
 
 def inject_fixed_top_bar() -> None:
-    """Keep the header fixed at the top with a spacer to avoid content overlap."""
-    theme_mode = st.session_state.get("theme", "light")
-    script = """
+    """Fix the contained top bar to viewport with a dynamic spacer."""
+    components.html(
+        """
         <script>
         (function() {
             var target = window.parent && window.parent !== window ? window.parent : window;
             var doc = target.document;
             var HEADER_SELECTOR = '[data-testid="stHorizontalBlock"]:has(.site-brand)';
             var SPACER_ID = 'excelcv-fixed-header-spacer';
-            var BAR_HEIGHT = 78;
-            var THEME_MODE = '__THEME_MODE__';
+            var MAX_WIDTH = 1800;
 
             function getHeader() {
                 var header = doc.querySelector(HEADER_SELECTOR);
                 if (!header) return null;
                 var rect = header.getBoundingClientRect();
-                if (rect.width < 20 || rect.height < 20) return null;
+                if (!rect || rect.width < 40 || rect.height < 24) return null;
                 return header;
+            }
+
+            function viewportWidth() {
+                return Math.max(
+                    320,
+                    (doc.documentElement && doc.documentElement.clientWidth) || target.innerWidth || 1200
+                );
+            }
+
+            function computeTop(vw) {
+                // Keep the top bar flush to the top edge (no visible upper gap).
+                return 0;
+            }
+
+            function computeSidePad(vw) {
+                if (vw <= 820) return 20;
+                if (vw <= 1100) return 34;
+                return 90;
             }
 
             function ensureSpacer(header) {
@@ -569,79 +664,43 @@ def inject_fixed_top_bar() -> None:
                 return spacer;
             }
 
-            function applyFixedHeader() {
+            function applyFixedBar() {
                 var header = getHeader();
                 if (!header) return;
 
-                var rect = header.getBoundingClientRect();
-                var height = BAR_HEIGHT;
+                var vw = viewportWidth();
+                var top = computeTop(vw);
+                var sidePad = computeSidePad(vw);
+                var width = Math.max(320, Math.min(MAX_WIDTH, vw - sidePad));
                 var spacer = ensureSpacer(header);
-                var viewportWidth = Math.max(
-                    320,
-                    (doc.documentElement && doc.documentElement.clientWidth) || target.innerWidth || rect.width
-                );
-
-                spacer.style.height = (height + 1) + 'px';
-                spacer.style.width = '100%';
-                spacer.style.display = 'block';
-                spacer.style.pointerEvents = 'none';
 
                 header.style.position = 'fixed';
-                header.style.top = '0';
-                header.style.left = '0';
-                header.style.width = viewportWidth + 'px';
-                header.style.height = height + 'px';
-                header.style.minHeight = height + 'px';
+                header.style.top = top + 'px';
+                header.style.left = '50%';
+                header.style.transform = 'translateX(-50%)';
+                header.style.width = width + 'px';
                 header.style.zIndex = '1300';
                 header.style.margin = '0';
-                header.style.padding = '0 22px';
-                header.style.boxSizing = 'border-box';
-                var darkTheme = THEME_MODE === 'dark';
-                header.style.background = darkTheme
-                    ? 'rgba(6, 12, 28, 0.66)'
-                    : 'rgba(255, 255, 255, 0.56)';
-                header.style.borderTop = 'none';
-                header.style.borderBottom = darkTheme
-                    ? '1px solid rgba(148, 163, 184, 0.24)'
-                    : '1px solid rgba(148, 163, 184, 0.36)';
-                header.style.backdropFilter = darkTheme
-                    ? 'blur(12px) saturate(120%)'
-                    : 'blur(12px) saturate(108%) brightness(1.04)';
-                header.style.webkitBackdropFilter = darkTheme
-                    ? 'blur(12px) saturate(120%)'
-                    : 'blur(12px) saturate(108%) brightness(1.04)';
-                header.style.boxShadow = darkTheme
-                    ? '0 4px 16px rgba(2, 6, 23, 0.20)'
-                    : '0 2px 10px rgba(15, 23, 42, 0.07)';
-                header.style.display = 'flex';
-                header.style.alignItems = 'center';
+                header.style.border = 'none';
+                header.style.outline = 'none';
 
-                doc.querySelectorAll('.site-header-rule').forEach(function(rule) {
-                    rule.style.display = 'none';
-                    rule.style.height = '0';
-                    rule.style.margin = '0';
-                });
-
-                // Hard center all topbar elements (logo/nav/theme) to the same
-                // vertical centerline of the topbar.
-                var headerRect = header.getBoundingClientRect();
-                var headerCenter = headerRect.top + (headerRect.height / 2);
-                ['.site-brand', '.site-nav', '.st-key-theme_toggle_header'].forEach(function(sel) {
-                    var el = header.querySelector(sel);
-                    if (!el) return;
-                    el.style.transform = 'translateY(0px)';
-                    var rect2 = el.getBoundingClientRect();
-                    var center2 = rect2.top + (rect2.height / 2);
-                    var delta2 = headerCenter - center2;
-                    el.style.transform = 'translateY(' + delta2.toFixed(2) + 'px)';
-                });
+                var headerHeight = Math.max(
+                    56,
+                    Math.ceil(header.getBoundingClientRect().height || header.offsetHeight || 78)
+                );
+                spacer.style.display = 'block';
+                spacer.style.width = '100%';
+                spacer.style.height = (top + headerHeight + 6) + 'px';
+                spacer.style.margin = '0';
+                spacer.style.padding = '0';
+                spacer.style.pointerEvents = 'none';
             }
 
             function scheduleApply() {
-                applyFixedHeader();
-                target.requestAnimationFrame(applyFixedHeader);
-                setTimeout(applyFixedHeader, 60);
-                setTimeout(applyFixedHeader, 220);
+                applyFixedBar();
+                target.requestAnimationFrame(applyFixedBar);
+                setTimeout(applyFixedBar, 60);
+                setTimeout(applyFixedBar, 220);
             }
 
             scheduleApply();
@@ -649,7 +708,6 @@ def inject_fixed_top_bar() -> None:
             if (!target.__excelcvFixedHeaderResizeBound) {
                 target.__excelcvFixedHeaderResizeBound = true;
                 target.addEventListener('resize', scheduleApply);
-                target.addEventListener('scroll', scheduleApply, { passive: true });
             }
 
             if (target.__excelcvFixedHeaderObserver) {
@@ -661,9 +719,9 @@ def inject_fixed_top_bar() -> None:
             target.__excelcvFixedHeaderObserver.observe(doc.body, { childList: true, subtree: true });
         })();
         </script>
-        """
-    script = script.replace("__THEME_MODE__", theme_mode)
-    components.html(script, height=0)
+        """,
+        height=0,
+    )
 
 
 def inject_logo_home_click_behavior() -> None:
@@ -788,6 +846,11 @@ def main() -> None:
         render_upload_page()
     else:
         render_report_view()
+
+    # Always use latest UI templates during runtime (avoid stale cached CSS/JS).
+    template_loader = getattr(inject_base_css, "__globals__", {}).get("_load_ui_markup_template")
+    if template_loader and hasattr(template_loader, "cache_clear"):
+        template_loader.cache_clear()
 
     # Inject styles/scripts after visible UI so hidden injection containers
     # do not push the first row down.

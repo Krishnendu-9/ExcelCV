@@ -1,4 +1,4 @@
-﻿"""
+"""
 Theme and base style injection utilities.
 """
 
@@ -8,20 +8,20 @@ from pathlib import Path
 import streamlit as st
 import streamlit.components.v1 as components
 
-from src.ui_constants import (
-    LIGHT_BG_PRIMARY,
-    LIGHT_TEXT_PRIMARY,
-    DARK_BG_PRIMARY,
-    DARK_TEXT_PRIMARY,
-)
 from src.css_generators import (
-    generate_theme_base_css,
+    generate_button_hover_css,
     generate_css_variables,
-    generate_textarea_css,
     generate_dropzone_css,
     generate_label_css,
+    generate_textarea_css,
+    generate_theme_base_css,
     generate_theme_button_css,
-    generate_button_hover_css,
+)
+from src.ui_constants import (
+    DARK_BG_PRIMARY,
+    DARK_TEXT_PRIMARY,
+    LIGHT_BG_PRIMARY,
+    LIGHT_TEXT_PRIMARY,
 )
 
 @lru_cache(maxsize=8)

@@ -1,6 +1,8 @@
-from typing import Tuple
+"""PDF text extraction helpers used by upload and scoring flows."""
 
 from PyPDF2 import PdfReader
+
+_MIN_PARSE_TEXT_CHARS = 800
 
 
 def extract_pdf_text(uploaded_file) -> str:
@@ -19,9 +21,9 @@ def extract_pdf_text(uploaded_file) -> str:
         raise ValueError("Could not read this PDF.") from exc
 
 
-def parse_confidence_chip(cv_text: str) -> Tuple[str, str]:
+def parse_confidence_chip(cv_text: str) -> tuple[str, str]:
     """Return a short parse confidence label and CSS class for a chip."""
-    if len(cv_text.strip()) >= 800:
+    if len(cv_text.strip()) >= _MIN_PARSE_TEXT_CHARS:
         return ("Parse: text layer detected", "chip")
     return ("Parse: low text extraction (check PDF)", "chip chip-warn")
 

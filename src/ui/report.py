@@ -11,7 +11,6 @@ import streamlit.components.v1 as components
 from src.reporting import build_report_md
 from src.ui.common import (
     _markdown_inline_to_html,
-    get_category_icon,
     get_score_color_class,
     issue_count,
 )
@@ -597,7 +596,7 @@ def _render_download_buttons(name: str, analysis: Dict[str, Any]) -> None:
     col1, col2 = st.columns(2, gap="medium")
     with col1:
         st.download_button(
-            "📝 Download Markdown Report",
+            "\U0001F4DD Download Markdown Report",
             data=build_report_md(name, analysis),
             file_name=f"{name}-analysis.md",
             mime="text/markdown",
@@ -606,7 +605,7 @@ def _render_download_buttons(name: str, analysis: Dict[str, Any]) -> None:
         )
     with col2:
         st.download_button(
-            "🧾 Download JSON Export",
+            "\U0001F9FE Download JSON Export",
             data=json.dumps(analysis, indent=2),
             file_name=f"{name}-analysis.json",
             mime="application/json",

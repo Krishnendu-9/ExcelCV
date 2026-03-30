@@ -7,7 +7,6 @@ with AI-provided scores for more accurate results.
 """
 
 import re
-from collections import Counter
 from typing import Any, Dict, Optional, Tuple
 
 from src.scoring_constants import (

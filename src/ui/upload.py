@@ -1,4 +1,4 @@
-﻿"""
+"""
 Upload-page preview card rendering.
 """
 

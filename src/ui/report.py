@@ -597,7 +597,7 @@ def _render_download_buttons(name: str, analysis: Dict[str, Any]) -> None:
     col1, col2 = st.columns(2, gap="medium")
     with col1:
         st.download_button(
-            "Download Markdown Report",
+            "📝 Download Markdown Report",
             data=build_report_md(name, analysis),
             file_name=f"{name}-analysis.md",
             mime="text/markdown",
@@ -606,7 +606,7 @@ def _render_download_buttons(name: str, analysis: Dict[str, Any]) -> None:
         )
     with col2:
         st.download_button(
-            "Download JSON Export",
+            "🧾 Download JSON Export",
             data=json.dumps(analysis, indent=2),
             file_name=f"{name}-analysis.json",
             mime="application/json",
@@ -819,17 +819,24 @@ def _build_sidebar_js() -> str:
         doc.addEventListener('click', handleClick, true);
 
         function initContent() {
-            var head = doc.getElementById('cat-head-content');
-            var items = doc.getElementById('cat-items-content');
-            if (head && items && !head.classList.contains('expanded')) {
-                head.classList.add('expanded');
-                items.classList.remove('collapsed');
-                items.classList.add('expanded');
+            // Keep all scorecard categories collapsed on first load.
+            var heads = Array.prototype.slice.call(doc.querySelectorAll('.category-head'));
+            var itemGroups = Array.prototype.slice.call(doc.querySelectorAll('.category-items'));
+            for (var i = 0; i < heads.length; i++) {
+                heads[i].classList.remove('expanded');
+            }
+            for (var j = 0; j < itemGroups.length; j++) {
+                itemGroups[j].classList.remove('expanded');
+                itemGroups[j].classList.add('collapsed');
             }
         }
 
+        var initDone = false;
         function runInit() {
-            initContent();
+            if (!initDone) {
+                initContent();
+                initDone = true;
+            }
             syncStickyTop();
         }
 

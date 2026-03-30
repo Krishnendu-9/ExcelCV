@@ -636,18 +636,37 @@ def _build_sidebar_js() -> str:
             win.__excelcvSidebarCleanup = null;
         }
 
+        function closeCategoryById(categoryId) {
+            var head = doc.getElementById('cat-head-' + categoryId);
+            var items = doc.getElementById('cat-items-' + categoryId);
+            if (!head || !items) return;
+            head.classList.remove('expanded');
+            items.classList.remove('expanded');
+            items.classList.add('collapsed');
+        }
+
+        function closeOtherCategories(activeCategoryId) {
+            var expandedHeads = Array.prototype.slice.call(doc.querySelectorAll('.category-head.expanded'));
+            for (var i = 0; i < expandedHeads.length; i++) {
+                var h = expandedHeads[i];
+                if (!h || !h.id || h.id.indexOf('cat-head-') !== 0) continue;
+                var cid = h.id.replace('cat-head-', '');
+                if (cid === activeCategoryId) continue;
+                closeCategoryById(cid);
+            }
+        }
+
         function toggleCategory(categoryId) {
             var head = doc.getElementById('cat-head-' + categoryId);
             var items = doc.getElementById('cat-items-' + categoryId);
             if (!head || !items) return;
 
             if (head.classList.contains('expanded')) {
-                head.classList.remove('expanded');
-                items.classList.remove('expanded');
-                items.classList.add('collapsed');
+                closeCategoryById(categoryId);
                 return;
             }
 
+            closeOtherCategories(categoryId);
             head.classList.add('expanded');
             items.classList.remove('collapsed');
             items.classList.add('expanded');
@@ -722,13 +741,57 @@ def _build_sidebar_js() -> str:
             return Math.min(MAX_TOP, Math.max(MIN_TOP, computed));
         }
 
+        function unpinSidebar() {
+            var sidebar = doc.querySelector('.report-sidebar');
+            if (!sidebar) return;
+            var anchor = sidebar.parentElement;
+            if (anchor && anchor.style) {
+                anchor.style.minHeight = '';
+            }
+            sidebar.style.removeProperty('position');
+            sidebar.style.removeProperty('top');
+            sidebar.style.removeProperty('left');
+            sidebar.style.removeProperty('width');
+            sidebar.style.removeProperty('max-height');
+            sidebar.style.removeProperty('overflow-y');
+            sidebar.style.removeProperty('z-index');
+        }
+
+        function pinSidebar(topValue) {
+            var sidebar = doc.querySelector('.report-sidebar');
+            if (!sidebar) return;
+            var anchor = sidebar.parentElement;
+            if (!anchor || !anchor.getBoundingClientRect) return;
+            var rect = anchor.getBoundingClientRect();
+            if (!rect || rect.width < 140) return;
+
+            // Preserve left-column footprint while sidebar is fixed.
+            if (anchor.style) {
+                anchor.style.minHeight = sidebar.offsetHeight + 'px';
+            }
+
+            sidebar.style.setProperty('position', 'fixed', 'important');
+            sidebar.style.setProperty('top', topValue + 'px', 'important');
+            sidebar.style.setProperty('left', Math.round(rect.left) + 'px', 'important');
+            sidebar.style.setProperty('width', Math.round(rect.width) + 'px', 'important');
+            sidebar.style.setProperty('max-height', 'calc(100vh - ' + topValue + 'px - 12px)', 'important');
+            sidebar.style.setProperty('overflow-y', 'auto', 'important');
+            sidebar.style.setProperty('z-index', '20', 'important');
+        }
+
         function syncStickyTop() {
             var topValue = DEFAULT_TOP;
-            if (win.innerWidth >= DESKTOP_MIN) {
+            var isDesktop = win.innerWidth >= DESKTOP_MIN;
+            if (isDesktop) {
                 topValue = computeStickyTop();
             }
             if (doc.documentElement && doc.documentElement.style) {
                 doc.documentElement.style.setProperty('--excelcv-report-top', topValue + 'px');
+            }
+            if (isDesktop) {
+                pinSidebar(topValue);
+            } else {
+                unpinSidebar();
             }
         }
 
@@ -781,6 +844,7 @@ def _build_sidebar_js() -> str:
         win.addEventListener('scroll', onScroll, true);
 
         win.__excelcvSidebarCleanup = function() {
+            try { unpinSidebar(); } catch (e) {}
             try { win.removeEventListener('resize', onResize, true); } catch (e) {}
             try { win.removeEventListener('scroll', onScroll, true); } catch (e) {}
             try { if (observer) observer.disconnect(); } catch (e) {}

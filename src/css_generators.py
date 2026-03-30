@@ -94,6 +94,33 @@ def generate_css_variables(is_light: bool, bg_color: str, text_color: str) -> st
                 --button-shadow: {colors['button_shadow']};
                 --button-hover-shadow: {colors['button_hover_shadow']};
                 --placeholder-color: {colors['placeholder']};
+                --landing-panel-bg: {"linear-gradient(140deg, #f8fafc, #eef2ff)" if is_light else "linear-gradient(140deg, #0f172a, #111827)"};
+                --landing-panel-border: {"rgba(148, 163, 184, 0.34)" if is_light else "rgba(148, 163, 184, 0.24)"};
+                --landing-panel-shadow: {"0 14px 34px rgba(15, 23, 42, 0.08)" if is_light else "0 16px 44px rgba(2, 6, 23, 0.36)"};
+                --landing-spectrum-bg: {"linear-gradient(135deg, #eef2ff, #e0e7ff)" if is_light else "linear-gradient(130deg, rgba(15, 23, 42, 0.96), rgba(59, 38, 116, 0.72))"};
+                --landing-walk-bg: {"linear-gradient(135deg, #f8fafc, #e2e8f0)" if is_light else "linear-gradient(145deg, #0f172a, #172554)"};
+                --landing-proof-bg: {"linear-gradient(135deg, #f8fafc, #f1f5f9)" if is_light else "linear-gradient(130deg, rgba(17, 24, 39, 0.95), rgba(30, 41, 59, 0.86))"};
+                --landing-faq-bg: {"linear-gradient(140deg, #f8fafc, #e2e8f0)" if is_light else "linear-gradient(150deg, #0f172a, #1e293b)"};
+                --landing-card-bg: {"linear-gradient(160deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.95))" if is_light else "linear-gradient(160deg, rgba(15, 23, 42, 0.62), rgba(30, 41, 59, 0.44))"};
+                --landing-card-border: {"rgba(148, 163, 184, 0.34)" if is_light else "rgba(148, 163, 184, 0.24)"};
+                --landing-heading-text: {"#0f172a" if is_light else "#e2e8f0"};
+                --landing-body-text: {"#334155" if is_light else "rgba(226, 232, 240, 0.82)"};
+                --landing-muted-text: {"#475569" if is_light else "#94a3b8"};
+                --landing-story-visual-bg: {"linear-gradient(150deg, #e2e8f0, #f1f5f9)" if is_light else "linear-gradient(150deg, rgba(15, 23, 42, 0.72), rgba(30, 41, 59, 0.55))"};
+                --landing-story-card-bg: {"rgba(255, 255, 255, 0.94)" if is_light else "rgba(15, 23, 42, 0.84)"};
+                --landing-story-card-border: {"rgba(148, 163, 184, 0.34)" if is_light else "rgba(148, 163, 184, 0.30)"};
+                --landing-chip-bg: {"rgba(255, 255, 255, 0.86)" if is_light else "rgba(15, 23, 42, 0.48)"};
+                --landing-chip-border: {"rgba(148, 163, 184, 0.34)" if is_light else "rgba(148, 163, 184, 0.28)"};
+                --landing-chip-text: {"#334155" if is_light else "#e2e8f0"};
+                --preview-shell-bg: {"linear-gradient(155deg, rgba(241, 245, 249, 0.96), rgba(226, 232, 240, 0.92))" if is_light else "linear-gradient(155deg, rgba(15, 23, 42, 0.94), rgba(30, 41, 59, 0.88))"};
+                --preview-shell-border: {"rgba(148, 163, 184, 0.36)" if is_light else "rgba(148, 163, 184, 0.22)"};
+                --preview-card-bg: {"linear-gradient(160deg, rgba(255, 255, 255, 0.98), rgba(241, 245, 249, 0.95))" if is_light else "linear-gradient(160deg, rgba(15, 23, 42, 0.92), rgba(30, 41, 59, 0.76))"};
+                --preview-card-border: {"rgba(148, 163, 184, 0.36)" if is_light else "rgba(148, 163, 184, 0.30)"};
+                --preview-text: {"#0f172a" if is_light else "#e2e8f0"};
+                --preview-muted: {"#475569" if is_light else "#94a3b8"};
+                --report-pill-bg: {"rgba(203, 213, 225, 0.84)" if is_light else "rgba(17, 24, 39, 0.45)"};
+                --report-pill-border: {"rgba(100, 116, 139, 0.40)" if is_light else "rgba(148, 163, 184, 0.28)"};
+                --report-pill-text: {"#1f2937" if is_light else "#cbd5e1"};
             }}
     """
 

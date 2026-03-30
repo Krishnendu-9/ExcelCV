@@ -50,6 +50,31 @@ streamlit run app.py
 py -3 -m unittest discover -s tests -p "test_*.py" -q
 ```
 
+### Optional runtime smoke test
+Run a minimal Streamlit runtime smoke check (disabled by default to keep local runs fast/stable):
+```bash
+$env:RUN_STREAMLIT_SMOKE = "1"
+py -3 -m unittest tests.test_streamlit_runtime_smoke -q
+```
+
+## Development quality checks
+1. Install dev tools:
+```bash
+pip install -r requirements-dev.txt
+```
+2. Run formatter/linter/type checks:
+```bash
+ruff check .
+ruff format .
+black .
+mypy app.py src
+```
+3. Enable pre-commit hooks:
+```bash
+pre-commit install
+pre-commit run --all-files
+```
+
 ## Project structure
 ```text
 cv-review/

@@ -52,6 +52,8 @@ streamlit_*.log
 .coverage
 htmlcov/
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
 
 # Jupyter Notebooks
 .ipynb_checkpoints

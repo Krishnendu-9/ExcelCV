@@ -52,6 +52,56 @@ def _load_logo_data_uri() -> str:
     return f"data:image/png;base64,{encoded}"
 
 
+@st.cache_resource
+def _report_snapshot_store() -> Dict[str, Dict[str, Any]]:
+    """Process-wide in-memory store for recent report snapshots."""
+    return {}
+
+
+def _build_report_snapshot() -> Dict[str, Any]:
+    """Capture the minimum session fields required to restore a report page."""
+    return {
+        "analysis": st.session_state.get("analysis"),
+        "cv_text": st.session_state.get("cv_text"),
+        "job_description": st.session_state.get("job_description") or st.session_state.get("jd", ""),
+        "cv_name": st.session_state.get("cv_name", "CV"),
+        "cv_file_size": st.session_state.get("cv_file_size", 0),
+        "issues": st.session_state.get("issues"),
+    }
+
+
+def _save_report_snapshot(snapshot_id: Optional[str] = None) -> str:
+    """Save current report state and return a shareable snapshot id."""
+    store = _report_snapshot_store()
+    sid = snapshot_id or uuid4().hex
+    store[sid] = _build_report_snapshot()
+
+    # Keep memory bounded.
+    while len(store) > 200:
+        oldest_key = next(iter(store))
+        del store[oldest_key]
+    return sid
+
+
+def _restore_report_snapshot(snapshot_id: str) -> bool:
+    """Restore report state from snapshot id. Returns True on success."""
+    store = _report_snapshot_store()
+    snapshot = store.get(snapshot_id)
+    if not snapshot or not snapshot.get("analysis"):
+        return False
+
+    st.session_state["analysis"] = snapshot.get("analysis")
+    st.session_state["cv_text"] = snapshot.get("cv_text", "")
+    st.session_state["job_description"] = snapshot.get("job_description", "")
+    st.session_state["jd"] = snapshot.get("job_description", "")
+    st.session_state["cv_name"] = snapshot.get("cv_name", "CV")
+    st.session_state["cv_file_size"] = snapshot.get("cv_file_size", 0)
+    st.session_state["issues"] = snapshot.get("issues", issue_count(snapshot["analysis"]))
+    st.session_state["page"] = "report"
+    st.session_state["report_snapshot_id"] = snapshot_id
+    return True
+
+
 def run_single_analysis(
     job_description: str,
     uploaded_cv,
@@ -142,16 +192,20 @@ def render_theme_toggle(standalone: bool = True, key: str = "theme_toggle") -> N
             st.rerun()
 
 
-def render_site_header() -> None:
+def render_site_header(show_theme_toggle: bool = True) -> None:
     """Render top branded header similar to modern landing pages."""
-    col_brand, col_nav, col_theme = st.columns([1.3, 2.15, 0.55], gap="small")
+    if show_theme_toggle:
+        col_brand, col_nav, col_theme = st.columns([1.3, 2.15, 0.55], gap="small")
+    else:
+        col_brand, col_nav = st.columns([1.3, 2.7], gap="small")
+        col_theme = None
     logo_src = _load_logo_data_uri()
     logo_content_html = (
         f'<img src="{logo_src}" alt="ExcelCV logo" class="site-logo-wordmark" />'
         if logo_src
         else '<div class="site-logo-badge">EC</div><div class="site-brand-copy"><div class="site-name">ExcelCV</div></div>'
     )
-    logo_target_url = f"/?page=upload&_reload={uuid4().hex}"
+    logo_target_url = f"/?page=upload&_clear=1&_home={uuid4().hex}&_reload={uuid4().hex}"
     logo_html = (
         f'<a href="{logo_target_url}" target="_self" class="site-logo-link" aria-label="Go to homepage">'
         f'<div class="site-logo-shell">{logo_content_html}</div></a>'
@@ -159,29 +213,26 @@ def render_site_header() -> None:
 
     with col_brand:
         st.markdown(
-            f"""
-            <div class="site-brand">
-                {logo_html}
-            </div>
-            """,
+            f'<div class="site-brand">{logo_html}</div>',
             unsafe_allow_html=True,
         )
 
     with col_nav:
         st.markdown(
-            """
-            <div class="site-nav">
-                <span class="site-nav-item">Resume Checker</span>
-                <span class="site-nav-item">ATS Insights</span>
-                <span class="site-nav-item">Instant Report</span>
-            </div>
-            """,
+            (
+                '<div class="site-nav">'
+                '<span class="site-nav-item">Resume Checker</span>'
+                '<span class="site-nav-item">ATS Insights</span>'
+                '<span class="site-nav-item">Instant Report</span>'
+                "</div>"
+            ),
             unsafe_allow_html=True,
         )
 
-    with col_theme:
-        st.markdown('<div class="theme-toggle-gap" aria-hidden="true"></div>', unsafe_allow_html=True)
-        render_theme_toggle(standalone=False, key="theme_toggle_header")
+    if show_theme_toggle and col_theme is not None:
+        with col_theme:
+            st.markdown('<div class="theme-toggle-gap" aria-hidden="true"></div>', unsafe_allow_html=True)
+            render_theme_toggle(standalone=False, key="theme_toggle_header")
 
     st.markdown('<div class="site-header-rule"></div>', unsafe_allow_html=True)
 
@@ -616,7 +667,7 @@ def inject_fixed_top_bar() -> None:
 
 
 def inject_logo_home_click_behavior() -> None:
-    """Make logo click always open homepage in same window and land at top."""
+    """Keep logo home navigation reliable across Streamlit reruns/reloads."""
     components.html(
         """
         <script>
@@ -624,101 +675,42 @@ def inject_logo_home_click_behavior() -> None:
             var target = window.parent && window.parent !== window ? window.parent : window;
             var doc = target.document;
 
-            function scrollTopNow() {
-                try {
-                    var nodes = [
-                        target,
-                        doc.scrollingElement,
-                        doc.documentElement,
-                        doc.body,
-                        doc.querySelector('[data-testid="stAppViewContainer"]'),
-                        doc.querySelector('[data-testid="stAppViewContainer"] > section.main'),
-                        doc.querySelector('section.main'),
-                        doc.querySelector('.main'),
-                        doc.querySelector('.main .block-container')
-                    ];
-                    nodes.forEach(function(node) {
-                        if (!node) return;
-                        if (node === target) {
-                            target.scrollTo(0, 0);
-                            return;
-                        }
-                        if (typeof node.scrollTo === 'function') {
-                            node.scrollTo({ top: 0, left: 0, behavior: 'auto' });
-                        }
-                        node.scrollTop = 0;
-                        node.scrollLeft = 0;
-                    });
-                } catch (e) {}
-            }
-
-            function forceScrollTopBurst() {
-                scrollTopNow();
-                target.requestAnimationFrame(scrollTopNow);
-                [40, 120, 220, 380, 700, 1100].forEach(function(ms) {
-                    setTimeout(scrollTopNow, ms);
-                });
-            }
-
-            function onLogoClick(ev) {
-                ev.preventDefault();
-                ev.stopPropagation();
+            function buildHomeHref() {
                 var current;
                 try {
                     current = new URL(target.location.href);
                 } catch (e) {
-                    forceScrollTopBurst();
-                    return;
+                    return '/?page=upload&_clear=1&_home=' + Date.now() + '&_reload=' + Date.now();
                 }
-
-                var currentPage = current.searchParams.get('page') || 'upload';
                 current.searchParams.set('page', 'upload');
                 current.searchParams.set('_home', String(Date.now()));
-                if (currentPage === 'upload') {
-                    current.searchParams.set('_reload', String(Date.now()));
-                }
-                target.location.assign(current.toString());
+                current.searchParams.set('_reload', String(Date.now()));
+                current.searchParams.set('_clear', '1');
+                current.searchParams.delete('rid');
+                return current.pathname + '?' + current.searchParams.toString();
             }
 
-            function bindLogoClick() {
+            function bindLogos() {
                 var logos = doc.querySelectorAll('.site-logo-link');
                 logos.forEach(function(logo) {
-                    if (logo.getAttribute('data-logo-home-bound') === '1') return;
-                    logo.setAttribute('data-logo-home-bound', '1');
-                    logo.setAttribute('role', 'link');
-                    logo.setAttribute('tabindex', '0');
-                    logo.addEventListener('click', onLogoClick, true);
-                    logo.addEventListener('keydown', function(ev) {
-                        if (ev.key === 'Enter' || ev.key === ' ') {
-                            onLogoClick(ev);
-                        }
-                    }, true);
+                    if (logo.getAttribute('data-logo-home-bound') === '1') {
+                        var cleanLogo = logo.cloneNode(true);
+                        logo.parentNode.replaceChild(cleanLogo, logo);
+                        logo = cleanLogo;
+                    }
+                    logo.setAttribute('data-logo-home-bound', '2');
+                    logo.setAttribute('target', '_self');
+                    logo.setAttribute('href', buildHomeHref());
                 });
             }
 
-            function consumeHomeFlagAndScroll() {
-                var current;
-                try {
-                    current = new URL(target.location.href);
-                } catch (e) {
-                    return;
-                }
-                if (!current.searchParams.has('_home')) return;
-
-                forceScrollTopBurst();
-                current.searchParams.delete('_home');
-                var newUrl = current.pathname + (current.searchParams.toString() ? ('?' + current.searchParams.toString()) : '');
-                target.history.replaceState({}, '', newUrl);
-            }
-
-            bindLogoClick();
-            consumeHomeFlagAndScroll();
+            bindLogos();
 
             if (target.__excelcvLogoHomeObserver) {
                 target.__excelcvLogoHomeObserver.disconnect();
             }
             target.__excelcvLogoHomeObserver = new MutationObserver(function() {
-                bindLogoClick();
+                bindLogos();
             });
             target.__excelcvLogoHomeObserver.observe(doc.body, { childList: true, subtree: true });
         })();
@@ -741,18 +733,56 @@ def main() -> None:
         st.session_state["theme"] = "light"
     if "page" not in st.session_state:
         st.session_state["page"] = "upload"
+    if "report_snapshot_id" not in st.session_state:
+        st.session_state["report_snapshot_id"] = None
+
+    # Explicit homepage reset trigger from logo click.
+    if st.query_params.get("_clear"):
+        st.session_state.pop("analysis", None)
+        st.session_state.pop("cv_text", None)
+        st.session_state.pop("job_description", None)
+        st.session_state.pop("cv_name", None)
+        st.session_state.pop("cv_file_size", None)
+        st.session_state.pop("issues", None)
+        st.session_state.pop("report_snapshot_id", None)
+        st.session_state.pop("jd", None)
+        st.session_state.pop("cvs", None)
+        st.session_state["page"] = "upload"
+        st.query_params["page"] = "upload"
+        if "rid" in st.query_params:
+            del st.query_params["rid"]
+        if "_clear" in st.query_params:
+            del st.query_params["_clear"]
+        if "_home" in st.query_params:
+            del st.query_params["_home"]
+        if "_reload" in st.query_params:
+            del st.query_params["_reload"]
+
     # Sync page with URL so browser back/forward works
     url_page = st.query_params.get("page")
+    url_rid = st.query_params.get("rid")
     if url_page in ("upload", "report"):
         st.session_state["page"] = url_page
+    if url_rid:
+        st.session_state["report_snapshot_id"] = str(url_rid)
+
+    # If report URL has a snapshot id but session was reset, restore it.
+    if (
+        st.session_state.get("page") == "report"
+        and not st.session_state.get("analysis")
+        and st.session_state.get("report_snapshot_id")
+    ):
+        _restore_report_snapshot(str(st.session_state["report_snapshot_id"]))
 
     # If user is on report page but nothing is stored, send them back.
     if st.session_state.get("page") == "report" and not st.session_state.get("analysis"):
         st.session_state["page"] = "upload"
         st.query_params["page"] = "upload"
+        if "rid" in st.query_params:
+            del st.query_params["rid"]
 
     # Global branded header visible on both upload and report pages.
-    render_site_header()
+    render_site_header(show_theme_toggle=True)
 
     if st.session_state["page"] == "upload":
         render_upload_page()
@@ -832,6 +862,9 @@ def render_upload_page() -> None:
                 st.session_state["issues"] = issue_count(analysis)
                 st.session_state["page"] = "report"
                 st.query_params["page"] = "report"
+                snapshot_id = _save_report_snapshot()
+                st.session_state["report_snapshot_id"] = snapshot_id
+                st.query_params["rid"] = snapshot_id
                 st.rerun()
 
     render_upload_landing_sections()
@@ -846,28 +879,36 @@ def render_report_view() -> None:
     if not analysis:
         st.info("No analysis found. Upload a resume to get started.")
         st.session_state["page"] = "upload"
+        st.query_params["page"] = "upload"
+        if "rid" in st.query_params:
+            del st.query_params["rid"]
         return
 
-    mode_description = "Standard scoring across ATS readiness, content quality, and overall resume strength."
+    # Keep URL snapshot up to date so browser refresh preserves report page.
+    current_sid = st.session_state.get("report_snapshot_id") or st.query_params.get("rid")
+    persisted_sid = _save_report_snapshot(str(current_sid) if current_sid else None)
+    st.session_state["report_snapshot_id"] = persisted_sid
+    st.query_params["page"] = "report"
+    st.query_params["rid"] = persisted_sid
 
     # Marker for CSS/JS: center theme + Upload buttons with PDF section
     st.markdown('<div id="report-pdf-row-marker" aria-hidden="true"></div>', unsafe_allow_html=True)
-    col_header, col_actions = st.columns([1.6, 0.5])
-    with col_header:
+    top_left, top_right = st.columns([1.72, 0.88], gap="small")
+    with top_left:
         st.markdown(
             f"""
-            <div class="report-hero">
-                <div>
-                    <p class="eyebrow">Resume report - Standard scoring</p>
-                    <h2 class="report-title">{safe_name}</h2>
-                    <p class="hero-subtitle">{mode_description}</p>
+            <div class="report-topline report-fileline">
+                <span class="report-mode-label">Resume report - Standard scoring</span>
+                <div class="report-file-row">
+                    <h2 class="report-file-title">{safe_name}</h2>
+                    <div class="score-pill">{analysis.get("match_score", 0)} / 100</div>
                 </div>
-                <div class="score-pill">{analysis.get("match_score", 0)} / 100</div>
             </div>
             """,
             unsafe_allow_html=True,
         )
-    with col_actions:
+    with top_right:
+        st.markdown('<div id="report-top-actions-marker" aria-hidden="true"></div>', unsafe_allow_html=True)
         if st.button("Upload another resume", use_container_width=True, help="Upload a new resume"):
             st.session_state["analysis"] = None
             st.session_state.pop("cv_text", None)
@@ -875,10 +916,13 @@ def render_report_view() -> None:
             st.session_state.pop("cv_name", None)
             st.session_state.pop("cv_file_size", None)
             st.session_state.pop("issues", None)
+            st.session_state.pop("report_snapshot_id", None)
             st.session_state.pop("jd", None)
             st.session_state.pop("cvs", None)
             st.session_state["page"] = "upload"
             st.query_params["page"] = "upload"
+            if "rid" in st.query_params:
+                del st.query_params["rid"]
             st.rerun()
 
     render_report_page(analysis, name=name)

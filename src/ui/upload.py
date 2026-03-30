@@ -1,4 +1,4 @@
-"""
+﻿"""
 Upload-page preview card rendering.
 """
 
@@ -47,120 +47,161 @@ def render_upload_preview_card() -> None:
 
 
 def render_upload_landing_sections() -> None:
-    """Extended landing-page sections inspired by modern ATS checker layouts."""
+    """Render richer landing sections with distinct visual bands and messaging."""
     landing_html = dedent(
         """
         <div class="landing-extended">
-            <div class="landing-band">
-                <p class="landing-kicker">ExcelCV</p>
-                <h2 class="landing-title">A complete resume check workflow, without the paywall</h2>
-                <p class="landing-subtitle">You get ATS diagnostics, content quality checks, job-description alignment, and downloadable reports in one flow. Built for students and early-career job seekers.</p>
-            </div>
-            <div class="landing-feature-grid">
-                <div class="landing-feature-card">
-                    <h3>ATS parse diagnostics</h3>
-                    <p>Get parse-rate feedback so your resume can be read correctly by automated screeners.</p>
+            <section class="landing-panel panel-story landing-reveal">
+                <div class="story-copy">
+                    <p class="section-kicker">ExcelCV workflow</p>
+                    <h2 class="section-title">A more focused resume checker, designed to feel premium and actionable.</h2>
+                    <p class="section-subtitle">Run one clean flow: paste the role description, upload your resume, and get structured ATS plus content feedback in seconds.</p>
+                    <div class="story-chip-row">
+                        <span class="story-chip">ATS diagnostics</span>
+                        <span class="story-chip">Impact checks</span>
+                        <span class="story-chip">Section health</span>
+                        <span class="story-chip">Action plan</span>
+                    </div>
+                    <div class="story-metric-row">
+                        <div class="story-metric">
+                            <span class="metric-value">4</span>
+                            <span class="metric-label">Core categories</span>
+                        </div>
+                        <div class="story-metric">
+                            <span class="metric-value">2</span>
+                            <span class="metric-label">Download formats</span>
+                        </div>
+                        <div class="story-metric">
+                            <span class="metric-value">1</span>
+                            <span class="metric-label">Standard mode</span>
+                        </div>
+                    </div>
                 </div>
-                <div class="landing-feature-card">
-                    <h3>Keyword and skill gaps</h3>
-                    <p>See missing JD keywords and missing skills before you apply to a role.</p>
+                <div class="story-visual" aria-hidden="true">
+                    <div class="story-orb orb-a"></div>
+                    <div class="story-orb orb-b"></div>
+                    <div class="story-visual-card">
+                        <p class="visual-title">Live score insight</p>
+                        <p class="visual-score">92 / 100</p>
+                        <div class="visual-track">
+                            <span style="width:92%;"></span>
+                        </div>
+                        <div class="visual-lines">
+                            <span></span><span></span><span></span><span></span>
+                        </div>
+                    </div>
                 </div>
-                <div class="landing-feature-card">
-                    <h3>Content quality checks</h3>
-                    <p>Review quantification, repetition, and spelling/grammar signals in one report.</p>
+            </section>
+            <section class="landing-panel panel-spectrum landing-reveal">
+                <div class="section-head">
+                    <p class="section-kicker">Beyond basic checks</p>
+                    <h3 class="section-headline">Distinct analysis blocks so users can scan quickly and act faster.</h3>
                 </div>
-                <div class="landing-feature-card">
-                    <h3>Section completeness</h3>
-                    <p>Validate core sections: contact, experience, education, skills, and summary/objective.</p>
+                <div class="spectrum-grid">
+                    <article class="spectrum-card">
+                        <h4>ATS parse diagnostics</h4>
+                        <p>Checks whether your resume structure can be parsed by applicant tracking systems.</p>
+                    </article>
+                    <article class="spectrum-card">
+                        <h4>Quantifying Impact</h4>
+                        <p>Highlights bullets that need metrics, outcomes, or measurable evidence.</p>
+                    </article>
+                    <article class="spectrum-card">
+                        <h4>Repetition Signals</h4>
+                        <p>Finds repeated wording and encourages stronger, varied phrasing.</p>
+                    </article>
+                    <article class="spectrum-card">
+                        <h4>Spelling and Grammar</h4>
+                        <p>Keeps language quality recruiter-ready with clearer presentation.</p>
+                    </article>
+                    <article class="spectrum-card">
+                        <h4>Section Completeness</h4>
+                        <p>Verifies required resume sections and highlights what is missing.</p>
+                    </article>
+                    <article class="spectrum-card">
+                        <h4>ATS Essentials</h4>
+                        <p>Checks file type, size, links, and contact formatting for submission quality.</p>
+                    </article>
                 </div>
-                <div class="landing-feature-card">
-                    <h3>ATS essentials validation</h3>
-                    <p>Evaluate file format, size, email professionalism, and header links from your resume data.</p>
+            </section>
+            <section class="landing-panel panel-walkthrough landing-reveal">
+                <div class="section-head">
+                    <p class="section-kicker">How it works</p>
+                    <h3 class="section-headline">Three-step flow with clear progression for first-time users.</h3>
                 </div>
-                <div class="landing-feature-card">
-                    <h3>Actionable downloads</h3>
-                    <p>Export your review as Markdown or JSON and iterate on your resume quickly.</p>
+                <div class="walkthrough-grid">
+                    <article class="walk-card">
+                        <span class="walk-index">01</span>
+                        <h4>Paste job description</h4>
+                        <p>Add requirements, skills, and seniority expectations from the role you target.</p>
+                    </article>
+                    <article class="walk-card">
+                        <span class="walk-index">02</span>
+                        <h4>Upload resume PDF</h4>
+                        <p>We extract text and run deterministic checks before scoring the result.</p>
+                    </article>
+                    <article class="walk-card">
+                        <span class="walk-index">03</span>
+                        <h4>Review and improve</h4>
+                        <p>Use section-level guidance and export results to iterate quickly.</p>
+                    </article>
                 </div>
-            </div>
-            <div class="landing-mode-shell">
-                <div class="landing-mode-card">
-                    <p class="mode-eyebrow">Scoring</p>
-                    <h4>Standard scoring system</h4>
-                    <p>One consistent score model for ATS readiness, content quality, and resume strength.</p>
+            </section>
+            <section class="landing-panel panel-proof landing-reveal">
+                <div class="proof-grid">
+                    <div class="proof-tile">
+                        <p class="proof-label">Cost to use</p>
+                        <p class="proof-value">100% Free</p>
+                    </div>
+                    <div class="proof-tile">
+                        <p class="proof-label">Scoring model</p>
+                        <p class="proof-value">Standard scoring</p>
+                    </div>
+                    <div class="proof-tile">
+                        <p class="proof-label">Export formats</p>
+                        <p class="proof-value">Markdown + JSON</p>
+                    </div>
+                    <div class="proof-tile">
+                        <p class="proof-label">Data lifecycle</p>
+                        <p class="proof-value">Session only</p>
+                    </div>
                 </div>
-                <div class="landing-mode-card">
-                    <p class="mode-eyebrow">Coverage</p>
-                    <h4>ATS + content checks</h4>
-                    <p>Keyword fit, section health, impact quantification, repetition, and grammar in one pass.</p>
+            </section>
+            <section class="landing-panel panel-faq landing-reveal">
+                <div class="section-head">
+                    <p class="section-kicker">FAQs</p>
+                    <h3 class="section-headline">Frequently asked questions for users before they upload their resume.</h3>
                 </div>
-                <div class="landing-mode-card">
-                    <p class="mode-eyebrow">Output</p>
-                    <h4>Clear action plan</h4>
-                    <p>Get practical, section-level suggestions you can apply directly to your next resume revision.</p>
+                <div class="faq-grid">
+                    <div class="faq-card">
+                        <h4>Do I need to pay to use this checker?</h4>
+                        <p>No. The complete workflow is free inside this app.</p>
+                    </div>
+                    <div class="faq-card">
+                        <h4>How is the final score calculated?</h4>
+                        <p>One standard scoring model combines ATS readiness and content-quality checks.</p>
+                    </div>
+                    <div class="faq-card">
+                        <h4>What file type is supported?</h4>
+                        <p>PDF is supported. Text-based PDFs provide the best extraction accuracy.</p>
+                    </div>
+                    <div class="faq-card">
+                        <h4>Can I save my result?</h4>
+                        <p>Yes. Download the report as Markdown or JSON directly from the results page.</p>
+                    </div>
                 </div>
-            </div>
-            <div class="landing-flow">
-                <div class="landing-step">
-                    <span class="step-num">01</span>
-                    <h4>Paste job description</h4>
-                    <p>Add requirements, skills, and seniority expectations from the target role.</p>
-                </div>
-                <div class="landing-step">
-                    <span class="step-num">02</span>
-                    <h4>Upload your resume PDF</h4>
-                    <p>We extract text, run deterministic checks, and combine them with AI insights.</p>
-                </div>
-                <div class="landing-step">
-                    <span class="step-num">03</span>
-                    <h4>Review and improve</h4>
-                    <p>Inspect gaps, apply suggestions, and iterate before your next application.</p>
-                </div>
-            </div>
-            <div class="landing-proof-grid">
-                <div class="proof-tile">
-                    <p class="proof-label">Cost to use</p>
-                    <p class="proof-value">100% Free</p>
-                </div>
-                <div class="proof-tile">
-                    <p class="proof-label">Scoring system</p>
-                    <p class="proof-value">Standard</p>
-                </div>
-                <div class="proof-tile">
-                    <p class="proof-label">Report exports</p>
-                    <p class="proof-value">Markdown + JSON</p>
-                </div>
-                <div class="proof-tile">
-                    <p class="proof-label">Data handling</p>
-                    <p class="proof-value">Session-only workflow</p>
-                </div>
-            </div>
-            <div class="landing-faq">
-                <h3>Frequently asked questions</h3>
-                <div class="landing-faq-item">
-                    <h4>Do I need to pay to use this checker?</h4>
-                    <p>No. This project is intentionally free to use with the core feature set available in-app.</p>
-                </div>
-                <div class="landing-faq-item">
-                    <h4>How is the final score calculated?</h4>
-                    <p>We use one standard scoring system that combines ATS readiness, content quality, and resume fundamentals.</p>
-                </div>
-                <div class="landing-faq-item">
-                    <h4>What file type is supported?</h4>
-                    <p>PDF files are supported. Text-based PDFs produce the best extraction quality.</p>
-                </div>
-                <div class="landing-faq-item">
-                    <h4>Can I save the result?</h4>
-                    <p>Yes. Download your analysis as Markdown for reading or JSON for structured processing.</p>
-                </div>
-            </div>
+            </section>
         </div>
         """
     ).strip()
+
+    landing_html = "\n".join(line.lstrip() for line in landing_html.splitlines())
 
     st.markdown(
         landing_html,
         unsafe_allow_html=True,
     )
+
 
 
 

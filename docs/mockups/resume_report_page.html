@@ -19,22 +19,24 @@
         }
 
         .container {
-            display: grid;
-            grid-template-columns: 400px 1fr;
-            min-height: 100vh;
-            gap: 0;
-        }
+    display: grid;
+    grid-template-columns: 400px 1fr;
+    gap: 0;
+}
 
         /* Left Sidebar */
         .sidebar {
-            background: #1a1f26;
-            padding: 40px 30px;
-            border-right: 1px solid #2a2f36;
-            position: sticky;
-            top: 0;
-            height: 100vh;
-            overflow-y: auto;
-        }
+    background: #1a1f26;
+    padding: 40px 30px;
+    border-right: 1px solid #2a2f36;
+
+    position: sticky;
+    top: 20px;                /* space from top */
+
+    height: fit-content;      /* IMPORTANT */
+    max-height: calc(100vh - 20px);
+    overflow-y: auto;
+}
 
         .score-card {
             background: linear-gradient(135deg, #1e2329 0%, #252b33 100%);

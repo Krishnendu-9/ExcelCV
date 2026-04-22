@@ -14,9 +14,7 @@
                             if (!btn || !btn.closest) return false;
                             const key = (btn.getAttribute('key') || '').toLowerCase();
                             if (key === 'theme_toggle' || key === 'theme_toggle_header') return true;
-                            if (btn.closest('.st-key-theme_toggle_header, .st-key-theme_toggle, [class*="theme_toggle"]')) return true;
-                            const txt = (btn.textContent || '').trim();
-                            return txt === '🌙' || txt === '☀️' || txt === '☀';
+                            return !!btn.closest('.st-key-theme_toggle_header, .st-key-theme_toggle, [class*="theme_toggle"]');
                         }};
 
                         const resetThemeToggleVisuals = () => {{
@@ -28,22 +26,44 @@
                             );
                             targets.forEach(el => {{
                                 if (!el || !el.style) return;
-                                el.style.setProperty('background', 'transparent', 'important');
-                                el.style.setProperty('background-color', 'transparent', 'important');
-                                el.style.setProperty('background-image', 'none', 'important');
-                                el.style.setProperty('border', 'none', 'important');
-                                el.style.setProperty('box-shadow', 'none', 'important');
-                                el.style.setProperty('outline', 'none', 'important');
-                                el.style.setProperty('transition', 'none', 'important');
+                                [
+                                    'background',
+                                    'background-color',
+                                    'background-image',
+                                    'border',
+                                    'border-color',
+                                    'border-top-color',
+                                    'border-right-color',
+                                    'border-bottom-color',
+                                    'border-left-color',
+                                    'box-shadow',
+                                    'outline',
+                                    'transition',
+                                    'filter',
+                                    '-webkit-filter',
+                                    'color',
+                                ]
+                                    .forEach(prop => el.style.removeProperty(prop));
                                 el.querySelectorAll('*').forEach(child => {{
                                     if (!child || !child.style) return;
-                                    child.style.setProperty('background', 'transparent', 'important');
-                                    child.style.setProperty('background-color', 'transparent', 'important');
-                                    child.style.setProperty('background-image', 'none', 'important');
-                                    child.style.setProperty('border', 'none', 'important');
-                                    child.style.setProperty('box-shadow', 'none', 'important');
-                                    child.style.setProperty('outline', 'none', 'important');
-                                    child.style.setProperty('transition', 'none', 'important');
+                                    [
+                                        'background',
+                                        'background-color',
+                                        'background-image',
+                                        'border',
+                                        'border-color',
+                                        'border-top-color',
+                                        'border-right-color',
+                                        'border-bottom-color',
+                                        'border-left-color',
+                                        'box-shadow',
+                                        'outline',
+                                        'transition',
+                                        'filter',
+                                        '-webkit-filter',
+                                        'color',
+                                    ]
+                                        .forEach(prop => child.style.removeProperty(prop));
                                 }});
                             }});
                         }};

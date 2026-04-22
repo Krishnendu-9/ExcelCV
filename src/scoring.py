@@ -1,4 +1,4 @@
-"""
+﻿"""
 Scoring Module - Programmatic score calculations for CV analysis.
 
 This module contains all scoring calculation functions that analyze CV text
@@ -7,7 +7,7 @@ with AI-provided scores for more accurate results.
 """
 
 import re
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from src.scoring_constants import (
     ATS_PARSE_BASE_SCORE_GOOD,
@@ -175,7 +175,7 @@ def _extract_experience_sections(cv_text: str) -> str:
         if not stripped:
             continue
         # Section headers are typically short and standalone
-        clean = re.sub(r"[:\-–—|/\\]+$", "", stripped).strip()
+        clean = re.sub(r"[:\-â€“â€”|/\\]+$", "", stripped).strip()
         if len(clean) > 60:
             continue
         if any_section_pattern.search(clean):
@@ -183,7 +183,7 @@ def _extract_experience_sections(cv_text: str) -> str:
             section_starts.append((i, is_exp))
 
     if not section_starts:
-        # No recognisable sections → return full text as fallback
+        # No recognisable sections â†’ return full text as fallback
         return text
 
     # Collect text from experience-related sections only
@@ -203,13 +203,13 @@ def _extract_experience_sections(cv_text: str) -> str:
 
 
 # Common bullet-point lead characters found in PDF-extracted text
-_BULLET_CHARS_RE = re.compile(r"^[•·▪▸►➤\u2022\u2023\u25E6\u2043\u2219\*]\s*")
+_BULLET_CHARS_RE = re.compile(r"^[â€¢Â·â–ªâ–¸â–ºâž¤\u2022\u2023\u25E6\u2043\u2219\*]\s*")
 
 # Date patterns that appear in job-title / header lines
 _DATE_RANGE_RE = re.compile(
     r"(?:(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|"
     r"Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)"
-    r"\.?\s*)?\d{4}\s*[-–—/]+\s*"
+    r"\.?\s*)?\d{4}\s*[-â€“â€”/]+\s*"
     r"(?:(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|"
     r"Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)"
     r"\.?\s*)?(?:Present|Current|Now|\d{4})",
@@ -218,7 +218,7 @@ _DATE_RANGE_RE = re.compile(
 
 # Past-tense action verbs that typically START a resume bullet point.
 # Used to detect bullet boundaries in PDF-extracted text where the
-# bullet character (•) may be absent or already stripped.
+# bullet character (â€¢) may be absent or already stripped.
 _ACTION_VERB_START_RE = re.compile(
     r"^(?:Accelerated|Achieved|Administered|Analyzed|Analysed|Applied|"
     r"Architected|Assembled|Assisted|Automated|"
@@ -257,19 +257,19 @@ def _rejoin_pdf_lines(text: str) -> list:
     PDF text extraction breaks lines at visual line-wrap boundaries, so one
     bullet point spanning 2-3 visual lines becomes 2-3 separate ``\\n``-separated
     lines.  This function:
-      1. Fixes hyphenated word breaks  (``prop-\\nerty`` → ``property``)
-      2. Detects bullet boundaries via bullet chars (•) **and** action-verb starts
+      1. Fixes hyphenated word breaks  (``prop-\\nerty`` â†’ ``property``)
+      2. Detects bullet boundaries via bullet chars (â€¢) **and** action-verb starts
       3. Joins continuation lines with the previous bullet
       4. Returns a list of complete text items (bullets + non-bullet lines)
     """
     if not text or not text.strip():
         return []
 
-    # ── Step 1: fix hyphenated word breaks at line endings ──
-    # "prop-\nerty" → "property",  "conser-\nvation" → "conservation"
+    # â”€â”€ Step 1: fix hyphenated word breaks at line endings â”€â”€
+    # "prop-\nerty" â†’ "property",  "conser-\nvation" â†’ "conservation"
     text = re.sub(r"-\s*\n\s*([a-z])", r"\1", text)
 
-    # ── Step 2: walk lines, merging continuations ──
+    # â”€â”€ Step 2: walk lines, merging continuations â”€â”€
     raw_lines = text.split("\n")
     items: list = []
     current = ""
@@ -277,7 +277,7 @@ def _rejoin_pdf_lines(text: str) -> list:
     for raw in raw_lines:
         stripped = raw.strip()
 
-        # Blank line → flush current item
+        # Blank line â†’ flush current item
         if not stripped:
             if current:
                 items.append(current)
@@ -309,7 +309,7 @@ def _rejoin_pdf_lines(text: str) -> list:
             current = stripped
             continue
 
-        # ── Decide: continuation of current item  vs  new item ──
+        # â”€â”€ Decide: continuation of current item  vs  new item â”€â”€
         prev_ends_sentence = current.rstrip()[-1:] in ".!?;"
         starts_lower = stripped[0:1].islower()
 
@@ -336,12 +336,12 @@ def _is_experience_bullet(line: str) -> bool:
     """
     stripped = line.strip()
 
-    # Too short → likely a title, company name, or date
+    # Too short â†’ likely a title, company name, or date
     if len(stripped) < 35:
         return False
 
     # Lines that contain a date-range pattern are usually job-title / header lines
-    # e.g. "Junior AI Developer AKC Techno Solz, Feb 2025 – Present"
+    # e.g. "Junior AI Developer AKC Techno Solz, Feb 2025 â€“ Present"
     if _DATE_RANGE_RE.search(stripped):
         return False
 
@@ -376,7 +376,7 @@ def _is_experience_bullet(line: str) -> bool:
 
 def _line_has_metric(line: str) -> bool:
     """
-    Return True only if the line contains a **real quantifiable metric** —
+    Return True only if the line contains a **real quantifiable metric** â€”
     an actual number, percentage, dollar amount, or measurable result.
 
     Vague improvement words (improved, reduced, increasing) WITHOUT
@@ -386,7 +386,7 @@ def _line_has_metric(line: str) -> bool:
     company info) are stripped before checking so they don't produce false
     positives.
     """
-    # ── Strip date / year references ──
+    # â”€â”€ Strip date / year references â”€â”€
     # Remove "Month Year" patterns  (e.g. "Feb 2025", "January 2024")
     cleaned = re.sub(
         r"(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|"
@@ -396,16 +396,16 @@ def _line_has_metric(line: str) -> bool:
         line,
         flags=re.I,
     )
-    # Remove standalone 4-digit years (1990–2039 covers typical CVs)
+    # Remove standalone 4-digit years (1990â€“2039 covers typical CVs)
     cleaned = re.sub(r"\b(?:19|20)\d{2}\b", "", cleaned)
-    # Remove "– Present" / "– Current" date-range tails left over
-    cleaned = re.sub(r"[-–—]\s*(?:Present|Current|Now)\b", "", cleaned, flags=re.I)
+    # Remove "â€“ Present" / "â€“ Current" date-range tails left over
+    cleaned = re.sub(r"[-â€“â€”]\s*(?:Present|Current|Now)\b", "", cleaned, flags=re.I)
 
-    # ── Check if any digit remains → actual metric ──
+    # â”€â”€ Check if any digit remains â†’ actual metric â”€â”€
     if re.search(r"\d", cleaned):
         return True
 
-    # ── Written-out large-scale numbers (without digits) ──
+    # â”€â”€ Written-out large-scale numbers (without digits) â”€â”€
     if re.search(r"\b(?:million|billion|trillion)\b", cleaned, re.I):
         return True
 
@@ -451,7 +451,7 @@ def calculate_quantifying_impact(cv_text: str) -> Tuple[int, Dict]:
     lines = [item for item in all_items if _is_experience_bullet(item)]
 
     if not lines:
-        # No experience bullet points found — give a moderate baseline score
+        # No experience bullet points found â€” give a moderate baseline score
         return QUANTIFY_BASE_SCORE, {
             "details": "No experience bullet points detected to analyse.",
             "total_lines": 0,
@@ -536,8 +536,8 @@ def calculate_repetition(cv_text: str) -> Tuple[int, Dict]:
             "suggestions": WORD_SYNONYMS[word][:3],
         })
 
-    # ── Scoring ──
-    # Start at 100; deduct for each extra repeat beyond (threshold − 1).
+    # â”€â”€ Scoring â”€â”€
+    # Start at 100; deduct for each extra repeat beyond (threshold âˆ’ 1).
     penalty = 0
     for item in flagged:
         extra = item["count"] - (REPETITION_VERB_REPEAT_THRESHOLD - 1)
@@ -590,7 +590,7 @@ def calculate_spelling_grammar(cv_text: str) -> Tuple[int, Dict]:
     issue_labels: list[str] = []
     issues_list: list[Dict] = []
 
-    # ── 1. Multiple consecutive spaces ──
+    # â”€â”€ 1. Multiple consecutive spaces â”€â”€
     # Only flag runs of exactly 2 spaces between content characters.
     # Runs of 3+ spaces are almost always PDF column-alignment artefacts
     # (e.g. "Junior AI Developer                AKC Techno Solz") and should
@@ -613,7 +613,7 @@ def calculate_spelling_grammar(cv_text: str) -> Tuple[int, Dict]:
             "examples": [m.strip() for m in double_matches[:3]],
         })
 
-    # ── 2. Excessive all-caps words (skip tech acronyms & section headers) ──
+    # â”€â”€ 2. Excessive all-caps words (skip tech acronyms & section headers) â”€â”€
     long_caps = re.findall(
         rf"\b[A-Z]{{{SPELLING_ALL_CAPS_MIN_LENGTH},}}\b", text
     )
@@ -628,9 +628,9 @@ def calculate_spelling_grammar(cv_text: str) -> Tuple[int, Dict]:
             "examples": list(dict.fromkeys(non_tech_caps))[:5],
         })
 
-    # ── 3. Inconsistent bullet-point characters ──
+    # â”€â”€ 3. Inconsistent bullet-point characters â”€â”€
     bullet_chars = re.findall(
-        r"^[\s]*([•·▪▸►➤\-\*])", text, re.MULTILINE
+        r"^[\s]*([â€¢Â·â–ªâ–¸â–ºâž¤\-\*])", text, re.MULTILINE
     )
     unique_bullets = set(bullet_chars)
     if len(unique_bullets) > 2:
@@ -641,7 +641,7 @@ def calculate_spelling_grammar(cv_text: str) -> Tuple[int, Dict]:
             "examples": list(unique_bullets),
         })
 
-    # ── 4. Bullet points missing ending punctuation ──
+    # â”€â”€ 4. Bullet points missing ending punctuation â”€â”€
     # Use PDF-line rejoining so we check *complete* bullets, not fragments.
     experience_text = _extract_experience_sections(text)
     bullets = _rejoin_pdf_lines(experience_text)
@@ -707,7 +707,7 @@ def calculate_contact_info(cv_text: str) -> Dict[str, Any]:
 
     # Pre-clean PDF icon artifacts that bleed into adjacent text.
     # PDF icon fonts (e.g. FontAwesome) are extracted as garbled unicode + ASCII
-    # remnants like "/envel⌢pe" for envelope or "♂phone-alt" for phone icon.
+    # remnants like "/envelâŒ¢pe" for envelope or "â™‚phone-alt" for phone icon.
     # Only clean the header area (first ~5 lines) to avoid damaging body text.
     lines = text.split("\n")
     cleaned_lines = []
@@ -737,7 +737,7 @@ def calculate_contact_info(cv_text: str) -> Dict[str, Any]:
     found = []
     missing = []
 
-    # ── Phone number ──
+    # â”€â”€ Phone number â”€â”€
     phone_patterns = [
         r"(?:\+?\d{1,3}[\s\-.]?)?\(?\d{2,4}\)?[\s\-.]?\d{3,4}[\s\-.]?\d{3,4}",
         r"\+\d{1,3}\s?\d{4,14}",
@@ -762,7 +762,7 @@ def calculate_contact_info(cv_text: str) -> Dict[str, Any]:
             "message": "No phone number found. Include a professional contact number.",
         })
 
-    # ── Email address ──
+    # â”€â”€ Email address â”€â”€
     email_match = re.search(r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}", cleaned)
     if email_match:
         found.append({"type": "email", "label": "Email address", "value": email_match.group()})
@@ -773,7 +773,7 @@ def calculate_contact_info(cv_text: str) -> Dict[str, Any]:
             "message": "No email address found. Include a professional email.",
         })
 
-    # ── LinkedIn ──
+    # â”€â”€ LinkedIn â”€â”€
     # Standard URL format
     linkedin_match = re.search(
         r"(?:https?://)?(?:www\.)?linkedin\.com/in/([\w\-]+)/?",
@@ -798,7 +798,7 @@ def calculate_contact_info(cv_text: str) -> Dict[str, Any]:
                 "message": "You are either not using an ATS friendly template, or you are missing your LinkedIn in your resume.",
             })
 
-    # ── GitHub ──
+    # â”€â”€ GitHub â”€â”€
     github_match = re.search(
         r"(?:https?://)?(?:www\.)?github\.com/([\w\-]+)/?",
         cleaned,
@@ -816,7 +816,7 @@ def calculate_contact_info(cv_text: str) -> Dict[str, Any]:
         elif re.search(r"github", cleaned, re.I):
             found.append({"type": "github", "label": "GitHub", "value": "(detected but URL not parsed)"})
 
-    # ── Portfolio / Website ──
+    # â”€â”€ Portfolio / Website â”€â”€
     website_match = re.search(
         r"(?:https?://)?(?:www\.)?(?!linkedin\.com|github\.com)[a-zA-Z0-9\-]+\.[a-zA-Z]{2,}(?:/\S*)?",
         cleaned,
@@ -828,7 +828,7 @@ def calculate_contact_info(cv_text: str) -> Dict[str, Any]:
         if not any(d in val.lower() for d in skip_domains):
             found.append({"type": "website", "label": "Portfolio/Website", "value": val})
 
-    # ── Location / Address ──
+    # â”€â”€ Location / Address â”€â”€
     # Simple heuristic: look for city/country patterns near "address" or at top of resume
     location_patterns = [
         r"(?:address|location|city)\s*[:\-]?\s*(.+)",
@@ -922,7 +922,15 @@ def calculate_ats_essentials(cv_text: str, file_name: str = "", file_size_bytes:
             "section_headers_present": False,
             "text_based": True,
             "issues": ["No content"],
-            "file_format": {"is_pdf": False, "file_name": "", "file_size_kb": 0, "size_ok": False},
+            "file_format": {
+                "is_supported_format": False,
+                "is_pdf": False,
+                "is_docx": False,
+                "file_name": "",
+                "file_size_kb": 0,
+                "file_size_mb": 0,
+                "size_ok": False,
+            },
             "email_check": {"found": False, "email": "", "is_professional": False},
             "header_links": {"has_links": False, "links": []},
         }
@@ -963,20 +971,27 @@ def calculate_ats_essentials(cv_text: str, file_name: str = "", file_size_bytes:
 
     score = min(MAX_SCORE, score)
 
-    # ── File Format & Size ──
-    is_pdf = file_name.lower().endswith(".pdf") if file_name else True  # assume PDF
+    # File format and size
+    lower_name = file_name.lower() if file_name else ""
+    is_pdf = lower_name.endswith(".pdf")
+    is_docx = lower_name.endswith(".docx")
+    is_supported_format = (is_pdf or is_docx) if file_name else True
     file_size_kb = round(file_size_bytes / 1024, 1) if file_size_bytes else 0
     file_size_mb = round(file_size_bytes / (1024 * 1024), 2) if file_size_bytes else 0
     size_ok = file_size_bytes <= 2 * 1024 * 1024 if file_size_bytes else True  # <=2MB
+    if not is_supported_format:
+        issues.append("Unsupported file format (use PDF or DOCX)")
     file_format_info = {
+        "is_supported_format": is_supported_format,
         "is_pdf": is_pdf,
+        "is_docx": is_docx,
         "file_name": file_name,
         "file_size_kb": file_size_kb,
         "file_size_mb": file_size_mb,
         "size_ok": size_ok,
     }
 
-    # ── Email Address Check ──
+    # Email address check
     email_match = re.search(r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}", text)
     email_str = email_match.group() if email_match else ""
     # Check email professionalism (not generic/unprofessional prefixes)
@@ -999,7 +1014,7 @@ def calculate_ats_essentials(cv_text: str, file_name: str = "", file_size_bytes:
         "is_professional": is_professional,
     }
 
-    # ── Header Links (URLs in the header/top area) ──
+    # Header links (URLs in the header/top area)
     # Check top ~5 lines for full URLs
     top_lines = "\n".join(text.split("\n")[:6])
     url_pattern = r"(?:https?://)?(?:www\.)?[a-zA-Z0-9\-]+\.[a-zA-Z]{2,}(?:/[\w\-./]*)*"
@@ -1072,7 +1087,7 @@ def calculate_tailoring(cv_text: str, job_desc: str) -> Tuple[int, Dict[str, Any
             "missing_keywords": [],
         }
 
-    # ── 1. Extract multi-word tech phrases from JD (e.g. "machine learning", "google cloud") ──
+    # â”€â”€ 1. Extract multi-word tech phrases from JD (e.g. "machine learning", "google cloud") â”€â”€
     tech_phrases = set()
     # Common multi-word tech/skill patterns
     multi_word_patterns = [
@@ -1104,7 +1119,7 @@ def calculate_tailoring(cv_text: str, job_desc: str) -> Tuple[int, Dict[str, Any
         for m in matches:
             tech_phrases.add(m.strip())
 
-    # ── 2. Extract single-word tech/skill keywords from JD ──
+    # â”€â”€ 2. Extract single-word tech/skill keywords from JD â”€â”€
     jd_words = set(re.findall(rf"[a-z][a-z0-9\+\#\.]*(?:[a-z0-9\+\#])", jd))
     cv_words_text = cv  # keep full text for phrase matching
     cv_words = set(re.findall(rf"[a-z][a-z0-9\+\#\.]*(?:[a-z0-9\+\#])", cv))
@@ -1135,11 +1150,11 @@ def calculate_tailoring(cv_text: str, job_desc: str) -> Tuple[int, Dict[str, Any
             "missing_keywords": [],
         }
 
-    # ── 3. Match single keywords ──
+    # â”€â”€ 3. Match single keywords â”€â”€
     matched_single = jd_key & cv_words
     missing_single = jd_key - cv_words
 
-    # ── 4. Match multi-word phrases ──
+    # â”€â”€ 4. Match multi-word phrases â”€â”€
     matched_phrases = set()
     missing_phrases = set()
     for phrase in tech_phrases:
@@ -1148,7 +1163,7 @@ def calculate_tailoring(cv_text: str, job_desc: str) -> Tuple[int, Dict[str, Any
         else:
             missing_phrases.add(phrase)
 
-    # ── 5. Calculate scores ──
+    # â”€â”€ 5. Calculate scores â”€â”€
     total_items = len(jd_key) + len(tech_phrases)
     matched_items = len(matched_single) + len(matched_phrases)
 
@@ -1204,3 +1219,242 @@ def blend_scores(programmatic_score: int, ai_score: Optional[int]) -> int:
     
     ai_normalized = normalize_score(ai_score)
     return int((programmatic_score + ai_normalized) / 2)
+
+
+def calculate_final_score_breakdown(
+    ats_parse_rate: int,
+    quant_score: int,
+    repetition_score: int,
+    spelling_score: int,
+    tailoring_score: int,
+    sections_score: int,
+    ats_essentials_score: int,
+    contact_score: int,
+    has_job_description: bool,
+) -> Dict[str, Any]:
+    """
+    Compute a transparent final score with weighted component breakdown.
+
+    Returns:
+        Dict with:
+            final_score: int (0-100)
+            mode: str
+            content_average: int
+            components: list[{id,label,score,weight,weighted_points}]
+            formula: human-readable formula string
+    """
+    content_average = normalize_score(
+        int((ats_parse_rate + quant_score + repetition_score + spelling_score) / 4)
+    )
+
+    if has_job_description:
+        components = [
+            ("content_quality", "Content Quality", content_average, 0.30),
+            ("jd_alignment", "JD Alignment", normalize_score(tailoring_score), 0.25),
+            ("sections", "Sections", normalize_score(sections_score), 0.15),
+            ("ats_essentials", "ATS Essentials", normalize_score(ats_essentials_score), 0.15),
+            ("contact", "Contact Completeness", normalize_score(contact_score), 0.15),
+        ]
+        mode = "jd_aligned"
+    else:
+        components = [
+            ("content_quality", "Content Quality", content_average, 0.35),
+            ("sections", "Sections", normalize_score(sections_score), 0.25),
+            ("ats_essentials", "ATS Essentials", normalize_score(ats_essentials_score), 0.25),
+            ("contact", "Contact Completeness", normalize_score(contact_score), 0.15),
+        ]
+        mode = "no_jd"
+
+    breakdown_rows: List[Dict[str, Any]] = []
+    weighted_total = 0.0
+    formula_parts: List[str] = []
+    for comp_id, label, score, weight in components:
+        weighted_points = round(score * weight, 2)
+        weighted_total += weighted_points
+        formula_parts.append(f"{weight:.2f}*{score}")
+        breakdown_rows.append(
+            {
+                "id": comp_id,
+                "label": label,
+                "score": normalize_score(score),
+                "weight": weight,
+                "weighted_points": weighted_points,
+            }
+        )
+
+    final_score = normalize_score(int(round(weighted_total)))
+    return {
+        "final_score": final_score,
+        "mode": mode,
+        "content_average": content_average,
+        "components": breakdown_rows,
+        "formula": " + ".join(formula_parts),
+    }
+
+
+def build_jd_skill_matrix(
+    cv_text: str,
+    job_desc: str,
+    tailoring_details: Optional[Dict[str, Any]] = None,
+    max_items: int = 24,
+) -> List[Dict[str, str]]:
+    """
+    Build a JD-to-resume skill evidence matrix with Found/Partial/Missing status.
+    """
+    cv_raw = (cv_text or "").strip()
+    jd_raw = (job_desc or "").strip()
+    if not cv_raw or not jd_raw:
+        return []
+
+    details = tailoring_details or calculate_tailoring(cv_raw, jd_raw)[1]
+    matched = list(details.get("matched_keywords", []))
+    missing = list(details.get("missing_keywords", []))
+    if not matched and not missing:
+        return []
+
+    skills = sorted(set([*matched, *missing]), key=lambda x: (len(str(x)), str(x)))[:max_items]
+    cv_lower = cv_raw.lower()
+    cv_lines = [ln.strip() for ln in cv_raw.splitlines() if ln.strip()]
+
+    def _best_evidence_line(skill: str) -> str:
+        skill_lower = skill.lower()
+        # First pass: exact phrase match.
+        for line in cv_lines:
+            if skill_lower in line.lower():
+                return line
+        # Second pass: best token overlap.
+        tokens = [t for t in re.findall(r"[a-z0-9\+\#\.]+", skill_lower) if len(t) >= 3]
+        if not tokens:
+            return ""
+        best_line = ""
+        best_hits = 0
+        for line in cv_lines:
+            line_lower = line.lower()
+            hits = sum(1 for t in tokens if t in line_lower)
+            if hits > best_hits:
+                best_hits = hits
+                best_line = line
+        return best_line if best_hits > 0 else ""
+
+    matrix: List[Dict[str, str]] = []
+    for skill in skills:
+        skill_str = str(skill).strip()
+        if not skill_str:
+            continue
+        skill_lower = skill_str.lower()
+        tokens = [t for t in re.findall(r"[a-z0-9\+\#\.]+", skill_lower) if len(t) >= 3]
+
+        if skill_lower in cv_lower:
+            status = "Found"
+            confidence = "High"
+        elif tokens and any(t in cv_lower for t in tokens):
+            status = "Partial"
+            confidence = "Medium"
+        else:
+            status = "Missing"
+            confidence = "Low"
+
+        evidence = _best_evidence_line(skill_str)
+        if not evidence:
+            evidence = "No direct evidence found in resume text."
+        elif len(evidence) > 140:
+            evidence = evidence[:137].rstrip() + "..."
+
+        matrix.append(
+            {
+                "skill": skill_str,
+                "status": status,
+                "confidence": confidence,
+                "evidence": evidence,
+            }
+        )
+
+    return matrix
+
+
+def generate_section_rewrite_recommendations(
+    cv_text: str,
+    quantifying_impact_data: Optional[Dict[str, Any]] = None,
+    repetition_data: Optional[Dict[str, Any]] = None,
+    max_items: int = 8,
+) -> List[Dict[str, str]]:
+    """
+    Generate section-level before/after rewrite recommendations.
+
+    Heuristic approach:
+    - Prioritize non-quantified experience lines.
+    - Replace repeated verbs where synonym suggestions exist.
+    - Add measurable-impact placeholders for actionable rewrites.
+    """
+    quant_data = quantifying_impact_data or {}
+    rep_data = repetition_data or {}
+
+    repeated_map: Dict[str, List[str]] = {}
+    for row in rep_data.get("repeated_words", []) or []:
+        word = str(row.get("word", "")).strip().lower()
+        suggestions = [str(s).strip() for s in row.get("suggestions", []) if str(s).strip()]
+        if word and suggestions:
+            repeated_map[word] = suggestions
+
+    candidates: List[str] = []
+    for line in quant_data.get("non_quantified_lines", []) or []:
+        line_s = str(line).strip()
+        if line_s and line_s not in candidates:
+            candidates.append(line_s)
+
+    if not candidates:
+        # Fallback: use lines that contain repeated words.
+        for raw_line in (cv_text or "").splitlines():
+            line = raw_line.strip()
+            if not line:
+                continue
+            line_lower = line.lower()
+            if any(re.search(rf"\b{re.escape(w)}\b", line_lower) for w in repeated_map):
+                if line not in candidates:
+                    candidates.append(line)
+            if len(candidates) >= max_items:
+                break
+
+    def _rewrite_line(line: str) -> Tuple[str, str]:
+        rewritten = line
+        rationale_parts: List[str] = []
+
+        # Improve repeated action verb, if present.
+        for word, suggestions in repeated_map.items():
+            if not suggestions:
+                continue
+            pattern = re.compile(rf"\b{re.escape(word)}\b", re.I)
+            if pattern.search(rewritten):
+                replacement = suggestions[0]
+                rewritten = pattern.sub(replacement, rewritten, count=1)
+                rationale_parts.append(f"replaced repeated verb '{word}' with '{replacement}'")
+                break
+
+        # Add measurable outcome if no metric is present.
+        if not _line_has_metric(rewritten):
+            rewritten = rewritten.rstrip(". ")
+            rewritten += " by [X%], improving [outcome] by [Y]."
+            rationale_parts.append("added measurable impact placeholders")
+
+        if not rewritten.endswith("."):
+            rewritten += "."
+
+        rationale = "; ".join(rationale_parts) if rationale_parts else "improved clarity and impact"
+        return rewritten, rationale
+
+    recommendations: List[Dict[str, str]] = []
+    for line in candidates[:max_items]:
+        after, rationale = _rewrite_line(line)
+        if after.strip() == line.strip():
+            continue
+        recommendations.append(
+            {
+                "section": "Experience / Projects",
+                "before": line,
+                "after": after,
+                "rationale": rationale,
+            }
+        )
+
+    return recommendations
+

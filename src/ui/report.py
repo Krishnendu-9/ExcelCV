@@ -8,7 +8,7 @@ from typing import Any, Dict, List
 import streamlit as st
 import streamlit.components.v1 as components
 
-from src.reporting import build_report_md
+from src.reporting import build_report_pdf_bytes
 from src.ui.common import (
     _markdown_inline_to_html,
     get_score_color_class,
@@ -55,9 +55,15 @@ def _build_sidebar_html(score: int, issues: int, categories: list) -> str:
                                "error": "badge badge-warn", "lock": "badge badge-lock"
                                }.get(status, "badge badge-warn")
 
-                # For Content category metrics (ATS Parse Rate, Quantifying Impact, Repetition, Spelling & Grammar),
+                # For Content category metrics, always show percentage score.
                 # always show percentage score, not issue count
-                is_content_metric = item_label in ("ATS Parse Rate", "Quantifying Impact", "Repetition", "Spelling & Grammar")
+                is_content_metric = item_label in (
+                    "Explainable Scoring",
+                    "ATS Parse Rate",
+                    "Quantifying Impact",
+                    "Repetition",
+                    "Spelling & Grammar",
+                )
                 
                 if is_content_metric:
                     # Always show percentage for content metrics
@@ -129,6 +135,335 @@ def _build_ats_parse_rate_html(ats_val: int) -> str:
                 </div>
             </div>
             """
+
+
+def _build_explainable_scoring_html(score_breakdown: Dict[str, Any]) -> str:
+    """Build explainable weighted scoring card."""
+    final_score = int(score_breakdown.get("final_score", 0))
+    mode = score_breakdown.get("mode", "jd_aligned")
+    content_avg = int(score_breakdown.get("content_average", 0))
+    components = score_breakdown.get("components", []) or []
+
+    mode_text = (
+        "JD-aligned mode (job description provided)"
+        if mode == "jd_aligned"
+        else "No-JD mode (weights redistributed)"
+    )
+    html = f"""
+        <div class="detail-card section-anchor" id="explainable-scoring">
+            <div class="detail-head">
+                <h3>Explainable Scoring</h3>
+                <span class="badge badge-ok">{final_score}%</span>
+            </div>
+            <div class="section-body">
+                <p class="section-body-item text-description">
+                    Final score is calculated by weighted deterministic components. Mode: {mode_text}.
+                    Content average is {content_avg}% from ATS Parse, Quantifying Impact, Repetition, and Spelling.
+                </p>
+                <div class="issue-card good-card" style="margin-top:10px;">
+                    <div class="issue-heading">Weighted score breakdown</div>
+    """
+    for component in components:
+        label = _escape_html(component.get("label", "Component"))
+        score = int(component.get("score", 0))
+        weight = float(component.get("weight", 0))
+        weighted_points = float(component.get("weighted_points", 0))
+        html += f"""
+                    <div class="contact-row">
+                        <span class="contact-label">{label}</span>
+                        <span class="contact-sep">&mdash;</span>
+                        <span class="contact-value">{score}% x {weight:.2f} = {weighted_points:.2f}</span>
+                    </div>
+        """
+    html += """
+                </div>
+            </div>
+        </div>
+    """
+    return html
+
+
+def _build_skill_matrix_html(skill_matrix: List[Dict[str, Any]]) -> str:
+    """Build JD-to-skill evidence matrix card."""
+    if not skill_matrix:
+        return """
+        <div class="detail-card section-anchor" id="jd-skill-matrix">
+            <div class="detail-head">
+                <h3>JD Skill Matrix</h3>
+                <span class="badge badge-lock">Locked</span>
+            </div>
+            <div class="section-body">
+                <div class="issue-card">
+                    <div class="issue-heading">Add a job description to generate the skill evidence matrix.</div>
+                </div>
+            </div>
+        </div>
+        """
+
+    found = sum(1 for row in skill_matrix if row.get("status") == "Found")
+    partial = sum(1 for row in skill_matrix if row.get("status") == "Partial")
+    missing = sum(1 for row in skill_matrix if row.get("status") == "Missing")
+    badge_cls = "ok" if missing == 0 else "warn"
+    badge_text = "All covered" if missing == 0 else f"{missing} missing"
+
+    html = f"""
+        <div class="detail-card section-anchor" id="jd-skill-matrix">
+            <div class="detail-head">
+                <h3>JD Skill Matrix</h3>
+                <span class="badge badge-{badge_cls}">{badge_text}</span>
+            </div>
+            <div class="section-body">
+                <p class="section-body-item text-description">
+                    Skill evidence mapping: {found} found, {partial} partial, {missing} missing.
+                </p>
+                <div class="issue-card" style="margin-top:10px;">
+    """
+    for row in skill_matrix:
+        skill = _escape_html(row.get("skill", ""))
+        status = row.get("status", "Missing")
+        evidence = _escape_html(row.get("evidence", ""))
+        icon = "&#10003;" if status == "Found" else ("&#9888;" if status == "Partial" else "&#10005;")
+        icon_cls = "found" if status == "Found" else "missing"
+        html += f"""
+                    <div class="contact-row">
+                        <span class="contact-icon {icon_cls}">{icon}</span>
+                        <span class="contact-label">{skill}</span>
+                        <span class="contact-sep">&mdash;</span>
+                        <span class="contact-value contact-msg">{status}: {evidence}</span>
+                    </div>
+        """
+    html += """
+                </div>
+            </div>
+        </div>
+    """
+    return html
+
+
+def _build_rewrite_assistant_html(rewrite_recommendations: List[Dict[str, Any]]) -> str:
+    """Build before/after rewrite suggestions card."""
+    if not rewrite_recommendations:
+        return """
+        <div class="detail-card section-anchor" id="rewrite-assistant">
+            <div class="detail-head">
+                <h3>Rewrite Assistant</h3>
+                <span class="badge badge-ok">No issues</span>
+            </div>
+            <div class="section-body">
+                <div class="issue-card good-card">
+                    <div class="issue-heading">No rewrite recommendations generated from current analysis.</div>
+                </div>
+            </div>
+        </div>
+        """
+
+    html = f"""
+        <div class="detail-card section-anchor" id="rewrite-assistant">
+            <div class="detail-head">
+                <h3>Rewrite Assistant</h3>
+                <span class="badge badge-warn">{len(rewrite_recommendations)} suggestions</span>
+            </div>
+            <div class="section-body">
+                <p class="section-body-item text-description">
+                    Before/after rewrites to strengthen impact and clarity. Replace placeholders with real metrics.
+                </p>
+    """
+    for row in rewrite_recommendations:
+        before = _escape_html(row.get("before", ""))
+        after = _escape_html(row.get("after", ""))
+        rationale = _escape_html(row.get("rationale", ""))
+        html += f"""
+                <div class="issue-card" style="margin-top:10px;">
+                    <div class="contact-row">
+                        <span class="contact-label">Before</span>
+                        <span class="contact-sep">&mdash;</span>
+                        <span class="contact-value contact-msg">{before}</span>
+                    </div>
+                    <div class="contact-row">
+                        <span class="contact-label">After</span>
+                        <span class="contact-sep">&mdash;</span>
+                        <span class="contact-value contact-msg">{after}</span>
+                    </div>
+                    <div class="contact-row">
+                        <span class="contact-label">Why</span>
+                        <span class="contact-sep">&mdash;</span>
+                        <span class="contact-value contact-msg">{rationale}</span>
+                    </div>
+                </div>
+        """
+    html += """
+            </div>
+        </div>
+    """
+    return html
+
+
+def _build_recruiter_snapshot_html(snapshot: Dict[str, Any]) -> str:
+    verdict = _escape_html(snapshot.get("verdict", "Snapshot"))
+    summary = _escape_html(snapshot.get("summary", "No recruiter snapshot available."))
+    badge = "ok" if verdict == "Strong Fit" else ("warn" if verdict == "Potential Fit" else "warn")
+    return f"""
+        <div class="detail-card section-anchor" id="recruiter-snapshot">
+            <div class="detail-head">
+                <h3>Recruiter Snapshot</h3>
+                <span class="badge badge-{badge}">{verdict}</span>
+            </div>
+            <div class="section-body">
+                <div class="issue-card" style="margin-top:10px;">
+                    <div class="issue-heading">Quick recruiter-view summary</div>
+                    <div class="text-description" style="margin-top:8px;">{summary}</div>
+                </div>
+            </div>
+        </div>
+    """
+
+
+def _build_priority_action_plan_html(action_plan: List[Dict[str, Any]]) -> str:
+    if not action_plan:
+        return """
+        <div class="detail-card section-anchor" id="priority-action-plan">
+            <div class="detail-head">
+                <h3>Priority Action Plan</h3>
+                <span class="badge badge-ok">No issues</span>
+            </div>
+            <div class="section-body">
+                <div class="issue-card good-card">
+                    <div class="issue-heading">No immediate high-priority actions detected.</div>
+                </div>
+            </div>
+        </div>
+        """
+
+    html = f"""
+        <div class="detail-card section-anchor" id="priority-action-plan">
+            <div class="detail-head">
+                <h3>Priority Action Plan</h3>
+                <span class="badge badge-warn">{len(action_plan)} actions</span>
+            </div>
+            <div class="section-body">
+    """
+    for idx, item in enumerate(action_plan, start=1):
+        title = _escape_html(item.get("title", "Action item"))
+        priority = _escape_html(item.get("priority", "Medium"))
+        impact = _escape_html(item.get("impact", "Medium"))
+        effort = _escape_html(item.get("effort", "Medium"))
+        action = _escape_html(item.get("action", ""))
+        html += f"""
+                <div class="issue-card" style="margin-top:10px;text-align:left;">
+                    <div class="issue-heading">{idx}. {title}</div>
+                    <div class="text-description" style="margin-top:6px;">Priority: {priority} | Impact: {impact} | Effort: {effort}</div>
+                    <div class="contact-row" style="margin-top:10px;">
+                        <span class="contact-label">Next Step</span>
+                        <span class="contact-sep">&mdash;</span>
+                        <span class="contact-value contact-msg">{action}</span>
+                    </div>
+                </div>
+        """
+    html += """
+            </div>
+        </div>
+    """
+    return html
+
+
+def _build_interview_prep_html(interview_prep: List[Dict[str, Any]]) -> str:
+    if not interview_prep:
+        return """
+        <div class="detail-card section-anchor" id="interview-prep">
+            <div class="detail-head">
+                <h3>Interview Prep</h3>
+                <span class="badge badge-lock">Locked</span>
+            </div>
+            <div class="section-body">
+                <div class="issue-card">
+                    <div class="issue-heading">Not enough data to generate interview prep prompts.</div>
+                </div>
+            </div>
+        </div>
+        """
+
+    html = f"""
+        <div class="detail-card section-anchor" id="interview-prep">
+            <div class="detail-head">
+                <h3>Interview Prep</h3>
+                <span class="badge badge-ok">{len(interview_prep)} questions</span>
+            </div>
+            <div class="section-body">
+    """
+    for row in interview_prep:
+        q_type = _escape_html(row.get("type", "Question"))
+        question = _escape_html(row.get("question", ""))
+        why = _escape_html(row.get("why", ""))
+        html += f"""
+                <div class="issue-card" style="margin-top:10px;text-align:left;">
+                    <div class="issue-heading">{q_type}</div>
+                    <div class="contact-row">
+                        <span class="contact-label">Q</span>
+                        <span class="contact-sep">&mdash;</span>
+                        <span class="contact-value contact-msg">{question}</span>
+                    </div>
+                    <div class="contact-row">
+                        <span class="contact-label">Why</span>
+                        <span class="contact-sep">&mdash;</span>
+                        <span class="contact-value contact-msg">{why}</span>
+                    </div>
+                </div>
+        """
+    html += """
+            </div>
+        </div>
+    """
+    return html
+
+
+def _build_learning_roadmap_html(roadmap: List[Dict[str, Any]]) -> str:
+    if not roadmap:
+        return """
+        <div class="detail-card section-anchor" id="learning-roadmap">
+            <div class="detail-head">
+                <h3>Learning Roadmap</h3>
+                <span class="badge badge-ok">On track</span>
+            </div>
+            <div class="section-body">
+                <div class="issue-card good-card">
+                    <div class="issue-heading">No significant skill-gap roadmap required right now.</div>
+                </div>
+            </div>
+        </div>
+        """
+
+    html = f"""
+        <div class="detail-card section-anchor" id="learning-roadmap">
+            <div class="detail-head">
+                <h3>Learning Roadmap</h3>
+                <span class="badge badge-warn">{len(roadmap)} targets</span>
+            </div>
+            <div class="section-body">
+    """
+    for row in roadmap:
+        skill = _escape_html(row.get("skill", "Skill"))
+        target = _escape_html(row.get("target", ""))
+        plan = _escape_html(row.get("plan", ""))
+        html += f"""
+                <div class="issue-card" style="margin-top:10px;text-align:left;">
+                    <div class="issue-heading">{skill}</div>
+                    <div class="contact-row">
+                        <span class="contact-label">Target</span>
+                        <span class="contact-sep">&mdash;</span>
+                        <span class="contact-value contact-msg">{target}</span>
+                    </div>
+                    <div class="contact-row">
+                        <span class="contact-label">Plan</span>
+                        <span class="contact-sep">&mdash;</span>
+                        <span class="contact-value contact-msg">{plan}</span>
+                    </div>
+                </div>
+        """
+    html += """
+            </div>
+        </div>
+    """
+    return html
 
 
 def _build_design_html(ats_issues: List[str]) -> str:
@@ -390,15 +725,17 @@ def _build_contact_information_html(contact_found: List[Dict[str, Any]], contact
 
 
 def _build_file_format_size_html(file_format_info: Dict[str, Any]) -> str:
-    ff_is_pdf = file_format_info.get("is_pdf", True)
+    ff_is_pdf = bool(file_format_info.get("is_pdf", False))
+    ff_is_docx = bool(file_format_info.get("is_docx", False))
+    ff_is_supported = bool(file_format_info.get("is_supported_format", ff_is_pdf or ff_is_docx))
     ff_size_ok = file_format_info.get("size_ok", True)
     ff_name = file_format_info.get("file_name", "")
     ff_size_kb = file_format_info.get("file_size_kb", 0)
     ff_size_mb = file_format_info.get("file_size_mb", 0)
-    ff_all_good = ff_is_pdf and ff_size_ok
+    ff_all_good = ff_is_supported and ff_size_ok
     ff_badge = "ok" if ff_all_good else "warn"
     ff_badge_txt = "No issues" if ff_all_good else "Issues found"
-    ff_ext = ff_name.rsplit(".", 1)[-1].upper() if "." in ff_name else "PDF"
+    ff_ext = ff_name.rsplit(".", 1)[-1].upper() if "." in ff_name else ("DOCX" if ff_is_docx else "PDF")
 
     ff_html = f"""
         <div class="detail-card section-anchor" id="file-format-size">
@@ -410,7 +747,7 @@ def _build_file_format_size_html(file_format_info: Dict[str, Any]) -> str:
                 <p class="section-body-item text-description">
                     When you're uploading your resume on platforms like Indeed, you're likely to meet a file size limit.
                     Ideally, your resume should be less than 2MB in size. Your file type also plays an important role
-                    in ATS screening. PDF files are preferred as the text can be easily read by the applicant tracking system.
+                    in ATS screening. PDF and DOCX are supported when the document is text-based and machine-readable.
                 </p>"""
 
     if ff_all_good:
@@ -424,11 +761,11 @@ def _build_file_format_size_html(file_format_info: Dict[str, Any]) -> str:
                 </div>"""
     else:
         ff_issues_html = ""
-        if not ff_is_pdf:
+        if not ff_is_supported:
             ff_issues_html += f"""
                     <div class="contact-row">
                         <span class="contact-icon missing">&#10005;</span>
-                        <span class="contact-value contact-msg">Your file type is <strong>{ff_ext}</strong>. PDF is the preferred format for ATS systems.</span>
+                        <span class="contact-value contact-msg">Your file type is <strong>{ff_ext}</strong>. Please use PDF or DOCX for ATS compatibility.</span>
                     </div>"""
         if not ff_size_ok:
             ff_issues_html += f"""
@@ -594,14 +931,22 @@ def _render_download_buttons(name: str, analysis: Dict[str, Any]) -> None:
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("### Download Reports", unsafe_allow_html=False)
     col1, col2 = st.columns(2, gap="medium")
+    pdf_bytes = b""
+    pdf_error = ""
+    try:
+        pdf_bytes = build_report_pdf_bytes(name, analysis)
+    except RuntimeError as exc:
+        pdf_error = str(exc)
+
     with col1:
         st.download_button(
-            "\U0001F4DD Download Markdown Report",
-            data=build_report_md(name, analysis),
-            file_name=f"{name}-analysis.md",
-            mime="text/markdown",
+            "\U0001F4C4 Download PDF Report",
+            data=pdf_bytes,
+            file_name=f"{name}-analysis.pdf",
+            mime="application/pdf",
             use_container_width=True,
-            key="download_md_main",
+            key="download_pdf_main",
+            disabled=not bool(pdf_bytes),
         )
     with col2:
         st.download_button(
@@ -612,6 +957,8 @@ def _render_download_buttons(name: str, analysis: Dict[str, Any]) -> None:
             use_container_width=True,
             key="download_json_main",
         )
+    if pdf_error:
+        st.caption(pdf_error)
 
 
 
@@ -674,6 +1021,7 @@ def _build_sidebar_js() -> str:
         function scrollToSection(sectionId) {
             var el = doc.getElementById(sectionId);
             if (!el) return;
+            expandDetailCardForElement(el);
 
             el.scrollIntoView({ behavior: 'smooth', block: 'start' });
             el.style.transition = 'background-color 0.3s ease';
@@ -684,9 +1032,99 @@ def _build_sidebar_js() -> str:
             }, 1200);
         }
 
+        function collapseDetailCard(cardId) {
+            var card = doc.getElementById(cardId);
+            if (!card) return;
+            var head = card.querySelector('.detail-head');
+            var body = card.querySelector('.section-body');
+            if (!head || !body) return;
+            card.classList.remove('expanded');
+            card.classList.add('collapsed');
+            body.classList.remove('expanded');
+            body.classList.add('collapsed');
+            head.setAttribute('aria-expanded', 'false');
+        }
+
+        function expandDetailCard(cardId) {
+            var card = doc.getElementById(cardId);
+            if (!card) return;
+            var head = card.querySelector('.detail-head');
+            var body = card.querySelector('.section-body');
+            if (!head || !body) return;
+            card.classList.remove('collapsed');
+            card.classList.add('expanded');
+            body.classList.remove('collapsed');
+            body.classList.add('expanded');
+            head.setAttribute('aria-expanded', 'true');
+        }
+
+        function toggleDetailCard(cardId) {
+            var card = doc.getElementById(cardId);
+            if (!card) return;
+            if (card.classList.contains('expanded')) {
+                collapseDetailCard(cardId);
+            } else {
+                expandDetailCard(cardId);
+            }
+        }
+
+        function expandDetailCardForElement(el) {
+            var card = el.closest('.detail-card');
+            if (card && card.id) {
+                expandDetailCard(card.id);
+            }
+        }
+
+        function prepareDetailCards() {
+            var cards = Array.prototype.slice.call(doc.querySelectorAll('.detail-card'));
+            for (var i = 0; i < cards.length; i++) {
+                var card = cards[i];
+                if (!card || !card.id) continue;
+                var head = card.querySelector('.detail-head');
+                var body = card.querySelector('.section-body');
+                if (!head || !body) continue;
+
+                if (head.getAttribute('data-collapsible-ready') !== '1') {
+                    head.setAttribute('data-collapsible-ready', '1');
+                    head.setAttribute('role', 'button');
+                    head.setAttribute('tabindex', '0');
+                    head.classList.add('detail-head-collapsible');
+                    if (!head.querySelector('.detail-chevron')) {
+                        var h3 = head.querySelector('h3');
+                        if (h3) {
+                            var chev = doc.createElement('span');
+                            chev.className = 'detail-chevron';
+                            chev.innerHTML = '&#9660;';
+                            h3.appendChild(chev);
+                        }
+                    }
+                }
+
+                collapseDetailCard(card.id);
+            }
+        }
+
         function handleClick(e) {
             var t = e.target;
             if (!t || !t.closest) return;
+
+            var detailHead = t.closest('.detail-card .detail-head');
+            if (detailHead) {
+                var detailCard = detailHead.closest('.detail-card');
+                if (detailCard && detailCard.id) {
+                    toggleDetailCard(detailCard.id);
+                    e.stopPropagation();
+                    e.preventDefault();
+                    return;
+                }
+            }
+
+            var groupHead = t.closest('.report-group-head');
+            if (groupHead && groupHead.id && groupHead.id.indexOf('group-head-') === 0) {
+                e.stopPropagation();
+                e.preventDefault();
+                return;
+            }
 
             var head = t.closest('.category-head');
             if (head && head.id && head.id.indexOf('cat-head-') === 0) {
@@ -718,6 +1156,20 @@ def _build_sidebar_js() -> str:
             }
         }
 
+        function handleKeydown(e) {
+            var t = e.target;
+            if (!t || !t.closest) return;
+            var detailHead = t.closest('.detail-card .detail-head');
+            if (!detailHead) return;
+            var detailCard = detailHead.closest('.detail-card');
+            if (!detailCard || !detailCard.id) return;
+            if (e.key === 'Enter' || e.key === ' ') {
+                toggleDetailCard(detailCard.id);
+                e.stopPropagation();
+                e.preventDefault();
+            }
+        }
+
         function computeStickyTop() {
             var headers = Array.prototype.slice.call(
                 doc.querySelectorAll('[data-testid="stHorizontalBlock"]:has(.site-brand)')
@@ -745,19 +1197,22 @@ def _build_sidebar_js() -> str:
             if (!sidebar) return;
             var anchor = sidebar.parentElement;
             if (anchor && anchor.style) {
+                anchor.style.position = '';
                 anchor.style.minHeight = '';
             }
-            // Keep sidebar in normal document flow when not pinned.
-            sidebar.style.setProperty('position', 'static', 'important');
-            sidebar.style.setProperty('top', 'auto', 'important');
-            sidebar.style.setProperty('left', 'auto', 'important');
-            sidebar.style.setProperty('width', 'auto', 'important');
+            // Keep layout controlled by CSS sticky; clear JS overrides only.
+            sidebar.style.removeProperty('position');
+            sidebar.style.removeProperty('top');
+            sidebar.style.removeProperty('bottom');
+            sidebar.style.removeProperty('left');
+            sidebar.style.removeProperty('right');
+            sidebar.style.removeProperty('width');
             sidebar.style.removeProperty('max-height');
             sidebar.style.removeProperty('overflow-y');
             sidebar.style.removeProperty('z-index');
         }
 
-        function pinSidebar(topValue) {
+        function pinSidebar(topValue, baseTopValue) {
             var sidebar = doc.querySelector('.report-sidebar');
             if (!sidebar) return;
             var anchor = sidebar.parentElement;
@@ -765,18 +1220,19 @@ def _build_sidebar_js() -> str:
             var rect = anchor.getBoundingClientRect();
             if (!rect || rect.width < 140) return;
 
-            // Preserve left-column footprint while sidebar is fixed.
-            if (anchor.style) {
-                anchor.style.minHeight = sidebar.offsetHeight + 'px';
-            }
-
+            var maxHeightTop = Math.max(12, Math.round(baseTopValue || topValue || DEFAULT_TOP));
             sidebar.style.setProperty('position', 'fixed', 'important');
-            sidebar.style.setProperty('top', topValue + 'px', 'important');
+            sidebar.style.setProperty('top', Math.round(topValue) + 'px', 'important');
             sidebar.style.setProperty('left', Math.round(rect.left) + 'px', 'important');
             sidebar.style.setProperty('width', Math.round(rect.width) + 'px', 'important');
-            sidebar.style.setProperty('max-height', 'calc(100vh - ' + topValue + 'px - 12px)', 'important');
+            sidebar.style.setProperty('max-height', 'calc(100vh - ' + maxHeightTop + 'px - 12px)', 'important');
             sidebar.style.setProperty('overflow-y', 'auto', 'important');
             sidebar.style.setProperty('z-index', '20', 'important');
+        }
+
+        function dockSidebarBottom() {
+            // Legacy compatibility helper; sidebar clamping is handled in syncStickyTop().
+            unpinSidebar();
         }
 
         function syncStickyTop() {
@@ -801,11 +1257,46 @@ def _build_sidebar_js() -> str:
             }
 
             var rect = anchor.getBoundingClientRect();
+            var triggerTop = topValue + 6;
+            if (rect.top > triggerTop) {
+                unpinSidebar();
+                return;
+            }
+
+            var sidebarRect = sidebar.getBoundingClientRect();
+            var sidebarHeight = Math.max(220, Math.ceil(sidebarRect.height || sidebar.offsetHeight || 0));
+            var clampedTop = topValue;
+            var footer = doc.querySelector('.site-footer-band');
+            if (footer && footer.getBoundingClientRect) {
+                var footerRect = footer.getBoundingClientRect();
+                var maxAllowedTop = Math.floor(footerRect.top - sidebarHeight - 8);
+                clampedTop = Math.min(topValue, maxAllowedTop);
+            }
+
+            pinSidebar(clampedTop, topValue);
+            return;
+
+            var sidebar = doc.querySelector('.report-sidebar');
+            var anchor = sidebar ? sidebar.parentElement : null;
+            if (!sidebar || !anchor || !anchor.getBoundingClientRect) {
+                unpinSidebar();
+                return;
+            }
+
+            var rect = anchor.getBoundingClientRect();
             var triggerTop = topValue + 6;            // Pin as soon as sidebar reaches the sticky threshold.
             // This keeps the top PDF/action row untouched and prevents sidebar drop-outs.
+            var sidebarRect = sidebar.getBoundingClientRect();
+            var sidebarHeight = Math.max(220, Math.ceil(sidebarRect.height || sidebar.offsetHeight || 0));
+            var nearFooterBoundary = rect.bottom <= (topValue + sidebarHeight + 12);
+            var anchorCanDock = rect.height > (sidebarHeight + 16);
             var shouldPin = rect.top <= triggerTop;
             if (shouldPin) {
-                pinSidebar(topValue);
+                if (nearFooterBoundary && anchorCanDock) {
+                    dockSidebarBottom();
+                } else {
+                    pinSidebar(topValue);
+                }
             } else {
                 unpinSidebar();
             }
@@ -814,8 +1305,13 @@ def _build_sidebar_js() -> str:
         if (win.__sidebarSimpleClickHandler) {
             doc.removeEventListener('click', win.__sidebarSimpleClickHandler, true);
         }
+        if (win.__sidebarSimpleKeyHandler) {
+            doc.removeEventListener('keydown', win.__sidebarSimpleKeyHandler, true);
+        }
         win.__sidebarSimpleClickHandler = handleClick;
+        win.__sidebarSimpleKeyHandler = handleKeydown;
         doc.addEventListener('click', handleClick, true);
+        doc.addEventListener('keydown', handleKeydown, true);
 
         function initContent() {
             // Keep all scorecard categories collapsed on first load.
@@ -828,6 +1324,7 @@ def _build_sidebar_js() -> str:
                 itemGroups[j].classList.remove('expanded');
                 itemGroups[j].classList.add('collapsed');
             }
+            prepareDetailCards();
         }
 
         var initDone = false;
@@ -870,6 +1367,7 @@ def _build_sidebar_js() -> str:
             try { unpinSidebar(); } catch (e) {}
             try { win.removeEventListener('resize', onResize, true); } catch (e) {}
             try { win.removeEventListener('scroll', onScroll, true); } catch (e) {}
+            try { doc.removeEventListener('keydown', win.__sidebarSimpleKeyHandler, true); } catch (e) {}
             try { if (observer) observer.disconnect(); } catch (e) {}
             try { if (win.__excelcvSidebarScrollTick) win.cancelAnimationFrame(win.__excelcvSidebarScrollTick); } catch (e) {}
             win.__excelcvSidebarScrollTick = null;
@@ -895,7 +1393,7 @@ def _build_group_card(title: str, group_id: str, issues_found: int, body_html: s
         f'<div class="report-group section-anchor" id="{group_id}">'
         f'<div class="report-group-head"><h3>{title}</h3><span class="report-group-pill">{issue_text}</span></div>'
         f'<div class="report-group-body">{normalized_body}</div>'
-        '</div>'
+        "</div>"
     )
 
 
@@ -911,6 +1409,7 @@ def render_report_page(analysis: Dict[str, Any], name: str = "CV") -> None:
     quant_impact = content_metrics.get("quantifying_impact", {}) or {}
     repetition = content_metrics.get("repetition", {}) or {}
     spelling_grammar = content_metrics.get("spelling_grammar", {}) or {}
+    score_breakdown = analysis.get("score_breakdown", {}) or {}
 
     # Calculate Content category score as average of content metrics
     content_items = [
@@ -923,6 +1422,7 @@ def render_report_page(analysis: Dict[str, Any], name: str = "CV") -> None:
 
     # Build Content category items: (label, status, score)
     content_items_list = [
+        ("Explainable Scoring", "ok", score),
         ("ATS Parse Rate", "ok" if ats_parse_rate >= 80 else "warn" if ats_parse_rate >= 60 else "error", ats_parse_rate),
         ("Quantifying Impact", quant_impact.get("status", "ok"), quant_impact.get("score", 0)),
         ("Repetition", repetition.get("status", "ok"), repetition.get("score", 0)),
@@ -965,7 +1465,10 @@ def render_report_page(analysis: Dict[str, Any], name: str = "CV") -> None:
     ats_items_list = []
     ats_issues = ats_essentials_details.get("issues", [])
 
-    ff_ok = file_format_info.get("is_pdf", True) and file_format_info.get("size_ok", True)
+    ff_ok = file_format_info.get(
+        "is_supported_format",
+        file_format_info.get("is_pdf", False) or file_format_info.get("is_docx", False),
+    ) and file_format_info.get("size_ok", True)
     ats_items_list.append(("File Format & Size", "ok" if ff_ok else "warn", None if ff_ok else 1))
 
     if ats_issues:
@@ -988,12 +1491,55 @@ def render_report_page(analysis: Dict[str, Any], name: str = "CV") -> None:
     missing_skills_list = analysis.get("missing_skills", [])
     missing_keywords_list = analysis.get("missing_keywords", [])
     suggestions_list = analysis.get("suggestions", [])
+    jd_skill_matrix = analysis.get("jd_skill_matrix", []) or []
+    rewrite_recommendations = analysis.get("rewrite_recommendations", []) or []
+    recruiter_snapshot = analysis.get("recruiter_snapshot", {}) or {}
+    priority_action_plan = analysis.get("priority_action_plan", []) or []
+    interview_prep = analysis.get("interview_prep", []) or []
+    learning_roadmap = analysis.get("learning_roadmap", []) or []
+    portfolio_checklist = analysis.get("portfolio_checklist", {}) or {}
+    portfolio_missing = portfolio_checklist.get("missing", []) or []
+
+    matrix_missing_count = sum(1 for row in jd_skill_matrix if row.get("status") == "Missing")
+    matrix_partial_count = sum(1 for row in jd_skill_matrix if row.get("status") == "Partial")
+    matrix_issue_count = matrix_missing_count + matrix_partial_count
 
     insights_items_list = [
         ("Strengths", "ok" if strengths_list else "warn", len(strengths_list) if strengths_list else None),
         ("Missing Skills", "warn" if missing_skills_list else "ok", len(missing_skills_list) if missing_skills_list else None),
         ("Missing Keywords", "warn" if missing_keywords_list else "ok", len(missing_keywords_list) if missing_keywords_list else None),
         ("Suggestions", "ok" if suggestions_list else "warn", len(suggestions_list) if suggestions_list else None),
+        ("Recruiter Snapshot", "ok", None),
+        (
+            "Priority Action Plan",
+            "warn" if priority_action_plan else "ok",
+            len(priority_action_plan) if priority_action_plan else None,
+        ),
+        (
+            "Interview Prep",
+            "ok" if interview_prep else "lock",
+            len(interview_prep) if interview_prep else None,
+        ),
+        (
+            "Learning Roadmap",
+            "warn" if learning_roadmap else "ok",
+            len(learning_roadmap) if learning_roadmap else None,
+        ),
+        (
+            "Portfolio Checklist",
+            "warn" if portfolio_missing else "ok",
+            len(portfolio_missing) if portfolio_missing else None,
+        ),
+        (
+            "JD Skill Matrix",
+            "lock" if not jd_skill_matrix else ("warn" if matrix_issue_count > 0 else "ok"),
+            None if not jd_skill_matrix else (matrix_issue_count if matrix_issue_count > 0 else 0),
+        ),
+        (
+            "Rewrite Assistant",
+            "warn" if rewrite_recommendations else "ok",
+            len(rewrite_recommendations) if rewrite_recommendations else None,
+        ),
     ]
 
     total_insights = len(strengths_list) + len(missing_skills_list) + len(missing_keywords_list)
@@ -1076,7 +1622,15 @@ def render_report_page(analysis: Dict[str, Any], name: str = "CV") -> None:
         if not has_links:
             ats_issue_count += 1
 
-        insights_issue_count = len(missing_skills_list) + len(missing_keywords_list)
+        insights_issue_count = (
+            len(missing_skills_list)
+            + len(missing_keywords_list)
+            + matrix_issue_count
+            + len(rewrite_recommendations)
+            + len(priority_action_plan)
+            + len(learning_roadmap)
+            + len(portfolio_missing)
+        )
 
         content_group_html = _build_group_card(
             "Content",
@@ -1084,6 +1638,7 @@ def render_report_page(analysis: Dict[str, Any], name: str = "CV") -> None:
             content_issue_count,
             "".join(
                 [
+                    _build_explainable_scoring_html(score_breakdown),
                     _build_ats_parse_rate_html(content_metrics.get("ats_parse_rate", 0)),
                     _build_quantifying_impact_html(quant_impact),
                     _build_repetition_html(repetition),
@@ -1121,6 +1676,21 @@ def render_report_page(analysis: Dict[str, Any], name: str = "CV") -> None:
             insights_issue_count,
             "".join(
                 [
+                    _build_recruiter_snapshot_html(recruiter_snapshot),
+                    _build_priority_action_plan_html(priority_action_plan),
+                    _build_interview_prep_html(interview_prep),
+                    _build_learning_roadmap_html(learning_roadmap),
+                    _build_list_card(
+                        "Portfolio Checklist",
+                        portfolio_missing,
+                        "portfolio-checklist",
+                        "warn" if portfolio_missing else "ok",
+                        f"{len(portfolio_missing)} pending" if portfolio_missing else "Ready",
+                        "&#10005;" if portfolio_missing else "&#10003;",
+                        "Portfolio checklist is complete for current review.",
+                    ),
+                    _build_skill_matrix_html(jd_skill_matrix),
+                    _build_rewrite_assistant_html(rewrite_recommendations),
                     strengths_html,
                     missing_skills_html,
                     missing_kw_html,

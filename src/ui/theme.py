@@ -24,11 +24,21 @@ from src.ui_constants import (
     LIGHT_TEXT_PRIMARY,
 )
 
-@lru_cache(maxsize=8)
+@lru_cache(maxsize=32)
+def _read_ui_markup_template(path: str, mtime_ns: int) -> str:
+    """Read template file text with cache key tied to file path + mtime."""
+    _ = mtime_ns
+    return Path(path).read_text(encoding="utf-8")
+
+
 def _load_ui_markup_template(name: str) -> str:
-    """Load cached UI markup templates from src/assets/ui."""
+    """Load UI markup template and auto-refresh cache when file changes on disk."""
     base_dir = Path(__file__).resolve().parents[1] / "assets" / "ui"
-    return (base_dir / name).read_text(encoding="utf-8")
+    template_path = base_dir / name
+    return _read_ui_markup_template(
+        str(template_path),
+        template_path.stat().st_mtime_ns,
+    )
 
 
 

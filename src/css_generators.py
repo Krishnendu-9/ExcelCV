@@ -119,6 +119,9 @@ def generate_css_variables(is_light: bool, bg_color: str, text_color: str) -> st
                 --report-pill-bg: {"rgba(203, 213, 225, 0.84)" if is_light else "rgba(17, 24, 39, 0.45)"};
                 --report-pill-border: {"rgba(100, 116, 139, 0.40)" if is_light else "rgba(148, 163, 184, 0.28)"};
                 --report-pill-text: {"#1f2937" if is_light else "#cbd5e1"};
+                --scrollbar-track: {"#e2e8f0" if is_light else "#0f172a"};
+                --scrollbar-thumb: {"#94a3b8" if is_light else "#475569"};
+                --scrollbar-thumb-hover: {"#64748b" if is_light else "#64748b"};
             }}
     """
 
@@ -278,14 +281,18 @@ def generate_theme_button_css() -> str:
                 color: var(--text-primary);
                 transition: all 0.2s ease;
             }}
-            {selectors}:hover {{
-                box-shadow: {WARM_HOVER_GLOW} !important;
-                border-color: {WARM_HOVER_BORDER} !important;
+            {selectors}:hover,
+            {selectors}:focus,
+            {selectors}:active {{
+                box-shadow: none !important;
+                border-color: var(--button-border) !important;
                 background-color: var(--button-bg) !important;
                 background: var(--button-bg) !important;
                 background-image: none !important;
             }}
-            {selectors}:hover * {{
+            {selectors}:hover *,
+            {selectors}:focus *,
+            {selectors}:active * {{
                 background-color: transparent !important;
                 background: transparent !important;
                 background-image: none !important;

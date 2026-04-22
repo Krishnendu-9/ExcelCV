@@ -1,6 +1,55 @@
             {theme_base_css}
             
             {css_variables}
+
+            /* Global scrollbar visibility for both themes */
+            body.theme-light,
+            .stApp.theme-light {
+                color-scheme: light;
+            }
+            body.theme-dark,
+            .stApp.theme-dark {
+                color-scheme: dark;
+            }
+            html,
+            body,
+            [data-testid="stAppViewContainer"],
+            [data-testid="stMain"],
+            .report-sidebar {
+                scrollbar-width: auto;
+                scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+            }
+            html::-webkit-scrollbar,
+            body::-webkit-scrollbar,
+            [data-testid="stAppViewContainer"]::-webkit-scrollbar,
+            [data-testid="stMain"]::-webkit-scrollbar,
+            .report-sidebar::-webkit-scrollbar {
+                width: 12px;
+                height: 12px;
+            }
+            html::-webkit-scrollbar-track,
+            body::-webkit-scrollbar-track,
+            [data-testid="stAppViewContainer"]::-webkit-scrollbar-track,
+            [data-testid="stMain"]::-webkit-scrollbar-track,
+            .report-sidebar::-webkit-scrollbar-track {
+                background: var(--scrollbar-track);
+            }
+            html::-webkit-scrollbar-thumb,
+            body::-webkit-scrollbar-thumb,
+            [data-testid="stAppViewContainer"]::-webkit-scrollbar-thumb,
+            [data-testid="stMain"]::-webkit-scrollbar-thumb,
+            .report-sidebar::-webkit-scrollbar-thumb {
+                background: var(--scrollbar-thumb);
+                border-radius: 999px;
+                border: 2px solid var(--scrollbar-track);
+            }
+            html::-webkit-scrollbar-thumb:hover,
+            body::-webkit-scrollbar-thumb:hover,
+            [data-testid="stAppViewContainer"]::-webkit-scrollbar-thumb:hover,
+            [data-testid="stMain"]::-webkit-scrollbar-thumb:hover,
+            .report-sidebar::-webkit-scrollbar-thumb:hover {
+                background: var(--scrollbar-thumb-hover);
+            }
             
             /* ===== FIX STICKY SIDEBAR (FINAL) ===== */
 
@@ -202,47 +251,6 @@
                 background: var(--button-hover-bg) !important;
                 color: var(--button-text) !important;
                 border-color: var(--button-hover-border) !important;
-            }}
-
-            /* Header theme switch must stay plain icon-only (no hover/background/border effects) */
-            [data-testid="stHorizontalBlock"]:has(.site-brand) button,
-            [data-testid="stHorizontalBlock"]:has(.site-brand) button:hover,
-            [data-testid="stHorizontalBlock"]:has(.site-brand) button:focus,
-            [data-testid="stHorizontalBlock"]:has(.site-brand) button:active {{
-                background: transparent !important;
-                background-color: transparent !important;
-                background-image: none !important;
-                border: none !important;
-                box-shadow: none !important;
-                outline: none !important;
-                min-width: 0 !important;
-                min-height: 0 !important;
-                width: auto !important;
-                height: auto !important;
-                padding: 0 !important;
-                margin: 0 !important;
-                transition: none !important;
-                -webkit-appearance: none !important;
-                appearance: none !important;
-            }}
-            [data-testid="stHorizontalBlock"]:has(.site-brand) button *,
-            [data-testid="stHorizontalBlock"]:has(.site-brand) button:hover *,
-            [data-testid="stHorizontalBlock"]:has(.site-brand) button:focus *,
-            [data-testid="stHorizontalBlock"]:has(.site-brand) button:active * {{
-                background: transparent !important;
-                background-color: transparent !important;
-                background-image: none !important;
-                border: none !important;
-                box-shadow: none !important;
-                outline: none !important;
-                transition: none !important;
-            }}
-            [data-testid="stHorizontalBlock"]:has(.site-brand) button::before,
-            [data-testid="stHorizontalBlock"]:has(.site-brand) button::after {{
-                content: none !important;
-                background: transparent !important;
-                border: none !important;
-                box-shadow: none !important;
             }}
 
             /* Hide Streamlit's deploy button */
@@ -665,6 +673,81 @@
                 color: inherit !important;
                 font-size: inherit !important;
                 font-weight: inherit !important;
+            }}
+
+            /* Theme-safe text/number inputs for utility pages (contact/evaluation/etc.) */
+            .stTextInput label,
+            .stNumberInput label,
+            [data-testid="stTextInput"] label,
+            [data-testid="stNumberInput"] label {{
+                color: var(--text-primary) !important;
+                font-weight: 600 !important;
+            }}
+            body.theme-light .stTextInput input,
+            body.theme-light .stNumberInput input,
+            body.theme-light [data-testid="stTextInput"] input,
+            body.theme-light [data-testid="stNumberInput"] input,
+            body.theme-light div[data-baseweb="input"] input {{
+                background: #ffffff !important;
+                background-color: #ffffff !important;
+                color: #111827 !important;
+                border: 1px solid rgba(15, 23, 42, 0.18) !important;
+                box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06) !important;
+            }}
+            body.theme-light div[data-baseweb="input"] {{
+                background: #ffffff !important;
+                border-color: rgba(15, 23, 42, 0.18) !important;
+            }}
+            body.theme-dark .stTextInput input,
+            body.theme-dark .stNumberInput input,
+            body.theme-dark [data-testid="stTextInput"] input,
+            body.theme-dark [data-testid="stNumberInput"] input,
+            body.theme-dark div[data-baseweb="input"] input {{
+                background: #1f2937 !important;
+                background-color: #1f2937 !important;
+                color: #e5e7eb !important;
+                border: 1px solid rgba(148, 163, 184, 0.28) !important;
+                box-shadow: none !important;
+            }}
+            body.theme-dark div[data-baseweb="input"] {{
+                background: #1f2937 !important;
+                border-color: rgba(148, 163, 184, 0.28) !important;
+            }}
+            .stTextInput input::placeholder,
+            .stNumberInput input::placeholder {{
+                color: var(--placeholder-color) !important;
+                opacity: 1 !important;
+            }}
+
+            /* Radio controls readable in both themes */
+            .stRadio label,
+            .stRadio p,
+            [data-testid="stRadio"] label,
+            [data-testid="stRadio"] p {{
+                color: var(--text-primary) !important;
+                opacity: 1 !important;
+            }}
+            body.theme-light [data-testid="stRadio"] [role="radio"],
+            body.theme-light [data-testid="stRadio"] label {{
+                color: #1f2937 !important;
+            }}
+            body.theme-dark [data-testid="stRadio"] [role="radio"],
+            body.theme-dark [data-testid="stRadio"] label {{
+                color: #e5e7eb !important;
+            }}
+
+            /* Alert readability (especially warning/info cards in light mode) */
+            [data-testid="stAlert"],
+            [data-testid="stAlert"] *,
+            [data-testid="stNotification"],
+            [data-testid="stNotification"] * {{
+                color: var(--text-primary) !important;
+            }}
+            body.theme-light [data-testid="stAlert"] {{
+                border-color: rgba(217, 119, 6, 0.25) !important;
+            }}
+            body.theme-dark [data-testid="stAlert"] {{
+                border-color: rgba(250, 204, 21, 0.25) !important;
             }}
             
             /* Style file uploader (Upload PDF/browse file) - LIGHT MODE */
@@ -1147,6 +1230,170 @@
                     animation: none;
                 }}
             }}
+
+            /* ===== Full-width Professional Footer ===== */
+            .site-footer-band {{
+                position: relative;
+                width: 100%;
+                margin-left: 0;
+                margin-right: 0;
+                margin-top: 0;
+                margin-bottom: 0 !important;
+                background: linear-gradient(180deg, var(--bg-card), var(--bg-secondary));
+                border-top: 1px solid var(--border-color);
+                box-shadow: 0 -12px 30px var(--shadow);
+                box-sizing: border-box;
+            }}
+            .site-footer-inner {{
+                width: min(1800px, calc(100% - 90px));
+                margin: 0 auto;
+                padding: 28px 0 20px;
+                display: flex;
+                flex-direction: column;
+                gap: 24px;
+            }}
+            .site-footer-brand-logo {{
+                height: 42px;
+                width: auto;
+                display: block;
+                max-width: min(220px, 100%);
+                margin-bottom: 10px;
+            }}
+            .site-footer-divider-text {{
+                color: var(--text-secondary);
+                font-size: 0.9rem;
+                letter-spacing: 0.08em;
+                text-transform: uppercase;
+                font-weight: 700;
+                white-space: nowrap;
+            }}
+            .site-footer-grid {{
+                display: grid;
+                grid-template-columns: minmax(260px, 1.5fr) repeat(3, minmax(140px, 1fr));
+                gap: 22px 34px;
+                align-items: start;
+            }}
+            .site-footer-brand-title {{
+                font-size: 2rem;
+                font-weight: 800;
+                color: var(--text-primary);
+                line-height: 1;
+                margin-bottom: 10px;
+            }}
+            .site-footer-brand-text {{
+                margin: 0;
+                max-width: 52ch;
+                color: var(--text-secondary);
+                line-height: 1.58;
+                font-size: 1.02rem;
+            }}
+            .site-footer-link-col h4 {{
+                margin: 0 0 10px;
+                color: var(--text-primary);
+                font-size: 1.05rem;
+                font-weight: 700;
+            }}
+            .site-footer-link-col {{
+                display: flex;
+                flex-direction: column;
+                gap: 8px;
+            }}
+            .site-footer-link-col a {{
+                color: var(--text-secondary);
+                text-decoration: none;
+                font-size: 0.98rem;
+                transition: color 0.2s ease;
+            }}
+            .site-footer-link-col a:hover,
+            .site-footer-link-col a:focus-visible {{
+                color: var(--accent);
+                text-decoration: underline;
+            }}
+            .site-footer-bottom {{
+                border-top: 1px solid var(--border-color);
+                padding-top: 14px;
+                display: flex;
+                align-items: center;
+                flex-wrap: wrap;
+                gap: 10px;
+                color: var(--text-secondary);
+                font-size: 0.92rem;
+            }}
+            .site-footer-sep {{
+                opacity: 0.7;
+            }}
+            .site-footer-band.footer-dark {{
+                background: linear-gradient(180deg, rgba(10, 16, 28, 0.95), rgba(7, 12, 22, 0.98));
+                border-top: 1px solid rgba(148, 163, 184, 0.26);
+                box-shadow: 0 -14px 34px rgba(2, 8, 22, 0.28);
+            }}
+            .site-footer-band.footer-light {{
+                background: linear-gradient(180deg, #eef2f8, #e9edf5);
+                border-top: 1px solid rgba(100, 116, 139, 0.3);
+                box-shadow: 0 -8px 22px rgba(148, 163, 184, 0.2);
+            }}
+            [data-testid="stElementContainer"]:has(.site-footer-band),
+            [data-testid="stElementContainer"]:has(.site-footer-band) > div {{
+                margin-bottom: 0 !important;
+                padding-bottom: 0 !important;
+            }}
+            [data-testid="stElementContainer"]:has(style),
+            [data-testid="stElementContainer"]:has(script),
+            [data-testid="stElementContainer"]:has(iframe[title^="st.iframe"]) {{
+                margin-bottom: 0 !important;
+                padding-bottom: 0 !important;
+            }}
+            html,
+            body {{
+                overflow-x: hidden !important;
+            }}
+            body {{
+                overflow-y: auto !important;
+            }}
+            [data-testid="stAppViewContainer"],
+            [data-testid="stAppViewContainer"] > section.main,
+            [data-testid="stMain"] {{
+                max-height: none !important;
+                overflow-x: hidden !important;
+                overflow-y: visible !important;
+            }}
+            [data-testid="stMainBlockContainer"] > div:last-child,
+            .main .block-container > div:last-child {{
+                margin-bottom: 0 !important;
+                padding-bottom: 0 !important;
+            }}
+            @media (max-width: 1024px) {{
+                .site-footer-inner {{
+                    width: calc(100% - 34px);
+                }}
+                .site-footer-grid {{
+                    grid-template-columns: 1fr 1fr;
+                    gap: 18px 24px;
+                }}
+                .site-footer-brand-col {{
+                    grid-column: 1 / -1;
+                }}
+            }}
+            @media (max-width: 680px) {{
+                .site-footer-inner {{
+                    width: calc(100% - 20px);
+                    padding: 24px 0 16px;
+                    gap: 18px;
+                }}
+                .site-footer-brand-logo {{
+                    height: 36px;
+                }}
+                .site-footer-grid {{
+                    grid-template-columns: 1fr;
+                    gap: 14px;
+                }}
+                .site-footer-brand-title {{
+                    font-size: 1.6rem;
+                }}
+                .site-footer-brand-text {{
+                    font-size: 0.95rem;
+                }}
+            }}
             .preview-card {{
                 background: var(--bg-card) !important;
                 border-radius: 18px;
@@ -1404,7 +1651,7 @@
                 max-height: calc(100vh - var(--excelcv-report-top, 96px) - 12px) !important;
 
                 overflow-y: auto !important;
-                overflow-x: visible !important;
+                overflow-x: hidden !important;
 
                 z-index: 2;
             }}
@@ -1678,13 +1925,47 @@
                 justify-content: space-between;
                 margin-bottom: 10px;
             }}
+            .detail-head-collapsible {{
+                cursor: pointer;
+                user-select: none;
+            }}
             .detail-head h3 {{ 
                 margin: 0; 
+                display: inline-flex;
+                align-items: center;
+                gap: 10px;
+            }}
+            .detail-chevron {{
+                display: inline-block;
+                color: var(--text-secondary);
+                font-size: 0.82rem;
+                transition: transform 0.22s ease;
+                transform-origin: center;
+            }}
+            .detail-card.expanded .detail-chevron {{
+                transform: rotate(180deg);
+            }}
+            .detail-card.collapsed .detail-chevron {{
+                transform: rotate(0deg);
             }}
             /* Shared body area for all report sections (Quantifying Impact, Spelling & Grammar, Strengths, etc.) - same as Suggestions */
             .section-body {{
                 padding: 0 0 4px 0;
                 margin: 0;
+                overflow: hidden;
+                transition: max-height 0.24s ease, opacity 0.2s ease;
+            }}
+            .detail-card.collapsed .section-body {{
+                max-height: 0 !important;
+                opacity: 0;
+                padding: 0 !important;
+                margin: 0 !important;
+                pointer-events: none;
+            }}
+            .detail-card.expanded .section-body {{
+                max-height: 10000px;
+                opacity: 1;
+                pointer-events: auto;
             }}
             .section-body-item {{
                 margin-bottom: 6px;

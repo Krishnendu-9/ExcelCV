@@ -14,16 +14,26 @@ from typing import Any, Dict, List, Optional
 
 import google.generativeai as genai
 
+from src.career_tools import (
+    build_interview_prep_questions,
+    build_learning_roadmap,
+    build_portfolio_checklist,
+    build_priority_action_plan,
+    build_recruiter_snapshot,
+)
 from src.config import get_api_key, preferred_models
 from src.scoring import (
+    build_jd_skill_matrix,
     calculate_ats_essentials,
     calculate_ats_parse_rate,
     calculate_contact_info,
+    calculate_final_score_breakdown,
     calculate_quantifying_impact,
     calculate_repetition,
     calculate_sections,
     calculate_spelling_grammar,
     calculate_tailoring,
+    generate_section_rewrite_recommendations,
     get_metric_status,
     normalize_score,
 )
@@ -39,7 +49,7 @@ logger = logging.getLogger(__name__)
 def _is_quota_error(exc: Exception) -> bool:
     """Return True if the exception is a 429 / quota exceeded error."""
     msg = str(exc).lower()
-    return "429" in str(exc) or "quota" in msg or "rate limit" in msg or "resource exhausted" in msg
+    return "429" in msg or "quota" in msg or "rate limit" in msg or "resource exhausted" in msg
 
 
 def _user_friendly_quota_message(exc: Exception) -> str:
@@ -55,7 +65,7 @@ def _user_friendly_quota_message(exc: Exception) -> str:
             if sec <= 120:
                 return (
                     "Gemini API rate limit reached. Please wait about {} seconds and try again. "
-                    "If you're on the free tier, daily limits also apply—see https://ai.google.dev/gemini-api/docs/rate-limits."
+                    "If you're on the free tier, daily limits also apply - see https://ai.google.dev/gemini-api/docs/rate-limits."
                 ).format(int(sec) + 1)
     return (
         "Gemini API quota exceeded. You can try again later, or check your plan and billing at "
@@ -86,14 +96,28 @@ def _is_retryable_error(exc: Exception) -> bool:
 @lru_cache(maxsize=1)
 def _pick_model_id() -> str:
     """Pick a working model id by listing available models."""
+    default_model = "models/gemini-2.0-flash"
     try:
         models = list(genai.list_models())
-        for m in models:
-            if "generateContent" in getattr(m, "supported_generation_methods", []):
-                return m.name
+        supported_model_names: List[str] = []
+        for model in models:
+            methods = getattr(model, "supported_generation_methods", []) or []
+            model_name = str(getattr(model, "name", "") or "").strip()
+            if model_name and "generateContent" in methods:
+                supported_model_names.append(model_name)
+
+        if not supported_model_names:
+            return default_model
+
+        supported_lookup = set(supported_model_names)
+        for preferred in preferred_models():
+            normalized = _normalize_model_name(preferred)
+            if normalized and normalized in supported_lookup:
+                return normalized
+
+        return supported_model_names[0]
     except Exception:
-        pass
-    return "models/gemini-2.0-flash"
+        return default_model
 
 
 def _extract_json_from_text(text: str) -> str:
@@ -195,7 +219,7 @@ def analyze_cv_with_gemini(
 ) -> Dict[str, Any]:
     """Call Gemini to analyze CV vs job description and return JSON-friendly dict."""
     if not cv_text or not cv_text.strip():
-        raise ValueError("CV text is empty. Please upload a text-based PDF CV.")
+        raise ValueError("CV text is empty. Please upload a readable PDF or DOCX CV.")
 
     api_key = get_api_key()
     if not api_key:
@@ -347,6 +371,8 @@ CV:
         except Exception as exc:  # pragma: no cover - depends on network
             if _is_quota_error(exc):
                 raise RuntimeError(_user_friendly_quota_message(exc)) from exc
+            if last_exception and _is_quota_error(last_exception):
+                raise RuntimeError(_user_friendly_quota_message(last_exception)) from exc
             if last_exception:
                 raise RuntimeError(
                     f"Gemini API error after trying {tried}: {exc} (last preferred model error: {last_exception})"
@@ -394,7 +420,7 @@ CV:
     score = normalize_score(parsed.get("match_score", 0))
     subscores = _as_dict(parsed.get("subscores"))
 
-    # ── Programmatic-only scores (deterministic — same CV always = same score) ──
+    # â”€â”€ Programmatic-only scores (deterministic â€” same CV always = same score) â”€â”€
 
     # ATS Parse Rate: purely programmatic
     ats_parse_rate = calculate_ats_parse_rate(cv_text)
@@ -442,32 +468,74 @@ CV:
     tailoring_prog_score, tailoring_prog_details = calculate_tailoring(cv_text, job_desc)
     tailoring_score = tailoring_prog_score
 
-    # ── Compute match_score PROGRAMMATICALLY (deterministic) ──
-    # Weighted average of all sub-scores so the same CV + same JD = same score
-    # Weights: Content quality (30%), Tailoring/JD match (25%), Sections (15%),
-    #          ATS Essentials (15%), Contact completeness (15%)
-    content_avg = int((ats_parse_rate + quant_score + rep_score + spell_score) / 4)
+    # Build JD-to-skill evidence matrix.
+    jd_skill_matrix = build_jd_skill_matrix(
+        cv_text=cv_text,
+        job_desc=job_desc,
+        tailoring_details=tailoring_prog_details,
+    )
+
+    # Build section-level rewrite recommendations.
+    rewrite_recommendations = generate_section_rewrite_recommendations(
+        cv_text=cv_text,
+        quantifying_impact_data=quant_prog_data,
+        repetition_data=rep_prog_data,
+    )
+
+    # Compute deterministic final score with explainable breakdown.
     contact_score_val = contact_info.get("score", 0)
+    score_breakdown = calculate_final_score_breakdown(
+        ats_parse_rate=ats_parse_rate,
+        quant_score=quant_score,
+        repetition_score=rep_score,
+        spelling_score=spell_score,
+        tailoring_score=tailoring_score,
+        sections_score=sections_score,
+        ats_essentials_score=ats_essentials_score,
+        contact_score=contact_score_val,
+        has_job_description=bool(job_desc and job_desc.strip()),
+    )
+    match_score = score_breakdown.get("final_score", normalize_score(parsed.get("match_score", 0)))
 
-    if job_desc and job_desc.strip():
-        # JD provided: tailoring has significant weight
-        match_score = int(
-            content_avg * 0.30
-            + tailoring_score * 0.25
-            + sections_score * 0.15
-            + ats_essentials_score * 0.15
-            + contact_score_val * 0.15
-        )
-    else:
-        # No JD: redistribute tailoring weight to other metrics
-        match_score = int(
-            content_avg * 0.35
-            + sections_score * 0.25
-            + ats_essentials_score * 0.25
-            + contact_score_val * 0.15
-        )
-
-    match_score = max(0, min(100, match_score))
+    # Final-project enhancement layer (deterministic and safe).
+    recruiter_snapshot = build_recruiter_snapshot(parsed | {"match_score": match_score}, file_name or "Resume")
+    priority_action_plan = build_priority_action_plan(
+        {
+            "match_score": match_score,
+            "strengths": _as_list(parsed.get("strengths", [])),
+            "missing_skills": _as_list(parsed.get("missing_skills", [])),
+            "missing_keywords": _as_list(parsed.get("missing_keywords", [])),
+            "suggestions": _as_list(parsed.get("suggestions", [])),
+            "content_metrics": {
+                "ats_parse_rate": ats_parse_rate,
+                "quantifying_impact": {"score": quant_score},
+                "repetition": {"score": rep_score},
+                "spelling_grammar": {"score": spell_score},
+            },
+            "sections_metrics": {"details": sections_prog_details},
+        }
+    )
+    interview_prep = build_interview_prep_questions(
+        {
+            "strengths": _as_list(parsed.get("strengths", [])),
+            "missing_skills": _as_list(parsed.get("missing_skills", [])),
+        },
+        job_desc=job_desc,
+    )
+    learning_roadmap = build_learning_roadmap(
+        {
+            "missing_skills": _as_list(parsed.get("missing_skills", [])),
+            "missing_keywords": _as_list(parsed.get("missing_keywords", [])),
+        }
+    )
+    portfolio_checklist = build_portfolio_checklist(
+        {
+            "sections_metrics": {"details": sections_prog_details},
+            "contact_info": contact_info,
+            "ats_essentials_metrics": {"details": ats_prog_details},
+            "suggestions": _as_list(parsed.get("suggestions", [])),
+        }
+    )
 
     return {
         "match_score": match_score,
@@ -515,6 +583,15 @@ CV:
         "tailoring_metrics": {
             "score": tailoring_score,
             "details": tailoring_prog_details,
-        }
+        },
+        "score_breakdown": score_breakdown,
+        "jd_skill_matrix": jd_skill_matrix,
+        "rewrite_recommendations": rewrite_recommendations,
+        "recruiter_snapshot": recruiter_snapshot,
+        "priority_action_plan": priority_action_plan,
+        "interview_prep": interview_prep,
+        "learning_roadmap": learning_roadmap,
+        "portfolio_checklist": portfolio_checklist,
     }
+
 

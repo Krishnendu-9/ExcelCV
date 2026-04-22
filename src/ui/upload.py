@@ -137,7 +137,7 @@ def render_upload_landing_sections() -> None:
                     </article>
                     <article class="walk-card">
                         <span class="walk-index">02</span>
-                        <h4>Upload resume PDF</h4>
+                        <h4>Upload resume file</h4>
                         <p>We extract text and run deterministic checks before scoring the result.</p>
                     </article>
                     <article class="walk-card">
@@ -183,7 +183,7 @@ def render_upload_landing_sections() -> None:
                     </div>
                     <div class="faq-card">
                         <h4>What file type is supported?</h4>
-                        <p>PDF is supported. Text-based PDFs provide the best extraction accuracy.</p>
+                        <p>PDF and DOCX are supported. Text-based files provide the best extraction accuracy.</p>
                     </div>
                     <div class="faq-card">
                         <h4>Can I save my result?</h4>
@@ -201,7 +201,6 @@ def render_upload_landing_sections() -> None:
         landing_html,
         unsafe_allow_html=True,
     )
-
 
 
 

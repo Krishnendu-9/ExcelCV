@@ -5,7 +5,7 @@ This module contains all constants used for CSS styling, JavaScript,
 and theme configuration to maintain consistency and ease of maintenance.
 """
 
-from typing import Dict, Tuple
+from typing import Dict
 
 # Theme Colors
 LIGHT_BG_PRIMARY = "#ffffff"
@@ -36,7 +36,6 @@ ACCENT_PURPLE = "#7c6bff"
 TEXT_MUTED = "#9ca3af"
 
 # Hover Effect Colors (Warm Sun)
-WARM_HOVER_BG = "#faf6db"
 WARM_HOVER_BORDER = "#f5e6a8"
 WARM_GLOW_OUTER = "0 0 20px rgba(250, 246, 219, 0.6)"
 WARM_GLOW_INNER = "0 0 40px rgba(250, 246, 219, 0.4)"
@@ -69,14 +68,6 @@ DARK_SHADOW_LG = "rgba(0, 0, 0, 0.45)"
 LIGHT_PLACEHOLDER = "#6b7280"
 DARK_PLACEHOLDER = "#9ca3af"
 
-# JavaScript Constants
-JS_BG_LIGHT = "#ffffff"
-JS_BG_DARK = "#1f2937"
-JS_TEXT_LIGHT = "#111827"
-JS_TEXT_DARK = "#e5e7eb"
-JS_BORDER_LIGHT = "rgba(0,0,0,0.1)"
-JS_BORDER_DARK = "rgba(255,255,255,0.1)"
-
 # CSS Selectors
 THEME_BUTTON_SELECTORS = [
     'button[key="theme_toggle"]',
@@ -87,11 +78,6 @@ THEME_BUTTON_SELECTORS = [
     '[data-testid="baseButton-secondary"][key="theme_toggle"]',
     'button:has([data-testid="baseButton-secondary"])[key="theme_toggle"]',
 ]
-
-# Timing Constants
-JS_INTERVAL_MS = 50
-JS_TIMEOUT_DELAYS = [10, 50, 100, 200]
-
 
 def get_theme_colors(is_light: bool) -> Dict[str, str]:
     """Get theme-specific color dictionary."""
@@ -139,11 +125,3 @@ def get_theme_colors(is_light: bool) -> Dict[str, str]:
             "button_hover_shadow": DARK_BUTTON_HOVER_SHADOW,
             "placeholder": DARK_PLACEHOLDER,
         }
-
-
-def get_js_colors(is_light: bool) -> Tuple[str, str, str]:
-    """Get JavaScript color values for theme."""
-    if is_light:
-        return (JS_BG_LIGHT, JS_TEXT_LIGHT, JS_BORDER_LIGHT)
-    else:
-        return (JS_BG_DARK, JS_TEXT_DARK, JS_BORDER_DARK)

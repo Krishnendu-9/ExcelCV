@@ -255,14 +255,23 @@
                         }}
                         
                         // Theme toggle styling is handled in app-level header CSS.
+                        const computedRootStyles = (target.getComputedStyle && doc && doc.documentElement)
+                            ? target.getComputedStyle(doc.documentElement)
+                            : null;
+                        const uniformHoverBg = (computedRootStyles && computedRootStyles.getPropertyValue('--excelcv-uniform-hover-bg').trim())
+                            || (bgColor === '#ffffff' ? 'rgba(239, 246, 255, 0.98)' : 'rgba(37, 99, 235, 0.16)');
+                        const uniformHoverBorder = (computedRootStyles && computedRootStyles.getPropertyValue('--excelcv-uniform-hover-border').trim())
+                            || (bgColor === '#ffffff' ? 'rgba(37, 99, 235, 0.62)' : 'rgba(56, 189, 248, 0.65)');
+                        const uniformHoverShadow = (computedRootStyles && computedRootStyles.getPropertyValue('--excelcv-uniform-hover-shadow').trim())
+                            || (bgColor === '#ffffff'
+                                ? '0 0 0 3px rgba(37, 99, 235, 0.14)'
+                                : '0 0 0 3px rgba(56, 189, 248, 0.14)');
 
                         // Apply Warm Sun glow hover to textarea - boundary glow only (no background/inset)
                         document.querySelectorAll('.stTextArea textarea').forEach(textarea => {{
                             if (textarea) {{
-                                const warmHoverBorder = '#f5e6a8';
-                                const warmGlow = '0 0 20px rgba(250, 246, 219, 0.6), 0 0 40px rgba(250, 246, 219, 0.4)';
                                 textarea.addEventListener('mouseenter', function() {{
-                                    this.style.cssText += 'box-shadow: ' + warmGlow + ' !important; border-color: ' + warmHoverBorder + ' !important; background: var(--bg-card) !important; background-color: var(--bg-card) !important;';
+                                    this.style.cssText += 'box-shadow: ' + uniformHoverShadow + ' !important; border-color: ' + uniformHoverBorder + ' !important; background: ' + uniformHoverBg + ' !important; background-color: ' + uniformHoverBg + ' !important;';
                                 }});
                                 textarea.addEventListener('mouseleave', function() {{
                                     if (!this.matches(':focus')) {{
@@ -282,30 +291,20 @@
                                     if (!dropzone.matches(':hover')) {{
                                         dropzone.style.setProperty('box-shadow', 'none', 'important');
                                     }}
-                                    // Always enforce background stays the same - NO background glow
-                                    const dropzoneBg = bgColor === '#ffffff' ? '#ffffff' : '#1f2937';
-                                    dropzone.style.setProperty('background', dropzoneBg, 'important');
-                                    dropzone.style.setProperty('background-color', dropzoneBg, 'important');
-                                    
+
                                     if (!dropzone.hasAttribute('data-glow-applied')) {{
                                         dropzone.setAttribute('data-glow-applied', 'true');
-                                        
+
                                         // Explicitly remove any default box-shadow first (matching textarea behavior)
                                         dropzone.style.setProperty('box-shadow', 'none', 'important');
-                                        
-                                        // EXACT same values and approach as textarea - boundary glow only (no background/inset)
-                                        const warmHoverBorder = '#f5e6a8';
-                                        const warmGlow = '0 0 20px rgba(250, 246, 219, 0.6), 0 0 40px rgba(250, 246, 219, 0.4)';
-                                        
-                                        const dropzoneBg = bgColor === '#ffffff' ? '#ffffff' : '#1f2937';
+
                                         dropzone.addEventListener('mouseenter', function() {{
-                                            this.style.setProperty('box-shadow', warmGlow, 'important');
-                                            this.style.setProperty('border-color', warmHoverBorder, 'important');
-                                            // Explicitly prevent background color change - NO background glow
-                                            this.style.setProperty('background', dropzoneBg, 'important');
-                                            this.style.setProperty('background-color', dropzoneBg, 'important');
+                                            this.style.setProperty('box-shadow', uniformHoverShadow, 'important');
+                                            this.style.setProperty('border-color', uniformHoverBorder, 'important');
+                                            this.style.setProperty('background', uniformHoverBg, 'important');
+                                            this.style.setProperty('background-color', uniformHoverBg, 'important');
                                         }});
-                                        
+
                                         dropzone.addEventListener('mouseleave', function() {{
                                             this.style.setProperty('box-shadow', 'none', 'important');
                                             this.style.removeProperty('border-color');
@@ -345,13 +344,10 @@
                                     
                                     if (!btn.hasAttribute('data-upload-glow-applied')) {{
                                         btn.setAttribute('data-upload-glow-applied', 'true');
-                                        
-                                        const warmHoverBorder = '#f5e6a8';
-                                        const warmGlow = '0 0 20px rgba(250, 246, 219, 0.6), 0 0 40px rgba(250, 246, 219, 0.4)';
-                                        
+
                                         btn.addEventListener('mouseenter', function() {{
-                                            this.style.setProperty('box-shadow', warmGlow, 'important');
-                                            this.style.setProperty('border-color', warmHoverBorder, 'important');
+                                            this.style.setProperty('box-shadow', uniformHoverShadow, 'important');
+                                            this.style.setProperty('border-color', uniformHoverBorder, 'important');
                                             // Keep background unchanged - NO background glow
                                             this.style.setProperty('background', btnBg, 'important');
                                             this.style.setProperty('background-color', btnBg, 'important');

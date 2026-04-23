@@ -629,6 +629,11 @@ def inject_compact_header_css() -> None:
     )
     css = """
         <style>
+        :root {
+            --excelcv-uniform-hover-bg: __COMPARE_HOVER_BG__;
+            --excelcv-uniform-hover-border: __COMPARE_HOVER_BORDER__;
+            --excelcv-uniform-hover-shadow: __COMPARE_HOVER_SHADOW__;
+        }
         /* Contained top bar (fixed geometry applied by inject_fixed_top_bar JS). */
         [data-testid="stHorizontalBlock"]:has(.site-brand) {
             display: grid !important;
@@ -972,6 +977,14 @@ def inject_compact_header_css() -> None:
             border-radius: 10px !important;
             transition: background-color 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease !important;
         }
+        .stForm .stTextArea textarea:hover,
+        .stForm .stTextArea textarea:focus,
+        .stForm .stTextArea > div:hover textarea,
+        .stForm .stTextArea > div:focus-within textarea {
+            background: var(--excelcv-uniform-hover-bg) !important;
+            border-color: var(--excelcv-uniform-hover-border) !important;
+            box-shadow: var(--excelcv-uniform-hover-shadow) !important;
+        }
         .st-key-compare_form_box .stTextArea textarea::placeholder {
             color: __COMPARE_PLACEHOLDER__ !important;
         }
@@ -989,6 +1002,12 @@ def inject_compact_header_css() -> None:
             background: __COMPARE_DROPZONE_BG__ !important;
             transition: background-color 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease !important;
         }
+        .stForm .stFileUploader [data-testid="stFileUploaderDropzone"]:hover,
+        .stForm .stFileUploader [data-testid="stFileUploaderDropzone"]:focus-within {
+            background: var(--excelcv-uniform-hover-bg) !important;
+            border-color: var(--excelcv-uniform-hover-border) !important;
+            box-shadow: var(--excelcv-uniform-hover-shadow) !important;
+        }
         .st-key-compare_form_box .stFileUploader [data-testid="stFileUploaderDropzone"]:hover,
         .st-key-compare_form_box .stFileUploader [data-testid="stFileUploaderDropzone"]:focus-within {
             background: __COMPARE_HOVER_BG__ !important;
@@ -1004,6 +1023,12 @@ def inject_compact_header_css() -> None:
             color: __COMPARE_BUTTON_TEXT__ !important;
             transition: background-color 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease !important;
         }
+        .stForm .stFileUploader button:hover,
+        .stForm .stFileUploader [data-baseweb="button"]:hover {
+            background: var(--excelcv-uniform-hover-bg) !important;
+            border-color: var(--excelcv-uniform-hover-border) !important;
+            box-shadow: var(--excelcv-uniform-hover-shadow) !important;
+        }
         .st-key-compare_form_box [data-testid="stFormSubmitButton"] button {
             min-height: 46px !important;
             border-radius: 10px !important;
@@ -1015,39 +1040,133 @@ def inject_compact_header_css() -> None:
             transition: background-color 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease !important;
             outline: none !important;
             box-shadow: none !important;
+            filter: none !important;
+            transform: none !important;
+        }
+        .stForm [data-testid="stFormSubmitButton"] button:hover,
+        .stForm [data-testid="stFormSubmitButton"] button:focus-visible,
+        .stForm [data-testid="stFormSubmitButton"] button:focus,
+        .stForm [data-testid="stFormSubmitButton"] button:active {
+            background: var(--excelcv-uniform-hover-bg) !important;
+            border-color: var(--excelcv-uniform-hover-border) !important;
+            box-shadow: var(--excelcv-uniform-hover-shadow) !important;
+            outline: none !important;
+        }
+        .stForm [data-testid="stFormSubmitButton"] [data-baseweb="button"],
+        .stForm [data-testid="stFormSubmitButton"] [data-baseweb="button"]:hover,
+        .stForm [data-testid="stFormSubmitButton"] [data-baseweb="button"]:focus,
+        .stForm [data-testid="stFormSubmitButton"] [data-baseweb="button"]:focus-visible,
+        .stForm [data-testid="stFormSubmitButton"] [data-baseweb="button"]:active {
+            background: transparent !important;
+            background-image: none !important;
+            border: none !important;
+            box-shadow: none !important;
+            outline: none !important;
+        }
+        .stForm [data-testid="stFormSubmitButton"] button *,
+        .stForm [data-testid="stFormSubmitButton"] button > div,
+        .stForm [data-testid="stFormSubmitButton"] button > div > p,
+        .stForm [data-testid="stFormSubmitButton"] [data-baseweb="button"] *,
+        .stForm [data-testid="stFormSubmitButton"] [data-baseweb="button"] > div,
+        .stForm [data-testid="stFormSubmitButton"] [data-baseweb="button"] > div > div {
+            background: transparent !important;
+            background-image: none !important;
+            border: none !important;
+            box-shadow: none !important;
         }
         .st-key-compare_form_box [data-testid="stFormSubmitButton"],
-        .st-key-compare_form_box [data-testid="stFormSubmitButton"] > div {
+        .st-key-compare_form_box [data-testid="stFormSubmitButton"] > div,
+        .st-key-compare_form_box [data-testid="stFormSubmitButton"] > div > div {
             border: none !important;
+            border-radius: 0 !important;
             background: transparent !important;
             background-image: none !important;
             box-shadow: none !important;
             outline: none !important;
+            padding: 0 !important;
+            margin: 0 !important;
         }
         .st-key-compare_form_box [data-testid="stFormSubmitButton"]:hover,
         .st-key-compare_form_box [data-testid="stFormSubmitButton"]:focus-within,
         .st-key-compare_form_box [data-testid="stFormSubmitButton"] > div:hover,
-        .st-key-compare_form_box [data-testid="stFormSubmitButton"] > div:focus-within {
+        .st-key-compare_form_box [data-testid="stFormSubmitButton"] > div:focus-within,
+        .st-key-compare_form_box [data-testid="stFormSubmitButton"] > div > div:hover,
+        .st-key-compare_form_box [data-testid="stFormSubmitButton"] > div > div:focus-within {
             border: none !important;
+            border-radius: 0 !important;
             background: transparent !important;
             box-shadow: none !important;
             outline: none !important;
+            padding: 0 !important;
+            margin: 0 !important;
         }
         .st-key-compare_form_box [data-testid="stFormSubmitButton"] button *,
         .st-key-compare_form_box [data-testid="stFormSubmitButton"] button > div,
-        .st-key-compare_form_box [data-testid="stFormSubmitButton"] button > div > p {
+        .st-key-compare_form_box [data-testid="stFormSubmitButton"] button > div > p,
+        .st-key-compare_form_box [data-testid="stFormSubmitButton"] [data-baseweb="button"] *,
+        .st-key-compare_form_box [data-testid="stFormSubmitButton"] [data-baseweb="button"] > div,
+        .st-key-compare_form_box [data-testid="stFormSubmitButton"] [data-baseweb="button"] > div > div {
             background: transparent !important;
             background-image: none !important;
             box-shadow: none !important;
             border: none !important;
         }
         .st-key-compare_form_box .stFileUploader button:hover,
-        .st-key-compare_form_box .stFileUploader [data-baseweb="button"]:hover,
-        .st-key-compare_form_box [data-testid="stFormSubmitButton"] button:hover,
-        .st-key-compare_form_box [data-testid="stFormSubmitButton"] button:focus-visible {
+        .st-key-compare_form_box .stFileUploader [data-baseweb="button"]:hover {
             background: __COMPARE_HOVER_BG__ !important;
             border-color: __COMPARE_HOVER_BORDER__ !important;
             box-shadow: __COMPARE_HOVER_SHADOW__ !important;
+        }
+        .st-key-compare_form_box [data-testid="stFormSubmitButton"] button:hover,
+        .st-key-compare_form_box [data-testid="stFormSubmitButton"] button:focus-visible,
+        .st-key-compare_form_box [data-testid="stFormSubmitButton"] button:focus,
+        .st-key-compare_form_box [data-testid="stFormSubmitButton"] button:active {
+            background: var(--excelcv-uniform-hover-bg) !important;
+            border-color: var(--excelcv-uniform-hover-border) !important;
+            box-shadow: var(--excelcv-uniform-hover-shadow) !important;
+            outline: none !important;
+            filter: none !important;
+            transform: none !important;
+        }
+        .st-key-compare_form_box [data-testid="stFormSubmitButton"] [data-baseweb="button"],
+        .st-key-compare_form_box [data-testid="stFormSubmitButton"] [data-baseweb="button"]:hover,
+        .st-key-compare_form_box [data-testid="stFormSubmitButton"] [data-baseweb="button"]:focus,
+        .st-key-compare_form_box [data-testid="stFormSubmitButton"] [data-baseweb="button"]:focus-visible,
+        .st-key-compare_form_box [data-testid="stFormSubmitButton"] [data-baseweb="button"]:active {
+            background: transparent !important;
+            background-image: none !important;
+            border: none !important;
+            box-shadow: none !important;
+            outline: none !important;
+        }
+        .st-key-compare_form_box [data-testid="stFormSubmitButton"]:has(button:hover),
+        .st-key-compare_form_box [data-testid="stFormSubmitButton"]:has(button:focus-visible),
+        .st-key-compare_form_box [data-testid="stFormSubmitButton"]:has(button:focus),
+        .st-key-compare_form_box [data-testid="stFormSubmitButton"]:has(button:active),
+        .st-key-compare_form_box [data-testid="stFormSubmitButton"] > div:has(button:hover),
+        .st-key-compare_form_box [data-testid="stFormSubmitButton"] > div:has(button:focus-visible),
+        .st-key-compare_form_box [data-testid="stFormSubmitButton"] > div:has(button:focus),
+        .st-key-compare_form_box [data-testid="stFormSubmitButton"] > div:has(button:active),
+        .st-key-compare_form_box [data-testid="stFormSubmitButton"] > div > div:has(button:hover),
+        .st-key-compare_form_box [data-testid="stFormSubmitButton"] > div > div:has(button:focus-visible),
+        .st-key-compare_form_box [data-testid="stFormSubmitButton"] > div > div:has(button:focus),
+        .st-key-compare_form_box [data-testid="stFormSubmitButton"] > div > div:has(button:active) {
+            border: none !important;
+            border-radius: 0 !important;
+            background: transparent !important;
+            box-shadow: none !important;
+            outline: none !important;
+            padding: 0 !important;
+            margin: 0 !important;
+        }
+        .st-key-compare_form_box [data-testid="stFormSubmitButton"] button::before,
+        .st-key-compare_form_box [data-testid="stFormSubmitButton"] button::after,
+        .st-key-compare_form_box [data-testid="stFormSubmitButton"] [data-baseweb="button"]::before,
+        .st-key-compare_form_box [data-testid="stFormSubmitButton"] [data-baseweb="button"]::after {
+            content: none !important;
+            border: none !important;
+            box-shadow: none !important;
+            background: transparent !important;
         }
         .compare-upload-icon {
             width: 74px !important;
@@ -1076,12 +1195,17 @@ def inject_compact_header_css() -> None:
             font-size: 1.0rem !important;
         }
         .compare-next-shell {
-            max-width: 760px !important;
-            margin: 12px auto 2px auto !important;
+            max-width: 980px !important;
+            margin: 14px auto 6px auto !important;
+            padding: 22px 24px 16px 24px !important;
+            border-radius: 16px !important;
+            border: 1px solid var(--border-color) !important;
+            background: linear-gradient(160deg, var(--bg-card), var(--bg-secondary)) !important;
+            box-shadow: 0 12px 24px var(--shadow) !important;
         }
         .compare-next-title {
-            margin: 0 0 10px 0 !important;
-            font-size: 1.8rem !important;
+            margin: 0 0 12px 0 !important;
+            font-size: 2rem !important;
             color: var(--text-primary) !important;
             font-weight: 800 !important;
             text-align: center !important;
@@ -1093,23 +1217,191 @@ def inject_compact_header_css() -> None:
         }
         .compare-next-list li {
             position: relative !important;
-            padding-left: 28px !important;
-            margin-bottom: 8px !important;
+            padding-left: 30px !important;
+            margin-bottom: 10px !important;
             color: var(--text-secondary) !important;
-            font-size: 1.03rem !important;
-            line-height: 1.4 !important;
+            font-size: 1.01rem !important;
+            line-height: 1.45 !important;
         }
         .compare-next-list li::before {
             content: "" !important;
             position: absolute !important;
             left: 0 !important;
-            top: 0.52em !important;
-            width: 11px !important;
-            height: 11px !important;
+            top: 0.58em !important;
+            width: 12px !important;
+            height: 12px !important;
             border-radius: 999px !important;
             border: 3px solid #0ea5b7 !important;
             transform: translateY(-50%) !important;
             box-sizing: border-box !important;
+        }
+        [data-testid="stAppViewContainer"] .landing-extended {
+            margin-top: 24px !important;
+            padding: 0 !important;
+            border: none !important;
+            background: transparent !important;
+            box-shadow: none !important;
+            display: flex !important;
+            flex-direction: column !important;
+            gap: 18px !important;
+        }
+        [data-testid="stAppViewContainer"] .landing-clean-section {
+            background: linear-gradient(160deg, var(--bg-card), var(--bg-secondary)) !important;
+            border: 1px solid var(--border-color) !important;
+            border-radius: 18px !important;
+            padding: 28px 26px !important;
+            box-shadow: 0 12px 24px var(--shadow) !important;
+        }
+        [data-testid="stAppViewContainer"] .landing-clean-head {
+            text-align: center !important;
+            margin-bottom: 16px !important;
+        }
+        [data-testid="stAppViewContainer"] .landing-clean-tag {
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            padding: 6px 14px !important;
+            border-radius: 999px !important;
+            border: 1px solid rgba(37, 99, 235, 0.25) !important;
+            background: rgba(37, 99, 235, 0.08) !important;
+            color: #1d4ed8 !important;
+            font-size: 0.82rem !important;
+            font-weight: 700 !important;
+            letter-spacing: 0.01em !important;
+            text-transform: none !important;
+        }
+        [data-testid="stAppViewContainer"] .landing-clean-title {
+            margin: 10px 0 8px 0 !important;
+            color: var(--text-primary) !important;
+            font-size: clamp(1.55rem, 3vw, 2.6rem) !important;
+            line-height: 1.18 !important;
+            font-weight: 800 !important;
+        }
+        [data-testid="stAppViewContainer"] .landing-clean-subtitle {
+            margin: 0 auto !important;
+            max-width: 760px !important;
+            color: var(--text-secondary) !important;
+            font-size: 1.03rem !important;
+            line-height: 1.55 !important;
+        }
+        [data-testid="stAppViewContainer"] .landing-clean-grid {
+            display: grid !important;
+            grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+            gap: 14px !important;
+        }
+        [data-testid="stAppViewContainer"] .landing-clean-card {
+            border: 1px solid var(--border-color) !important;
+            border-radius: 14px !important;
+            background: var(--bg-card) !important;
+            padding: 18px !important;
+            box-shadow: 0 8px 18px var(--shadow) !important;
+            text-align: left !important;
+        }
+        [data-testid="stAppViewContainer"] .landing-clean-card h4 {
+            margin: 0 0 8px 0 !important;
+            color: var(--text-primary) !important;
+            font-size: 1.14rem !important;
+            line-height: 1.28 !important;
+            font-weight: 800 !important;
+        }
+        [data-testid="stAppViewContainer"] .landing-clean-card p {
+            margin: 0 !important;
+            color: var(--text-secondary) !important;
+            font-size: 0.99rem !important;
+            line-height: 1.55 !important;
+        }
+        [data-testid="stAppViewContainer"] .landing-clean-icon {
+            width: 42px !important;
+            height: 42px !important;
+            border-radius: 999px !important;
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            margin-bottom: 10px !important;
+            color: #ffffff !important;
+            font-weight: 800 !important;
+            background: linear-gradient(135deg, #0f6ac9, #14b8a6) !important;
+        }
+        [data-testid="stAppViewContainer"] .landing-clean-cta {
+            border-radius: 20px !important;
+            border: 1px solid rgba(14, 116, 144, 0.25) !important;
+            background: linear-gradient(135deg, #0f6ac9, #14b8a6) !important;
+            padding: 34px 20px !important;
+            text-align: center !important;
+            box-shadow: 0 14px 28px rgba(15, 106, 201, 0.24) !important;
+        }
+        [data-testid="stAppViewContainer"] .landing-clean-cta h3 {
+            margin: 0 0 8px 0 !important;
+            color: #ffffff !important;
+            font-size: clamp(1.45rem, 2.4vw, 2.2rem) !important;
+            line-height: 1.2 !important;
+            font-weight: 800 !important;
+        }
+        [data-testid="stAppViewContainer"] .landing-clean-cta p {
+            margin: 0 auto 14px auto !important;
+            max-width: 760px !important;
+            color: rgba(255, 255, 255, 0.94) !important;
+            font-size: 1.05rem !important;
+            line-height: 1.5 !important;
+        }
+        [data-testid="stAppViewContainer"] .landing-clean-cta-pills {
+            display: flex !important;
+            justify-content: center !important;
+            flex-wrap: wrap !important;
+            gap: 8px !important;
+        }
+        [data-testid="stAppViewContainer"] .landing-clean-cta-pills span {
+            display: inline-flex !important;
+            align-items: center !important;
+            padding: 7px 12px !important;
+            border-radius: 999px !important;
+            border: 1px solid rgba(255, 255, 255, 0.32) !important;
+            background: rgba(255, 255, 255, 0.12) !important;
+            color: #ffffff !important;
+            font-size: 0.9rem !important;
+            font-weight: 600 !important;
+        }
+        [data-testid="stAppViewContainer"] .landing-clean-card .story-tag {
+            display: inline-flex !important;
+            align-items: center !important;
+            margin: 0 0 10px 0 !important;
+            padding: 4px 9px !important;
+            border-radius: 999px !important;
+            border: 1px solid rgba(16, 185, 129, 0.25) !important;
+            background: rgba(16, 185, 129, 0.12) !important;
+            color: #0f766e !important;
+            font-size: 0.83rem !important;
+            font-weight: 700 !important;
+        }
+        [data-testid="stAppViewContainer"] .landing-clean-card h5 {
+            margin: 12px 0 2px 0 !important;
+            color: var(--text-primary) !important;
+            font-size: 1.06rem !important;
+            font-weight: 800 !important;
+        }
+        [data-testid="stAppViewContainer"] .landing-clean-card span {
+            color: var(--text-secondary) !important;
+            font-size: 0.92rem !important;
+        }
+        [data-testid="stAppViewContainer"] .landing-clean-footnote {
+            text-align: center !important;
+            color: var(--text-secondary) !important;
+            font-size: 0.94rem !important;
+            padding: 2px 0 10px 0 !important;
+        }
+        body.theme-dark [data-testid="stAppViewContainer"] .landing-clean-tag {
+            color: #7dd3fc !important;
+            border-color: rgba(125, 211, 252, 0.28) !important;
+            background: rgba(14, 116, 144, 0.22) !important;
+        }
+        body.theme-dark [data-testid="stAppViewContainer"] .landing-clean-card .story-tag {
+            color: #86efac !important;
+            border-color: rgba(134, 239, 172, 0.3) !important;
+            background: rgba(22, 163, 74, 0.18) !important;
+        }
+        body.theme-dark [data-testid="stAppViewContainer"] .landing-clean-cta {
+            background: linear-gradient(135deg, rgba(15, 106, 201, 0.72), rgba(20, 184, 166, 0.66)) !important;
+            box-shadow: 0 18px 32px rgba(2, 8, 23, 0.36) !important;
         }
         .site-header-rule {
             display: none !important;
@@ -1148,6 +1440,9 @@ def inject_compact_header_css() -> None:
             .compare-next-title {
                 font-size: 1.45rem !important;
             }
+            [data-testid="stAppViewContainer"] .landing-clean-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            }
         }
 
         @media (max-width: 820px) {
@@ -1180,6 +1475,31 @@ def inject_compact_header_css() -> None:
             }
             .st-key-compare_form_box {
                 padding: 14px 12px 12px 12px !important;
+            }
+            .compare-next-shell {
+                padding: 16px 14px 12px 14px !important;
+            }
+            [data-testid="stAppViewContainer"] .landing-clean-section {
+                padding: 18px 14px !important;
+            }
+            [data-testid="stAppViewContainer"] .landing-clean-grid {
+                grid-template-columns: 1fr !important;
+                gap: 10px !important;
+            }
+            [data-testid="stAppViewContainer"] .landing-clean-title {
+                font-size: 1.42rem !important;
+            }
+            [data-testid="stAppViewContainer"] .landing-clean-subtitle {
+                font-size: 0.96rem !important;
+            }
+            [data-testid="stAppViewContainer"] .landing-clean-card {
+                padding: 14px !important;
+            }
+            [data-testid="stAppViewContainer"] .landing-clean-cta {
+                padding: 24px 12px !important;
+            }
+            [data-testid="stAppViewContainer"] .landing-clean-cta p {
+                font-size: 0.96rem !important;
             }
         }
         </style>

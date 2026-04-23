@@ -47,149 +47,172 @@ def render_upload_preview_card() -> None:
 
 
 def render_upload_landing_sections() -> None:
-    """Render richer landing sections with distinct visual bands and messaging."""
+    """Render simple homepage sections under the main upload/compare area."""
     landing_html = dedent(
         """
         <div class="landing-extended">
-            <section class="landing-panel panel-story landing-reveal">
-                <div class="story-copy">
-                    <p class="section-kicker">ExcelCV workflow</p>
-                    <h2 class="section-title">A more focused resume checker, designed to feel premium and actionable.</h2>
-                    <p class="section-subtitle">Run one clean flow: paste the role description, upload your resume, and get structured ATS plus content feedback in seconds.</p>
-                    <div class="story-chip-row">
-                        <span class="story-chip">ATS diagnostics</span>
-                        <span class="story-chip">Impact checks</span>
-                        <span class="story-chip">Section health</span>
-                        <span class="story-chip">Action plan</span>
-                    </div>
-                    <div class="story-metric-row">
-                        <div class="story-metric">
-                            <span class="metric-value">4</span>
-                            <span class="metric-label">Core categories</span>
-                        </div>
-                        <div class="story-metric">
-                            <span class="metric-value">2</span>
-                            <span class="metric-label">Download formats</span>
-                        </div>
-                        <div class="story-metric">
-                            <span class="metric-value">1</span>
-                            <span class="metric-label">Standard mode</span>
-                        </div>
-                    </div>
+            <section class="landing-clean-section landing-intro-section">
+                <div class="landing-clean-head">
+                    <span class="landing-clean-tag">ExcelCV workflow</span>
+                    <h2 class="landing-clean-title">How our free resume checker works</h2>
+                    <p class="landing-clean-subtitle">
+                        Our AI-powered scanner analyzes your resume like top ATS systems and recruiters.
+                    </p>
                 </div>
-                <div class="story-visual" aria-hidden="true">
-                    <div class="story-orb orb-a"></div>
-                    <div class="story-orb orb-b"></div>
-                    <div class="story-visual-card">
-                        <p class="visual-title">Live score insight</p>
-                        <p class="visual-score">92 / 100</p>
-                        <div class="visual-track">
-                            <span style="width:92%;"></span>
-                        </div>
-                        <div class="visual-lines">
-                            <span></span><span></span><span></span><span></span>
-                        </div>
-                    </div>
+                <div class="landing-clean-grid steps-grid">
+                    <article class="landing-clean-card">
+                        <div class="landing-clean-icon">1</div>
+                        <h4>Upload your resume</h4>
+                        <p>Upload PDF or DOCX and we extract resume text for ATS-friendly evaluation.</p>
+                    </article>
+                    <article class="landing-clean-card">
+                        <div class="landing-clean-icon">2</div>
+                        <h4>ATS compatibility analysis</h4>
+                        <p>We check ATS parse diagnostics, sections, and formatting strength.</p>
+                    </article>
+                    <article class="landing-clean-card">
+                        <div class="landing-clean-icon">3</div>
+                        <h4>Get your resume score</h4>
+                        <p>Receive actionable feedback and downloadable report output for improvements.</p>
+                    </article>
                 </div>
             </section>
-            <section class="landing-panel panel-spectrum landing-reveal">
-                <div class="section-head">
-                    <p class="section-kicker">Beyond basic checks</p>
-                    <h3 class="section-headline">Distinct analysis blocks so users can scan quickly and act faster.</h3>
+            <section class="landing-clean-section">
+                <div class="landing-clean-head">
+                    <span class="landing-clean-tag">Complete resume analysis</span>
+                    <h3 class="landing-clean-title">Advanced resume scanner features</h3>
+                    <p class="landing-clean-subtitle">
+                        Everything you need to create an ATS-friendly resume that gets noticed.
+                    </p>
                 </div>
-                <div class="spectrum-grid">
-                    <article class="spectrum-card">
+                <div class="landing-clean-grid features-grid">
+                    <article class="landing-clean-card">
                         <h4>ATS parse diagnostics</h4>
-                        <p>Checks whether your resume structure can be parsed by applicant tracking systems.</p>
+                        <p>Evaluate how applicant tracking systems read and parse your resume structure.</p>
                     </article>
-                    <article class="spectrum-card">
-                        <h4>Quantifying Impact</h4>
-                        <p>Highlights bullets that need metrics, outcomes, or measurable evidence.</p>
+                    <article class="landing-clean-card">
+                        <h4>Resume score calculator</h4>
+                        <p>Get an instant score with strengths, weaknesses, and clear improvement direction.</p>
                     </article>
-                    <article class="spectrum-card">
-                        <h4>Repetition Signals</h4>
-                        <p>Finds repeated wording and encourages stronger, varied phrasing.</p>
+                    <article class="landing-clean-card">
+                        <h4>Keyword optimization</h4>
+                        <p>Find missing role keywords and improve JD relevance for better shortlisting.</p>
                     </article>
-                    <article class="spectrum-card">
-                        <h4>Spelling and Grammar</h4>
-                        <p>Keeps language quality recruiter-ready with clearer presentation.</p>
+                    <article class="landing-clean-card">
+                        <h4>CV format analysis</h4>
+                        <p>Check file formatting for readability and ATS compatibility across systems.</p>
                     </article>
-                    <article class="spectrum-card">
-                        <h4>Section Completeness</h4>
-                        <p>Verifies required resume sections and highlights what is missing.</p>
+                    <article class="landing-clean-card">
+                        <h4>Industry feedback</h4>
+                        <p>Receive practical recommendations aligned with your target role and domain.</p>
                     </article>
-                    <article class="spectrum-card">
-                        <h4>ATS Essentials</h4>
-                        <p>Checks file type, size, links, and contact formatting for submission quality.</p>
-                    </article>
-                </div>
-            </section>
-            <section class="landing-panel panel-walkthrough landing-reveal">
-                <div class="section-head">
-                    <p class="section-kicker">How it works</p>
-                    <h3 class="section-headline">Three-step flow with clear progression for first-time users.</h3>
-                </div>
-                <div class="walkthrough-grid">
-                    <article class="walk-card">
-                        <span class="walk-index">01</span>
-                        <h4>Paste job description</h4>
-                        <p>Add requirements, skills, and seniority expectations from the role you target.</p>
-                    </article>
-                    <article class="walk-card">
-                        <span class="walk-index">02</span>
-                        <h4>Upload resume file</h4>
-                        <p>We extract text and run deterministic checks before scoring the result.</p>
-                    </article>
-                    <article class="walk-card">
-                        <span class="walk-index">03</span>
-                        <h4>Review and improve</h4>
-                        <p>Use section-level guidance and export results to iterate quickly.</p>
+                    <article class="landing-clean-card">
+                        <h4>Free review</h4>
+                        <p>Use the full analysis workflow without sign-up requirements or hidden costs.</p>
                     </article>
                 </div>
             </section>
-            <section class="landing-panel panel-proof landing-reveal">
-                <div class="proof-grid">
-                    <div class="proof-tile">
-                        <p class="proof-label">Cost to use</p>
-                        <p class="proof-value">100% Free</p>
-                    </div>
-                    <div class="proof-tile">
-                        <p class="proof-label">Scoring model</p>
-                        <p class="proof-value">Standard scoring</p>
-                    </div>
-                    <div class="proof-tile">
-                        <p class="proof-label">Export formats</p>
-                        <p class="proof-value">Markdown + JSON</p>
-                    </div>
-                    <div class="proof-tile">
-                        <p class="proof-label">Data lifecycle</p>
-                        <p class="proof-value">Session only</p>
-                    </div>
+            <section class="landing-clean-section">
+                <div class="landing-clean-head">
+                    <span class="landing-clean-tag">Common Questions</span>
+                    <h3 class="landing-clean-title">Frequently asked questions</h3>
+                    <p class="landing-clean-subtitle">
+                        Quick answers before you upload your next resume draft.
+                    </p>
+                </div>
+                <div class="landing-clean-grid faq-clean-grid">
+                    <article class="landing-clean-card">
+                        <h4>Is the resume checker really free?</h4>
+                        <p>Yes. Resume analysis and report download are available at no cost in this app.</p>
+                    </article>
+                    <article class="landing-clean-card">
+                        <h4>What file formats are supported?</h4>
+                        <p>PDF and DOCX are supported. Text-based resumes typically produce best results.</p>
+                    </article>
+                    <article class="landing-clean-card">
+                        <h4>Do you store my resume data?</h4>
+                        <p>Resume content is processed in session and is not retained for long-term storage.</p>
+                    </article>
+                    <article class="landing-clean-card">
+                        <h4>How long does analysis take?</h4>
+                        <p>Most runs complete quickly and return a structured report in under a minute.</p>
+                    </article>
                 </div>
             </section>
-            <section class="landing-panel panel-faq landing-reveal">
-                <div class="section-head">
-                    <p class="section-kicker">FAQs</p>
-                    <h3 class="section-headline">Frequently asked questions for users before they upload their resume.</h3>
+            <section class="landing-clean-cta">
+                <h3>Start your free resume analysis now</h3>
+                <p>Join more job seekers who improved their resumes with clear ATS feedback.</p>
+                <div class="landing-clean-cta-pills">
+                    <span>No registration required</span>
+                    <span>Instant results</span>
+                    <span>100% free</span>
                 </div>
-                <div class="faq-grid">
-                    <div class="faq-card">
-                        <h4>Do I need to pay to use this checker?</h4>
-                        <p>No. The complete workflow is free inside this app.</p>
-                    </div>
-                    <div class="faq-card">
-                        <h4>How is the final score calculated?</h4>
-                        <p>One standard scoring model combines ATS readiness and content-quality checks.</p>
-                    </div>
-                    <div class="faq-card">
-                        <h4>What file type is supported?</h4>
-                        <p>PDF and DOCX are supported. Text-based files provide the best extraction accuracy.</p>
-                    </div>
-                    <div class="faq-card">
-                        <h4>Can I save my result?</h4>
-                        <p>Yes. Download the report as Markdown or JSON directly from the results page.</p>
-                    </div>
+            </section>
+            <section class="landing-clean-section">
+                <div class="landing-clean-head">
+                    <span class="landing-clean-tag">Why choose ExcelCV</span>
+                    <h3 class="landing-clean-title">Built for clarity, speed, and practical feedback</h3>
                 </div>
+                <div class="landing-clean-grid benefits-grid">
+                    <article class="landing-clean-card"><p>Compare your resume against role expectations.</p></article>
+                    <article class="landing-clean-card"><p>Improve interview callback chance with better keyword coverage.</p></article>
+                    <article class="landing-clean-card"><p>Detect formatting issues that block ATS parsing.</p></article>
+                    <article class="landing-clean-card"><p>Identify missing sections and contact information quickly.</p></article>
+                    <article class="landing-clean-card"><p>Get JD alignment feedback with explainable scoring context.</p></article>
+                    <article class="landing-clean-card"><p>Track actionable next steps for resume improvement.</p></article>
+                </div>
+            </section>
+            <section class="landing-clean-section">
+                <div class="landing-clean-head">
+                    <span class="landing-clean-tag">Success stories</span>
+                    <h3 class="landing-clean-title">Resume checker success stories</h3>
+                </div>
+                <div class="landing-clean-grid stories-grid">
+                    <article class="landing-clean-card">
+                        <p class="story-tag">CV score: 65 -> 92</p>
+                        <p>"The ATS scanner found issues I never knew existed. I landed more interviews quickly."</p>
+                        <h5>Sara J.</h5>
+                        <span>Software Engineer</span>
+                    </article>
+                    <article class="landing-clean-card">
+                        <p class="story-tag">Interview rate: +80%</p>
+                        <p>"Keyword suggestions helped me pass ATS filters that I was missing before."</p>
+                        <h5>James C.</h5>
+                        <span>Marketing Manager</span>
+                    </article>
+                    <article class="landing-clean-card">
+                        <p class="story-tag">ATS score: 58 -> 95</p>
+                        <p>"Detailed feedback made my resume stronger and easier for recruiters to review."</p>
+                        <h5>Jessica W.</h5>
+                        <span>Financial Analyst</span>
+                    </article>
+                </div>
+            </section>
+            <section class="landing-clean-section">
+                <div class="landing-clean-head">
+                    <span class="landing-clean-tag">From the blog</span>
+                    <h3 class="landing-clean-title">Latest resume and career tips</h3>
+                </div>
+                <div class="landing-clean-grid blog-grid">
+                    <article class="landing-clean-card">
+                        <p class="story-tag">Resume Help</p>
+                        <h4>10 resume tips that help you get hired</h4>
+                        <p>Learn practical steps to make your resume stand out to ATS and recruiters.</p>
+                    </article>
+                    <article class="landing-clean-card">
+                        <p class="story-tag">Job Interviews</p>
+                        <h4>How to prepare for your next interview</h4>
+                        <p>A structured checklist to convert resume shortlists into interview success.</p>
+                    </article>
+                    <article class="landing-clean-card">
+                        <p class="story-tag">Job Search</p>
+                        <h4>Effective job search strategy in 2026</h4>
+                        <p>Simple, consistent steps for better applications and stronger profile visibility.</p>
+                    </article>
+                </div>
+            </section>
+            <section class="landing-clean-footnote">
+                <p>ExcelCV helps you analyze, improve, and share a stronger ATS-ready resume.</p>
             </section>
         </div>
         """
@@ -201,6 +224,5 @@ def render_upload_landing_sections() -> None:
         landing_html,
         unsafe_allow_html=True,
     )
-
 
 

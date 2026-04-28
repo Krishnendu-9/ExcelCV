@@ -62,3 +62,4 @@ htmlcov/
 tmp_pdf_preview/
 generated_reports/
 samples/
+data/*.db

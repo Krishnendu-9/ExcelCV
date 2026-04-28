@@ -6,10 +6,10 @@ from typing import List, Optional
 from dotenv import load_dotenv
 
 
-# Load env from .env first, then .env.example as fallback for local dev.
-load_dotenv()
-if not os.getenv("GOOGLE_API_KEY"):
-    load_dotenv(".env.example")
+# Load env from .env first, then .env.example as fallback for any missing keys.
+# `override=False` keeps explicit .env values as the source of truth.
+load_dotenv(".env", override=False)
+load_dotenv(".env.example", override=False)
 
 MAX_FILE_MB = 2
 MAX_FILE_BYTES = MAX_FILE_MB * 1024 * 1024

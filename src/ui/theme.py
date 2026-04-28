@@ -2,6 +2,7 @@
 Theme and base style injection utilities.
 """
 
+import json
 from functools import lru_cache
 from pathlib import Path
 
@@ -108,15 +109,37 @@ def inject_base_css(theme: str = "light") -> None:
     }
     css_markup = _render_ui_markup_template("base_theme.css.tpl", replacements)
     js_markup = _render_ui_markup_template("base_theme.js.tpl", replacements)
-    html = (
-        "<style>\n"
-        f"{css_markup}"
-        "</style>\n"
-        "<!-- Sidebar interactions handled by components.html in render_report_page -->\n"
-        "<script>\n"
-        f"{js_markup}"
-        "</script>"
+
+    # Inject CSS via JS into the parent document's <head>.
+    # json.dumps safely escapes the CSS string for use as a JS string literal,
+    # avoiding any issues with Streamlit's markdown renderer treating <style>
+    # blocks as visible text.
+    css_json = json.dumps(css_markup)
+    js_json = json.dumps(js_markup)
+    components.html(
+        f"""<script>
+(function() {{
+    var w = window.parent && window.parent !== window ? window.parent : window;
+    var doc = w.document;
+
+    var styleId = 'excelcv-base-theme';
+    var existing = doc.getElementById(styleId);
+    if (existing) existing.remove();
+    var style = doc.createElement('style');
+    style.id = styleId;
+    style.textContent = {css_json};
+    (doc.head || doc.documentElement).appendChild(style);
+
+    var scriptId = 'excelcv-base-js';
+    var existingJs = doc.getElementById(scriptId);
+    if (existingJs) existingJs.remove();
+    var script = doc.createElement('script');
+    script.id = scriptId;
+    script.textContent = {js_json};
+    (doc.head || doc.documentElement).appendChild(script);
+}})();
+</script>""",
+        height=0,
     )
-    st.markdown(html, unsafe_allow_html=True)
 
 

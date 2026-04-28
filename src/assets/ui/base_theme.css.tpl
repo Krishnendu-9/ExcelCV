@@ -420,21 +420,22 @@
                 display: flex;
                 align-items: center;
                 justify-content: center;
-                gap: 12px;
+                gap: 8px;
                 flex-wrap: nowrap;
                 padding-top: 4px;
             }}
             .site-nav-item {{
                 display: inline-flex;
                 align-items: center;
-                padding: 10px 16px;
+                padding: 8px 13px;
                 border-radius: 999px;
                 border: 1px solid var(--border-color);
                 background: var(--bg-card);
                 color: var(--text-secondary);
-                font-size: 1.04rem;
+                font-size: 0.92rem;
                 font-weight: 700;
                 line-height: 1;
+                white-space: nowrap;
             }}
             .theme-toggle-gap {{
                 height: 4px;

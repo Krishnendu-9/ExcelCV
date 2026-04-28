@@ -4,8 +4,10 @@ python-docx>=1.1.2,<2
 google-generativeai>=0.8.4,<1
 python-dotenv>=1.0.1,<2
 reportlab>=4.2,<5
+sqlalchemy>=2.0.0,<3
+bcrypt>=4.0.0
+requests>=2.28,<3
 
 # py -m streamlit run app.py //to run the app
-
 
 #get API key from https://aistudio.google.com/api-keys?project=gen-lang-client-0152805506

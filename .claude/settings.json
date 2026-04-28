@@ -1,7 +1,34 @@
 {
   "permissions": {
     "allow": [
-      "Bash(python -m pytest tests/ -q --tb=no)"
+      "Bash(python -m pytest tests/ -q --tb=no)",
+      "Bash(npm --version)",
+      "Bash(pip --version)",
+      "Bash(py --version)",
+      "Bash(where python *)",
+      "Bash(npx create-next-app@latest frontend --typescript --tailwind --eslint --app --no-src-dir --import-alias \"@/*\" --yes)",
+      "Bash(py -m pip install -r backend/requirements.txt --quiet)",
+      "Bash(npm install *)",
+      "Bash(npx shadcn@latest init --yes --defaults)",
+      "Bash(npx shadcn@latest add button input label textarea card tabs dialog badge separator progress scroll-area tooltip --yes)",
+      "Bash(npm run *)",
+      "Bash(py -m uvicorn app.main:app --host 0.0.0.0 --port 8000)",
+      "Bash(curl -s http://localhost:8000/api/health)",
+      "Bash(taskkill /F /IM python.exe /T)",
+      "Bash(pip install *)",
+      "Bash(python -c ' *)",
+      "Bash(py -c ' *)",
+      "Bash(python -c \"import bcrypt; pw = bcrypt.hashpw\\(b'test1234', bcrypt.gensalt\\(\\)\\); print\\('OK:', bcrypt.checkpw\\(b'test1234', pw\\)\\)\")",
+      "Bash(grep -v \"^d.*\\\\\\\\.git\")",
+      "Bash(sed 's/:.*//')",
+      "Bash(xargs -I {} basename {})",
+      "Bash(xargs rm *)",
+      "Bash(py -m pip install requests -q)"
+    ],
+    "additionalDirectories": [
+      "e:\\Academic\\minor-project\\cv-review\\backend\\app",
+      "e:\\Academic\\minor-project\\cv-review\\frontend\\app\\(protected)\\builder",
+      "e:\\Academic\\minor-project\\cv-review\\frontend"
     ]
   }
 }

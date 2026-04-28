@@ -1,14 +1,30 @@
             // SIMPLE THEME APPLICATION - WHITE FOR LIGHT, BLACK FOR DARK
             (function() {{
+                // Version guard: each new script injection bumps the counter.
+                // Any pending callbacks from a previous (stale) script see a version
+                // mismatch and exit immediately — this is what stops the rapid
+                // light↔dark switching when the theme toggle is clicked.
+                window.__excelcvThemeVer = (window.__excelcvThemeVer || 0) + 1;
+                var _myVer = window.__excelcvThemeVer;
+
+                // Disconnect ALL observers from previous scripts so they can't
+                // override the new theme (e.g. old light-theme observer fighting dark-theme).
+                if (window.__excelcvObservers) {{
+                    window.__excelcvObservers.forEach(function(o) {{ try {{ o.disconnect(); }} catch(e) {{}} }});
+                }}
+                window.__excelcvObservers = [];
+
                 // Clean up any existing intervals
                 if (window.themeInterval) {{
                     clearInterval(window.themeInterval);
                 }}
-                
+
                 const bgColor = '{bg_color}';
                 const themeClass = bgColor === '#ffffff' ? 'theme-light' : 'theme-dark';
                 
                 function forceTheme() {{
+                    // Bail out if a newer script has taken ownership of the theme.
+                    if (window.__excelcvThemeVer !== _myVer) return;
                     try {{
                         const isThemeToggleButton = (btn) => {{
                             if (!btn || !btn.closest) return false;
@@ -317,13 +333,15 @@
                         // Run immediately and keep polling briefly while Streamlit stabilizes.
                         fixDropzoneGlow();
                         const dropzoneInterval = setInterval(fixDropzoneGlow, 300);
-                        setTimeout(() => clearInterval(dropzoneInterval), 12000);
-                        
+                        setTimeout(() => clearInterval(dropzoneInterval), 3000);
+
                         // Also run on DOM changes
                         if (document.body) {{
-                            new MutationObserver(() => {{
+                            var _dropObs = new MutationObserver(() => {{
+                                if (window.__excelcvThemeVer !== _myVer) {{ _dropObs.disconnect(); return; }}
                                 setTimeout(fixDropzoneGlow, 5);
-                            }}).observe(document.body, {{
+                            }});
+                            _dropObs.observe(document.body, {{
                                 childList: true,
                                 subtree: true
                             }});
@@ -375,7 +393,7 @@
                         // Run continuously for a short warm-up period only.
                         fixUploadButtonGlow();
                         const uploadBtnInterval = setInterval(fixUploadButtonGlow, 300);
-                        setTimeout(() => clearInterval(uploadBtnInterval), 12000);
+                        setTimeout(() => clearInterval(uploadBtnInterval), 3000);
                         
                         // Fix ALL secondary buttons
                         document.querySelectorAll('button[data-testid="baseButton-secondary"]').forEach(btn => {{
@@ -433,25 +451,33 @@
                 setTimeout(forceTheme, 50);
                 setTimeout(forceTheme, 100);
                 
-                // Keep a moderate refresh interval and stop after warm-up.
+                // Short warm-up interval — stop after 3 s (previously 12 s, which
+                // left stale scripts running long enough to fight the new theme).
                 window.themeInterval = setInterval(forceTheme, 150);
                 setTimeout(() => {{
                     if (window.themeInterval) {{
                         clearInterval(window.themeInterval);
                         window.themeInterval = null;
                     }}
-                }}, 12000);
+                }}, 3000);
                 
-                // Also run on DOM changes
+                // Re-apply theme when Streamlit adds new DOM nodes (e.g. after a rerun).
+                // IMPORTANT: do NOT observe attributes/style/class changes here —
+                // forceTheme() itself modifies those, which would create an infinite
+                // self-triggering loop causing the rapid light↔dark flicker.
                 if (document.body) {{
-                    new MutationObserver(() => {{
-                        setTimeout(forceTheme, 5);
-                    }}).observe(document.body, {{
-                        childList: true,
-                        subtree: true,
-                        attributes: true,
-                        attributeFilter: ['style', 'class']
+                    var _themeObs = new MutationObserver(() => {{
+                        if (window.__excelcvThemeVer !== _myVer) {{
+                            _themeObs.disconnect();
+                            return;
+                        }}
+                        setTimeout(forceTheme, 16);
                     }});
+                    _themeObs.observe(document.body, {{
+                        childList: true,
+                        subtree: true
+                    }});
+                    window.__excelcvObservers.push(_themeObs);
                 }}
                 
                 // Run on all events

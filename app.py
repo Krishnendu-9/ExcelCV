@@ -32,14 +32,33 @@ from src.ui_components import (
     render_upload_landing_sections,
     render_upload_preview_card,
 )
+from src.auth_utils import (
+    get_session_user,
+    get_or_create_google_user,
+    login_user,
+    logout_user,
+    create_session_token,
+    restore_session_from_cookie,
+    _COOKIE_NAME,
+    _SESSION_SECONDS,
+)
+from src.database import init_db
+from src.ui.auth_page import render_auth_page
+from src.ui.cv_builder_page import render_cv_builder_page
+from src.ui.my_cvs_page import render_my_cvs_page
+from src.ui.my_analyses_page import render_my_analyses_page
 
 APP_PAGES: Dict[str, str] = {
     "home": "Home",
+    "auth": "Sign In",
     "upload-cv": "Upload CV",
     "compare-cv": "Compare Multiple CV",
     "career-blog": "Career Blog",
     "motivation-letter": "Motivation Letter",
     "resume-builder": "Resume Builder",
+    "cv-builder": "CV Builder",
+    "my-cvs": "My CVs",
+    "my-analyses": "My Analyses",
     "upload": "Resume Checker",
     "report": "Report",
     "ats-insights": "ATS Insights",
@@ -55,8 +74,9 @@ APP_PAGES: Dict[str, str] = {
 
 
 def _build_page_href(page: str, include_rid: bool = False) -> str:
-    """Build app-internal page URL with optional report snapshot id."""
-    params: Dict[str, str] = {"page": page}
+    """Build app-internal page URL. _t carries theme across session resets; Python strips it immediately."""
+    theme = st.session_state.get("theme", "light")
+    params: Dict[str, str] = {"page": page, "_t": theme}
     if include_rid:
         rid = st.session_state.get("report_snapshot_id") or st.query_params.get("rid")
         if rid:
@@ -99,6 +119,25 @@ def _normalize_missing_skills(value: Any, limit: int = 3) -> List[str]:
         if len(normalized) >= limit:
             break
     return normalized
+
+
+def _clear_analysis_state(clear_comparison: bool = True) -> None:
+    """Clear analysis/report-related session state keys."""
+    for key in (
+        "analysis",
+        "cv_text",
+        "job_description",
+        "cv_name",
+        "cv_file_size",
+        "issues",
+        "report_snapshot_id",
+        "jd",
+        "cvs",
+    ):
+        st.session_state.pop(key, None)
+    if clear_comparison:
+        st.session_state.pop("comparison_results", None)
+        st.session_state.pop("comparison_errors", None)
 
 
 @lru_cache(maxsize=1)
@@ -300,6 +339,129 @@ def run_multi_resume_comparison(job_description: str, uploaded_cvs: List[Any]) -
     return {"rows": rows, "errors": errors}
 
 
+def _inject_theme_persistence(theme: str) -> None:
+    """Sync theme to localStorage and install a click interceptor that carries it across navigations.
+
+    On every page load this:
+      1. Writes the current theme to localStorage so it survives session resets.
+      2. Adds a one-time click listener on the parent window that appends ?_t=<theme>
+         to every internal link click \u2014 Python reads _t on the next fresh session and
+         cleans it immediately, so URLs stay tidy at rest.
+      3. Strips any stale ?_t param from the current URL via history.replaceState.
+    """
+    safe_theme = "dark" if theme == "dark" else "light"
+    components.html(
+        f"""<script>
+(function() {{
+    var w = window.parent && window.parent !== window ? window.parent : window;
+    w.localStorage.setItem('excelcv_theme', '{safe_theme}');
+    var url = new URL(w.location.href);
+    if (url.searchParams.has('_t')) {{
+        url.searchParams.delete('_t');
+        w.history.replaceState(null, '', url.toString());
+    }}
+    if (w._ecvThemeHooked) return;
+    w._ecvThemeHooked = true;
+    w.document.addEventListener('click', function(e) {{
+        var a = e.target && e.target.closest ? e.target.closest('a[href]') : null;
+        if (!a) return;
+        try {{
+            var u = new URL(a.href, w.location.origin);
+            if (u.hostname !== w.location.hostname) return;
+            var t = w.localStorage.getItem('excelcv_theme');
+            if (t) {{ u.searchParams.set('_t', t); a.href = u.toString(); }}
+        }} catch(ex) {{}}
+    }}, true);
+}})();
+</script>""",
+        height=0,
+    )
+
+
+def _inject_chunk_load_recovery() -> None:
+    """Auto-recover once when browser fails to load Streamlit dynamic chunks."""
+    components.html(
+        """<script>
+(function () {
+    var w = window.parent && window.parent !== window ? window.parent : window;
+    if (w.__excelcvChunkRecoveryInstalled) return;
+    w.__excelcvChunkRecoveryInstalled = true;
+
+    var RETRY_KEY = "excelcv_chunk_retry_ts";
+    var RETRY_WINDOW_MS = 15000;
+
+    function shouldRecover(msg) {
+        if (!msg) return false;
+        var text = String(msg);
+        return (
+            text.indexOf("Failed to fetch dynamically imported module") !== -1 ||
+            text.indexOf("Importing a module script failed") !== -1 ||
+            text.indexOf("ChunkLoadError") !== -1
+        );
+    }
+
+    function recentlyRetried() {
+        try {
+            var prev = Number(w.sessionStorage.getItem(RETRY_KEY) || "0");
+            return Number.isFinite(prev) && (Date.now() - prev) < RETRY_WINDOW_MS;
+        } catch (e) {
+            return false;
+        }
+    }
+
+    function markRetried() {
+        try {
+            w.sessionStorage.setItem(RETRY_KEY, String(Date.now()));
+        } catch (e) {}
+    }
+
+    function recover() {
+        if (recentlyRetried()) return;
+        markRetried();
+        try {
+            var u = new URL(w.location.href);
+            u.searchParams.set("_asset_reload", String(Date.now()));
+            w.location.replace(u.toString());
+        } catch (e) {
+            try { w.location.reload(); } catch (_e) {}
+        }
+    }
+
+    w.addEventListener("error", function (evt) {
+        var message = (evt && evt.message) || (evt && evt.error && evt.error.message) || "";
+        if (shouldRecover(message)) recover();
+    }, true);
+
+    w.addEventListener("unhandledrejection", function (evt) {
+        var reason = evt && evt.reason;
+        var message = (reason && reason.message) || String(reason || "");
+        if (shouldRecover(message)) recover();
+    });
+})();
+</script>""",
+        height=0,
+    )
+
+
+def _show_queued_toast() -> None:
+    """Render a one-time toast queued in session state."""
+    payload = st.session_state.pop("ui_toast", None)
+    if not payload:
+        return
+    if isinstance(payload, dict):
+        message = str(payload.get("message", "")).strip()
+        icon = payload.get("icon")
+    else:
+        message = str(payload).strip()
+        icon = None
+    if not message:
+        return
+    try:
+        st.toast(message, icon=icon)
+    except Exception:
+        st.success(message)
+
+
 def render_theme_toggle(standalone: bool = True, key: str = "theme_toggle") -> None:
     """Render the theme switch button. If standalone=False, only the button (for use inside a column)."""
     if standalone:
@@ -315,45 +477,52 @@ def render_theme_toggle(standalone: bool = True, key: str = "theme_toggle") -> N
             key=key,
             use_container_width=standalone,
         ):
-            st.session_state["theme"] = "dark" if current_theme == "light" else "light"
+            new_theme = "dark" if current_theme == "light" else "light"
+            st.session_state["theme"] = new_theme
+            # localStorage sync handled by _inject_theme_persistence on the next rerun
             st.rerun()
 
 
 def render_site_header(show_theme_toggle: bool = True, current_page: str = "upload") -> None:
-    """Render top branded header similar to modern landing pages."""
+    """Render top branded header. Auth links are plain HTML — no nested st.columns."""
+    _user = get_session_user()
+
+    # Exactly 3 top-level columns. No nesting — nested columns break in Streamlit.
     if show_theme_toggle:
-        col_brand, col_nav, col_theme = st.columns([1.3, 2.15, 0.55], gap="small")
+        col_brand, col_nav, col_theme = st.columns([1.2, 3.2, 0.55], gap="small")
     else:
-        col_brand, col_nav = st.columns([1.3, 2.7], gap="small")
+        col_brand, col_nav = st.columns([1.2, 3.8], gap="small")
         col_theme = None
+
     logo_src = _load_logo_data_uri()
     logo_content_html = (
         f'<img src="{logo_src}" alt="ExcelCV logo" class="site-logo-wordmark" />'
         if logo_src
         else '<div class="site-logo-badge">EC</div><div class="site-brand-copy"><div class="site-name">ExcelCV</div></div>'
     )
-    logo_target_url = f"/?page=home&_clear=1&_home={uuid4().hex}&_reload={uuid4().hex}"
+    _cur_theme = st.session_state.get("theme", "light")
+    logo_target_url = f"/?page=home&_clear=1&_t={_cur_theme}"
     logo_html = (
         f'<a href="{logo_target_url}" target="_self" class="site-logo-link" aria-label="Go to homepage">'
         f'<div class="site-logo-shell">{logo_content_html}</div></a>'
     )
 
     with col_brand:
-        st.markdown(
-            f'<div class="site-brand">{logo_html}</div>',
-            unsafe_allow_html=True,
-        )
+        st.markdown(f'<div class="site-brand">{logo_html}</div>', unsafe_allow_html=True)
 
     nav_items = [
-        ("Home", "home"),
-        ("Upload CV", "upload-cv"),
-        ("Compare Multiple CV", "compare-cv"),
-        ("Contact", "contact"),
+        ("Analyze CV", "upload-cv"),
+        ("CV Builder", "cv-builder"),
+        ("My CVs", "my-cvs"),
+        ("My Analyses", "my-analyses"),
+        ("Compare", "compare-cv"),
     ]
-    if current_page in ("upload", "home"):
-        active_page = "home"
+    if current_page in ("upload", "home", "upload-cv"):
+        active_page = "upload-cv"
     elif current_page == "report":
         active_page = "upload-cv"
+    elif current_page == "resume-builder":
+        active_page = "cv-builder"
     else:
         active_page = current_page
 
@@ -365,8 +534,29 @@ def render_site_header(show_theme_toggle: bool = True, current_page: str = "uplo
             f'class="site-nav-item{active_cls}" style="text-decoration:none;">{label}</a>'
         )
 
+    # Auth link appended to nav as plain HTML — no Streamlit button needed.
+    # Sign Out uses /?_logout=1&_t=<theme> so the theme persists after logout.
+    if _user:
+        first_name = _user.get("full_name", "User").split()[0]
+        auth_html = (
+            f'<span style="color:#94a3b8;font-size:0.8rem;white-space:nowrap;">'
+            f'Hi, {first_name}</span>'
+            f'<a href="/?_logout=1&_t={_cur_theme}" target="_self" class="site-nav-item" '
+            f'style="text-decoration:none;background:transparent;color:#ef4444;'
+            f'border-color:#ef4444;white-space:nowrap;">Sign Out</a>'
+        )
+    else:
+        auth_html = (
+            f'<a href="{_build_page_href("auth")}" target="_self" class="site-nav-item" '
+            f'style="text-decoration:none;background:#3b82f6;color:#fff;'
+            f'border-color:#3b82f6;white-space:nowrap;">Sign In</a>'
+        )
+
     with col_nav:
-        st.markdown('<div class="site-nav">' + "".join(nav_links) + "</div>", unsafe_allow_html=True)
+        st.markdown(
+            '<div class="site-nav">' + "".join(nav_links) + auth_html + "</div>",
+            unsafe_allow_html=True,
+        )
 
     if show_theme_toggle and col_theme is not None:
         with col_theme:
@@ -627,6 +817,29 @@ def inject_compact_header_css() -> None:
         if is_dark
         else "0 0 0 3px rgba(37, 99, 235, 0.14)"
     )
+    guest_title_color = "#e2e8f0" if is_dark else "#0f172a"
+    guest_body_color = "#94a3b8" if is_dark else "#64748b"
+    guest_icon_bg = "rgba(37, 99, 235, 0.18)" if is_dark else "rgba(37, 99, 235, 0.10)"
+    guest_icon_color = "#93c5fd" if is_dark else "#1d4ed8"
+    guest_cta_bg = "linear-gradient(135deg, #2563eb, #3b82f6)"
+    guest_cta_text = "#ffffff"
+    guest_cta_border = "rgba(59, 130, 246, 0.55)"
+    preview_shell_bg = (
+        "linear-gradient(155deg, rgba(15, 23, 42, 0.94), rgba(30, 41, 59, 0.88))"
+        if is_dark
+        else "linear-gradient(155deg, rgba(241, 245, 249, 0.96), rgba(226, 232, 240, 0.92))"
+    )
+    preview_shell_border = "rgba(148, 163, 184, 0.22)" if is_dark else "rgba(148, 163, 184, 0.36)"
+    preview_card_bg = (
+        "linear-gradient(160deg, rgba(15, 23, 42, 0.95), rgba(30, 41, 59, 0.82))"
+        if is_dark
+        else "linear-gradient(160deg, rgba(255, 255, 255, 0.98), rgba(241, 245, 249, 0.95))"
+    )
+    preview_card_border = "rgba(148, 163, 184, 0.28)" if is_dark else "rgba(148, 163, 184, 0.36)"
+    preview_text = "#e2e8f0" if is_dark else "#0f172a"
+    preview_muted = "#94a3b8" if is_dark else "#475569"
+    preview_chip_bg = "rgba(148, 163, 184, 0.18)" if is_dark else "rgba(148, 163, 184, 0.20)"
+    preview_track_bg = "rgba(148, 163, 184, 0.20)" if is_dark else "rgba(148, 163, 184, 0.22)"
     css = """
         <style>
         :root {
@@ -946,7 +1159,8 @@ def inject_compact_header_css() -> None:
             font-weight: 700 !important;
             color: var(--text-primary) !important;
         }
-        .st-key-compare_form_box {
+        .st-key-compare_form_box,
+        .st-key-upload_guest_box {
             margin-top: 14px !important;
             margin-bottom: 12px !important;
             padding: 20px 18px 16px 18px !important;
@@ -954,6 +1168,56 @@ def inject_compact_header_css() -> None:
             border: 1px solid __COMPARE_BOX_BORDER__ !important;
             background: __COMPARE_BOX_BG__ !important;
             box-shadow: __COMPARE_BOX_SHADOW__ !important;
+        }
+        .guest-auth-shell {
+            text-align: center !important;
+            padding: 1.25rem 0.75rem !important;
+        }
+        .guest-auth-icon {
+            width: 62px !important;
+            height: 62px !important;
+            margin: 0 auto 0.85rem auto !important;
+            border-radius: 999px !important;
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            font-size: 1.6rem !important;
+            background: __GUEST_ICON_BG__ !important;
+            color: __GUEST_ICON_COLOR__ !important;
+            border: 1px solid rgba(59, 130, 246, 0.22) !important;
+        }
+        .guest-auth-title {
+            margin: 0 0 0.5rem 0 !important;
+            font-size: 1.9rem !important;
+            line-height: 1.12 !important;
+            font-weight: 800 !important;
+            color: __GUEST_TITLE_COLOR__ !important;
+        }
+        .guest-auth-copy {
+            margin: 0 auto 1.25rem auto !important;
+            max-width: 720px !important;
+            font-size: 1.02rem !important;
+            line-height: 1.5 !important;
+            color: __GUEST_BODY_COLOR__ !important;
+        }
+        .guest-auth-cta {
+            display: inline-block !important;
+            padding: 0.65rem 2rem !important;
+            border-radius: 0.65rem !important;
+            text-decoration: none !important;
+            font-weight: 800 !important;
+            font-size: 1.04rem !important;
+            background: __GUEST_CTA_BG__ !important;
+            color: __GUEST_CTA_TEXT__ !important;
+            border: 1px solid __GUEST_CTA_BORDER__ !important;
+            box-shadow: 0 10px 20px rgba(37, 99, 235, 0.20) !important;
+            transition: transform 0.16s ease, box-shadow 0.16s ease !important;
+        }
+        .guest-auth-cta:hover,
+        .guest-auth-cta:focus-visible {
+            transform: translateY(-1px) !important;
+            box-shadow: 0 14px 24px rgba(37, 99, 235, 0.28) !important;
+            color: __GUEST_CTA_TEXT__ !important;
         }
         .st-key-compare_form_box [data-testid="stForm"] {
             margin: 0 !important;
@@ -1403,6 +1667,32 @@ def inject_compact_header_css() -> None:
             background: linear-gradient(135deg, rgba(15, 106, 201, 0.72), rgba(20, 184, 166, 0.66)) !important;
             box-shadow: 0 18px 32px rgba(2, 8, 23, 0.36) !important;
         }
+        /* Stable preview card contrast for both theme modes */
+        [data-testid="stAppViewContainer"] .upload-preview {
+            background: __PREVIEW_SHELL_BG__ !important;
+            border-color: __PREVIEW_SHELL_BORDER__ !important;
+        }
+        [data-testid="stAppViewContainer"] .upload-preview .preview-card {
+            background: __PREVIEW_CARD_BG__ !important;
+            border-color: __PREVIEW_CARD_BORDER__ !important;
+        }
+        [data-testid="stAppViewContainer"] .upload-preview .preview-card,
+        [data-testid="stAppViewContainer"] .upload-preview .preview-card .text-primary,
+        [data-testid="stAppViewContainer"] .upload-preview .preview-card .text-secondary,
+        [data-testid="stAppViewContainer"] .upload-preview .preview-card .list-row span {
+            color: __PREVIEW_TEXT__ !important;
+            opacity: 1 !important;
+        }
+        [data-testid="stAppViewContainer"] .upload-preview .preview-card .text-muted {
+            color: __PREVIEW_MUTED__ !important;
+            opacity: 1 !important;
+        }
+        [data-testid="stAppViewContainer"] .upload-preview .preview-card .pill {
+            background: __PREVIEW_CHIP_BG__ !important;
+        }
+        [data-testid="stAppViewContainer"] .upload-preview .preview-card .progress-track {
+            background: __PREVIEW_TRACK_BG__ !important;
+        }
         .site-header-rule {
             display: none !important;
         }
@@ -1473,7 +1763,8 @@ def inject_compact_header_css() -> None:
             .compare-next-title {
                 font-size: 1.28rem !important;
             }
-            .st-key-compare_form_box {
+            .st-key-compare_form_box,
+            .st-key-upload_guest_box {
                 padding: 14px 12px 12px 12px !important;
             }
             .compare-next-shell {
@@ -1527,6 +1818,21 @@ def inject_compact_header_css() -> None:
         .replace("__COMPARE_HOVER_BG__", compare_hover_bg)
         .replace("__COMPARE_HOVER_BORDER__", compare_hover_border)
         .replace("__COMPARE_HOVER_SHADOW__", compare_hover_shadow)
+        .replace("__GUEST_TITLE_COLOR__", guest_title_color)
+        .replace("__GUEST_BODY_COLOR__", guest_body_color)
+        .replace("__GUEST_ICON_BG__", guest_icon_bg)
+        .replace("__GUEST_ICON_COLOR__", guest_icon_color)
+        .replace("__GUEST_CTA_BG__", guest_cta_bg)
+        .replace("__GUEST_CTA_TEXT__", guest_cta_text)
+        .replace("__GUEST_CTA_BORDER__", guest_cta_border)
+        .replace("__PREVIEW_SHELL_BG__", preview_shell_bg)
+        .replace("__PREVIEW_SHELL_BORDER__", preview_shell_border)
+        .replace("__PREVIEW_CARD_BG__", preview_card_bg)
+        .replace("__PREVIEW_CARD_BORDER__", preview_card_border)
+        .replace("__PREVIEW_TEXT__", preview_text)
+        .replace("__PREVIEW_MUTED__", preview_muted)
+        .replace("__PREVIEW_CHIP_BG__", preview_chip_bg)
+        .replace("__PREVIEW_TRACK_BG__", preview_track_bg)
     )
     st.markdown(css, unsafe_allow_html=True)
 
@@ -1695,6 +2001,70 @@ def inject_logo_home_click_behavior() -> None:
     )
 
 
+@st.cache_resource
+def _init_database() -> None:
+    init_db()
+
+
+def _handle_oauth_callback() -> None:
+    """Process a Google OAuth authorization-code callback.
+
+    Google redirects to our redirect_uri with ?code=...  We detect this early
+    in main() before any page routing so the login completes transparently.
+    """
+    code = st.query_params.get("code")
+    if not code or st.session_state.get("user"):
+        return
+
+    # Consume all OAuth-related query params immediately so they don't linger.
+    for _p in ["code", "state", "scope", "authuser", "prompt"]:
+        if _p in st.query_params:
+            del st.query_params[_p]
+
+    from src.oauth_utils import exchange_code_for_userinfo
+    user_info = exchange_code_for_userinfo(code)
+    if not user_info:
+        st.session_state["oauth_error"] = "Google sign-in failed. Please try again."
+        st.session_state["page"] = "auth"
+        return
+
+    user = get_or_create_google_user(user_info)
+    if not user:
+        st.session_state["oauth_error"] = "Could not create your account. Please try again."
+        st.session_state["page"] = "auth"
+        return
+
+    login_user(user)
+    token = create_session_token(user)
+    components.html(
+        f'<script>document.cookie="{_COOKIE_NAME}={token}; max-age={_SESSION_SECONDS}; path=/; SameSite=Lax";</script>',
+        height=0,
+    )
+    st.session_state["page"] = st.session_state.pop("auth_redirect", "home")
+
+
+def _handle_reset_token() -> None:
+    """Detect a password-reset link (?reset_token=...) and route to the auth page."""
+    token = st.query_params.get("reset_token")
+    if not token:
+        return
+    del st.query_params["reset_token"]
+    st.session_state["reset_token"] = token
+    st.session_state["page"] = "auth"
+
+
+def _require_auth(intended_page: str = "home") -> None:
+    """Redirect to auth page if the user is not signed in.
+
+    Stores the intended destination so the auth page can redirect back after login.
+    st.rerun() stops execution, so code after this call only runs when authenticated.
+    """
+    if not get_session_user():
+        st.session_state["auth_redirect"] = intended_page
+        st.session_state["page"] = "auth"
+        st.rerun()
+
+
 def main() -> None:
     """Main application entry point."""
     st.set_page_config(
@@ -1702,10 +2072,50 @@ def main() -> None:
         layout="wide",
         initial_sidebar_state="collapsed",
     )
+    _inject_chunk_load_recovery()
 
-    # Initialize theme in session state
+    _init_database()
+
+    # Handle sign-out before cookie restore, otherwise cookie restore can re-authenticate immediately.
+    if st.query_params.get("_logout"):
+        logout_user()  # preserves "theme" in session state
+        st.session_state["ui_toast"] = {"message": "Signed out successfully.", "icon": "👋"}
+        st.session_state["_skip_cookie_restore_once"] = True
+        if "_logout" in st.query_params:
+            del st.query_params["_logout"]
+        st.query_params["page"] = "home"
+        # Best-effort cookie clear in both iframe and parent contexts.
+        components.html(
+            f"""<script>
+(function() {{
+  var expire = "{_COOKIE_NAME}=; Max-Age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; SameSite=Lax";
+  try {{ document.cookie = expire; }} catch(e) {{}}
+  try {{
+    var w = window.parent && window.parent !== window ? window.parent : window;
+    w.document.cookie = expire;
+  }} catch(e) {{}}
+}})();
+</script>""",
+            height=0,
+        )
+
+    # Restore login from persistent cookie (survives page refreshes / browser restarts).
+    if not st.session_state.pop("_skip_cookie_restore_once", False):
+        restore_session_from_cookie()
+
+    # Handle external callbacks before any page routing.
+    _handle_oauth_callback()
+    _handle_reset_token()
+
+    # Theme: on a fresh session, read _t (baked into every internal link) or legacy ?theme=.
     if "theme" not in st.session_state:
-        st.session_state["theme"] = "light"
+        raw_theme = st.query_params.get("_t") or st.query_params.get("theme")
+        st.session_state["theme"] = raw_theme if raw_theme in ("light", "dark") else "light"
+    # Always strip bridge params so the address bar stays clean on every rerun.
+    for _p in ("_t", "theme", "_asset_reload", "iss"):
+        if _p in st.query_params:
+            del st.query_params[_p]
+    _show_queued_toast()
     if "page" not in st.session_state:
         st.session_state["page"] = "home"
     if st.session_state.get("page") not in APP_PAGES:
@@ -1713,19 +2123,18 @@ def main() -> None:
     if "report_snapshot_id" not in st.session_state:
         st.session_state["report_snapshot_id"] = None
 
+    # Auth page — full-screen, no nav/footer
+    if st.session_state.get("page") == "auth" or st.query_params.get("page") == "auth":
+        st.session_state["page"] = "auth"
+        _theme = st.session_state.get("theme", "light")
+        inject_base_css(_theme)
+        render_auth_page(theme=_theme)
+        _inject_theme_persistence(_theme)
+        return
+
     # Explicit homepage reset trigger from logo click.
     if st.query_params.get("_clear"):
-        st.session_state.pop("analysis", None)
-        st.session_state.pop("cv_text", None)
-        st.session_state.pop("job_description", None)
-        st.session_state.pop("cv_name", None)
-        st.session_state.pop("cv_file_size", None)
-        st.session_state.pop("issues", None)
-        st.session_state.pop("report_snapshot_id", None)
-        st.session_state.pop("jd", None)
-        st.session_state.pop("cvs", None)
-        st.session_state.pop("comparison_results", None)
-        st.session_state.pop("comparison_errors", None)
+        _clear_analysis_state(clear_comparison=True)
         st.session_state["page"] = "home"
         st.query_params["page"] = "home"
         if "rid" in st.query_params:
@@ -1763,6 +2172,10 @@ def main() -> None:
     # Global branded header visible on both upload and report pages.
     render_site_header(show_theme_toggle=True, current_page=str(st.session_state.get("page", "upload")))
 
+    # If My CVs page requested a specific CV to open in builder, store the id.
+    if st.session_state.get("cvb_load_id"):
+        st.session_state["page"] = "cv-builder"
+
     current_page = str(st.session_state.get("page", "upload"))
     if current_page in ("home", "upload", "upload-cv"):
         render_upload_page(compare_mode=False)
@@ -1770,6 +2183,15 @@ def main() -> None:
         render_upload_page(compare_mode=True)
     elif current_page == "report":
         render_report_view()
+    elif current_page in ("cv-builder", "resume-builder"):
+        _require_auth("cv-builder")
+        render_cv_builder_page()
+    elif current_page == "my-cvs":
+        _require_auth("my-cvs")
+        render_my_cvs_page()
+    elif current_page == "my-analyses":
+        _require_auth("my-analyses")
+        render_my_analyses_page()
     else:
         render_static_page(current_page)
 
@@ -1780,6 +2202,7 @@ def main() -> None:
 
     # Inject styles/scripts after visible UI so hidden injection containers
     # do not push the first row down.
+    _inject_theme_persistence(st.session_state["theme"])
     inject_base_css(st.session_state["theme"])
     inject_file_uploader_spacing_css()
     inject_compact_header_css()
@@ -1791,8 +2214,34 @@ def main() -> None:
     render_site_footer()
 
 
+def _autosave_analysis(cv_name: str, job_description: str, analysis: Dict[str, Any]) -> None:
+    """Persist analysis result to DB for the currently logged-in user (silent)."""
+    user = get_session_user()
+    if not user:
+        return
+    try:
+        from src.database import Analysis as AnalysisModel, get_db as _get_db
+        match_score = float(analysis.get("match_score", 0))
+        db = _get_db()
+        try:
+            record = AnalysisModel(
+                user_id=user["id"],
+                cv_name=cv_name,
+                job_description=job_description,
+                result=analysis,
+                match_score=match_score,
+            )
+            db.add(record)
+            db.commit()
+        finally:
+            db.close()
+    except Exception:
+        pass
+
+
 def render_upload_page(compare_mode: bool = False) -> None:
     """Landing page: upload CV + JD."""
+    _current_user = get_session_user()
     left, right = st.columns([1.0, 1.0], gap="medium")
     with right:
         render_upload_preview_card()
@@ -1808,56 +2257,88 @@ def render_upload_page(compare_mode: bool = False) -> None:
                 </p>
                 <div class="hero-chip-row">
                     <span class="hero-chip">100% free</span>
-                    <span class="hero-chip">No signup</span>
-                    <span class="hero-chip">Session-only data</span>
+                    <span class="hero-chip">Free account</span>
+                    <span class="hero-chip">History saved</span>
                 </div>
             </div>
             """,
             unsafe_allow_html=True,
         )
 
-        with st.form("upload_form"):
-            jd = st.text_area(
+        if _current_user:
+            # ── Logged-in: show full upload form ──────────────────────────────
+            with st.form("upload_form"):
+                jd = st.text_area(
+                    "Job description",
+                    key="jd",
+                    height=120,
+                    placeholder="Paste the role description, must-have skills, and seniority expectations.",
+                )
+                uploaded_cv = st.file_uploader(
+                    "Upload resume (PDF or DOCX)",
+                    type=["pdf", "docx"],
+                    key="cvs",
+                    accept_multiple_files=False,
+                    help="PDF or DOCX supported. Maximum file size: 2MB.",
+                )
+                submitted = st.form_submit_button("Upload & analyze", use_container_width=True)
+                st.caption("Max 2MB per file.")
+                st.markdown(
+                    '<div class="privacy-note">&#128274; Analysis is saved to your account history.</div>',
+                    unsafe_allow_html=True,
+                )
+
+            if submitted:
+                result = run_single_analysis(
+                    jd,
+                    uploaded_cv,
+                    status_container=analysis_status_slot,
+                )
+                if result:
+                    analysis, cv_text = result
+                    safe_cv_name = _sanitize_cv_filename(getattr(uploaded_cv, "name", "CV.pdf"))
+                    st.session_state["cv_text"] = cv_text
+                    st.session_state["job_description"] = jd
+                    st.session_state["analysis"] = analysis
+                    st.session_state["cv_name"] = safe_cv_name
+                    st.session_state["cv_file_size"] = getattr(uploaded_cv, "size", 0)
+                    st.session_state["issues"] = issue_count(analysis)
+                    st.session_state["page"] = "report"
+                    st.query_params["page"] = "report"
+                    snapshot_id = _save_report_snapshot()
+                    st.session_state["report_snapshot_id"] = snapshot_id
+                    st.query_params["rid"] = snapshot_id
+                    _autosave_analysis(safe_cv_name, jd, analysis)
+                    st.rerun()
+
+        else:
+            # ── Guest: JD preview + sign-in prompt in place of file uploader ──
+            st.text_area(
                 "Job description",
-                key="jd",
+                key="jd_guest",
                 height=120,
                 placeholder="Paste the role description, must-have skills, and seniority expectations.",
             )
-            uploaded_cv = st.file_uploader(
-                "Upload resume (PDF or DOCX)",
-                type=["pdf", "docx"],
-                key="cvs",
-                accept_multiple_files=False,
-                help="PDF or DOCX supported. Maximum file size: 2MB.",
-            )
-            submitted = st.form_submit_button("Upload & analyze", use_container_width=True)
-            st.caption("Max 2MB per file.")
-            st.markdown(
-                '<div class="privacy-note">&#128274; Processed locally in-session. Nothing is stored.</div>',
-                unsafe_allow_html=True,
-            )
-
-        if submitted:
-            result = run_single_analysis(
-                jd,
-                uploaded_cv,
-                status_container=analysis_status_slot,
-            )
-            if result:
-                analysis, cv_text = result
-                safe_cv_name = _sanitize_cv_filename(getattr(uploaded_cv, "name", "CV.pdf"))
-                st.session_state["cv_text"] = cv_text
-                st.session_state["job_description"] = jd
-                st.session_state["analysis"] = analysis
-                st.session_state["cv_name"] = safe_cv_name
-                st.session_state["cv_file_size"] = getattr(uploaded_cv, "size", 0)
-                st.session_state["issues"] = issue_count(analysis)
-                st.session_state["page"] = "report"
-                st.query_params["page"] = "report"
-                snapshot_id = _save_report_snapshot()
-                st.session_state["report_snapshot_id"] = snapshot_id
-                st.query_params["rid"] = snapshot_id
-                st.rerun()
+            _auth_href = _build_page_href("auth")
+            with st.container(key="upload_guest_box"):
+                st.markdown(
+                    f"""
+                    <div class="guest-auth-shell">
+                        <div class="guest-auth-icon">&#128274;</div>
+                        <p class="guest-auth-title">
+                            Sign in to upload your resume
+                        </p>
+                        <p class="guest-auth-copy">
+                            Get AI-powered ATS scores, keyword gaps, and save your full
+                            analysis history &mdash; free forever.
+                        </p>
+                        <a href="{_auth_href}" target="_self" class="guest-auth-cta">
+                            Sign In / Create Account &rarr;
+                        </a>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
 
     # Full-width comparison section (not one-sided).
     if compare_mode:
@@ -1897,22 +2378,45 @@ def render_upload_page(compare_mode: bool = False) -> None:
         unsafe_allow_html=True,
     )
     with st.container(key="compare_form_box"):
-        with st.form("comparison_form"):
-            compare_jd = st.text_area(
-                "Job description for comparison",
-                key="compare_jd",
-                value=st.session_state.get("jd", ""),
-                height=130,
-                placeholder="Paste the role description once and compare multiple resumes.",
+        if get_session_user():
+            with st.form("comparison_form"):
+                compare_jd = st.text_area(
+                    "Job description for comparison",
+                    key="compare_jd",
+                    value=st.session_state.get("jd", ""),
+                    height=130,
+                    placeholder="Paste the role description once and compare multiple resumes.",
+                )
+                compare_files = st.file_uploader(
+                    "Upload 2-5 resumes (PDF or DOCX)",
+                    type=["pdf", "docx"],
+                    key="compare_cvs",
+                    accept_multiple_files=True,
+                    help="Maximum 2MB per file. We will rank resumes by final score.",
+                )
+                run_compare = st.form_submit_button("Run comparison", use_container_width=True)
+        else:
+            run_compare = False
+            compare_jd = ""
+            compare_files = []
+            _auth_href2 = _build_page_href("auth")
+            st.markdown(
+                f"""
+                <div class="guest-auth-shell">
+                    <div class="guest-auth-icon">&#128274;</div>
+                    <p class="guest-auth-title">
+                        Sign in to compare resumes
+                    </p>
+                    <p class="guest-auth-copy">
+                        Upload 2–5 resumes and rank them side-by-side — free forever.
+                    </p>
+                    <a href="{_auth_href2}" target="_self" class="guest-auth-cta">
+                        Sign In / Create Account &rarr;
+                    </a>
+                </div>
+                """,
+                unsafe_allow_html=True,
             )
-            compare_files = st.file_uploader(
-                "Upload 2-5 resumes (PDF or DOCX)",
-                type=["pdf", "docx"],
-                key="compare_cvs",
-                accept_multiple_files=True,
-                help="Maximum 2MB per file. We will rank resumes by final score.",
-            )
-            run_compare = st.form_submit_button("Run comparison", use_container_width=True)
 
     if run_compare:
         try:
@@ -2012,25 +2516,8 @@ def render_static_page(page: str) -> None:
         return
 
     if page_key == "resume-builder":
-        _render_info_page_header(
-            "Resume Builder",
-            "Create ATS-friendly resumes with clear structure, measurable impact, and role alignment.",
-        )
-        st.markdown("### Builder Blueprint")
-        st.markdown(
-            "- Header with professional contact links\n"
-            "- Summary tailored to target role\n"
-            "- Experience bullets using action + metric + outcome\n"
-            "- Skills section mapped to JD keywords\n"
-            "- Projects with scope, tools, and business impact"
-        )
-        st.markdown("### Suggested Workflow")
-        st.markdown(
-            "1. Draft resume content section-by-section\n"
-            "2. Run `Resume Checker` to score and detect issues\n"
-            "3. Apply recommendations and rerun analysis"
-        )
-        st.info("Use the Upload CV page to analyze your latest draft.")
+        st.session_state["page"] = "cv-builder"
+        st.rerun()
         return
 
     if page_key == "ats-insights":
@@ -2341,17 +2828,7 @@ def render_report_view() -> None:
     with top_right:
         st.markdown('<div id="report-top-actions-marker" aria-hidden="true"></div>', unsafe_allow_html=True)
         if st.button("Upload another resume", use_container_width=True, help="Upload a new resume"):
-            st.session_state["analysis"] = None
-            st.session_state.pop("cv_text", None)
-            st.session_state.pop("job_description", None)
-            st.session_state.pop("cv_name", None)
-            st.session_state.pop("cv_file_size", None)
-            st.session_state.pop("issues", None)
-            st.session_state.pop("report_snapshot_id", None)
-            st.session_state.pop("jd", None)
-            st.session_state.pop("cvs", None)
-            st.session_state.pop("comparison_results", None)
-            st.session_state.pop("comparison_errors", None)
+            _clear_analysis_state(clear_comparison=True)
             st.session_state["page"] = "upload-cv"
             st.query_params["page"] = "upload-cv"
             if "rid" in st.query_params:

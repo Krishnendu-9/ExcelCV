@@ -11,75 +11,57 @@ def inject_file_uploader_spacing_css() -> None:
     st.markdown(
         """
         <style>
-        /* Remove residual top whitespace above top controls */
-        [data-testid="stAppViewContainer"] > section.main,
-        [data-testid="stMainBlockContainer"],
-        .main .block-container {
-            padding-top: 0 !important;
-            margin-top: 0 !important;
-        }
-        [data-testid="stMainBlockContainer"] > div:first-child,
-        [data-testid="stMainBlockContainer"] .element-container:first-child,
-        [data-testid="stMainBlockContainer"] [data-testid="stHorizontalBlock"]:first-child {
-            padding-top: 0 !important;
-            margin-top: 0 !important;
-        }
 
         /* ── Position labels directly on top of boxes - Clean design ── */
 
-        /* Textarea labels - Job description - Position directly on top */
-        .stTextArea > label,
-        .stTextArea label,
-        [data-testid="stTextArea"] > label,
-        [data-testid="stTextArea"] label,
-        .stForm .stTextArea label,
-        .stForm .stTextArea > label,
-        form .stTextArea label,
-        form .stTextArea > label,
-        body.theme-light .stTextArea label,
-        body.theme-light .stTextArea > label,
-        body.theme-light [data-testid="stTextArea"] label,
-        body.theme-dark .stTextArea label,
-        body.theme-dark .stTextArea > label,
-        body.theme-dark [data-testid="stTextArea"] label {
+        /* Textarea labels - scoped only to upload/comparison forms */
+        .st-key-upload_form .stTextArea > label,
+        .st-key-upload_form .stTextArea label,
+        .st-key-upload_form [data-testid="stTextArea"] > label,
+        .st-key-upload_form [data-testid="stTextArea"] label,
+        .st-key-comparison_form .stTextArea > label,
+        .st-key-comparison_form .stTextArea label,
+        .st-key-comparison_form [data-testid="stTextArea"] > label,
+        .st-key-comparison_form [data-testid="stTextArea"] label {
             margin-bottom: 2px !important;
             margin-top: 0 !important;
             padding-bottom: 2px !important;
         }
 
-        /* File uploader labels - Upload resume - Position directly on top */
-        .stFileUploader > label,
-        .stFileUploader label,
-        [data-testid="stFileUploader"] > label,
-        [data-testid="stFileUploader"] label,
-        .stForm .stFileUploader label,
-        .stForm .stFileUploader > label,
-        form .stFileUploader label,
-        form .stFileUploader > label,
-        body.theme-light .stFileUploader label,
-        body.theme-light .stFileUploader > label,
-        body.theme-light [data-testid="stFileUploader"] label,
-        body.theme-dark .stFileUploader label,
-        body.theme-dark .stFileUploader > label,
-        body.theme-dark [data-testid="stFileUploader"] label {
+        /* File uploader labels - scoped only to upload/comparison forms */
+        .st-key-upload_form .stFileUploader > label,
+        .st-key-upload_form .stFileUploader label,
+        .st-key-upload_form [data-testid="stFileUploader"] > label,
+        .st-key-upload_form [data-testid="stFileUploader"] label,
+        .st-key-comparison_form .stFileUploader > label,
+        .st-key-comparison_form .stFileUploader label,
+        .st-key-comparison_form [data-testid="stFileUploader"] > label,
+        .st-key-comparison_form [data-testid="stFileUploader"] label {
             margin-bottom: 0 !important;
             margin-top: 0 !important;
             padding-bottom: 0 !important;
         }
 
         /* Remove ALL gaps between label containers and input boxes */
-        .stTextArea > div:first-child,
-        .stTextArea > div:first-of-type,
-        .stTextArea > div {
+        .st-key-upload_form .stTextArea > div:first-child,
+        .st-key-upload_form .stTextArea > div:first-of-type,
+        .st-key-upload_form .stTextArea > div,
+        .st-key-comparison_form .stTextArea > div:first-child,
+        .st-key-comparison_form .stTextArea > div:first-of-type,
+        .st-key-comparison_form .stTextArea > div {
             margin-bottom: 0 !important;
             padding-bottom: 0 !important;
             margin-top: 0 !important;
         }
 
-        .stFileUploader > div:first-of-type,
-        .stFileUploader > div,
-        [data-testid="stFileUploader"] > div,
-        [data-testid="stFileUploader"] > div:first-child {
+        .st-key-upload_form .stFileUploader > div:first-of-type,
+        .st-key-upload_form .stFileUploader > div,
+        .st-key-upload_form [data-testid="stFileUploader"] > div,
+        .st-key-upload_form [data-testid="stFileUploader"] > div:first-child,
+        .st-key-comparison_form .stFileUploader > div:first-of-type,
+        .st-key-comparison_form .stFileUploader > div,
+        .st-key-comparison_form [data-testid="stFileUploader"] > div,
+        .st-key-comparison_form [data-testid="stFileUploader"] > div:first-child {
             margin-top: 0 !important;
             padding-top: 0 !important;
             margin-bottom: 0 !important;
@@ -87,53 +69,67 @@ def inject_file_uploader_spacing_css() -> None:
         }
 
         /* Ensure textarea sits directly below label with no gap */
-        .stTextArea textarea {
+        .st-key-upload_form .stTextArea textarea,
+        .st-key-comparison_form .stTextArea textarea {
             margin-top: 0 !important;
             padding-top: 10px !important;
         }
 
         /* Ensure dropzone sits directly below label with no gap */
-        [data-testid="stFileUploaderDropzone"],
-        section[data-testid="stFileUploadDropzone"],
-        .stFileUploader [data-testid="stFileUploaderDropzone"] {
+        .st-key-upload_form [data-testid="stFileUploaderDropzone"],
+        .st-key-upload_form section[data-testid="stFileUploadDropzone"],
+        .st-key-upload_form .stFileUploader [data-testid="stFileUploaderDropzone"],
+        .st-key-comparison_form [data-testid="stFileUploaderDropzone"],
+        .st-key-comparison_form section[data-testid="stFileUploadDropzone"],
+        .st-key-comparison_form .stFileUploader [data-testid="stFileUploaderDropzone"] {
             margin-top: 0 !important;
             padding-top: 0.5rem !important;
             padding-bottom: 0.5rem !important;
         }
 
         /* Remove any wrapper gaps completely */
-        .stTextArea {
+        .st-key-upload_form .stTextArea,
+        .st-key-comparison_form .stTextArea {
             margin-bottom: 0 !important;
             margin-top: 0 !important;
         }
 
-        .stFileUploader {
+        .st-key-upload_form .stFileUploader,
+        .st-key-comparison_form .stFileUploader {
             margin-top: 0 !important;
             margin-bottom: 0 !important;
         }
 
         /* Remove spacing from form containers */
-        .stForm .stTextArea,
-        .stForm .stFileUploader,
-        form .stTextArea,
-        form .stFileUploader {
+        .st-key-upload_form .stTextArea,
+        .st-key-upload_form .stFileUploader,
+        .st-key-comparison_form .stTextArea,
+        .st-key-comparison_form .stFileUploader {
             margin-top: 0 !important;
             margin-bottom: 0 !important;
         }
 
-        /* Tighten top controls and form rhythm so submit button stays above the fold on laptop screens */
-        .stSelectbox,
-        .stCheckbox,
-        .stSelectbox label,
-        .stCheckbox label {
+        /* Tighten top controls only inside upload/comparison forms (avoid leaking into CV Builder). */
+        .st-key-upload_form .stSelectbox,
+        .st-key-upload_form .stCheckbox,
+        .st-key-upload_form .stSelectbox label,
+        .st-key-upload_form .stCheckbox label,
+        .st-key-comparison_form .stSelectbox,
+        .st-key-comparison_form .stCheckbox,
+        .st-key-comparison_form .stSelectbox label,
+        .st-key-comparison_form .stCheckbox label,
+        .st-key-compare_form_box .stSelectbox,
+        .st-key-compare_form_box .stCheckbox,
+        .st-key-compare_form_box .stSelectbox label,
+        .st-key-compare_form_box .stCheckbox label {
             margin-top: 0 !important;
             margin-bottom: 2px !important;
             padding-top: 0 !important;
             padding-bottom: 0 !important;
             line-height: 1.2 !important;
         }
-        .stForm [data-testid="stVerticalBlock"] > div {
-            margin-top: 0 !important;
+        .st-key-upload_form [data-testid="stVerticalBlock"] > div,
+        .st-key-comparison_form [data-testid="stVerticalBlock"] > div {
             margin-bottom: 6px !important;
         }
         .stForm .stCaptionContainer {
@@ -229,7 +225,7 @@ def inject_compact_header_css() -> None:
             min-height: 0 !important;
         }
         /* Contained top bar (fixed geometry applied by inject_fixed_top_bar JS). */
-        [data-testid="stHorizontalBlock"]:has(.site-brand) {
+        [data-testid="stHorizontalBlock"].header-bar:has(.site-brand) {
             display: flex !important;
             flex-wrap: nowrap !important;
             align-items: center !important;
@@ -250,13 +246,13 @@ def inject_compact_header_css() -> None:
             backdrop-filter: __HEADER_FILTER__ !important;
             box-shadow: __HEADER_SHADOW__ !important;
         }
-        [data-testid="stHorizontalBlock"]:has(.site-brand) > div {
+        [data-testid="stHorizontalBlock"].header-bar:has(.site-brand) > div {
             min-width: 0 !important;
         }
-        [data-testid="stHorizontalBlock"]:has(.site-brand) > div > div {
+        [data-testid="stHorizontalBlock"].header-bar:has(.site-brand) > div > div {
             min-width: 0 !important;
         }
-        [data-testid="stHorizontalBlock"]:has(.site-brand) [data-testid="stElementContainer"] {
+        [data-testid="stHorizontalBlock"].header-bar:has(.site-brand) [data-testid="stElementContainer"] {
             margin-top: 0 !important;
             margin-bottom: 0 !important;
             padding-top: 0 !important;
@@ -1271,9 +1267,34 @@ def inject_compact_header_css() -> None:
             padding: 0 !important;
             pointer-events: none !important;
         }
+        /* CV Builder rail safety: prevent style controls from being clipped by global overrides. */
+        [data-testid="stAppViewContainer"] .st-key-cvb-page-native .st-key-cvb-left-scroll-native {
+            height: var(--cvb-native-panel-h) !important;
+            max-height: var(--cvb-native-panel-h) !important;
+            overflow-y: auto !important;
+            overflow-x: hidden !important;
+        }
+        [data-testid="stAppViewContainer"] .st-key-cvb-page-native .st-key-cvb-left-scroll-native > [data-testid="stVerticalBlock"] {
+            min-height: 0 !important;
+            overflow: visible !important;
+        }
+        [data-testid="stAppViewContainer"] .st-key-cvb-page-native .st-key-cvb-style-native .cvb-style-label,
+        [data-testid="stAppViewContainer"] .st-key-cvb-page-native .st-key-cvb-style-native .cvb-label {
+            margin-top: 14px !important;
+            margin-bottom: 10px !important;
+        }
+        [data-testid="stAppViewContainer"] .st-key-cvb-page-native .st-key-cvb-style-native .cvb-style-label-accent {
+            margin-bottom: 12px !important;
+        }
+        [data-testid="stAppViewContainer"] .st-key-cvb-page-native .st-key-cvb-style-native .stSlider {
+            margin-bottom: 18px !important;
+        }
+        [data-testid="stAppViewContainer"] .st-key-cvb-page-native .st-key-cvb-style-native .stToggle {
+            margin-top: 12px !important;
+        }
 
         @media (max-width: 1100px) {
-            [data-testid="stHorizontalBlock"]:has(.site-brand) {
+            [data-testid="stHorizontalBlock"].header-bar:has(.site-brand) {
                 width: calc(100vw - 34px) !important;
                 padding: 0 10px !important;
             }
@@ -1312,7 +1333,7 @@ def inject_compact_header_css() -> None:
         }
 
         @media (max-width: 820px) {
-            [data-testid="stHorizontalBlock"]:has(.site-brand) {
+            [data-testid="stHorizontalBlock"].header-bar:has(.site-brand) {
                 width: calc(100vw - 20px) !important;
                 border-radius: 12px !important;
             }
@@ -1529,7 +1550,7 @@ def inject_fixed_top_bar() -> None:
         (function() {
             var target = window.parent && window.parent !== window ? window.parent : window;
             var doc = target.document;
-            var HEADER_SELECTOR = '[data-testid="stHorizontalBlock"]:has(.site-brand)';
+            var HEADER_SELECTOR = '[data-testid="stHorizontalBlock"].header-bar:has(.site-brand), [data-testid="stHorizontalBlock"]:has(.site-brand)';
             var SPACER_ID = 'excelcv-fixed-header-spacer';
             var MAX_WIDTH = 1800;
 
@@ -1574,6 +1595,7 @@ def inject_fixed_top_bar() -> None:
             function applyFixedBar() {
                 var header = getHeader();
                 if (!header) return;
+                header.classList.add('header-bar');
 
                 var vw = viewportWidth();
                 var top = computeTop(vw);

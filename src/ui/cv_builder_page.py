@@ -997,7 +997,7 @@ def _render_left_panel() -> None:
     st.markdown("<div class='cvb-rail-divider'></div>", unsafe_allow_html=True)
     st.markdown("<p class='cvb-rail-heading'>Style</p>", unsafe_allow_html=True)
 
-    st.markdown("<p class='cvb-style-label'>Accent Color</p>", unsafe_allow_html=True)
+    st.markdown("<div class='cvb-label'>Accent Color</div>", unsafe_allow_html=True)
     with st.container(key="cvb-color-dots"):
         acc_cols = st.columns(len(ACCENT_COLORS))
         for i, (col, color) in enumerate(zip(acc_cols, ACCENT_COLORS)):
@@ -1007,15 +1007,15 @@ def _render_left_panel() -> None:
                     st.rerun()
 
     font_scale = round(float(ss.get("cvb_font_size", 11)) / 11.0, 2)
-    st.markdown(f"<p class='cvb-style-label'>Font Scale <strong>{font_scale:.1f}x</strong></p>", unsafe_allow_html=True)
+    st.markdown(f"<div class='cvb-label'>Font Scale <strong>{font_scale:.1f}x</strong></div>", unsafe_allow_html=True)
     st.slider("Font Scale", min_value=8, max_value=16, step=1, key="cvb_font_size", label_visibility="collapsed")
 
     spacing_scale = round(float(ss.get("cvb_entry_spacing", 8)) / 8.0, 2)
-    st.markdown(f"<p class='cvb-style-label'>Spacing <strong>{spacing_scale:.1f}x</strong></p>", unsafe_allow_html=True)
+    st.markdown(f"<div class='cvb-label'>Spacing <strong>{spacing_scale:.1f}x</strong></div>", unsafe_allow_html=True)
     st.slider("Spacing", min_value=4, max_value=24, step=2, key="cvb_entry_spacing", label_visibility="collapsed")
 
     line_height = float(ss.get("cvb_line_height", 1.4))
-    st.markdown(f"<p class='cvb-style-label'>Line Height <strong>{line_height:.1f}</strong></p>", unsafe_allow_html=True)
+    st.markdown(f"<div class='cvb-label'>Line Height <strong>{line_height:.1f}</strong></div>", unsafe_allow_html=True)
     st.slider("Line Height", min_value=1.0, max_value=2.0, step=0.1, key="cvb_line_height", label_visibility="collapsed")
 
     st.toggle("Show icons", key="cvb_show_icons")
@@ -1178,7 +1178,8 @@ def _inject_realtime_js() -> None:
 # ─── CSS injection ────────────────────────────────────────────────────────────
 
 def _inject_builder_css(is_dark: bool) -> None:
-    """Legacy builder fixed-overlay CSS path. Kept as an inert no-op."""
+    """Compatibility wrapper for older call-sites."""
+    _inject_builder_css_native(is_dark)
     return
 
     card_bg        = "#0f172a"  if is_dark else "#ffffff"
@@ -1965,11 +1966,15 @@ section[data-testid="stMain"] .block-container {{
   border-bottom:none;
   border-radius:0;
   padding:14px 18px 14px 18px;
-  height: auto !important;
-  max-height: 100vh !important;
+  height: var(--cvb-native-panel-h) !important;
+  max-height: var(--cvb-native-panel-h) !important;
   min-height: 0 !important;
   overflow-y: auto !important;
   overflow-x: hidden !important;
+}}
+.st-key-cvb-left-scroll-native > [data-testid="stVerticalBlock"] {{
+  min-height: 0 !important;
+  overflow: visible !important;
 }}
 .cvb-rail-heading {{
   font-size:12px;
@@ -2245,22 +2250,86 @@ section[data-testid="stMain"] .block-container {{
 .cvb-template-card.active {{ border-color:#93c5fd; background:#e8f3ff; }}
 .cvb-template-title {{ margin:0 0 4px 0; color:#0f172a; font-size:14px; font-weight:700; }}
 .cvb-template-desc {{ margin:0; color:#64748b; font-size:12px; }}
-.cvb-style-label {{ font-size:14px; color:#334155; margin:10px 0 4px; font-weight:500; }}
+.cvb-style-label, .cvb-label {{ font-size:14px; color:#334155; margin:10px 0 4px; font-weight:500; }}
+.st-key-cvb-style-section-native {{
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 14px !important;
+  overflow: visible !important;
+}}
+.st-key-cvb-style-section-native > [data-testid="stVerticalBlock"] {{
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 14px !important;
+  overflow: visible !important;
+}}
 .st-key-cvb-style-native {{
-  padding-top: 2px !important;
+  padding-top: 4px !important;
+}}
+.st-key-cvb-style-native > [data-testid="stVerticalBlock"] {{
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0 !important;
+  overflow: visible !important;
 }}
 .st-key-cvb-style-native .cvb-style-label {{
-  margin: 14px 0 8px !important;
+  display: block !important;
+  position: relative !important;
+  z-index: 5 !important;
+  margin: 12px 0 8px !important;
+  padding: 0 !important;
   color: #475569 !important;
   font-size: 14px !important;
   font-weight: 500 !important;
-  line-height: 1.2 !important;
+  line-height: 1.3 !important;
+  clear: both !important;
+}}
+.st-key-cvb-style-native .cvb-label {{
+  display: block !important;
+  position: relative !important;
+  z-index: 5 !important;
+  margin-top: 12px !important;
+  margin-bottom: 6px !important;
+  padding: 0 !important;
+  color: #475569 !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  line-height: 1.4 !important;
+  clear: both !important;
+}}
+.st-key-cvb-style-native .cvb-label strong {{
+  color: #0b5cb8 !important;
+  font-weight: 700 !important;
+}}
+.st-key-cvb-style-native .cvb-style-label-accent {{
+  margin-top: 0 !important;
+  margin-bottom: 12px !important;
+}}
+.st-key-cvb-style-native [data-testid="stMarkdownContainer"] p {{
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+}}
+.st-key-cvb-style-native .element-container {{
+  margin-bottom: 0 !important;
+}}
+.st-key-cvb-style-native .st-key-cvb-style-font-native,
+.st-key-cvb-style-native .st-key-cvb-style-spacing-native,
+.st-key-cvb-style-native .st-key-cvb-style-line-native {{
+  margin-bottom: 12px !important;
+}}
+.st-key-cvb-style-native .st-key-cvb-style-toggles-native {{
+  margin-top: 6px !important;
 }}
 
 .st-key-cvb-color-dots-native [data-testid="stHorizontalBlock"] {{
   gap: 10px !important;
   row-gap: 10px !important;
-  margin: 2px 0 14px 0 !important;
+  margin: 0 !important;
+  align-items: center !important;
+}}
+.st-key-cvb-style-native .st-key-cvb-color-dots-native {{
+  margin-top: 2px !important;
+  margin-bottom: 12px !important;
 }}
 .st-key-cvb-color-dots-native .stButton button {{
   width: 32px !important;
@@ -2285,20 +2354,29 @@ section[data-testid="stMain"] .block-container {{
   margin: 2px 0 10px 0 !important;
 }}
 .st-key-cvb-style-native .stSlider {{
-  margin: 2px 0 16px 0 !important;
+  margin-top: 6px !important;
+  margin-bottom: 18px !important;
 }}
 .st-key-cvb-style-native .stSlider [data-baseweb="slider"] > div:nth-child(1) {{
   height: 6px !important;
   border-radius: 999px !important;
 }}
+.st-key-cvb-style-native [data-testid="stSlider"] {{
+  margin-top: 2px !important;
+  margin-bottom: 0 !important;
+}}
 .st-key-cvb-style-native [data-testid*="ThumbValue"],
+.st-key-cvb-style-native [data-testid="stThumbValue"],
 .st-key-cvb-style-native [data-testid*="TickBar"],
+.st-key-cvb-style-native [data-testid="stTickBar"],
 .st-key-cvb-style-native .stSlider [role="tooltip"],
 .st-key-cvb-style-native .stSlider output {{
   display: none !important;
 }}
 .st-key-cvb-left-scroll-native [data-testid*="ThumbValue"],
+.st-key-cvb-left-scroll-native [data-testid="stThumbValue"],
 .st-key-cvb-left-scroll-native [data-testid*="TickBar"],
+.st-key-cvb-left-scroll-native [data-testid="stTickBar"],
 .st-key-cvb-left-scroll-native [role="tooltip"],
 .st-key-cvb-left-scroll-native .stSlider output {{
   display: none !important;
@@ -2328,14 +2406,14 @@ section[data-testid="stMain"] .block-container {{
 }}
 .st-key-cvb-style-native .stToggle {{
   margin-top: 8px !important;
-  margin-bottom: 4px !important;
+  margin-bottom: 8px !important;
 }}
 .st-key-cvb-style-native .stToggle [data-baseweb="checkbox"] > div:first-child {{
   min-width: 40px !important;
   height: 24px !important;
 }}
 .cvb-style-gap {{
-  height: 10px;
+  height: 8px;
 }}
 .cvb-zoom-display {{
   border:1px solid {border};
@@ -2408,75 +2486,80 @@ def _render_left_panel_native() -> None:
 
     st.markdown("<div class='cvb-rail-divider'></div>", unsafe_allow_html=True)
     st.markdown("<p class='cvb-rail-heading'>Style</p>", unsafe_allow_html=True)
-    with st.container(key="cvb-style-native"):
-        st.markdown("<p class='cvb-style-label'>Accent Color</p>", unsafe_allow_html=True)
-        with st.container(key="cvb-color-dots-native"):
-            row_1 = st.columns(4, gap="small")
-            for i, col in enumerate(row_1):
-                color = ACCENT_COLORS[i]
-                with col:
-                    if st.button(" ", key=f"acc_native_{i}", help=color):
-                        ss["cvb_accent_color"] = color
-                        st.rerun()
-            row_2 = st.columns(4, gap="small")
-            for i, color in enumerate(ACCENT_COLORS[4:], start=4):
-                with row_2[i - 4]:
-                    if st.button(" ", key=f"acc_native_{i}", help=color):
-                        ss["cvb_accent_color"] = color
-                        st.rerun()
-        font_scale = round(float(ss.get("cvb_font_size", 11)) / 11.0, 2)
-        st.markdown(f"<p class='cvb-style-label'>Font Scale <strong>{font_scale:.1f}x</strong></p>", unsafe_allow_html=True)
-        current_font_size = int(ss.get("cvb_font_size", 11))
-        if current_font_size < 8 or current_font_size > 16:
-            current_font_size = 11
-        selected_font_size = st.slider(
-            "Font Scale",
-            min_value=8,
-            max_value=16,
-            step=1,
-            value=current_font_size,
-            key="cvb_font_size_native_select",
-            label_visibility="collapsed",
-        )
-        ss["cvb_font_size"] = int(selected_font_size)
-        st.markdown("<div class='cvb-style-gap'></div>", unsafe_allow_html=True)
+    with st.container(key="cvb-style-section-native"):
+        with st.container(key="cvb-style-native"):
+            st.markdown("<div class='cvb-label cvb-style-label-accent'>Accent Color</div>", unsafe_allow_html=True)
+            with st.container(key="cvb-color-dots-native"):
+                row_1 = st.columns(4, gap="small")
+                for i, col in enumerate(row_1):
+                    color = ACCENT_COLORS[i]
+                    with col:
+                        if st.button(" ", key=f"acc_native_{i}", help=color):
+                            ss["cvb_accent_color"] = color
+                            st.rerun()
+                row_2 = st.columns(4, gap="small")
+                for i, color in enumerate(ACCENT_COLORS[4:], start=4):
+                    with row_2[i - 4]:
+                        if st.button(" ", key=f"acc_native_{i}", help=color):
+                            ss["cvb_accent_color"] = color
+                            st.rerun()
+            font_scale = round(float(ss.get("cvb_font_size", 11)) / 11.0, 2)
+            with st.container(key="cvb-style-font-native"):
+                st.markdown(f"<div class='cvb-label'>Font Scale <strong>{font_scale:.1f}x</strong></div>", unsafe_allow_html=True)
+                current_font_size = int(ss.get("cvb_font_size", 11))
+                if current_font_size < 8 or current_font_size > 16:
+                    current_font_size = 11
+                selected_font_size = st.slider(
+                    "Font Scale",
+                    min_value=8,
+                    max_value=16,
+                    step=1,
+                    value=current_font_size,
+                    key="cvb_font_size_native_select",
+                    label_visibility="collapsed",
+                )
+                ss["cvb_font_size"] = int(selected_font_size)
+                st.markdown("<div class='cvb-style-gap'></div>", unsafe_allow_html=True)
 
-        spacing_scale = round(float(ss.get("cvb_entry_spacing", 8)) / 8.0, 2)
-        st.markdown(f"<p class='cvb-style-label'>Spacing <strong>{spacing_scale:.1f}x</strong></p>", unsafe_allow_html=True)
-        current_spacing = int(ss.get("cvb_entry_spacing", 8))
-        if current_spacing < 4 or current_spacing > 24:
-            current_spacing = 8
-        selected_spacing = st.slider(
-            "Spacing",
-            min_value=4,
-            max_value=24,
-            step=2,
-            value=current_spacing,
-            key="cvb_spacing_native_select",
-            label_visibility="collapsed",
-        )
-        ss["cvb_entry_spacing"] = int(selected_spacing)
-        st.markdown("<div class='cvb-style-gap'></div>", unsafe_allow_html=True)
+            spacing_scale = round(float(ss.get("cvb_entry_spacing", 8)) / 8.0, 2)
+            with st.container(key="cvb-style-spacing-native"):
+                st.markdown(f"<div class='cvb-label'>Spacing <strong>{spacing_scale:.1f}x</strong></div>", unsafe_allow_html=True)
+                current_spacing = int(ss.get("cvb_entry_spacing", 8))
+                if current_spacing < 4 or current_spacing > 24:
+                    current_spacing = 8
+                selected_spacing = st.slider(
+                    "Spacing",
+                    min_value=4,
+                    max_value=24,
+                    step=2,
+                    value=current_spacing,
+                    key="cvb_spacing_native_select",
+                    label_visibility="collapsed",
+                )
+                ss["cvb_entry_spacing"] = int(selected_spacing)
+                st.markdown("<div class='cvb-style-gap'></div>", unsafe_allow_html=True)
 
-        line_height = float(ss.get("cvb_line_height", 1.4))
-        st.markdown(f"<p class='cvb-style-label'>Line Height <strong>{line_height:.1f}</strong></p>", unsafe_allow_html=True)
-        current_line_height = round(float(ss.get("cvb_line_height", 1.4)), 1)
-        if current_line_height < 1.0 or current_line_height > 2.0:
-            current_line_height = 1.4
-        selected_line_height = st.slider(
-            "Line Height",
-            min_value=1.0,
-            max_value=2.0,
-            step=0.1,
-            value=current_line_height,
-            key="cvb_line_height_native_select",
-            label_visibility="collapsed",
-        )
-        ss["cvb_line_height"] = float(selected_line_height)
-        st.markdown("<div class='cvb-style-gap'></div>", unsafe_allow_html=True)
+            line_height = float(ss.get("cvb_line_height", 1.4))
+            with st.container(key="cvb-style-line-native"):
+                st.markdown(f"<div class='cvb-label'>Line Height <strong>{line_height:.1f}</strong></div>", unsafe_allow_html=True)
+                current_line_height = round(float(ss.get("cvb_line_height", 1.4)), 1)
+                if current_line_height < 1.0 or current_line_height > 2.0:
+                    current_line_height = 1.4
+                selected_line_height = st.slider(
+                    "Line Height",
+                    min_value=1.0,
+                    max_value=2.0,
+                    step=0.1,
+                    value=current_line_height,
+                    key="cvb_line_height_native_select",
+                    label_visibility="collapsed",
+                )
+                ss["cvb_line_height"] = float(selected_line_height)
+                st.markdown("<div class='cvb-style-gap'></div>", unsafe_allow_html=True)
 
-        st.toggle("Show icons", key="cvb_show_icons")
-        st.toggle("Show photo", key="cvb_show_photo")
+            with st.container(key="cvb-style-toggles-native"):
+                st.toggle("Show icons", key="cvb_show_icons")
+                st.toggle("Show photo", key="cvb_show_photo")
 
 
 def _render_middle_panel_native() -> None:

@@ -1,6 +1,7 @@
 """Login / Register / Forgot-Password page for the Streamlit app."""
 
 import base64
+import json
 from pathlib import Path
 
 import streamlit as st
@@ -10,8 +11,8 @@ from src.auth_utils import (
     _COOKIE_NAME,
     _SESSION_SECONDS,
     authenticate_user,
-    create_password_reset_token,
     create_session_token,
+    create_password_reset_token,
     create_user,
     login_user,
     use_password_reset_token,
@@ -19,6 +20,7 @@ from src.auth_utils import (
 from src.email_utils import is_email_configured, send_password_reset_email
 from src.oauth_utils import GOOGLE_REDIRECT_URI as _APP_URL
 from src.oauth_utils import build_google_auth_url, is_google_oauth_configured
+from src.ui.app_utils import _build_page_href
 
 
 def _logo_data_uri() -> str:
@@ -30,12 +32,34 @@ def _logo_data_uri() -> str:
     return ""
 
 
-def _set_session_cookie(user_dict: dict) -> None:
+def _redirect_after_login(user_dict: dict, redirect_to: str) -> None:
+    """Set session cookie client-side and hard-navigate so auth persists across page reloads."""
+    login_user(user_dict)
+    target_url = _build_page_href(redirect_to or "home")
     token = create_session_token(user_dict)
+    cookie_value = f"{_COOKIE_NAME}={token}; max-age={_SESSION_SECONDS}; path=/; SameSite=Lax"
     components.html(
-        f'<script>document.cookie="{_COOKIE_NAME}={token}; max-age={_SESSION_SECONDS}; path=/; SameSite=Lax";</script>',
+        f"""<script>
+(function() {{
+  var cookie = {json.dumps(cookie_value)};
+  var target = {json.dumps(target_url)};
+  function forceNavigate(win) {{
+    try {{ win.location.href = target; }} catch(e) {{}}
+    try {{ win.location.assign(target); }} catch(e) {{}}
+  }}
+  try {{ document.cookie = cookie; }} catch(e) {{}}
+  try {{
+    var w = window.parent && window.parent !== window ? window.parent : window;
+    w.document.cookie = cookie;
+    forceNavigate(w);
+    return;
+  }} catch(e) {{}}
+  forceNavigate(window);
+}})();
+</script>""",
         height=0,
     )
+    st.stop()
 
 
 _DARK = {
@@ -603,16 +627,12 @@ def _render_sign_in_register(col, t: dict) -> None:
                     else:
                         user = authenticate_user(email, password)
                         if user:
-                            login_user(user)
-                            _set_session_cookie(user)
                             st.session_state["ui_toast"] = {
                                 "message": "Signed in successfully.",
                                 "icon": "✅",
                             }
                             redirect_to = st.session_state.pop("auth_redirect", "home")
-                            st.session_state["page"] = redirect_to
-                            st.query_params["page"] = redirect_to
-                            st.rerun()
+                            _redirect_after_login(user, redirect_to)
                         else:
                             st.error("Invalid email or password.")
 
@@ -635,21 +655,19 @@ def _render_sign_in_register(col, t: dict) -> None:
                 if submitted_reg:
                     if not full_name or not reg_email or not reg_pass:
                         st.error("Please fill in all fields.")
+                    elif "@" not in reg_email or "." not in reg_email.split("@", 1)[-1]:
+                        st.error("Enter a valid email address (e.g. you@example.com).")
                     else:
                         user, err = create_user(full_name, reg_email, reg_pass)
                         if err:
                             st.error(err)
                         else:
-                            login_user(user)
-                            _set_session_cookie(user)
                             st.session_state["ui_toast"] = {
                                 "message": "Account created successfully.",
                                 "icon": "🎉",
                             }
                             redirect_to = st.session_state.pop("auth_redirect", "home")
-                            st.session_state["page"] = redirect_to
-                            st.query_params["page"] = redirect_to
-                            st.rerun()
+                            _redirect_after_login(user, redirect_to)
 
 
 def _render_forgot_password_form(col, t: dict) -> None:

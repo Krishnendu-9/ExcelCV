@@ -1,5 +1,6 @@
-"""SMTP email utilities for password reset."""
+"""SMTP email utilities for password reset and contact form."""
 
+import html as _html
 import os
 import smtplib
 from email.mime.multipart import MIMEMultipart
@@ -85,6 +86,62 @@ def send_password_reset_email(to_email: str, reset_token: str, app_url: str) -> 
                 server.starttls()
             server.login(cfg["user"], cfg["password"])
             server.sendmail(cfg["from_email"], [to_email], msg.as_string())
+        return True
+    except Exception:
+        return False
+
+
+def send_contact_email(name: str, reply_to: str, inquiry: str, subject: str, message: str) -> bool:
+    """Send a contact form submission to the site owner. Returns True on success."""
+    cfg = _smtp_config()
+    if not (cfg["user"] and cfg["password"]):
+        return False
+
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = f"[ExcelCV Contact] {_html.escape(subject)}"
+    msg["From"] = f"ExcelCV <{cfg['from_email']}>"
+    msg["To"] = cfg["from_email"]
+    msg["Reply-To"] = reply_to
+
+    text_body = (
+        "New contact form submission\n\n"
+        f"Name: {name}\n"
+        f"Email: {reply_to}\n"
+        f"Type: {inquiry}\n"
+        f"Subject: {subject}\n\n"
+        f"Message:\n{message}"
+    )
+    e = _html.escape
+    html_body = f"""<!DOCTYPE html>
+<html>
+<body style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:24px;color:#1e293b">
+  <h2 style="color:#3b82f6;margin-bottom:8px">New Contact Form Submission</h2>
+  <table style="border-collapse:collapse;width:100%">
+    <tr><td style="padding:4px 8px;font-weight:600">Name:</td><td>{e(name)}</td></tr>
+    <tr><td style="padding:4px 8px;font-weight:600">Email:</td>
+        <td><a href="mailto:{e(reply_to)}">{e(reply_to)}</a></td></tr>
+    <tr><td style="padding:4px 8px;font-weight:600">Type:</td><td>{e(inquiry)}</td></tr>
+    <tr><td style="padding:4px 8px;font-weight:600">Subject:</td><td>{e(subject)}</td></tr>
+  </table>
+  <hr style="margin:16px 0">
+  <p style="white-space:pre-wrap">{e(message)}</p>
+</body>
+</html>"""
+
+    msg.attach(MIMEText(text_body, "plain"))
+    msg.attach(MIMEText(html_body, "html"))
+
+    try:
+        if cfg["encryption"] == "ssl":
+            server_ctx = smtplib.SMTP_SSL(cfg["host"], cfg["port"], timeout=15)
+        else:
+            server_ctx = smtplib.SMTP(cfg["host"], cfg["port"], timeout=15)
+        with server_ctx as server:
+            server.ehlo()
+            if cfg["encryption"] in ("tls", "starttls"):
+                server.starttls()
+            server.login(cfg["user"], cfg["password"])
+            server.sendmail(cfg["from_email"], [cfg["from_email"]], msg.as_string())
         return True
     except Exception:
         return False

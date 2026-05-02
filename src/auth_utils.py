@@ -7,11 +7,14 @@ import json
 import os
 import secrets
 import time
+from http.cookies import SimpleCookie
+from urllib.parse import unquote
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 import bcrypt
 import streamlit as st
+import streamlit.components.v1 as components
 
 from src.database import PasswordResetToken, User, get_db
 
@@ -54,13 +57,34 @@ def restore_session_from_cookie() -> bool:
     if st.session_state.get("user"):
         return True
     try:
-        cookie_header = st.context.headers.get("Cookie", "")
-        cookies: dict = {}
-        for part in cookie_header.split(";"):
-            if "=" in part:
-                k, v = part.strip().split("=", 1)
-                cookies[k.strip()] = v.strip()
-        token = cookies.get(_COOKIE_NAME, "")
+        token = ""
+
+        # Primary path: Streamlit exposes parsed cookies here on current runtimes.
+        try:
+            context_cookies = getattr(st.context, "cookies", None)
+            if context_cookies:
+                token = str(context_cookies.get(_COOKIE_NAME, "")).strip()
+        except Exception:
+            token = ""
+
+        # Fallback path: parse raw Cookie header if context cookies are unavailable.
+        if not token:
+            headers = st.context.headers
+            cookie_header = headers.get("Cookie") or headers.get("cookie") or ""
+            if not cookie_header:
+                for key, value in dict(headers).items():
+                    if str(key).lower() == "cookie":
+                        cookie_header = str(value)
+                        break
+            if cookie_header:
+                parsed = SimpleCookie()
+                parsed.load(cookie_header)
+                morsel = parsed.get(_COOKIE_NAME)
+                if morsel:
+                    token = morsel.value.strip()
+
+        # Some environments encode cookie values; normalize before validation.
+        token = unquote(token)
         if not token:
             return False
         user = validate_session_token(token)
@@ -129,13 +153,48 @@ def login_user(user_dict: dict) -> None:
     st.session_state["user"] = user_dict
 
 
+def set_session_cookie(user_dict: dict) -> None:
+    """Persist session auth as a browser cookie from both iframe and parent window contexts."""
+    token = create_session_token(user_dict)
+    components.html(
+        f"""<script>
+(function() {{
+  var cookie = "{_COOKIE_NAME}={token}; max-age={_SESSION_SECONDS}; path=/; SameSite=Lax";
+  try {{ document.cookie = cookie; }} catch(e) {{}}
+  try {{
+    var w = window.parent && window.parent !== window ? window.parent : window;
+    w.document.cookie = cookie;
+  }} catch(e) {{}}
+}})();
+</script>""",
+        height=0,
+    )
+
+
 def logout_user() -> None:
-    for key in ["user", "cv_builder_data", "cvb_exp_ids", "cvb_edu_ids", "cvb_proj_ids",
-                "cvb_cert_ids", "cvb_skill_ids", "cvb_loaded_cv_id", "cvb_cv_title",
-                "cvb_template", "analysis", "cv_text", "job_description", "jd",
-                "cv_name", "cv_file_size", "issues", "report_snapshot_id",
-                "comparison_results", "comparison_errors"]:
+    for key in [
+        "user",
+        "cv_builder_data",
+        "analysis",
+        "cv_text",
+        "job_description",
+        "jd",
+        "cv_name",
+        "cv_file_size",
+        "issues",
+        "report_snapshot_id",
+        "comparison_results",
+        "comparison_errors",
+    ]:
         st.session_state.pop(key, None)
+
+    # Remove all resume-builder keys in one pass (covers old/new naming variants).
+    for key in list(st.session_state.keys()):
+        if str(key).startswith("cvb_"):
+            st.session_state.pop(key, None)
+
+    # Legacy key kept for backwards compatibility with older sessions.
+    st.session_state.pop("cvb_skill_ids", None)
     st.session_state["page"] = "home"
 
 

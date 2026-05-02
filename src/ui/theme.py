@@ -53,19 +53,39 @@ def _render_ui_markup_template(name: str, replacements: dict[str, str]) -> str:
 
 
 def inject_back_button_sync() -> None:
-    """Inject script so browser back/forward reload the page and sync with query_params."""
+    """Cleanup legacy global listeners/observers that caused forced reloads on Back/Forward."""
     components.html(
         """
 <script>
         (function() {
             var target = window.parent && window.parent !== window ? window.parent : window;
-            if (target.__excelcvBackSyncHandler) {
-                target.removeEventListener('popstate', target.__excelcvBackSyncHandler);
-            }
-            target.__excelcvBackSyncHandler = function() {
-                target.location.reload();
-            };
-            target.addEventListener('popstate', target.__excelcvBackSyncHandler);
+            try {
+                if (target.__excelcvBackSyncHandler) {
+                    target.removeEventListener('popstate', target.__excelcvBackSyncHandler);
+                    target.__excelcvBackSyncHandler = null;
+                }
+            } catch (e) {}
+
+            try {
+                if (target.__excelcvFixedHeaderObserver) {
+                    target.__excelcvFixedHeaderObserver.disconnect();
+                    target.__excelcvFixedHeaderObserver = null;
+                }
+            } catch (e) {}
+
+            try {
+                if (target.__excelcvLogoHomeObserver) {
+                    target.__excelcvLogoHomeObserver.disconnect();
+                    target.__excelcvLogoHomeObserver = null;
+                }
+            } catch (e) {}
+
+            try {
+                if (target.themeInterval) {
+                    clearInterval(target.themeInterval);
+                    target.themeInterval = null;
+                }
+            } catch (e) {}
         })();
 </script>
         """,
@@ -124,19 +144,33 @@ def inject_base_css(theme: str = "light") -> None:
 
     var styleId = 'excelcv-base-theme';
     var existing = doc.getElementById(styleId);
-    if (existing) existing.remove();
-    var style = doc.createElement('style');
-    style.id = styleId;
-    style.textContent = {css_json};
-    (doc.head || doc.documentElement).appendChild(style);
+    if (existing) {{
+        if (existing.textContent !== {css_json}) {{
+            existing.textContent = {css_json};
+        }}
+    }} else {{
+        var style = doc.createElement('style');
+        style.id = styleId;
+        style.textContent = {css_json};
+        (doc.head || doc.documentElement).appendChild(style);
+    }}
 
     var scriptId = 'excelcv-base-js';
     var existingJs = doc.getElementById(scriptId);
-    if (existingJs) existingJs.remove();
-    var script = doc.createElement('script');
-    script.id = scriptId;
-    script.textContent = {js_json};
-    (doc.head || doc.documentElement).appendChild(script);
+    if (existingJs) {{
+        if (existingJs.textContent !== {js_json}) {{
+            existingJs.remove();
+            var script = doc.createElement('script');
+            script.id = scriptId;
+            script.textContent = {js_json};
+            (doc.head || doc.documentElement).appendChild(script);
+        }}
+    }} else {{
+        var script = doc.createElement('script');
+        script.id = scriptId;
+        script.textContent = {js_json};
+        (doc.head || doc.documentElement).appendChild(script);
+    }}
 }})();
 </script>""",
         height=0,

@@ -1,0 +1,19 @@
+[server]
+headless = true
+enableCORS = true
+enableXsrfProtection = true
+maxUploadSize = 2
+runOnSave = true
+fileWatcherType = "poll"
+folderWatchBlacklist = [".git", ".pytest_cache", "__pycache__", "data", "templates", ".streamlit"]
+
+[browser]
+gatherUsageStats = false
+
+[theme]
+base = "light"
+primaryColor = "#2563eb"
+backgroundColor = "#f1f5f9"
+secondaryBackgroundColor = "#e2e8f0"
+textColor = "#0f172a"
+font = "sans serif"

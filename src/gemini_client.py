@@ -595,3 +595,45 @@ CV:
     }
 
 
+def suggest_cv_bullets(role: str, company: str, context: str = "") -> List[str]:
+    """Return up to 5 ATS-optimised bullet points for the given role and company."""
+    api_key = get_api_key()
+    if not api_key:
+        raise RuntimeError("GOOGLE_API_KEY is not configured.")
+
+    genai.configure(api_key=api_key)
+
+    context_line = f"\nAdditional context: {context.strip()}" if context.strip() else ""
+    prompt = (
+        f"You are an expert resume writer. Write exactly 4 strong, ATS-optimized resume bullet points "
+        f"for a {role} role at {company}.{context_line}\n\n"
+        "Requirements:\n"
+        "- Begin each bullet with a strong action verb (Led, Built, Reduced, Designed, Delivered, etc.)\n"
+        "- Include quantified impact where plausible (%, numbers, time saved, scale)\n"
+        "- Keep each bullet concise (one to two lines)\n"
+        "- Do not include bullet symbols or numbering in the text\n\n"
+        "Respond with ONLY a JSON array of 4 strings. No markdown, no code blocks, no explanation.\n"
+        'Example: ["Bullet one.", "Bullet two.", "Bullet three.", "Bullet four."]'
+    )
+
+    try:
+        model_id = _pick_model_id()
+        model = genai.GenerativeModel(model_id)
+        response = _generate_with_retry(
+            model, prompt, {"temperature": 0.7, "max_output_tokens": 512}
+        )
+        raw = _extract_response_text(response)
+        try:
+            result = json.loads(raw)
+        except json.JSONDecodeError:
+            result = json.loads(_extract_json_from_text(raw))
+        if isinstance(result, list):
+            return [str(b).strip().lstrip("•\-– ") for b in result if str(b).strip()][:5]
+    except Exception as exc:
+        if _is_quota_error(exc):
+            raise RuntimeError(_user_friendly_quota_message(exc)) from exc
+        raise
+
+    return []
+
+

@@ -1,0 +1,241 @@
+"""Site-wide layout components: top nav header, footer, and theme toggle."""
+
+from datetime import datetime
+from typing import List
+
+import streamlit as st
+
+from src.auth_utils import get_session_user
+from src.ui.app_utils import _build_page_href, _load_logo_data_uri
+
+PROTECTED_HEADER_PAGES = {"cv-builder", "resume-builder", "my-cvs", "my-analyses", "compare-cv"}
+NAV_LABEL_TO_PAGE = {
+    "Analyze CV": "upload-cv",
+    "Resume Builder": "cv-builder",
+    "My CVs": "my-cvs",
+    "My Analyses": "my-analyses",
+    "Compare": "compare-cv",
+}
+
+
+def _render_html_block(html: str) -> None:
+    """Render HTML reliably across Streamlit versions/runtimes."""
+    st.markdown(html, unsafe_allow_html=True)
+
+def render_theme_toggle(standalone: bool = True, key: str = "theme_toggle") -> None:
+    """Render the theme switch button. If standalone=False, only the button (for use inside a column)."""
+    if standalone:
+        col_spacer, col_btn = st.columns([6, 1], gap="small")
+        container = col_btn
+    else:
+        container = st.container()
+    with container:
+        current_theme = st.session_state.get("theme", "light")
+        theme_icon = "\u2600\ufe0f" if current_theme == "light" else "\U0001F319"
+        if st.button(
+            theme_icon,
+            key=key,
+            use_container_width=standalone,
+        ):
+            new_theme = "dark" if current_theme == "light" else "light"
+            st.session_state["theme"] = new_theme
+            # The button click itself triggers a Streamlit rerun — no explicit st.rerun()
+            # needed. Calling st.rerun() here stops execution before the form widgets
+            # below are processed, causing typed values to be lost.
+
+
+def render_site_header(show_theme_toggle: bool = True, current_page: str = "upload") -> None:
+    """Render top branded header. Auth links are plain HTML — no nested st.columns."""
+    _user = get_session_user()
+
+    # Layout: brand | nav-left | user-right | theme
+    if show_theme_toggle:
+        col_brand, col_nav, col_user, col_theme = st.columns([1.1, 3.2, 1.2, 0.55], gap="small")
+    else:
+        col_brand, col_nav, col_user = st.columns([1.1, 3.2, 1.75], gap="small")
+        col_theme = None
+
+    logo_src = _load_logo_data_uri(st.session_state.get("theme", "light"))
+    logo_content_html = (
+        f'<img src="{logo_src}" alt="ExcelCV logo" class="site-logo-wordmark" />'
+        if logo_src
+        else '<div class="site-logo-badge">EC</div><div class="site-brand-copy"><div class="site-name">ExcelCV</div></div>'
+    )
+    _cur_theme = st.session_state.get("theme", "light")
+    logo_target_url = f"/?page=home&_clear=1&_t={_cur_theme}"
+    logo_html = (
+        f'<a href="{logo_target_url}" target="_self" class="site-logo-link" aria-label="Go to homepage">'
+        f'<div class="site-logo-shell">{logo_content_html}</div></a>'
+    )
+
+    with col_brand:
+        _render_html_block(f'<div class="site-brand">{logo_html}</div>')
+
+    nav_items = [
+        ("Analyze CV", "upload-cv"),
+        ("Resume Builder", "cv-builder"),
+        ("My CVs", "my-cvs"),
+        ("My Analyses", "my-analyses"),
+        ("Compare", "compare-cv"),
+    ]
+    if current_page in ("upload", "home", "upload-cv"):
+        active_page = "upload-cv"
+    elif current_page == "report":
+        active_page = "upload-cv"
+    elif current_page == "resume-builder":
+        active_page = "cv-builder"
+    else:
+        active_page = current_page
+
+    nav_links: List[str] = []
+    for label, page_key in nav_items:
+        active_cls = " site-nav-item-active" if page_key == active_page else ""
+        if not _user and page_key in PROTECTED_HEADER_PAGES:
+            href = _build_page_href("auth", next_page=page_key)
+        else:
+            href = _build_page_href(page_key)
+        nav_links.append(
+            f'<a href="{href}" target="_self" '
+            f'class="site-nav-item{active_cls}" style="text-decoration:none;">{label}</a>'
+        )
+
+    with col_nav:
+        _render_html_block('<div class="site-nav site-nav-left">' + "".join(nav_links) + "</div>")
+
+    # User section: FlowCV-style dropdown when logged in, Sign In button when not.
+    _ICON_FEEDBACK = (
+        '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24"'
+        ' fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"'
+        ' stroke-linejoin="round" class="site-user-item-icon" aria-hidden="true">'
+        '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>'
+    )
+    _ICON_SUPPORT = (
+        '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24"'
+        ' fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"'
+        ' stroke-linejoin="round" class="site-user-item-icon" aria-hidden="true">'
+        '<rect x="2" y="4" width="20" height="16" rx="2"/>'
+        '<path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>'
+    )
+    _ICON_SETTINGS = (
+        '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24"'
+        ' fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"'
+        ' stroke-linejoin="round" class="site-user-item-icon" aria-hidden="true">'
+        '<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08'
+        'a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74'
+        'l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25'
+        'a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25'
+        'a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08'
+        'a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38'
+        'a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>'
+        '<circle cx="12" cy="12" r="3"/></svg>'
+    )
+    _ICON_LOGOUT = (
+        '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24"'
+        ' fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"'
+        ' stroke-linejoin="round" class="site-user-item-icon" aria-hidden="true">'
+        '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>'
+        '<polyline points="16 17 21 12 16 7"/>'
+        '<line x1="21" y1="12" x2="9" y2="12"/></svg>'
+    )
+
+    if _user:
+        raw_full_name = str(_user.get("full_name", "")).strip()
+        name_tokens = [token for token in raw_full_name.replace(",", " ").split() if token.strip()]
+        first_name = (name_tokens[0] if name_tokens else "User")[:18]
+        user_section_html = (
+            '<details class="site-user-dropdown">'
+            f'<summary class="site-user-trigger">Hi, {first_name}<span class="site-user-caret">&#9662;</span></summary>'
+            '<div class="site-user-panel">'
+            f'<a href="{_build_page_href("contact")}" target="_self" class="site-user-item">{_ICON_FEEDBACK}Give Feedback</a>'
+            f'<a href="{_build_page_href("contact")}" target="_self" class="site-user-item">{_ICON_SUPPORT}Support</a>'
+            f'<a href="{_build_page_href("settings")}" target="_self" class="site-user-item">{_ICON_SETTINGS}Settings</a>'
+            f'<a href="/?_logout=1&_t={_cur_theme}" target="_self" class="site-user-item site-user-item-logout">{_ICON_LOGOUT}Logout</a>'
+            "</div>"
+            "</details>"
+        )
+    else:
+        next_after_auth = current_page if current_page in ("home", "upload", "upload-cv", "compare-cv", "cv-builder", "my-cvs", "my-analyses") else "home"
+        user_section_html = (
+            f'<a href="{_build_page_href("auth", next_page=next_after_auth)}" target="_self" '
+            f'class="site-nav-item site-nav-item-signin" style="text-decoration:none;white-space:nowrap;">Sign In</a>'
+        )
+
+    with col_user:
+        _render_html_block(f'<div class="site-user-section">{user_section_html}</div>')
+
+    if show_theme_toggle and col_theme is not None:
+        with col_theme:
+            _render_html_block('<div class="theme-toggle-gap" aria-hidden="true"></div>')
+            render_theme_toggle(standalone=False, key="theme_toggle_header")
+
+    _render_html_block('<div class="site-header-rule"></div>')
+
+
+def render_top_nav(active_page: str) -> None:
+    """Render the shared global top navigation with the existing design."""
+    normalized = NAV_LABEL_TO_PAGE.get(active_page, active_page)
+    render_site_header(show_theme_toggle=True, current_page=normalized)
+
+
+def render_site_footer() -> None:
+    """Render a full-width professional footer band for all pages."""
+    year = datetime.now().year
+    footer_theme_cls = "footer-light" if st.session_state.get("theme", "light") == "light" else "footer-dark"
+    logo_src = _load_logo_data_uri(st.session_state.get("theme", "light"))
+    footer_brand_heading = (
+        f'<img src="{logo_src}" alt="ExcelCV logo" class="site-footer-brand-logo" />'
+        if logo_src
+        else '<div class="site-footer-brand-title">ExcelCV</div>'
+    )
+    footer_links = {
+        "resume_checker": _build_page_href("home"),
+        "ats_insights": _build_page_href("ats-insights"),
+        "evaluation_toolkit": _build_page_href("evaluation-toolkit"),
+        "project_notes": _build_page_href("project-notes"),
+        "how_it_works": _build_page_href("how-it-works"),
+        "interview_prep": _build_page_href("interview-prep"),
+        "privacy_policy": _build_page_href("privacy-policy"),
+        "terms_of_service": _build_page_href("terms-of-service"),
+        "contact": _build_page_href("contact"),
+    }
+
+    footer_html = f"""
+    <footer class="site-footer-band {footer_theme_cls}" role="contentinfo" aria-label="Website footer">
+        <div class="site-footer-inner">
+            <div class="site-footer-grid">
+                <div class="site-footer-brand-col">
+                    {footer_brand_heading}
+                    <p class="site-footer-brand-text">
+                        AI-powered resume analysis and actionable feedback to help you land your target role faster.
+                    </p>
+                </div>
+                <div class="site-footer-link-col">
+                    <h4>Product</h4>
+                    <a href="{footer_links["resume_checker"]}" target="_self">Resume Checker</a>
+                    <a href="{footer_links["ats_insights"]}" target="_self">ATS Insights</a>
+                    <a href="{footer_links["evaluation_toolkit"]}" target="_self">Evaluation Toolkit</a>
+                </div>
+                <div class="site-footer-link-col">
+                    <h4>Resources</h4>
+                    <a href="{footer_links["project_notes"]}" target="_self">Project Notes</a>
+                    <a href="{footer_links["how_it_works"]}" target="_self">How It Works</a>
+                    <a href="{footer_links["interview_prep"]}" target="_self">Interview Prep</a>
+                </div>
+                <div class="site-footer-link-col">
+                    <h4>Legal</h4>
+                    <a href="{footer_links["privacy_policy"]}" target="_self">Privacy Policy</a>
+                    <a href="{footer_links["terms_of_service"]}" target="_self">Terms of Service</a>
+                    <a href="{footer_links["contact"]}" target="_self">Contact</a>
+                </div>
+            </div>
+            <div class="site-footer-bottom">
+                <span>&copy; {year} ExcelCV. All rights reserved.</span>
+                <span class="site-footer-sep">&bull;</span>
+                <span>Built for educational and portfolio demonstration purposes.</span>
+            </div>
+        </div>
+    </footer>
+    """
+    st.markdown(footer_html, unsafe_allow_html=True)
+
+

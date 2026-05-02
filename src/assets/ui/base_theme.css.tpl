@@ -51,17 +51,7 @@
                 background: var(--scrollbar-thumb-hover);
             }
             
-            /* ===== FIX STICKY SIDEBAR (FINAL) ===== */
-
-            [data-testid="stMainBlockContainer"] {{
-                overflow: visible !important;
-            }}
-
-            [data-testid="stVerticalBlock"] {{
-                overflow: visible !important;
-                height: auto !important;
-            }}
-
+            /* Keep layout defaults intact; page-level modules can opt-in to custom overflow rules. */
             [data-testid="stHorizontalBlock"] {{
                 align-items: flex-start !important;
             }}
@@ -374,17 +364,15 @@
                 align-items: center;
                 justify-content: center;
                 gap: 10px;
-                border-radius: 12px;
-                padding: 4px 6px;
+                border-radius: 0;
+                padding: 0;
                 line-height: 1;
-            }}
-            body.theme-dark .site-logo-shell {{
-                background: linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(244, 249, 255, 0.9));
-                border: 1px solid rgba(255, 255, 255, 0.7);
-                box-shadow: 0 8px 18px rgba(0, 0, 0, 0.28);
+                background: transparent;
+                border: none;
+                box-shadow: none;
             }}
             .site-logo-wordmark {{
-                height: 50px;
+                height: 36px;
                 width: auto;
                 max-width: 100%;
                 display: block;
@@ -453,10 +441,10 @@
                     font-size: 1.75rem;
                 }}
                 .site-logo-shell {{
-                    padding: 3px 5px;
+                    padding: 0;
                 }}
                 .site-logo-wordmark {{
-                    height: 44px;
+                    height: 32px;
                 }}
                 .site-logo-badge {{
                     width: 52px;
@@ -478,10 +466,10 @@
                     font-size: 1.35rem;
                 }}
                 .site-logo-shell {{
-                    padding: 2px 4px;
+                    padding: 0;
                 }}
                 .site-logo-wordmark {{
-                    height: 38px;
+                    height: 28px;
                 }}
                 .site-logo-badge {{
                     width: 42px;

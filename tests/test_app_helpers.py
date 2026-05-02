@@ -1,7 +1,8 @@
 import unittest
 from unittest.mock import patch
 
-from app import _sanitize_cv_filename, run_multi_resume_comparison
+from src.ui.app_utils import _sanitize_cv_filename
+from src.ui.analysis_runner import run_multi_resume_comparison
 
 
 class _FakeUpload:
@@ -19,7 +20,7 @@ class AppHelperTests(unittest.TestCase):
     def test_sanitize_cv_filename_fallback(self) -> None:
         self.assertEqual(_sanitize_cv_filename("   "), "CV.pdf")
 
-    @patch("app._analyze_cv_payload")
+    @patch("src.ui.analysis_runner._analyze_cv_payload")
     def test_multi_resume_comparison_sorts_by_final_score(self, mock_analyze) -> None:
         mock_analyze.side_effect = [
             (
@@ -64,7 +65,7 @@ class AppHelperTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             run_multi_resume_comparison("JD", files)
 
-    @patch("app._analyze_cv_payload")
+    @patch("src.ui.analysis_runner._analyze_cv_payload")
     def test_multi_resume_comparison_handles_malformed_scores(self, mock_analyze) -> None:
         mock_analyze.side_effect = [
             (

@@ -1,5 +1,5 @@
 # Python
-**pycache**/
+__pycache__/
 *.py[cod]
 *$py.class
 *.so
@@ -37,8 +37,8 @@ ENV/
 *.swo
 *~
 
-# Streamlit
-.streamlit/
+# Streamlit — track config but never secrets
+.streamlit/secrets.toml
 
 # OS Files
 .DS_Store

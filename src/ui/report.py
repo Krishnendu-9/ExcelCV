@@ -1275,31 +1275,6 @@ def _build_sidebar_js() -> str:
 
             pinSidebar(clampedTop, topValue);
             return;
-
-            var sidebar = doc.querySelector('.report-sidebar');
-            var anchor = sidebar ? sidebar.parentElement : null;
-            if (!sidebar || !anchor || !anchor.getBoundingClientRect) {
-                unpinSidebar();
-                return;
-            }
-
-            var rect = anchor.getBoundingClientRect();
-            var triggerTop = topValue + 6;            // Pin as soon as sidebar reaches the sticky threshold.
-            // This keeps the top PDF/action row untouched and prevents sidebar drop-outs.
-            var sidebarRect = sidebar.getBoundingClientRect();
-            var sidebarHeight = Math.max(220, Math.ceil(sidebarRect.height || sidebar.offsetHeight || 0));
-            var nearFooterBoundary = rect.bottom <= (topValue + sidebarHeight + 12);
-            var anchorCanDock = rect.height > (sidebarHeight + 16);
-            var shouldPin = rect.top <= triggerTop;
-            if (shouldPin) {
-                if (nearFooterBoundary && anchorCanDock) {
-                    dockSidebarBottom();
-                } else {
-                    pinSidebar(topValue);
-                }
-            } else {
-                unpinSidebar();
-            }
         }
 
         if (win.__sidebarSimpleClickHandler) {
@@ -1711,3 +1686,116 @@ def render_report_page(analysis: Dict[str, Any], name: str = "CV") -> None:
 
         _render_download_buttons(name, analysis)
 
+import html as _html
+
+from src.evaluation import build_evaluation_record, summarize_evaluation
+from src.ui.app_utils import _clear_analysis_state, _save_report_snapshot
+
+def render_evaluation_toolkit(analysis: Dict[str, Any], resume_name: str) -> None:
+    """Render benchmark/evaluation controls for model-vs-human validation."""
+    st.markdown("### Evaluation Toolkit")
+    st.caption(
+        "Add human-review scores to validate model quality (MAE, RMSE, correlation) for your final project."
+    )
+
+    with st.form("evaluation_form", clear_on_submit=True):
+        human_score = st.number_input(
+            "Human reviewer score (0-100)",
+            min_value=0,
+            max_value=100,
+            value=75,
+            step=1,
+        )
+        notes = st.text_input("Reviewer notes (optional)", placeholder="Example: strong projects, weak impact metrics")
+        add_record = st.form_submit_button("Add benchmark record")
+
+    if add_record:
+        record = build_evaluation_record(
+            resume_name=resume_name,
+            model_score=int(analysis.get("match_score", 0)),
+            human_score=int(human_score),
+            notes=notes,
+        )
+        records = st.session_state.setdefault("evaluation_records", [])
+        records.append(record)
+        st.success("Benchmark record added.")
+
+    records = st.session_state.get("evaluation_records", [])
+    summary = summarize_evaluation(records)
+    if summary.get("count", 0) > 0:
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Records", summary.get("count", 0))
+        c2.metric("MAE", summary.get("mae", "-"))
+        c3.metric("RMSE", summary.get("rmse", "-"))
+        corr = summary.get("correlation")
+        c4.metric("Correlation", "-" if corr is None else corr)
+
+        st.dataframe(records, use_container_width=True, hide_index=True)
+        st.download_button(
+            "Download benchmark JSON",
+            data=json.dumps(records, indent=2),
+            file_name="excelcv-benchmark.json",
+            mime="application/json",
+            use_container_width=True,
+            key="download_benchmark_json",
+        )
+
+
+def render_report_view() -> None:
+    """Results page based on stored analysis."""
+    analysis = st.session_state.get("analysis")
+    name = st.session_state.get("cv_name", "CV")
+    safe_name = _html.escape(str(name), quote=True)
+
+    if not analysis:
+        st.info("No analysis found. Upload a resume to get started.")
+        st.session_state["page"] = "home"
+        st.query_params["page"] = "home"
+        if "rid" in st.query_params:
+            del st.query_params["rid"]
+        return
+
+    # Keep URL snapshot up to date so browser refresh preserves report page.
+    current_sid = st.session_state.get("report_snapshot_id") or st.query_params.get("rid")
+    persisted_sid = _save_report_snapshot(str(current_sid) if current_sid else None)
+    st.session_state["report_snapshot_id"] = persisted_sid
+    st.query_params["page"] = "report"
+    st.query_params["rid"] = persisted_sid
+
+    # Marker for CSS/JS: center theme + Upload buttons with PDF section
+    st.markdown('<div id="report-pdf-row-marker" aria-hidden="true"></div>', unsafe_allow_html=True)
+    top_left, top_right = st.columns([1.72, 0.88], gap="small")
+    with top_left:
+        st.markdown(
+            f"""
+            <div class="report-topline report-fileline">
+                <span class="report-mode-label">Resume report - Standard scoring</span>
+                <div class="report-file-row">
+                    <h2 class="report-file-title">{safe_name}</h2>
+                    <div class="score-pill">{analysis.get("match_score", 0)} / 100</div>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    with top_right:
+        st.markdown('<div id="report-top-actions-marker" aria-hidden="true"></div>', unsafe_allow_html=True)
+        if st.button("Upload another resume", use_container_width=True, help="Upload a new resume"):
+            _clear_analysis_state(clear_comparison=True)
+            st.session_state["page"] = "upload-cv"
+            st.query_params["page"] = "upload-cv"
+            if "rid" in st.query_params:
+                del st.query_params["rid"]
+            st.rerun()
+
+    render_report_page(analysis, name=name)
+
+    # Keep post-report tools aligned with the right report lane so the sticky
+    # left score sidebar behavior remains unchanged.
+    toolkit_spacer, toolkit_main = st.columns([1, 1.6], gap="large")
+    with toolkit_main:
+        render_evaluation_toolkit(analysis, str(name))
+
+
+if __name__ == "__main__":
+    main()

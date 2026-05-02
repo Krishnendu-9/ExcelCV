@@ -225,4 +225,232 @@ def render_upload_landing_sections() -> None:
         unsafe_allow_html=True,
     )
 
+import streamlit.components.v1 as components
+
+from src.auth_utils import get_session_user
+from src.ui.analysis_runner import (
+    _autosave_analysis,
+    run_multi_resume_comparison,
+    run_single_analysis,
+)
+from src.ui.app_utils import _build_page_href, _sanitize_cv_filename, _save_report_snapshot
+from src.ui.common import issue_count
+
+def render_upload_page(compare_mode: bool = False) -> None:
+    """Landing page: upload CV + JD."""
+    _current_user = get_session_user()
+    left, right = st.columns([1.0, 1.0], gap="medium")
+    with right:
+        render_upload_preview_card()
+        analysis_status_slot = st.container()
+
+    with left:
+        st.markdown(
+            """
+            <div class="hero-copy">
+                <h1 class="hero-title">Is your resume <span>good enough?</span></h1>
+                <p class="hero-subtitle">
+                    Drop your resume, paste the JD, and get an ATS-ready report in seconds.
+                </p>
+                <div class="hero-chip-row">
+                    <span class="hero-chip">100% free</span>
+                    <span class="hero-chip">Free account</span>
+                    <span class="hero-chip">History saved</span>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        if _current_user:
+            # ── Logged-in: show full upload form ──────────────────────────────
+            with st.form("upload_form"):
+                jd = st.text_area(
+                    "Job description",
+                    key="jd",
+                    height=120,
+                    placeholder="Paste the role description, must-have skills, and seniority expectations.",
+                )
+                uploaded_cv = st.file_uploader(
+                    "Upload resume (PDF or DOCX)",
+                    type=["pdf", "docx"],
+                    key="cvs",
+                    accept_multiple_files=False,
+                    help="PDF or DOCX supported. Maximum file size: 2MB.",
+                )
+                submitted = st.form_submit_button("Upload & analyze", use_container_width=True)
+                st.caption("Max 2MB per file.")
+                st.markdown(
+                    '<div class="privacy-note">&#128274; Analysis is saved to your account history.</div>',
+                    unsafe_allow_html=True,
+                )
+
+            if submitted:
+                result = run_single_analysis(
+                    jd,
+                    uploaded_cv,
+                    status_container=analysis_status_slot,
+                )
+                if result:
+                    analysis, cv_text = result
+                    safe_cv_name = _sanitize_cv_filename(getattr(uploaded_cv, "name", "CV.pdf"))
+                    st.session_state["cv_text"] = cv_text
+                    st.session_state["job_description"] = jd
+                    st.session_state["analysis"] = analysis
+                    st.session_state["cv_name"] = safe_cv_name
+                    st.session_state["cv_file_size"] = getattr(uploaded_cv, "size", 0)
+                    st.session_state["issues"] = issue_count(analysis)
+                    st.session_state["page"] = "report"
+                    st.query_params["page"] = "report"
+                    snapshot_id = _save_report_snapshot()
+                    st.session_state["report_snapshot_id"] = snapshot_id
+                    st.query_params["rid"] = snapshot_id
+                    _autosave_analysis(safe_cv_name, jd, analysis)
+                    st.rerun()
+
+        else:
+            # ── Guest: JD preview + sign-in prompt in place of file uploader ──
+            st.text_area(
+                "Job description",
+                key="jd_guest",
+                height=120,
+                placeholder="Paste the role description, must-have skills, and seniority expectations.",
+            )
+            _auth_href = _build_page_href("auth", next_page="upload-cv")
+            with st.container(key="upload_guest_box"):
+                st.markdown(
+                    f"""
+                    <div class="guest-auth-shell">
+                        <div class="guest-auth-icon">&#128274;</div>
+                        <p class="guest-auth-title">
+                            Sign in to upload your resume
+                        </p>
+                        <p class="guest-auth-copy">
+                            Get AI-powered ATS scores, keyword gaps, and save your full
+                            analysis history &mdash; free forever.
+                        </p>
+                        <a href="{_auth_href}" target="_self" class="guest-auth-cta">
+                            Sign In / Create Account &rarr;
+                        </a>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+
+    # Full-width comparison section (not one-sided).
+    if compare_mode:
+        components.html(
+            """
+            <script>
+            (function() {
+                var target = window.parent && window.parent !== window ? window.parent : window;
+                var doc = target.document;
+                setTimeout(function() {
+                    var anchor = doc.getElementById("compare-section-anchor");
+                    if (anchor) {
+                        anchor.scrollIntoView({ behavior: "smooth", block: "start" });
+                    }
+                }, 120);
+            })();
+            </script>
+            """,
+            height=0,
+        )
+
+    st.markdown('<div id="compare-section-anchor"></div>', unsafe_allow_html=True)
+    st.markdown('<div class="compare-section-shell">', unsafe_allow_html=True)
+    if compare_mode:
+        st.markdown(
+            '<div class="compare-mode-badge">Comparison mode active</div>',
+            unsafe_allow_html=True,
+        )
+    st.markdown(
+        """
+        <h3 class="compare-section-title">Compare Multiple Resumes (2-5 files)</h3>
+        <p class="compare-section-subtitle">
+            Use one job description and rank candidates side-by-side using final score, ATS parse,
+            section quality, issue count, and top missing skills.
+        </p>
+        """,
+        unsafe_allow_html=True,
+    )
+    with st.container(key="compare_form_box"):
+        if get_session_user():
+            with st.form("comparison_form"):
+                compare_jd = st.text_area(
+                    "Job description for comparison",
+                    key="compare_jd",
+                    value=st.session_state.get("jd", ""),
+                    height=130,
+                    placeholder="Paste the role description once and compare multiple resumes.",
+                )
+                compare_files = st.file_uploader(
+                    "Upload 2-5 resumes (PDF or DOCX)",
+                    type=["pdf", "docx"],
+                    key="compare_cvs",
+                    accept_multiple_files=True,
+                    help="Maximum 2MB per file. We will rank resumes by final score.",
+                )
+                run_compare = st.form_submit_button("Run comparison", use_container_width=True)
+        else:
+            run_compare = False
+            compare_jd = ""
+            compare_files = []
+            _auth_href2 = _build_page_href("auth", next_page="compare-cv")
+            st.markdown(
+                f"""
+                <div class="guest-auth-shell">
+                    <div class="guest-auth-icon">&#128274;</div>
+                    <p class="guest-auth-title">
+                        Sign in to compare resumes
+                    </p>
+                    <p class="guest-auth-copy">
+                        Upload 2–5 resumes and rank them side-by-side — free forever.
+                    </p>
+                    <a href="{_auth_href2}" target="_self" class="guest-auth-cta">
+                        Sign In / Create Account &rarr;
+                    </a>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+    if run_compare:
+        try:
+            with st.spinner("Comparing resumes..."):
+                comparison = run_multi_resume_comparison(compare_jd, compare_files or [])
+            st.session_state["comparison_results"] = comparison.get("rows", [])
+            st.session_state["comparison_errors"] = comparison.get("errors", [])
+        except ValueError as exc:
+            st.error(str(exc))
+
+    comparison_rows = st.session_state.get("comparison_results", [])
+    comparison_errors = st.session_state.get("comparison_errors", [])
+    if comparison_rows:
+        st.markdown('<div class="compare-results-title">Comparison Results</div>', unsafe_allow_html=True)
+        st.dataframe(comparison_rows, use_container_width=True, hide_index=True)
+        best = comparison_rows[0]
+        st.success(
+            f"Top match: {best.get('Resume')} with final score {best.get('Final Score')}."
+        )
+    if comparison_errors:
+        st.warning("Some files could not be analyzed:\n- " + "\n- ".join(comparison_errors))
+
+    st.markdown(
+        """
+        <div class="compare-next-shell">
+            <h4 class="compare-next-title">What happens next?</h4>
+            <ul class="compare-next-list">
+                <li>ExcelCV analyzes each resume for ATS quality, content strength, and role alignment.</li>
+                <li>You get ranked comparison results with score breakdown and detected issue count.</li>
+                <li>Top missing skills are highlighted so you can quickly compare candidate gaps.</li>
+                <li>Use the same JD across files to keep ranking consistent and decision-ready.</li>
+            </ul>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    render_upload_landing_sections()
 

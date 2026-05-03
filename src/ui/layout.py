@@ -31,7 +31,7 @@ def render_theme_toggle(standalone: bool = True, key: str = "theme_toggle") -> N
         container = st.container()
     with container:
         current_theme = st.session_state.get("theme", "light")
-        theme_icon = "\u2600\ufe0f" if current_theme == "light" else "\U0001F319"
+        theme_icon = "\U0001F319" if current_theme == "light" else "\u2600\ufe0f"
         if st.button(
             theme_icon,
             key=key,
@@ -191,6 +191,7 @@ def render_site_footer() -> None:
         "resume_checker": _build_page_href("home"),
         "ats_insights": _build_page_href("ats-insights"),
         "evaluation_toolkit": _build_page_href("evaluation-toolkit"),
+        "explainable_scoring": _build_page_href("explainable-scoring"),
         "project_notes": _build_page_href("project-notes"),
         "how_it_works": _build_page_href("how-it-works"),
         "interview_prep": _build_page_href("interview-prep"),
@@ -214,6 +215,7 @@ def render_site_footer() -> None:
                     <a href="{footer_links["resume_checker"]}" target="_self">Resume Checker</a>
                     <a href="{footer_links["ats_insights"]}" target="_self">ATS Insights</a>
                     <a href="{footer_links["evaluation_toolkit"]}" target="_self">Evaluation Toolkit</a>
+                    <a href="{footer_links["explainable_scoring"]}" target="_self">Explainable Scoring</a>
                 </div>
                 <div class="site-footer-link-col">
                     <h4>Resources</h4>

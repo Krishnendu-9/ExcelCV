@@ -24,7 +24,7 @@ from src.ui.app_utils import _build_page_href
 
 
 def _logo_data_uri() -> str:
-    base_dir = Path(__file__).resolve().parent.parent.parent / "templates"
+    base_dir = Path(__file__).resolve().parent.parent.parent / "assets" / "images"
     for name in ("ExcelCV_clean.png", "ExcelCV.png"):
         p = base_dir / name
         if p.exists():

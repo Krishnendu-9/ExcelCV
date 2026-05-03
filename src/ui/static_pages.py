@@ -10,7 +10,6 @@ from src.ui.report import render_evaluation_toolkit
 
 def _render_info_page_header(title: str, subtitle: str = "") -> None:
     """Render a consistent heading block for non-analysis pages."""
-    st.markdown(f"[← Back to Home]({_build_page_href('home')})")
     st.markdown(f"## {title}")
     if subtitle:
         st.caption(subtitle)
@@ -96,6 +95,134 @@ def render_static_page(page: str) -> None:
         st.write(
             "Many resumes are rejected before a recruiter reads them. "
             "This page explains how ATS-visible structure and measurable outcomes improve selection chances."
+        )
+        return
+
+    if page_key == "explainable-scoring":
+        st.markdown(
+            f"""
+<div class="landing-extended">
+
+  <section class="landing-clean-section landing-intro-section">
+    <div class="landing-clean-head">
+      <span class="landing-clean-tag">Scoring methodology</span>
+      <h2 class="landing-clean-title">How ExcelCV scores your resume</h2>
+      <p class="landing-clean-subtitle">
+        Every number you see is produced by a transparent, weighted formula —
+        no black-box AI guessing. You can verify every component yourself.
+      </p>
+    </div>
+    <div class="landing-clean-grid steps-grid">
+      <article class="landing-clean-card">
+        <div class="landing-clean-icon">1</div>
+        <h4>Text extraction</h4>
+        <p>Your PDF or DOCX is parsed and raw text is extracted. Parse confidence
+           becomes your ATS Parse Rate score.</p>
+      </article>
+      <article class="landing-clean-card">
+        <div class="landing-clean-icon">2</div>
+        <h4>Deterministic checks</h4>
+        <p>Five rule-based checks run on the extracted text: parse rate, quantifying
+           impact, repetition, spelling &amp; grammar, and section completeness.</p>
+      </article>
+      <article class="landing-clean-card">
+        <div class="landing-clean-icon">3</div>
+        <h4>Weighted final score</h4>
+        <p>Each component contributes a fixed percentage to the final 0–100 score.
+           The weights are shown below — nothing is hidden.</p>
+      </article>
+    </div>
+  </section>
+
+  <section class="landing-clean-section">
+    <div class="landing-clean-head">
+      <span class="landing-clean-tag">Score weights</span>
+      <h3 class="landing-clean-title">What makes up your score</h3>
+      <p class="landing-clean-subtitle">
+        Five categories, fixed weights, fully reproducible.
+      </p>
+    </div>
+    <div class="landing-clean-grid features-grid">
+      <article class="landing-clean-card">
+        <h4>Content Quality &nbsp;<span style="color:#2563eb;font-size:1.1rem;font-weight:800;">30%</span></h4>
+        <p>Average of ATS parse rate, quantifying impact, repetition penalty, and
+           spelling &amp; grammar — all computed deterministically on your text.</p>
+      </article>
+      <article class="landing-clean-card">
+        <h4>ATS Essentials &nbsp;<span style="color:#2563eb;font-size:1.1rem;font-weight:800;">20%</span></h4>
+        <p>Checks for contact info, measurable bullets, appropriate resume length,
+           and absence of ATS-unfriendly formatting like tables or images.</p>
+      </article>
+      <article class="landing-clean-card">
+        <h4>JD Alignment &nbsp;<span style="color:#2563eb;font-size:1.1rem;font-weight:800;">25%</span></h4>
+        <p>Keyword overlap and skill gap count between your resume and the job
+           description. Only active in JD mode — weight shifts to Content when no JD is provided.</p>
+      </article>
+      <article class="landing-clean-card">
+        <h4>Section Quality &nbsp;<span style="color:#2563eb;font-size:1.1rem;font-weight:800;">15%</span></h4>
+        <p>Checks that key sections (Summary, Experience, Education, Skills) are
+           present, non-empty, and correctly labeled for ATS recognition.</p>
+      </article>
+      <article class="landing-clean-card">
+        <h4>Skills Match &nbsp;<span style="color:#2563eb;font-size:1.1rem;font-weight:800;">10%</span></h4>
+        <p>Compares listed skills against role-relevant keywords extracted from the
+           job description to surface critical gaps.</p>
+      </article>
+      <article class="landing-clean-card">
+        <h4>Score bands</h4>
+        <p>
+          <strong>90–100</strong> — Submit with confidence<br>
+          <strong>75–89</strong> — Good, minor fixes needed<br>
+          <strong>60–74</strong> — Fair, targeted improvements<br>
+          <strong>0–59</strong> — High risk, revise before applying
+        </p>
+      </article>
+    </div>
+  </section>
+
+  <section class="landing-clean-section">
+    <div class="landing-clean-head">
+      <span class="landing-clean-tag">Why it matters</span>
+      <h3 class="landing-clean-title">Transparency you can trust</h3>
+      <p class="landing-clean-subtitle">
+        Most resume tools give you a score with no explanation. ExcelCV shows
+        every component so you know exactly what to fix.
+      </p>
+    </div>
+    <div class="landing-clean-grid steps-grid">
+      <article class="landing-clean-card">
+        <div class="landing-clean-icon">&#10003;</div>
+        <h4>No guessing</h4>
+        <p>All five checks are deterministic — same resume always returns the same score.</p>
+      </article>
+      <article class="landing-clean-card">
+        <div class="landing-clean-icon">&#10003;</div>
+        <h4>Actionable gaps</h4>
+        <p>Each low-scoring component links directly to the section of your report
+           that explains how to fix it.</p>
+      </article>
+      <article class="landing-clean-card">
+        <div class="landing-clean-icon">&#10003;</div>
+        <h4>JD-aware mode</h4>
+        <p>Add a job description and the scoring shifts to prioritise role-specific
+           keyword alignment and skill match.</p>
+      </article>
+    </div>
+  </section>
+
+  <section class="landing-clean-cta">
+    <h3>See your own score breakdown</h3>
+    <p>Upload your resume and get a fully explainable report in seconds.</p>
+    <div class="landing-clean-cta-pills">
+      <span>Deterministic scoring</span>
+      <span>No black box</span>
+      <span>Free to use</span>
+    </div>
+  </section>
+
+</div>
+            """,
+            unsafe_allow_html=True,
         )
         return
 

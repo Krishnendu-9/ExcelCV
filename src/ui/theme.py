@@ -9,7 +9,7 @@ from pathlib import Path
 import streamlit as st
 import streamlit.components.v1 as components
 
-from src.css_generators import (
+from src.ui.css_generators import (
     generate_button_hover_css,
     generate_css_variables,
     generate_dropzone_css,
@@ -18,7 +18,7 @@ from src.css_generators import (
     generate_theme_base_css,
     generate_theme_button_css,
 )
-from src.ui_constants import (
+from src.ui.ui_constants import (
     DARK_BG_PRIMARY,
     DARK_TEXT_PRIMARY,
     LIGHT_BG_PRIMARY,

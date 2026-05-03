@@ -162,6 +162,7 @@ def render_upload_landing_sections() -> None:
                     <article class="landing-clean-card"><p>Track actionable next steps for resume improvement.</p></article>
                 </div>
             </section>
+            <!-- COMMENTED OUT: Resume checker success stories (fake testimonials — restore when real data available)
             <section class="landing-clean-section">
                 <div class="landing-clean-head">
                     <span class="landing-clean-tag">Success stories</span>
@@ -188,6 +189,8 @@ def render_upload_landing_sections() -> None:
                     </article>
                 </div>
             </section>
+            -->
+            <!-- COMMENTED OUT: Latest resume and career tips (blog cards have no links — restore when blog pages are complete)
             <section class="landing-clean-section">
                 <div class="landing-clean-head">
                     <span class="landing-clean-tag">From the blog</span>
@@ -211,6 +214,7 @@ def render_upload_landing_sections() -> None:
                     </article>
                 </div>
             </section>
+            -->
             <section class="landing-clean-footnote">
                 <p>ExcelCV helps you analyze, improve, and share a stronger ATS-ready resume.</p>
             </section>
@@ -239,103 +243,104 @@ from src.ui.common import issue_count
 def render_upload_page(compare_mode: bool = False) -> None:
     """Landing page: upload CV + JD."""
     _current_user = get_session_user()
-    left, right = st.columns([1.0, 1.0], gap="medium")
-    with right:
-        render_upload_preview_card()
-        analysis_status_slot = st.container()
+    with st.container(key="hero_wrapper"):
+        left, right = st.columns([1.0, 1.0], gap="medium")
+        with right:
+            render_upload_preview_card()
+            analysis_status_slot = st.container()
 
-    with left:
-        st.markdown(
-            """
-            <div class="hero-copy">
-                <h1 class="hero-title">Is your resume <span>good enough?</span></h1>
-                <p class="hero-subtitle">
-                    Drop your resume, paste the JD, and get an ATS-ready report in seconds.
-                </p>
-                <div class="hero-chip-row">
-                    <span class="hero-chip">100% free</span>
-                    <span class="hero-chip">Free account</span>
-                    <span class="hero-chip">History saved</span>
+        with left:
+            st.markdown(
+                """
+                <div class="hero-copy">
+                    <h1 class="hero-title">Is your resume <span>good enough?</span></h1>
+                    <p class="hero-subtitle">
+                        Drop your resume, paste the JD, and get an ATS-ready report in seconds.
+                    </p>
+                    <div class="hero-chip-row">
+                        <span class="hero-chip">100% free</span>
+                        <span class="hero-chip">Free account</span>
+                        <span class="hero-chip">History saved</span>
+                    </div>
                 </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+                """,
+                unsafe_allow_html=True,
+            )
 
-        if _current_user:
-            # ── Logged-in: show full upload form ──────────────────────────────
-            with st.form("upload_form"):
-                jd = st.text_area(
+            if _current_user:
+                # ── Logged-in: show full upload form ──────────────────────────────
+                with st.form("upload_form"):
+                    jd = st.text_area(
+                        "Job description",
+                        key="jd",
+                        height=120,
+                        placeholder="Paste the role description, must-have skills, and seniority expectations.",
+                    )
+                    uploaded_cv = st.file_uploader(
+                        "Upload resume (PDF or DOCX)",
+                        type=["pdf", "docx"],
+                        key="cvs",
+                        accept_multiple_files=False,
+                        help="PDF or DOCX supported. Maximum file size: 2MB.",
+                    )
+                    submitted = st.form_submit_button("Upload & analyze", use_container_width=True)
+                    st.caption("Max 2MB per file.")
+                    st.markdown(
+                        '<div class="privacy-note">&#128274; Analysis is saved to your account history.</div>',
+                        unsafe_allow_html=True,
+                    )
+
+                if submitted:
+                    result = run_single_analysis(
+                        jd,
+                        uploaded_cv,
+                        status_container=analysis_status_slot,
+                    )
+                    if result:
+                        analysis, cv_text = result
+                        safe_cv_name = _sanitize_cv_filename(getattr(uploaded_cv, "name", "CV.pdf"))
+                        st.session_state["cv_text"] = cv_text
+                        st.session_state["job_description"] = jd
+                        st.session_state["analysis"] = analysis
+                        st.session_state["cv_name"] = safe_cv_name
+                        st.session_state["cv_file_size"] = getattr(uploaded_cv, "size", 0)
+                        st.session_state["issues"] = issue_count(analysis)
+                        st.session_state["page"] = "report"
+                        st.query_params["page"] = "report"
+                        snapshot_id = _save_report_snapshot()
+                        st.session_state["report_snapshot_id"] = snapshot_id
+                        st.query_params["rid"] = snapshot_id
+                        _autosave_analysis(safe_cv_name, jd, analysis)
+                        st.rerun()
+
+            else:
+                # ── Guest: JD preview + sign-in prompt in place of file uploader ──
+                st.text_area(
                     "Job description",
-                    key="jd",
+                    key="jd_guest",
                     height=120,
                     placeholder="Paste the role description, must-have skills, and seniority expectations.",
                 )
-                uploaded_cv = st.file_uploader(
-                    "Upload resume (PDF or DOCX)",
-                    type=["pdf", "docx"],
-                    key="cvs",
-                    accept_multiple_files=False,
-                    help="PDF or DOCX supported. Maximum file size: 2MB.",
-                )
-                submitted = st.form_submit_button("Upload & analyze", use_container_width=True)
-                st.caption("Max 2MB per file.")
-                st.markdown(
-                    '<div class="privacy-note">&#128274; Analysis is saved to your account history.</div>',
-                    unsafe_allow_html=True,
-                )
-
-            if submitted:
-                result = run_single_analysis(
-                    jd,
-                    uploaded_cv,
-                    status_container=analysis_status_slot,
-                )
-                if result:
-                    analysis, cv_text = result
-                    safe_cv_name = _sanitize_cv_filename(getattr(uploaded_cv, "name", "CV.pdf"))
-                    st.session_state["cv_text"] = cv_text
-                    st.session_state["job_description"] = jd
-                    st.session_state["analysis"] = analysis
-                    st.session_state["cv_name"] = safe_cv_name
-                    st.session_state["cv_file_size"] = getattr(uploaded_cv, "size", 0)
-                    st.session_state["issues"] = issue_count(analysis)
-                    st.session_state["page"] = "report"
-                    st.query_params["page"] = "report"
-                    snapshot_id = _save_report_snapshot()
-                    st.session_state["report_snapshot_id"] = snapshot_id
-                    st.query_params["rid"] = snapshot_id
-                    _autosave_analysis(safe_cv_name, jd, analysis)
-                    st.rerun()
-
-        else:
-            # ── Guest: JD preview + sign-in prompt in place of file uploader ──
-            st.text_area(
-                "Job description",
-                key="jd_guest",
-                height=120,
-                placeholder="Paste the role description, must-have skills, and seniority expectations.",
-            )
-            _auth_href = _build_page_href("auth", next_page="upload-cv")
-            with st.container(key="upload_guest_box"):
-                st.markdown(
-                    f"""
-                    <div class="guest-auth-shell">
-                        <div class="guest-auth-icon">&#128274;</div>
-                        <p class="guest-auth-title">
-                            Sign in to upload your resume
-                        </p>
-                        <p class="guest-auth-copy">
-                            Get AI-powered ATS scores, keyword gaps, and save your full
-                            analysis history &mdash; free forever.
-                        </p>
-                        <a href="{_auth_href}" target="_self" class="guest-auth-cta">
-                            Sign In / Create Account &rarr;
-                        </a>
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
+                _auth_href = _build_page_href("auth", next_page="upload-cv")
+                with st.container(key="upload_guest_box"):
+                    st.markdown(
+                        f"""
+                        <div class="guest-auth-shell">
+                            <div class="guest-auth-icon">&#128274;</div>
+                            <p class="guest-auth-title">
+                                Sign in to upload your resume
+                            </p>
+                            <p class="guest-auth-copy">
+                                Get AI-powered ATS scores, keyword gaps, and save your full
+                                analysis history &mdash; free forever.
+                            </p>
+                            <a href="{_auth_href}" target="_self" class="guest-auth-cta">
+                                Sign In / Create Account &rarr;
+                            </a>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
 
     # Full-width comparison section (not one-sided).
     if compare_mode:

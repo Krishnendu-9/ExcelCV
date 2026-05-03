@@ -117,11 +117,7 @@ def inject_file_uploader_spacing_css() -> None:
         .st-key-comparison_form .stSelectbox,
         .st-key-comparison_form .stCheckbox,
         .st-key-comparison_form .stSelectbox label,
-        .st-key-comparison_form .stCheckbox label,
-        .st-key-compare_form_box .stSelectbox,
-        .st-key-compare_form_box .stCheckbox,
-        .st-key-compare_form_box .stSelectbox label,
-        .st-key-compare_form_box .stCheckbox label {
+        .st-key-comparison_form .stCheckbox label {
             margin-top: 0 !important;
             margin-bottom: 2px !important;
             padding-top: 0 !important;
@@ -131,10 +127,6 @@ def inject_file_uploader_spacing_css() -> None:
         .st-key-upload_form [data-testid="stVerticalBlock"] > div,
         .st-key-comparison_form [data-testid="stVerticalBlock"] > div {
             margin-bottom: 6px !important;
-        }
-        .stForm .stCaptionContainer {
-            margin-top: 0 !important;
-            margin-bottom: 2px !important;
         }
         </style>
         """,
@@ -505,15 +497,21 @@ def inject_compact_header_css() -> None:
             border: 1px solid __TOGGLE_BTN_BORDER__ !important;
             border-color: __TOGGLE_BTN_BORDER__ !important;
             outline: none !important;
-            background: __TOGGLE_BTN_BG__ !important;
-            background-color: __TOGGLE_BTN_BG__ !important;
+            background: transparent !important;
+            background-color: transparent !important;
             box-shadow: none !important;
             border-radius: 10px !important;
             cursor: pointer !important;
-            transition: border-color 0.14s ease !important;
+            transition: background 0.18s ease, border-color 0.18s ease !important;
             color: __TOGGLE_ICON_COLOR__ !important;
             font-size: 1.22rem !important;
             line-height: 1 !important;
+        }
+        .st-key-theme_toggle_header button:hover,
+        .st-key-theme_toggle_header button[data-testid="baseButton-secondary"]:hover {
+            background: __TOGGLE_BTN_BG__ !important;
+            background-color: __TOGGLE_BTN_BG__ !important;
+            border-color: __TOGGLE_BTN_BORDER__ !important;
         }
         [data-testid="stAppViewContainer"] .st-key-theme_toggle_header [data-baseweb="button"] {
             background: transparent !important;
@@ -600,6 +598,7 @@ def inject_compact_header_css() -> None:
             background-color: __TOGGLE_BTN_BG__ !important;
             background-image: none !important;
             color: __TOGGLE_ICON_COLOR__ !important;
+            border-radius: 10px !important;
         }
         [data-testid="stAppViewContainer"] .st-key-theme_toggle_header [data-baseweb="button"]:hover,
         [data-testid="stAppViewContainer"] .st-key-theme_toggle_header [data-baseweb="button"]:focus,
@@ -612,15 +611,11 @@ def inject_compact_header_css() -> None:
         }
         .compare-section-shell {
             position: relative !important;
-            margin-top: 22px !important;
-            padding: 20px 8px 10px !important;
-            border-radius: 18px !important;
+            margin-top: 32px !important;
+            padding: 0 !important;
             border: none !important;
             background: transparent !important;
             box-shadow: none !important;
-            max-width: 1240px !important;
-            margin-left: auto !important;
-            margin-right: auto !important;
         }
         .compare-section-title {
             margin: 0 0 8px 0 !important;
@@ -1271,8 +1266,16 @@ def inject_compact_header_css() -> None:
         [data-testid="stAppViewContainer"] .st-key-cvb-page-native .st-key-cvb-left-scroll-native {
             height: var(--cvb-native-panel-h) !important;
             max-height: var(--cvb-native-panel-h) !important;
-            overflow-y: auto !important;
+            overflow-y: scroll !important;
             overflow-x: hidden !important;
+            scrollbar-gutter: auto !important;
+        }
+        [data-testid="stAppViewContainer"] .st-key-cvb-page-native .st-key-cvb-main-row-native > [data-testid="stHorizontalBlock"] {
+            gap: 0 !important;
+        }
+        [data-testid="stAppViewContainer"] .st-key-cvb-page-native .st-key-cvb-main-row-native > [data-testid="stHorizontalBlock"] > [data-testid="column"] {
+            padding: 0 !important;
+            margin: 0 !important;
         }
         [data-testid="stAppViewContainer"] .st-key-cvb-page-native .st-key-cvb-left-scroll-native > [data-testid="stVerticalBlock"] {
             min-height: 0 !important;
@@ -1349,7 +1352,8 @@ def inject_compact_header_css() -> None:
                 height: 60px !important;
             }
             .compare-section-shell {
-                padding: 8px 2px !important;
+                margin-top: 16px !important;
+                padding: 0 !important;
             }
             .compare-section-title {
                 font-size: 1.9rem !important;
@@ -1646,6 +1650,62 @@ def inject_fixed_top_bar() -> None:
                 scheduleApply();
             });
             target.__excelcvFixedHeaderObserver.observe(doc.body, { childList: true, subtree: true });
+        })();
+        </script>
+        """,
+        height=0,
+    )
+
+
+def inject_footer_full_width() -> None:
+    """Force the site footer band to span the full viewport width.
+
+    Streamlit's stAppViewContainer has overflow-x:hidden which clips CSS
+    translateX breakouts. This JS walks up from the footer element and
+    sets overflow:visible on each ancestor so the 100vw width is visible.
+    """
+    components.html(
+        """
+        <script>
+        (function() {
+            var w = window.parent && window.parent !== window ? window.parent : window;
+            var doc = w.document;
+
+            function applyFullWidth() {
+                var footer = doc.querySelector('.site-footer-band');
+                if (!footer) return;
+
+                // Walk up and unlock overflow on every ancestor up to body
+                var el = footer.parentElement;
+                while (el && el !== doc.body) {
+                    var cs = w.getComputedStyle(el);
+                    if (cs.overflowX === 'hidden' || cs.overflow === 'hidden') {
+                        el.style.setProperty('overflow-x', 'visible', 'important');
+                    }
+                    el.style.setProperty('overflow', 'visible', 'important');
+                    el = el.parentElement;
+                }
+
+                // Apply full-width to the stElementContainer holding the footer
+                var container = footer.closest('[data-testid="stElementContainer"]');
+                if (container) {
+                    container.style.setProperty('width', '100vw', 'important');
+                    container.style.setProperty('position', 'relative', 'important');
+                    container.style.setProperty('left', '50%', 'important');
+                    container.style.setProperty('transform', 'translateX(-50%)', 'important');
+                    container.style.setProperty('overflow', 'visible', 'important');
+                }
+            }
+
+            // Run immediately, after paint, and watch for DOM changes
+            applyFullWidth();
+            w.requestAnimationFrame(applyFullWidth);
+            setTimeout(applyFullWidth, 150);
+
+            if (!w.__excelcvFooterObserver) {
+                w.__excelcvFooterObserver = new MutationObserver(applyFullWidth);
+                w.__excelcvFooterObserver.observe(doc.body, { childList: true, subtree: true });
+            }
         })();
         </script>
         """,

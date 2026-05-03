@@ -9,7 +9,7 @@ with AI-provided scores for more accurate results.
 import re
 from typing import Any, Dict, List, Optional, Tuple
 
-from src.scoring_constants import (
+from src.services.scoring_constants import (
     ATS_PARSE_BASE_SCORE_GOOD,
     ATS_PARSE_BASE_SCORE_MODERATE,
     ATS_PARSE_BASE_SCORE_POOR,

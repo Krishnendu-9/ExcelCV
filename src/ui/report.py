@@ -8,7 +8,7 @@ from typing import Any, Dict, List
 import streamlit as st
 import streamlit.components.v1 as components
 
-from src.reporting import build_report_pdf_bytes
+from src.services.reporting import build_report_pdf_bytes
 from src.ui.common import (
     _markdown_inline_to_html,
     get_score_color_class,
@@ -1688,7 +1688,7 @@ def render_report_page(analysis: Dict[str, Any], name: str = "CV") -> None:
 
 import html as _html
 
-from src.evaluation import build_evaluation_record, summarize_evaluation
+from src.services.evaluation import build_evaluation_record, summarize_evaluation
 from src.ui.app_utils import _clear_analysis_state, _save_report_snapshot
 
 def render_evaluation_toolkit(analysis: Dict[str, Any], resume_name: str) -> None:

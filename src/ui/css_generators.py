@@ -5,7 +5,7 @@ This module contains functions to generate CSS sections for the UI components.
 All CSS is generated programmatically to maintain consistency and ease of maintenance.
 """
 
-from src.ui_constants import (
+from src.ui.ui_constants import (
     ACCENT_GREEN,
     ACCENT_PURPLE,
     THEME_BUTTON_SELECTORS,

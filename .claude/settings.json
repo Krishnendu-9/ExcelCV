@@ -1,27 +1,10 @@
 {
   "permissions": {
     "allow": [
-      "Bash(py -c \"from src.ui.cv_builder_page import render_cv_builder_page, _skeleton_cv_data, _cv_data_is_empty, generate_cv_html; d=_skeleton_cv_data\\(\\); print\\('skeleton keys:', list\\(d.keys\\(\\)\\)\\); print\\('is_empty\\(skeleton\\):', _cv_data_is_empty\\(d\\)\\); print\\('is_empty\\({}\\):', _cv_data_is_empty\\({'personal':{},'experience':[],'education':[],'skills':{'categories':[]}}\\)\\); print\\('OK'\\)\")",
-      "Bash(py -c ' *)",
-      "Bash(py -c \"from src.ui.cv_builder_page import _inject_cv_builder_css; print\\('Syntax OK'\\)\")",
-      "Bash(py -c \"from src.ui.cv_builder_page import render_cv_builder_page, collect_cv_data, generate_cv_html; print\\('OK'\\)\")",
-      "Bash(py -c \"from src.ui.cv_builder_page import render_cv_builder_page; print\\('OK'\\)\")",
-      "Bash(py -c \"from src.ui.layout import render_theme_toggle, render_site_header; print\\('OK'\\)\")",
-      "Bash(py -c \"from src.services.pdf_generator import generate_cv_pdf; data={'personal':{'full_name':'Krishnendu Ghosh','email':'24krishnendu@gmail.com','phone':'+91 6289862288','location':'Kolkata, India','linkedin':'Krishnendughosh','github':'https://github.com/'}}; b=generate_cv_pdf\\(data,'classic'\\); print\\('PDF generated, size:', len\\(b\\), 'bytes'\\)\")",
-      "Bash(py -c \"from src.services.pdf_generator import generate_cv_pdf; data={'personal':{'full_name':'Krishnendu Ghosh','email':'24krishnendu@gmail.com','phone':'+91 6289862288','location':'Kolkata, India','linkedin':'Krishnendughosh','github':'https://github.com/'}}; b=generate_cv_pdf\\(data,'classic'\\); print\\('PDF generated:', len\\(b\\), 'bytes'\\)\")",
-      "Bash(py -c \"from src.ui.cv_builder_page import generate_cv_html; d={'personal':{'full_name':'Krishnendu Ghosh','email':'x@y.com'}}; html=generate_cv_html\\(d,'classic',preview_dark=True\\); assert 'color:#e2e8f0' in html; html2=generate_cv_html\\(d,'minimal',preview_dark=True\\); assert 'color:#e2e8f0' in html2; html3=generate_cv_html\\(d,'classic',preview_dark=False\\); assert '#1a1a2e' in html3; print\\('All checks passed'\\)\")",
-      "Bash(py -3 -m unittest discover -s tests -p \"test_*.py\" -q)",
-      "Bash(py -3 -m unittest discover -s tests -p \"test_*.py\" -v)",
-      "Bash(py -3 -m pytest tests/ -x -q --tb=short)",
-      "Bash(py -3 -m pytest tests/ -q --tb=short --ignore=tests/test_ui_smoke.py)",
-      "Bash(py -3 -c \"from src.ui.cv_builder_page import render_cv_builder_page, inject_cv_builder_dual_panel_scroll; print\\('OK'\\)\")",
-      "Bash(py -3 -c \"import streamlit; print\\(streamlit.__version__\\)\")",
-      "Bash(py -3 -c \"from src.ui.cv_builder_page import render_cv_builder_page; print\\('import OK'\\)\")",
-      "Bash(python -c \"import ast, sys; ast.parse\\(open\\('src/ui/cv_builder_page.py'\\).read\\(\\)\\); print\\('Syntax OK'\\)\")",
-      "Bash(python3 -c \"import ast; ast.parse\\(open\\('src/ui/cv_builder_page.py'\\).read\\(\\)\\); print\\('Syntax OK'\\)\")",
-      "Bash(python -c \"from src.ui.cv_builder_page import render_cv_builder_page; print\\('Import OK'\\)\")",
-      "Bash(py -c \"from src.ui.cv_builder_page import render_cv_builder_page; print\\('Import OK'\\)\")",
-      "Bash(py -c \"from src.ui.cv_builder_page import render_cv_builder_page, generate_cv_html, collect_cv_data; print\\('OK'\\)\")"
+      "PowerShell(Get-ChildItem -Recurse -Force -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName } | Sort-Object)",
+      "PowerShell(Get-ChildItem -Path \"e:\\\\Academic\\\\minor-project\\\\cv-review\" -Recurse -File -Force | Where-Object { $_.FullName -notmatch \"\\\\.git\" -and $_.FullName -notmatch \"__pycache__\" } | ForEach-Object { $_.FullName } | Sort-Object)",
+      "PowerShell(Get-ChildItem -Path \"e:\\\\Academic\\\\minor-project\\\\cv-review\" -Force | ForEach-Object { \"$\\($_.Mode\\) $\\($_.FullName\\)\" })",
+      "PowerShell(cd e:\\\\Academic\\\\minor-project\\\\cv-review; Get-ChildItem -Recurse | Where-Object { !$_.FullName.Contains\\('.git'\\) -and !$_.FullName.Contains\\('node_modules'\\) } | Select-Object FullName | ForEach-Object { $_.FullName.Replace\\('e:\\\\Academic\\\\minor-project\\\\cv-review\\\\', ''\\) } | Sort-Object)"
     ]
   }
 }

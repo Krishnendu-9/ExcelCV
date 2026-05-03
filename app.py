@@ -24,6 +24,7 @@ from src.ui.css_injection import (
     inject_compact_header_css,
     inject_fixed_top_bar,
     inject_file_uploader_spacing_css,
+    inject_footer_full_width,
 )
 try:
     from src.ui.css_injection import inject_header_layout_override, inject_dropdown_outside_click
@@ -40,7 +41,7 @@ from src.ui.cv_builder_page import render_cv_builder_page
 from src.ui.my_cvs_page import render_my_cvs_page
 from src.ui.my_analyses_page import render_my_analyses_page
 from src.ui.settings_page import render_settings_page
-from src.ui_components import inject_back_button_sync, inject_base_css
+from src.ui.ui_components import inject_back_button_sync, inject_base_css
 
 PROTECTED_PAGES = {"cv-builder", "resume-builder", "my-cvs", "my-analyses", "compare-cv", "settings"}
 NAV_ACTIVE_LABELS = {
@@ -466,6 +467,7 @@ def main() -> None:
     inject_header_layout_override()
     inject_fixed_top_bar()
     inject_dropdown_outside_click()
+    inject_footer_full_width()
     inject_back_button_sync()
     _inject_url_and_anchor_cleanup()
 

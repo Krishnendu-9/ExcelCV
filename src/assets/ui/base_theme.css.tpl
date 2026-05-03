@@ -201,32 +201,33 @@
             [data-testid="stAppViewContainer"] button:hover * {{
                 color: var(--button-text) !important;
             }}
+            /* Browse files: secondary outline style, independent from primary CTA dark button */
             .stFileUploader button,
             .stFileUploader button *,
             .stFileUploader [data-baseweb="button"],
             .stFileUploader [data-baseweb="button"] * {{
-                background-color: var(--button-bg) !important;
-                background: var(--button-bg) !important;
-                color: var(--button-text) !important;
-                border-color: var(--button-border) !important;
+                background-color: var(--bg-card) !important;
+                background: var(--bg-card) !important;
+                color: var(--text-primary) !important;
+                border-color: var(--border-color) !important;
             }}
             .stFileUploader button,
             .stFileUploader [data-baseweb="button"] {{
-                border: 1px solid var(--button-border) !important;
+                border: 1px solid var(--border-color) !important;
                 border-radius: 8px !important;
                 padding: 8px 16px !important;
                 font-weight: 600 !important;
                 min-height: 36px !important;
-                box-shadow: var(--button-shadow) !important;
+                box-shadow: none !important;
             }}
             .stFileUploader button:hover,
             .stFileUploader [data-baseweb="button"]:hover,
             .stFileUploader button:hover *,
             .stFileUploader [data-baseweb="button"]:hover * {{
-                background-color: var(--button-hover-bg) !important;
-                background: var(--button-hover-bg) !important;
-                color: var(--button-text) !important;
-                border-color: var(--button-hover-border) !important;
+                background-color: var(--bg-secondary) !important;
+                background: var(--bg-secondary) !important;
+                color: var(--text-primary) !important;
+                border-color: var(--border-color) !important;
             }}
             button[data-testid="baseButton-secondary"],
             button[data-testid="baseButton-secondary"] * {{
@@ -301,6 +302,7 @@
                 margin-bottom: 0 !important;
                 max-width: 1240px;
                 background: transparent !important;
+                overflow: visible !important;
             }}
             /* Collapse invisible markdown/script injection containers so top controls start at page top */
             [data-testid="stMainBlockContainer"] {{
@@ -853,15 +855,37 @@
                 border: none;
                 background: transparent;
             }}
+            [data-testid="stForm"] {{
+                border: none !important;
+                background: transparent !important;
+                padding: 0 !important;
+                box-shadow: none !important;
+            }}
 
-            /* Upload page */
-            .hero-shell {{
+            /* Upload page — hero wrapper card */
+            .st-key-hero_wrapper {{
                 background: linear-gradient(135deg, var(--bg-hero), var(--bg-secondary));
                 border: 1px solid var(--border-light);
                 border-radius: 24px;
-                padding: 40px 40px 32px;
-                box-shadow: 0 30px 90px var(--shadow-lg);
-                margin-top: 16px;
+                padding: 36px 40px 32px;
+                box-shadow: 0 8px 40px var(--shadow-lg);
+                margin-top: -44px;
+            }}
+            /* Hero CTA: make only the upload form submit button dark and prominent */
+            .st-key-hero_wrapper [data-testid="stFormSubmitButton"] button,
+            .st-key-hero_wrapper [data-testid="stFormSubmitButton"] button * {{
+                background: #111827 !important;
+                background-color: #111827 !important;
+                color: #ffffff !important;
+                border-color: #111827 !important;
+                font-weight: 700 !important;
+            }}
+            .st-key-hero_wrapper [data-testid="stFormSubmitButton"] button:hover,
+            .st-key-hero_wrapper [data-testid="stFormSubmitButton"] button:hover * {{
+                background: #1f2937 !important;
+                background-color: #1f2937 !important;
+                color: #ffffff !important;
+                border-color: #1f2937 !important;
             }}
             .hero-copy {{
                 padding-right: 12px;
@@ -928,9 +952,9 @@
                 margin-top: 0;
                 box-shadow: inset 0 1px 0 var(--border-light);
             }}
-            /* Keep hero text and scorecard aligned higher on first fold. */
+            /* Hero columns: align top, zero out Streamlit's default column gap. */
             [data-testid="stHorizontalBlock"]:has(.hero-copy) {{
-                margin-top: -44px !important;
+                margin-top: 0 !important;
                 align-items: flex-start !important;
             }}
             [data-testid="stHorizontalBlock"]:has(.hero-copy) > div {{
@@ -940,11 +964,6 @@
             [data-testid="stHorizontalBlock"]:has(.hero-copy) > div:last-child [data-testid="stVerticalBlock"] > div {{
                 margin-top: 0 !important;
                 margin-bottom: 6px !important;
-            }}
-            @media (max-width: 980px) {{
-                [data-testid="stHorizontalBlock"]:has(.hero-copy) {{
-                    margin-top: -18px !important;
-                }}
             }}
             .landing-extended {{
                 margin-top: 28px;
@@ -1223,9 +1242,9 @@
             /* ===== Full-width Professional Footer ===== */
             .site-footer-band {{
                 position: relative;
-                width: 100%;
-                margin-left: 0;
-                margin-right: 0;
+                left: 50%;
+                transform: translateX(-50%);
+                width: 100vw;
                 margin-top: 0;
                 margin-bottom: 0 !important;
                 background: linear-gradient(180deg, var(--bg-card), var(--bg-secondary));
@@ -1234,9 +1253,9 @@
                 box-sizing: border-box;
             }}
             .site-footer-inner {{
-                width: min(1800px, calc(100% - 90px));
+                width: 100%;
                 margin: 0 auto;
-                padding: 28px 0 20px;
+                padding: 28px 48px 20px;
                 display: flex;
                 flex-direction: column;
                 gap: 24px;
@@ -1323,6 +1342,7 @@
             }}
             [data-testid="stElementContainer"]:has(.site-footer-band),
             [data-testid="stElementContainer"]:has(.site-footer-band) > div {{
+                overflow: visible !important;
                 margin-bottom: 0 !important;
                 padding-bottom: 0 !important;
             }}

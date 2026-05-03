@@ -655,20 +655,20 @@ def _reset_all() -> None:
 # ─── Form section renderers ───────────────────────────────────────────────────
 
 def _personal_section() -> None:
-    st.text_input("Full Name", key="cvb_full_name", placeholder="Krishnendu Ghosh")
-    st.text_input("Professional Title", key="cvb_prof_title", placeholder="Full-Stack Developer")
+    st.text_input("Full Name", key="cvb_full_name", placeholder="Enter full name")
+    st.text_input("Professional Title", key="cvb_prof_title", placeholder="Enter professional title")
     c1, c2 = st.columns(2)
     with c1:
         st.text_input("Email", key="cvb_email", placeholder="you@email.com")
     with c2:
-        st.text_input("Phone", key="cvb_phone", placeholder="+91 98765 43210")
+        st.text_input("Phone", key="cvb_phone", placeholder="Enter phone number")
     c3, c4 = st.columns(2)
     with c3:
-        st.text_input("Location", key="cvb_location", placeholder="Kolkata, India")
+        st.text_input("Location", key="cvb_location", placeholder="Enter location")
     with c4:
-        st.text_input("Website", key="cvb_website", placeholder="https://yoursite.dev")
-    st.text_input("LinkedIn", key="cvb_linkedin", placeholder="linkedin.com/in/you")
-    st.text_input("GitHub", key="cvb_github", placeholder="github.com/you")
+        st.text_input("Website", key="cvb_website", placeholder="Enter website URL")
+    st.text_input("LinkedIn", key="cvb_linkedin", placeholder="Enter LinkedIn profile URL")
+    st.text_input("GitHub", key="cvb_github", placeholder="Enter GitHub profile URL")
 
 
 def _summary_section() -> None:
@@ -679,7 +679,7 @@ def _summary_section() -> None:
         key="cvb_summary",
         height=130,
         max_chars=500,
-        placeholder="3+ years building full-stack web apps with Python and React. Passionate about clean APIs and great UX.",
+        placeholder="Write a short summary of your experience and strengths.",
     )
     st.caption(f"{char_count}/500 characters")
 
@@ -695,22 +695,22 @@ def _experience_section() -> None:
     for idx, eid in enumerate(list(st.session_state.get("cvb_exp_ids", []))):
         role = st.session_state.get(f"cvb_exp_role_{eid}", "")
         label = role or f"Position {idx + 1}"
-        with st.expander(label, expanded=(idx == 0)):
+        with st.expander(label, expanded=True):
             c1, c2, c3 = st.columns(3)
             with c1:
-                st.text_input("Job Title", key=f"cvb_exp_role_{eid}", placeholder="Software Engineer")
+                st.text_input("Job Title", key=f"cvb_exp_role_{eid}", placeholder="Enter job title")
             with c2:
-                st.text_input("Company", key=f"cvb_exp_company_{eid}", placeholder="Google")
+                st.text_input("Company", key=f"cvb_exp_company_{eid}", placeholder="Enter company name")
             with c3:
-                st.text_input("Location", key=f"cvb_exp_loc_{eid}", placeholder="Bengaluru, India")
+                st.text_input("Location", key=f"cvb_exp_loc_{eid}", placeholder="Enter location")
 
             c4, c5, c6 = st.columns(3)
             with c4:
-                st.text_input("Start Date", key=f"cvb_exp_start_{eid}", placeholder="Jan 2022")
+                st.text_input("Start Date", key=f"cvb_exp_start_{eid}", placeholder="Enter start date")
             with c5:
                 curr = st.session_state.get(f"cvb_exp_curr_{eid}", False)
                 if not curr:
-                    st.text_input("End Date", key=f"cvb_exp_end_{eid}", placeholder="Dec 2024")
+                    st.text_input("End Date", key=f"cvb_exp_end_{eid}", placeholder="Enter end date")
                 else:
                     st.text_input("End Date", value="Present", disabled=True, key=f"cvb_exp_end_dis_{eid}")
             with c6:
@@ -722,7 +722,7 @@ def _experience_section() -> None:
                 st.text_input(
                     f"• Bullet {i + 1}",
                     key=f"cvb_exp_b_{eid}_{i}",
-                    placeholder="Led a team that reduced API latency by 40%",
+                    placeholder="Describe a measurable impact or responsibility",
                 )
 
             ba, bb, bc, bd = st.columns([1, 1, 1.6, 1.6])
@@ -782,22 +782,22 @@ def _education_section() -> None:
 
     for idx, eid in enumerate(list(st.session_state.get("cvb_edu_ids", []))):
         inst = st.session_state.get(f"cvb_edu_inst_{eid}", "")
-        with st.expander(inst or f"Education {idx + 1}", expanded=(idx == 0)):
+        with st.expander(inst or f"Education {idx + 1}", expanded=True):
             c1, c2, c3 = st.columns(3)
             with c1:
-                st.text_input("Institution", key=f"cvb_edu_inst_{eid}", placeholder="MAKAUT, Kolkata")
+                st.text_input("Institution", key=f"cvb_edu_inst_{eid}", placeholder="Enter institution name")
             with c2:
-                st.text_input("Degree", key=f"cvb_edu_degree_{eid}", placeholder="MCA")
+                st.text_input("Degree", key=f"cvb_edu_degree_{eid}", placeholder="Enter degree")
             with c3:
-                st.text_input("Field of Study", key=f"cvb_edu_field_{eid}", placeholder="Computer Science")
+                st.text_input("Field of Study", key=f"cvb_edu_field_{eid}", placeholder="Enter field of study")
             c4, c5, c6 = st.columns(3)
             with c4:
-                st.text_input("Location", key=f"cvb_edu_loc_{eid}", placeholder="Kolkata, India")
+                st.text_input("Location", key=f"cvb_edu_loc_{eid}", placeholder="Enter location")
             with c5:
-                st.text_input("Start Year", key=f"cvb_edu_start_{eid}", placeholder="2022")
+                st.text_input("Start Year", key=f"cvb_edu_start_{eid}", placeholder="Enter start year")
             with c6:
-                st.text_input("End Year", key=f"cvb_edu_end_{eid}", placeholder="2024")
-            st.text_input("GPA / Percentage", key=f"cvb_edu_gpa_{eid}", placeholder="8.5 / 10")
+                st.text_input("End Year", key=f"cvb_edu_end_{eid}", placeholder="Enter end year")
+            st.text_input("GPA / Percentage", key=f"cvb_edu_gpa_{eid}", placeholder="Enter GPA or percentage")
             if st.button("🗑 Delete", key=f"rem_edu_{eid}"):
                 st.session_state["cvb_edu_ids"].remove(eid)
                 st.rerun()
@@ -812,12 +812,12 @@ def _skills_section() -> None:
     for idx, sid in enumerate(list(st.session_state.get("cvb_skill_cat_ids", []))):
         name = st.session_state.get(f"cvb_skill_name_{sid}", "")
         with st.expander(name or f"Category {idx + 1}", expanded=True):
-            st.text_input("Category Name", key=f"cvb_skill_name_{sid}", placeholder="Programming Languages")
+            st.text_input("Category Name", key=f"cvb_skill_name_{sid}", placeholder="Enter category name")
             st.text_area(
                 "Skills (comma-separated)",
                 key=f"cvb_skill_items_{sid}",
                 height=70,
-                placeholder="Python, JavaScript, TypeScript, SQL",
+                placeholder="Enter skills separated by commas",
             )
             if st.button("🗑 Delete Category", key=f"rem_skill_{sid}"):
                 st.session_state["cvb_skill_cat_ids"].remove(sid)
@@ -831,20 +831,20 @@ def _projects_section() -> None:
         st.rerun()
     for idx, pid in enumerate(list(st.session_state.get("cvb_proj_ids", []))):
         name = st.session_state.get(f"cvb_proj_name_{pid}", "")
-        with st.expander(name or f"Project {idx + 1}", expanded=(idx == 0)):
+        with st.expander(name or f"Project {idx + 1}", expanded=True):
             c1, c2, c3 = st.columns(3)
             with c1:
-                st.text_input("Project Name", key=f"cvb_proj_name_{pid}", placeholder="ExcelCV")
+                st.text_input("Project Name", key=f"cvb_proj_name_{pid}", placeholder="Enter project name")
             with c2:
-                st.text_input("Your Role", key=f"cvb_proj_role_{pid}", placeholder="Lead Developer")
+                st.text_input("Your Role", key=f"cvb_proj_role_{pid}", placeholder="Enter your role")
             with c3:
-                st.text_input("Date / Duration", key=f"cvb_proj_start_{pid}", placeholder="Jan–Mar 2024")
+                st.text_input("Date / Duration", key=f"cvb_proj_start_{pid}", placeholder="Enter date or duration")
             st.text_area("Description", key=f"cvb_proj_desc_{pid}", height=80,
-                         placeholder="AI-powered CV builder and ATS analyzer.")
+                         placeholder="Describe what the project does and your impact")
             st.text_input("Technologies (comma-separated)", key=f"cvb_proj_tech_{pid}",
-                          placeholder="Python, FastAPI, Next.js")
+                          placeholder="Enter technologies separated by commas")
             st.text_input("Link (GitHub / Live)", key=f"cvb_proj_link_{pid}",
-                          placeholder="https://github.com/...")
+                          placeholder="Enter project link")
             if st.button("🗑 Delete", key=f"rem_proj_{pid}"):
                 st.session_state["cvb_proj_ids"].remove(pid)
                 st.rerun()
@@ -861,7 +861,7 @@ def _languages_section() -> None:
         with st.expander(lbl, expanded=True):
             c1, c2, c3 = st.columns([3, 3, 1])
             with c1:
-                st.text_input("Language", key=f"cvb_lang_name_{lid}", placeholder="English")
+                st.text_input("Language", key=f"cvb_lang_name_{lid}", placeholder="Enter language")
             with c2:
                 st.selectbox("Proficiency", PROFICIENCY_OPTIONS, key=f"cvb_lang_prof_{lid}")
             with c3:
@@ -881,12 +881,12 @@ def _certifications_section() -> None:
         with st.expander(name or f"Certification {idx + 1}", expanded=True):
             c1, c2, c3 = st.columns(3)
             with c1:
-                st.text_input("Title", key=f"cvb_cert_name_{cid}", placeholder="AWS Solutions Architect")
+                st.text_input("Title", key=f"cvb_cert_name_{cid}", placeholder="Enter certification title")
             with c2:
-                st.text_input("Issuer", key=f"cvb_cert_issuer_{cid}", placeholder="Amazon Web Services")
+                st.text_input("Issuer", key=f"cvb_cert_issuer_{cid}", placeholder="Enter issuer")
             with c3:
-                st.text_input("Date", key=f"cvb_cert_date_{cid}", placeholder="June 2024")
-            st.text_input("Credential URL", key=f"cvb_cert_link_{cid}", placeholder="https://...")
+                st.text_input("Date", key=f"cvb_cert_date_{cid}", placeholder="Enter date")
+            st.text_input("Credential URL", key=f"cvb_cert_link_{cid}", placeholder="Enter credential URL")
             if st.button("🗑 Delete", key=f"rem_cert_{cid}"):
                 st.session_state["cvb_cert_ids"].remove(cid)
                 st.rerun()
@@ -917,7 +917,7 @@ def _interests_section() -> None:
             "Add interest",
             key=f"cvb_new_interest_{ctr}",
             label_visibility="collapsed",
-            placeholder="e.g. Machine Learning, Open Source",
+            placeholder="Enter an interest",
         )
     with ib:
         if st.button("Add", key=f"btn_add_int_{ctr}"):
@@ -932,6 +932,8 @@ def _interests_section() -> None:
 # ─── Left panel ───────────────────────────────────────────────────────────────
 
 def _render_left_panel() -> None:
+    """Deprecated legacy renderer."""
+    return
     ss = st.session_state
     section_order = _normalize_section_order(ss.get("cvb_section_order"))
     visibility    = ss.get("cvb_section_visibility", {sid: True for sid in SECTION_IDS})
@@ -1025,6 +1027,8 @@ def _render_left_panel() -> None:
 # ─── Right panel (preview) ────────────────────────────────────────────────────
 
 def _render_right_panel(cv_data: dict, is_dark: bool) -> None:
+    """Deprecated legacy renderer."""
+    return
     ss = st.session_state
     zoom = ss.get("cvb_zoom", 95)
 
@@ -1176,6 +1180,86 @@ def _inject_realtime_js() -> None:
 
 
 # ─── CSS injection ────────────────────────────────────────────────────────────
+
+def _inject_persistent_scrollbar_js() -> None:
+    """Deprecated no-op. Native panel scrollbars are now used directly."""
+    return
+    components.html(
+        """<script>
+(function() {
+  var w = window.parent && window.parent !== window ? window.parent : window;
+  var doc = w.document;
+  var PANEL_SELECTORS = [
+    '.st-key-cvb-left-scroll-native',
+    '.st-key-cvb-middle-scroll-native',
+    '.st-key-cvb-right-scroll-native'
+  ];
+
+  function ensureTrack(panel) {
+    var track = panel.querySelector(':scope > .cvb-persistent-scrollbar-track');
+    if (!track) {
+      track = doc.createElement('div');
+      track.className = 'cvb-persistent-scrollbar-track';
+      var thumb = doc.createElement('div');
+      thumb.className = 'cvb-persistent-scrollbar-thumb';
+      track.appendChild(thumb);
+      panel.appendChild(track);
+    }
+    return track;
+  }
+
+  function bindPanel(panel) {
+    if (!panel) return;
+    panel.style.setProperty('position', 'relative', 'important');
+    var track = ensureTrack(panel);
+    var thumb = track.firstElementChild;
+    if (!thumb) return;
+
+    function sync() {
+      var clientH = Math.max(1, panel.clientHeight || 1);
+      var scrollH = Math.max(1, panel.scrollHeight || clientH);
+      var scrollTop = Math.max(0, panel.scrollTop || 0);
+      var maxScroll = Math.max(1, scrollH - clientH);
+      var thumbH = Math.max(24, Math.round(clientH * Math.min(1, clientH / scrollH)));
+      var maxTop = Math.max(0, clientH - thumbH);
+      var top = Math.round((scrollTop / maxScroll) * maxTop);
+
+      track.style.height = clientH + 'px';
+      thumb.style.height = thumbH + 'px';
+      thumb.style.transform = 'translateY(' + top + 'px)';
+      track.style.display = (scrollH > clientH + 1) ? 'block' : 'none';
+    }
+
+    if (!panel.__cvbPersistentScrollbarBound) {
+      panel.addEventListener('scroll', sync, { passive: true });
+      w.addEventListener('resize', sync);
+      panel.__cvbPersistentScrollbarBound = true;
+    }
+    sync();
+  }
+
+  function apply() {
+    for (var i = 0; i < PANEL_SELECTORS.length; i++) {
+      var panel = doc.querySelector(PANEL_SELECTORS[i]);
+      if (panel) bindPanel(panel);
+    }
+  }
+
+  apply();
+  setTimeout(apply, 120);
+  setTimeout(apply, 420);
+  setTimeout(apply, 900);
+
+  if (w.__cvbPersistentScrollbarObserver) {
+    w.__cvbPersistentScrollbarObserver.disconnect();
+  }
+  w.__cvbPersistentScrollbarObserver = new MutationObserver(function() { apply(); });
+  w.__cvbPersistentScrollbarObserver.observe(doc.body, { childList: true, subtree: true });
+})();
+</script>""",
+        height=0,
+    )
+
 
 def _inject_builder_css(is_dark: bool) -> None:
     """Compatibility wrapper for older call-sites."""
@@ -1926,37 +2010,54 @@ section[data-testid="stMain"] .block-container {{
   max-height: var(--cvb-native-panel-h) !important;
   min-height: 0 !important;
   align-items: stretch !important;
-  gap: 8px !important;
+  gap: 0 !important;
 }}
 .st-key-cvb-main-row-native > [data-testid="stHorizontalBlock"] > [data-testid="column"] {{
   height: 100% !important;
   min-height: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
 }}
-.st-key-cvb-main-row-native > [data-testid="stHorizontalBlock"] > [data-testid="column"]:first-child {{
-  flex: 0 0 320px !important;
-  width: 320px !important;
-  min-width: 300px !important;
-  max-width: 340px !important;
+.st-key-cvb-main-row-native > [data-testid="stHorizontalBlock"] > [data-testid="column"] > div,
+.st-key-cvb-main-row-native > [data-testid="stHorizontalBlock"] > [data-testid="column"] [data-testid="stElementContainer"],
+.st-key-cvb-main-row-native > [data-testid="stHorizontalBlock"] > [data-testid="column"] [data-testid="stVerticalBlockBorderWrapper"],
+.st-key-cvb-main-row-native > [data-testid="stHorizontalBlock"] > [data-testid="column"] [data-testid="stVerticalBlock"] {{
+  padding: 0 !important;
+  margin: 0 !important;
+  border: 0 !important;
 }}
-.st-key-cvb-main-row-native > [data-testid="stHorizontalBlock"] > [data-testid="column"]:nth-child(2) {{
-  flex: 1 1 auto !important;
-  min-width: 420px !important;
-}}
-.st-key-cvb-main-row-native > [data-testid="stHorizontalBlock"] > [data-testid="column"]:nth-child(3) {{
-  flex: 1.06 1 auto !important;
-  min-width: 460px !important;
-}}
-.st-key-cvb-middle-scroll-native,
-.st-key-cvb-right-scroll-native {{
-  background:{panel_bg};
-  border:1px solid {border};
-  border-radius:12px;
-  padding:12px;
+.st-key-cvb-middle-scroll-native {{
+  background:transparent;
+  border:none;
+  border-radius:0;
+  padding:0;
+  margin:0 !important;
   height: var(--cvb-native-panel-h) !important;
   max-height: var(--cvb-native-panel-h) !important;
   min-height: 0 !important;
-  overflow-y: auto !important;
+  overflow-y: scroll !important;
   overflow-x: hidden !important;
+  scrollbar-gutter: auto !important;
+  scrollbar-width: thin !important;
+  scrollbar-color: #c1c7cd #e6ebf2 !important;
+}}
+.st-key-cvb-right-scroll-native {{
+  background:transparent;
+  border-left:1px solid #dbe3ef;
+  border-top:none;
+  border-right:none;
+  border-bottom:none;
+  border-radius:0;
+  padding:0;
+  margin:0 !important;
+  height: var(--cvb-native-panel-h) !important;
+  max-height: var(--cvb-native-panel-h) !important;
+  min-height: 0 !important;
+  overflow-y: scroll !important;
+  overflow-x: hidden !important;
+  scrollbar-gutter: auto !important;
+  scrollbar-width: thin !important;
+  scrollbar-color: #c1c7cd #e6ebf2 !important;
 }}
 .st-key-cvb-left-scroll-native {{
   background:#f8fafc;
@@ -1965,16 +2066,51 @@ section[data-testid="stMain"] .block-container {{
   border-top:none;
   border-bottom:none;
   border-radius:0;
-  padding:14px 18px 14px 18px;
+  padding:14px 10px 14px 12px;
+  margin:0 !important;
   height: var(--cvb-native-panel-h) !important;
   max-height: var(--cvb-native-panel-h) !important;
   min-height: 0 !important;
-  overflow-y: auto !important;
+  overflow-y: scroll !important;
   overflow-x: hidden !important;
+  scrollbar-gutter: auto !important;
+  scrollbar-width: thin !important;
+  scrollbar-color: #c1c7cd #e6ebf2 !important;
 }}
-.st-key-cvb-left-scroll-native > [data-testid="stVerticalBlock"] {{
+.st-key-cvb-left-scroll-native > [data-testid="stVerticalBlock"],
+.st-key-cvb-middle-scroll-native > [data-testid="stVerticalBlock"],
+.st-key-cvb-right-scroll-native > [data-testid="stVerticalBlock"] {{
   min-height: 0 !important;
   overflow: visible !important;
+}}
+.st-key-cvb-left-scroll-native::-webkit-scrollbar,
+.st-key-cvb-middle-scroll-native::-webkit-scrollbar,
+.st-key-cvb-right-scroll-native::-webkit-scrollbar {{
+  width: 6px !important;
+  height: 6px !important;
+}}
+.st-key-cvb-left-scroll-native::-webkit-scrollbar-track,
+.st-key-cvb-middle-scroll-native::-webkit-scrollbar-track,
+.st-key-cvb-right-scroll-native::-webkit-scrollbar-track {{
+  background: transparent !important;
+  border-radius: 8px !important;
+}}
+.st-key-cvb-left-scroll-native::-webkit-scrollbar-thumb,
+.st-key-cvb-middle-scroll-native::-webkit-scrollbar-thumb,
+.st-key-cvb-right-scroll-native::-webkit-scrollbar-thumb {{
+  background: #c1c7cd !important;
+  border-radius: 8px !important;
+}}
+.st-key-cvb-left-scroll-native::-webkit-scrollbar-thumb:hover,
+.st-key-cvb-middle-scroll-native::-webkit-scrollbar-thumb:hover,
+.st-key-cvb-right-scroll-native::-webkit-scrollbar-thumb:hover {{
+  background: #aeb6bf !important;
+}}
+.st-key-cvb-left-scroll-native > [data-testid="stVerticalBlock"]::-webkit-scrollbar,
+.st-key-cvb-middle-scroll-native > [data-testid="stVerticalBlock"]::-webkit-scrollbar,
+.st-key-cvb-right-scroll-native > [data-testid="stVerticalBlock"]::-webkit-scrollbar {{
+  width: 6px !important;
+  height: 6px !important;
 }}
 .cvb-rail-heading {{
   font-size:12px;
@@ -2091,7 +2227,7 @@ section[data-testid="stMain"] .block-container {{
 }}
 /* Left-rail hard overrides to keep rows compact and single-line */
 .st-key-cvb-left-scroll-native [class*="st-key-cvb_sections_sortable_native"] {{
-  display: none !important;
+  display: block !important;
 }}
 .st-key-cvb-left-scroll-native [class*="st-key-cvb-sec-row-"] [data-testid="stHorizontalBlock"] {{
   flex-wrap: nowrap !important;
@@ -2433,9 +2569,30 @@ def _render_left_panel_native() -> None:
     ss = st.session_state
     section_order = _normalize_section_order(ss.get("cvb_section_order"))
     visibility = _normalize_section_visibility(ss.get("cvb_section_visibility"))
+    ss["cvb_section_order"] = section_order
     ss["cvb_section_visibility"] = visibility
 
     st.markdown("<p class='cvb-rail-heading'>Sections</p>", unsafe_allow_html=True)
+    if sortable_items is not None:
+        order_labels = [SECTION_ID_TO_LABEL.get(sid, sid.title()) for sid in section_order]
+        sortable_style = """
+        .sortable-component { background: transparent; padding: 0; margin: 0; border: 0; }
+        .sortable-container { background: transparent; border: 0; padding: 0; margin: 0; }
+        .sortable-container-header { display: none; }
+        .sortable-container-body { background: transparent; }
+        """
+        try:
+            sorted_labels = sortable_items(order_labels, key="cvb_sections_sortable_native", custom_style=sortable_style)
+        except TypeError:
+            sorted_labels = sortable_items(order_labels, custom_style=sortable_style)
+        label_to_id = {SECTION_ID_TO_LABEL.get(sid, sid.title()): sid for sid in section_order}
+        next_order = [label_to_id[label] for label in (sorted_labels or []) if label in label_to_id]
+        next_order = _normalize_section_order(next_order)
+        if next_order != section_order:
+            ss["cvb_section_order"] = next_order
+            section_order = next_order
+    else:
+        st.caption("Install `streamlit-sortables` to enable drag-and-drop section reordering.")
     drag_prefix = "\u22EE\u22EE"
     eye_open = "\U0001F441"
     eye_closed = "\U0001F6AB"
@@ -2453,9 +2610,8 @@ def _render_left_panel_native() -> None:
                     visibility[sec_id] = not is_vis
                     ss["cvb_section_visibility"] = visibility
                     st.rerun()
-    section_order = []
-
-    for sec_id in section_order:
+    # Legacy no-op loop kept out of execution (safe cleanup target).
+    for sec_id in []:
         label = SECTION_ID_TO_LABEL.get(sec_id, sec_id.title())
         is_vis = visibility.get(sec_id, True)
         with st.container(key=f"cvb-sec-row-{sec_id}"):
@@ -2564,8 +2720,9 @@ def _render_left_panel_native() -> None:
 
 def _render_middle_panel_native() -> None:
     ss = st.session_state
-    active = ss.get("cvb_active_section", "personal")
     order = _normalize_section_order(ss.get("cvb_section_order"))
+    visibility = _normalize_section_visibility(ss.get("cvb_section_visibility"))
+    ss["cvb_section_visibility"] = visibility
 
     render_map = {
         "personal": _personal_section,
@@ -2578,9 +2735,18 @@ def _render_middle_panel_native() -> None:
         "certifications": _certifications_section,
         "interests": _interests_section,
     }
-    for sid in order:
+    visible_order = [sid for sid in order if visibility.get(sid, True)]
+    if not visible_order:
+        st.info("All sections are hidden. Enable sections from the left sidebar.")
+        return
+
+    current_active = ss.get("cvb_active_section", "personal")
+    if current_active not in visible_order:
+        ss["cvb_active_section"] = visible_order[0]
+
+    for sid in visible_order:
         label = SECTION_ID_TO_LABEL.get(sid, sid.title())
-        with st.expander(label, expanded=(sid == active)):
+        with st.expander(label, expanded=True):
             render_map[sid]()
 
 
@@ -2638,13 +2804,13 @@ def _render_right_panel_native(cv_data: dict, is_dark: bool) -> None:
 <style>
 * {{ box-sizing: border-box; }}
 html, body {{ margin:0; background:{bg}; }}
-body {{ padding:16px; }}
-.preview-wrap {{ display:flex; justify-content:center; }}
+body {{ padding:0; }}
+.preview-wrap {{ display:flex; justify-content:center; padding:12px 4px 16px; }}
 .resume-shell {{
   width: 794px;
   min-height: 1123px;
   background: #fff;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+  box-shadow: none;
   zoom: {scale};
 }}
 </style>
@@ -2654,8 +2820,7 @@ body {{ padding:16px; }}
 </body>
 </html>"""
 
-    with st.container(height=650):
-        components.html(preview_doc, height=1450, scrolling=True)
+    components.html(preview_doc, height=1450, scrolling=False)
 
 
 def render_cv_builder_page() -> None:
@@ -2737,14 +2902,17 @@ def render_cv_builder_page() -> None:
 
         with st.container(key="cvb-main-native"):
             with st.container(key="cvb-main-row-native"):
-                left, middle, right = st.columns([0.72, 2.3, 2.45], gap="small")
-                with left:
+                col_sidebar, col_editor, col_preview = st.columns(
+                    [1.2, 3.5, 2.2],
+                    gap="small",
+                )
+                with col_sidebar:
                     with st.container(key="cvb-left-scroll-native"):
                         _render_left_panel_native()
-                with middle:
+                with col_editor:
                     with st.container(key="cvb-middle-scroll-native"):
                         _render_middle_panel_native()
-                with right:
+                with col_preview:
                     with st.container(key="cvb-right-scroll-native"):
                         _render_right_panel_native(cv_data, is_dark)
 
@@ -2857,5 +3025,3 @@ def render_cv_builder_page() -> None:
             with col_right:
                 with st.container(key="cvb-right-panel"):
                     _render_right_panel(cv_data, is_dark)
-
-    _inject_realtime_js()

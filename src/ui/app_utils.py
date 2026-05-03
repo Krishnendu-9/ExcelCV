@@ -29,6 +29,7 @@ APP_PAGES: Dict[str, str] = {
     "ats-insights": "ATS Insights",
     "instant-report": "Instant Report",
     "evaluation-toolkit": "Evaluation Toolkit",
+    "explainable-scoring": "Explainable Scoring",
     "project-notes": "Project Notes",
     "how-it-works": "How It Works",
     "interview-prep": "Interview Prep",
@@ -110,7 +111,7 @@ def _clear_analysis_state(clear_comparison: bool = True) -> None:
 @lru_cache(maxsize=4)
 def _load_logo_data_uri(theme: str = "light") -> str:
     """Return theme-oriented logo as a data URI for stable HTML rendering."""
-    base_dir = Path(__file__).resolve().parents[2] / "templates"
+    base_dir = Path(__file__).resolve().parents[2] / "assets" / "images"
     normalized_theme = "dark" if str(theme).lower() == "dark" else "light"
 
     if normalized_theme == "dark":

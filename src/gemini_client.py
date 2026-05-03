@@ -14,7 +14,7 @@ from typing import Any, Dict, List, Optional
 
 import google.generativeai as genai
 
-from src.career_tools import (
+from src.services.career_tools import (
     build_interview_prep_questions,
     build_learning_roadmap,
     build_portfolio_checklist,
@@ -22,7 +22,7 @@ from src.career_tools import (
     build_recruiter_snapshot,
 )
 from src.config import get_api_key, preferred_models
-from src.scoring import (
+from src.services.scoring import (
     build_jd_skill_matrix,
     calculate_ats_essentials,
     calculate_ats_parse_rate,
@@ -37,7 +37,7 @@ from src.scoring import (
     get_metric_status,
     normalize_score,
 )
-from src.scoring_constants import (
+from src.services.scoring_constants import (
     QUANTIFYING_IMPACT_THRESHOLDS,
     REPETITION_THRESHOLDS,
     SPELLING_GRAMMAR_THRESHOLDS,

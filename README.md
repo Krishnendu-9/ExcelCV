@@ -80,56 +80,69 @@ a FlowCV-inspired resume builder with live preview, cloud save, and PDF export.
 
 ## Project Structure
 
-```
+```text
 cv-review/
-├── app.py                         # Main entry point — routing, auth gating, theme
-├── requirements.txt
-├── CLAUDE.md                      # Dev status notes for Claude AI sessions
-├── docs/
-│   └── architecture.md            # System architecture diagram
-├── data/
-│   └── excelcv.db                 # SQLite database (auto-created)
-├── templates/
-│   └── ExcelCV_clean.png          # Logo asset
-├── src/
-│   ├── config.py                  # Env var loading
-│   ├── database.py                # SQLAlchemy models: User, CV, Analysis, PasswordResetToken
-│   ├── auth_utils.py              # Session, cookies, bcrypt login/register
-│   ├── oauth_utils.py             # Google OAuth token exchange
-│   ├── gemini_client.py           # Gemini API: CV analysis, bullet suggestions
-│   ├── scoring.py                 # Deterministic ATS / content / tailoring scoring
-│   ├── evaluation.py              # Human vs AI evaluation metrics
-│   ├── pdf_utils.py               # PDF/DOCX text extraction
-│   ├── reporting.py               # Markdown/JSON/PDF report generation
-│   ├── email_utils.py             # SMTP password reset email
-│   ├── career_tools.py            # Supporting career utility functions
-│   ├── services/
-│   │   └── pdf_generator.py       # CV PDF export (ReportLab) — template-specific layouts
-│   └── ui/
-│       ├── app_utils.py           # Page URL helpers, snapshot store, logo loader
-│       ├── layout.py              # Site header, footer, theme toggle
-│       ├── css_injection.py       # Global CSS/JS (top bar, compact header, etc.)
-│       ├── theme.py               # Theme CSS variable injection
-│       ├── auth_page.py           # Sign In / Register / Forgot Password / Reset
-│       ├── upload.py              # Home + Analyze CV page
-│       ├── analysis_runner.py     # CV analysis pipeline, multi-resume comparison
-│       ├── report.py              # Full analysis report rendering
-│       ├── cv_builder_page.py     # Resume Builder (form + live preview + PDF export)
-│       ├── my_cvs_page.py         # Saved CVs management
-│       ├── my_analyses_page.py    # Analysis history
-│       ├── settings_page.py       # Account settings
-│       ├── static_pages.py        # Info/legal pages
-│       └── common.py              # Shared UI helpers
-└── tests/
-    ├── test_scoring.py
-    ├── test_evaluation.py
-    ├── test_reporting.py
-    ├── test_career_tools.py
-    ├── test_gemini_client_helpers.py
-    ├── test_pdf_utils.py
-    ├── test_app_helpers.py
-    ├── test_ui_smoke.py
-    └── test_ui_common.py
+|-- app.py                         # Main entry point - routing, auth gating, theme
+|-- requirements.txt
+|-- CLAUDE.md                      # Dev status notes for Claude AI sessions
+|-- docs/
+|   `-- pages/
+|       |-- README.md              # Static mockup index and page folder conventions
+|       |-- auth/
+|       |-- compare-cv/
+|       |-- home-upload/
+|       |-- my-analyses/
+|       |-- my-cvs/
+|       |-- resume-builder/
+|       |-- resume-checker/
+|       |   `-- resume_checker.html
+|       |-- resume-report/
+|       |   `-- resume_report_page.html
+|       |-- settings/
+|       `-- static-pages/
+|-- data/
+|   `-- excelcv.db                 # SQLite database (auto-created)
+|-- templates/
+|   `-- ExcelCV_clean.png          # Logo asset
+|-- src/
+|   |-- config.py                  # Env var loading
+|   |-- database.py                # SQLAlchemy models: User, CV, Analysis, PasswordResetToken
+|   |-- auth_utils.py              # Session, cookies, bcrypt login/register
+|   |-- oauth_utils.py             # Google OAuth token exchange
+|   |-- gemini_client.py           # Gemini API: CV analysis, bullet suggestions
+|   |-- scoring.py                 # Deterministic ATS / content / tailoring scoring
+|   |-- evaluation.py              # Human vs AI evaluation metrics
+|   |-- pdf_utils.py               # PDF/DOCX text extraction
+|   |-- reporting.py               # Markdown/JSON/PDF report generation
+|   |-- email_utils.py             # SMTP password reset email
+|   |-- career_tools.py            # Supporting career utility functions
+|   |-- services/
+|   |   `-- pdf_generator.py       # CV PDF export (ReportLab) - template-specific layouts
+|   `-- ui/
+|       |-- app_utils.py           # Page URL helpers, snapshot store, logo loader
+|       |-- layout.py              # Site header, footer, theme toggle
+|       |-- css_injection.py       # Global CSS/JS (top bar, compact header, etc.)
+|       |-- theme.py               # Theme CSS variable injection
+|       |-- auth_page.py           # Sign In / Register / Forgot Password / Reset
+|       |-- upload.py              # Home + Analyze CV page
+|       |-- analysis_runner.py     # CV analysis pipeline, multi-resume comparison
+|       |-- report.py              # Full analysis report rendering
+|       |-- cv_builder_page.py     # Resume Builder (form + live preview + PDF export)
+|       |-- my_cvs_page.py         # Saved CVs management
+|       |-- my_analyses_page.py    # Analysis history
+|       |-- settings_page.py       # Account settings
+|       |-- static_pages.py        # Info/legal pages
+|       `-- common.py              # Shared UI helpers
+`-- tests/
+    |-- test_scoring.py
+    |-- test_evaluation.py
+    |-- test_reporting.py
+    |-- test_career_tools.py
+    |-- test_gemini_client_helpers.py
+    |-- test_pdf_utils.py
+    |-- test_app_helpers.py
+    |-- test_ui_smoke.py
+    `-- test_ui_common.py
 ```
 
 ---
@@ -242,3 +255,4 @@ This project is structured as an MCA final-year capstone demo:
 - Measurable human-vs-AI evaluation toolkit
 - Full authentication (email + OAuth)
 - Cloud-ready architecture (Streamlit Community Cloud + SQLite)
+

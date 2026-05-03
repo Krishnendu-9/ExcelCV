@@ -273,16 +273,36 @@ Also includes lightweight migration helper (`_migrate`) for additive schema upda
 - Theme-aware surfaces, form styling, and logo branding.
 
 ## 8.3 Resume Builder (`src/ui/cv_builder_page.py`)
-- Session-state-driven dynamic form sections:
-  - personal info,
-  - summary,
-  - experience,
+- Active implementation is the **native 3-panel workspace**:
+  - left rail: section ordering, section visibility, templates, style controls,
+  - middle editor: full section forms,
+  - right preview: live rendered CV + zoom controls.
+- State model is centralized under `cvb_*` keys in `st.session_state`.
+- Section behavior is synchronized across panels:
+  - `cvb_section_order` controls section order in middle editor and right preview,
+  - `cvb_section_visibility` controls hide/show in middle editor and right preview.
+- Current section schema includes:
+  - personal information,
+  - professional summary,
+  - work experience,
   - education,
-  - skills categories,
+  - skills,
   - projects,
-  - certifications.
-- Generate HTML preview and export PDF.
-- Save/update user CV record.
+  - languages,
+  - certifications,
+  - interests.
+- Data pipeline:
+  - collect structured data from state (`collect_cv_data()`),
+  - generate live CV HTML (`generate_cv_html()`),
+  - generate downloadable PDF (`generate_cv_pdf` via cached wrapper),
+  - save/update DB record (`CV` model).
+- Tooling features:
+  - import backup JSON,
+  - export backup JSON,
+  - reset builder state,
+  - download PDF.
+- Drag-and-drop sorting uses `streamlit-sortables` when installed; otherwise builder keeps working with fallback behavior.
+- Deep technical reference for this page: **`resume_builder.md`**.
 
 ## 8.4 My CVs (`src/ui/my_cvs_page.py`)
 - Lists saved CVs.
@@ -325,6 +345,8 @@ This is critical for browser-back behavior and avoiding repeated back presses.
 ```text
 cv-review/
   app.py                          -> app entrypoint, routing, auth gating, injections
+  excelcv.md                      -> full project guide (this file)
+  resume_builder.md               -> detailed resume builder page architecture
   README.md                       -> user/dev quick overview
   SETUP.md                        -> setup and environment guide
   PRD_CV.txt                      -> product requirement notes
@@ -333,8 +355,20 @@ cv-review/
   data/
     excelcv.db                    -> sqlite database file
   docs/
-    architecture.md               -> high-level architecture notes
-    mockups/                      -> html visual mockups
+    pages/
+      README.md                   -> static mockup index and page folder conventions
+      auth/
+      compare-cv/
+      home-upload/
+      my-analyses/
+      my-cvs/
+      resume-builder/
+      resume-checker/
+        resume_checker.html       -> resume checker static mockup
+      resume-report/
+        resume_report_page.html   -> report page static mockup
+      settings/
+      static-pages/
   src/
     __init__.py
     config.py                     -> env/config constants and model preferences
@@ -441,4 +475,3 @@ py -3 -m unittest discover -s tests -p "test_*.py" -q
 ## 14) Mental Model Summary (One Paragraph)
 
 ExcelCV is a Streamlit app where `app.py` orchestrates routing/session/auth, UI modules render pages, analysis modules compute deterministic + AI-enhanced resume insights, and SQLAlchemy persists user/CV/analysis data. Styling is heavily customized through template-driven theme CSS plus JS/CSS injection for fixed header, URL cleanup, and cross-rerun behavior stability. The system is designed to keep resume analysis explainable, page navigation predictable, and account-based workflows (builder/history/reporting) practical for real use and demo presentation.
-

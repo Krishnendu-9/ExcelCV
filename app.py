@@ -129,7 +129,7 @@ def _inject_theme_persistence(theme: str) -> None:
 
 
 def _inject_url_and_anchor_cleanup() -> None:
-    """Keep URL clean and prevent hash-based mid-page reload jumps on home."""
+    """Keep URL clean, prevent hash-based reload jumps, and collapse invisible injection wrappers."""
     components.html(
         """<script>
 (function () {
@@ -182,6 +182,29 @@ def _inject_url_and_anchor_cleanup() -> None:
             }
         }
     } catch (e) {}
+
+    // Collapse invisible injection wrappers so their flex-gap contribution is removed.
+    // Runs after a short delay to ensure all sibling injection iframes have already
+    // loaded and executed their scripts before we hide their containers.
+    setTimeout(function () {
+        try {
+            // Hide style-only wrappers (st.markdown('<style>...')) — <style> still applies.
+            var styleEls = doc.querySelectorAll('[data-testid="stElementContainer"]:has(style)');
+            for (var i = 0; i < styleEls.length; i++) {
+                styleEls[i].style.setProperty('display', 'none', 'important');
+            }
+            // Hide zero-height custom component wrappers (components.html(height=0)).
+            // offsetHeight <= 1 guards against hiding positive-height iframes (e.g. CV builder preview).
+            var ccEls = doc.querySelectorAll('[data-testid="stCustomComponentV1"]');
+            for (var j = 0; j < ccEls.length; j++) {
+                var cc = ccEls[j];
+                if ((cc.offsetHeight || 0) <= 1) {
+                    var parent = cc.closest('[data-testid="stElementContainer"]');
+                    if (parent) parent.style.setProperty('display', 'none', 'important');
+                }
+            }
+        } catch (e) {}
+    }, 150);
 
 })();
 </script>""",

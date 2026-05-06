@@ -1349,8 +1349,26 @@
             [data-testid="stElementContainer"]:has(style),
             [data-testid="stElementContainer"]:has(script),
             [data-testid="stElementContainer"]:has(iframe[title^="st.iframe"]) {{
+                margin-top: 0 !important;
                 margin-bottom: 0 !important;
+                padding-top: 0 !important;
                 padding-bottom: 0 !important;
+            }}
+            /* Collapse zero-height injection wrappers (components.html(height=0)) */
+            [data-testid="stCustomComponentV1"][style*="height: 0"],
+            [data-testid="stCustomComponentV1"][style*="height:0"] {{
+                margin: 0 !important;
+                padding: 0 !important;
+                min-height: 0 !important;
+                line-height: 0 !important;
+            }}
+            [data-testid="stElementContainer"]:has([data-testid="stCustomComponentV1"][style*="height: 0"]),
+            [data-testid="stElementContainer"]:has([data-testid="stCustomComponentV1"][style*="height:0"]) {{
+                margin-top: 0 !important;
+                margin-bottom: 0 !important;
+                padding-top: 0 !important;
+                padding-bottom: 0 !important;
+                min-height: 0 !important;
             }}
             html,
             body {{

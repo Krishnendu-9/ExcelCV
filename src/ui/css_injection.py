@@ -1270,10 +1270,14 @@ def inject_compact_header_css() -> None:
             overflow-x: hidden !important;
             scrollbar-gutter: auto !important;
         }
-        [data-testid="stAppViewContainer"] .st-key-cvb-page-native .st-key-cvb-main-row-native > [data-testid="stHorizontalBlock"] {
+        [data-testid="stAppViewContainer"] .st-key-cvb-page-native .st-key-cvb-main-row-native > [data-testid="stHorizontalBlock"],
+        [data-testid="stAppViewContainer"] .st-key-cvb-page-native .st-key-cvb-main-row-native > div > [data-testid="stHorizontalBlock"] {
             gap: 0 !important;
+            column-gap: 0 !important;
+            row-gap: 0 !important;
         }
-        [data-testid="stAppViewContainer"] .st-key-cvb-page-native .st-key-cvb-main-row-native > [data-testid="stHorizontalBlock"] > [data-testid="column"] {
+        [data-testid="stAppViewContainer"] .st-key-cvb-page-native .st-key-cvb-main-row-native > [data-testid="stHorizontalBlock"] > [data-testid="column"],
+        [data-testid="stAppViewContainer"] .st-key-cvb-page-native .st-key-cvb-main-row-native > div > [data-testid="stHorizontalBlock"] > [data-testid="column"] {
             padding: 0 !important;
             margin: 0 !important;
         }

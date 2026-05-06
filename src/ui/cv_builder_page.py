@@ -2,6 +2,11 @@
 from __future__ import annotations
 
 import json
+import os
+import pathlib
+import subprocess
+import sys
+import tempfile
 import uuid
 from datetime import date, datetime
 
@@ -15,7 +20,6 @@ except Exception:
 from src.auth_utils import get_session_user
 from src.database import CV, get_db
 from src.gemini_client import suggest_cv_bullets
-from src.services.pdf_generator import generate_cv_pdf
 
 
 def _get_sortable_items():
@@ -76,9 +80,9 @@ TEMPLATE_CONFIGS = {
 }
 
 TEMPLATE_CHOICES: list[tuple[str, str, str]] = [
-    ("modern", "Modern", "Two-column sidebar"),
     ("classic", "Classic", "Single column, ATS-friendly"),
     ("creative", "Creative", "Colored sidebar"),
+    ("modern", "Modern", "Two-column sidebar"),
 ]
 
 LEGACY_SECTION_ORDER_V2: list[str] = [
@@ -520,6 +524,7 @@ def generate_cv_html(
     font_size: int = 11,
     line_height: float = 1.4,
     entry_spacing: int = 8,
+    show_icons: bool = True,
     preview_dark: bool = False,
     section_visibility: dict | None = None,
     section_order: list | None = None,
@@ -753,17 +758,149 @@ def _save_cv(cv_data: dict, title: str, template: str) -> bool:
 
 @st.cache_data(show_spinner=False)
 def _cached_generate_cv_pdf(
-    data_json: str, template: str, accent_color: str | None,
-    font_family: str | None, font_size: int, line_height: float, entry_spacing: int,
-) -> bytes | None:
+    data_json: str,
+    template: str,
+    accent_color: str | None,
+    font_family: str | None,
+    font_size: int,
+    line_height: float,
+    entry_spacing: int,
+    show_icons: bool,
+    preview_dark: bool,
+    section_visibility_json: str,
+    section_order_json: str,
+) -> tuple[bytes | None, str]:
     try:
-        return generate_cv_pdf(
-            json.loads(data_json), template,
-            accent_color=accent_color, font_family=font_family,
-            font_size=font_size, line_height=line_height, entry_spacing=entry_spacing,
+        cv_data = json.loads(data_json) if data_json else {}
+        section_visibility = json.loads(section_visibility_json) if section_visibility_json else None
+        section_order = json.loads(section_order_json) if section_order_json else None
+        preview_source = _build_preview_data_with_demo_defaults(cv_data)
+        preview_html = generate_cv_html(
+            preview_source,
+            template,
+            accent_color=accent_color,
+            font_family=font_family,
+            font_size=font_size,
+            line_height=line_height,
+            entry_spacing=entry_spacing,
+            show_icons=show_icons,
+            preview_dark=preview_dark,
+            section_visibility=section_visibility,
+            section_order=section_order,
         )
-    except Exception:
-        return None
+        pdf_ready_html = _build_pdf_ready_html(preview_html)
+        return _render_html_to_pdf_bytes(pdf_ready_html), ""
+    except Exception as exc:
+        return None, str(exc)
+
+
+def _build_pdf_ready_html(preview_html: str) -> str:
+    """Wrap preview HTML with print-specific CSS so PDF mirrors preview styles."""
+    if not preview_html:
+        return "<html><body></body></html>"
+    print_css = """
+@page { size: A4; margin: 0; }
+html, body {
+  margin: 0 !important;
+  padding: 0 !important;
+  background: #ffffff !important;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+body { width: 210mm; min-height: 297mm; }
+.cv-paper {
+  width: 210mm !important;
+  min-height: 297mm !important;
+  margin: 0 !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+"""
+    if "</style>" in preview_html:
+        return preview_html.replace("</style>", f"{print_css}\n</style>", 1)
+    if "</head>" in preview_html:
+        return preview_html.replace("</head>", f"<style>{print_css}</style></head>", 1)
+    return f"<html><head><style>{print_css}</style></head><body>{preview_html}</body></html>"
+
+
+def _render_html_to_pdf_bytes(html: str) -> bytes:
+    """Render HTML to PDF using headless Chromium for WYSIWYG template fidelity."""
+    if sys.platform.startswith("win"):
+        return _render_html_to_pdf_bytes_windows_subprocess(html)
+
+    try:
+        from playwright.sync_api import sync_playwright
+    except Exception as exc:
+        raise RuntimeError(
+            "PDF engine unavailable. Install Playwright and Chromium: "
+            "'py -3 -m pip install playwright' then 'py -3 -m playwright install chromium'."
+        ) from exc
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        page = browser.new_page(viewport={"width": A4_WIDTH_PX, "height": A4_HEIGHT_PX})
+        page.set_content(html, wait_until="load")
+        page.emulate_media(media="screen")
+        pdf_bytes = page.pdf(
+            format="A4",
+            print_background=True,
+            prefer_css_page_size=True,
+            margin={"top": "0mm", "right": "0mm", "bottom": "0mm", "left": "0mm"},
+        )
+        browser.close()
+    return pdf_bytes
+
+
+def _render_html_to_pdf_bytes_windows_subprocess(html: str) -> bytes:
+    """Windows-safe Playwright PDF rendering in a child process.
+
+    Streamlit/tornado can run with a selector loop on Windows where asyncio
+    subprocess transport is unsupported. Running Playwright in a fresh process
+    avoids that loop-policy conflict.
+    """
+    html_path = ""
+    pdf_path = ""
+    try:
+        with tempfile.NamedTemporaryFile("w", encoding="utf-8", suffix=".html", delete=False) as f:
+            f.write(html)
+            html_path = f.name
+        with tempfile.NamedTemporaryFile("wb", suffix=".pdf", delete=False) as f:
+            pdf_path = f.name
+
+        py_script = (
+            "import sys, pathlib, asyncio\n"
+            "try:\n"
+            "    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())\n"
+            "except Exception:\n"
+            "    pass\n"
+            "from playwright.sync_api import sync_playwright\n"
+            "html = pathlib.Path(sys.argv[1]).read_text(encoding='utf-8')\n"
+            "outp = pathlib.Path(sys.argv[2])\n"
+            "with sync_playwright() as p:\n"
+            "    browser = p.chromium.launch(headless=True)\n"
+            "    page = browser.new_page(viewport={'width': 794, 'height': 1123})\n"
+            "    page.set_content(html, wait_until='load')\n"
+            "    page.emulate_media(media='screen')\n"
+            "    page.pdf(format='A4', print_background=True, prefer_css_page_size=True, margin={'top':'0mm','right':'0mm','bottom':'0mm','left':'0mm'}, path=str(outp))\n"
+            "    browser.close()\n"
+        )
+        proc = subprocess.run(
+            [sys.executable, "-c", py_script, html_path, pdf_path],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if proc.returncode != 0:
+            detail = (proc.stderr or proc.stdout or "").strip()
+            raise RuntimeError(f"Playwright PDF process failed. {detail}")
+        return pathlib.Path(pdf_path).read_bytes()
+    finally:
+        for p in (html_path, pdf_path):
+            if p and os.path.exists(p):
+                try:
+                    os.remove(p)
+                except Exception:
+                    pass
 
 
 def _get_backup_json() -> str:
@@ -1271,6 +1408,7 @@ def _render_right_panel(cv_data: dict, is_dark: bool) -> None:
         font_size=font_size,
         line_height=line_height,
         entry_spacing=entry_spacing,
+        show_icons=bool(ss.get("cvb_show_icons", True)),
         preview_dark=is_dark,
         section_visibility=sec_vis,
         section_order=sec_order,
@@ -1325,8 +1463,18 @@ def _inject_realtime_js() -> None:
 (function() {
   var w = window.parent && window.parent !== window ? window.parent : window;
   var doc = w.document;
-  var CONTACT_LABELS = ['Email', 'Phone', 'Location', 'Website / Portfolio', 'LinkedIn', 'GitHub'];
-  var NAME_LABEL = 'Full Name';
+  var CONTACT_LABELS = ['Email', 'Phone', 'Location', 'Website', 'LinkedIn', 'GitHub'];
+  var FIELD_BY_LABEL = {
+    'Full Name': 'cvb_full_name',
+    'Professional Title': 'cvb_prof_title',
+    'Email': 'cvb_email',
+    'Phone': 'cvb_phone',
+    'Location': 'cvb_location',
+    'Website': 'cvb_website',
+    'LinkedIn': 'cvb_linkedin',
+    'GitHub': 'cvb_github',
+    'Summary': 'cvb_summary'
+  };
 
   function getInput(labelText, cardSel) {
     var card = doc.querySelector(cardSel);
@@ -1357,17 +1505,21 @@ def _inject_realtime_js() -> None:
 
   function handleInput(e) {
     var input = e.target;
-    if (!input || input.tagName !== 'INPUT') return;
-    var CARD = '.st-key-cvb-personal-card, .st-key-cvb-center-panel';
+    if (!input) return;
+    var tag = input.tagName;
+    if (tag !== 'INPUT' && tag !== 'TEXTAREA') return;
+    var CARD = '.st-key-cvb-middle-scroll-native, .st-key-cvb-personal-card, .st-key-cvb-center-panel';
     if (!input.closest(CARD)) return;
-    var c = input.closest('[data-testid="stTextInput"]');
+    var c = input.closest('[data-testid="stTextInput"], [data-testid="stTextArea"]');
     if (!c) return;
     var lbl = c.querySelector('label');
     if (!lbl) return;
     var lt = lbl.textContent.trim();
-    if (lt === NAME_LABEL) {
-      broadcast({ type: 'cv-rt-update', field: 'cvb_full_name', value: input.value });
-    } else if (CONTACT_LABELS.indexOf(lt) !== -1) {
+    var field = FIELD_BY_LABEL[lt];
+    if (field) {
+      broadcast({ type: 'cv-rt-update', field: field, value: input.value });
+    }
+    if (CONTACT_LABELS.indexOf(lt) !== -1) {
       broadcast({ type: 'cv-rt-update', field: 'cvb_contact', value: computeContact(CARD) });
     }
   }
@@ -1452,12 +1604,6 @@ def _inject_sections_relay_js() -> None:
       if (btn) { try { btn.click(); } catch(e) {} }
     }
 
-    if (ev.data.type === 'cvb-photo-toggle') {
-      var btn = findBtn('st-key-cvb_photo_toggle');
-      if (!btn) btn = findBtn('st-key-cvb-photo-toggle');
-      if (btn) { try { btn.click(); } catch(e) {} }
-    }
-
     if (ev.data.type === 'cvb-lh-select') {
       var val = String(ev.data.val || '14');
       var btn = findBtn('st-key-cvb_lh_' + val);
@@ -1495,86 +1641,6 @@ def _inject_sections_relay_js() -> None:
 
 
 # ─── CSS injection ────────────────────────────────────────────────────────────
-
-def _inject_persistent_scrollbar_js() -> None:
-    """Deprecated no-op. Native panel scrollbars are now used directly."""
-    return
-    components.html(
-        """<script>
-(function() {
-  var w = window.parent && window.parent !== window ? window.parent : window;
-  var doc = w.document;
-  var PANEL_SELECTORS = [
-    '.st-key-cvb-left-scroll-native',
-    '.st-key-cvb-middle-scroll-native',
-    '.st-key-cvb-right-scroll-native'
-  ];
-
-  function ensureTrack(panel) {
-    var track = panel.querySelector(':scope > .cvb-persistent-scrollbar-track');
-    if (!track) {
-      track = doc.createElement('div');
-      track.className = 'cvb-persistent-scrollbar-track';
-      var thumb = doc.createElement('div');
-      thumb.className = 'cvb-persistent-scrollbar-thumb';
-      track.appendChild(thumb);
-      panel.appendChild(track);
-    }
-    return track;
-  }
-
-  function bindPanel(panel) {
-    if (!panel) return;
-    panel.style.setProperty('position', 'relative', 'important');
-    var track = ensureTrack(panel);
-    var thumb = track.firstElementChild;
-    if (!thumb) return;
-
-    function sync() {
-      var clientH = Math.max(1, panel.clientHeight || 1);
-      var scrollH = Math.max(1, panel.scrollHeight || clientH);
-      var scrollTop = Math.max(0, panel.scrollTop || 0);
-      var maxScroll = Math.max(1, scrollH - clientH);
-      var thumbH = Math.max(24, Math.round(clientH * Math.min(1, clientH / scrollH)));
-      var maxTop = Math.max(0, clientH - thumbH);
-      var top = Math.round((scrollTop / maxScroll) * maxTop);
-
-      track.style.height = clientH + 'px';
-      thumb.style.height = thumbH + 'px';
-      thumb.style.transform = 'translateY(' + top + 'px)';
-      track.style.display = (scrollH > clientH + 1) ? 'block' : 'none';
-    }
-
-    if (!panel.__cvbPersistentScrollbarBound) {
-      panel.addEventListener('scroll', sync, { passive: true });
-      w.addEventListener('resize', sync);
-      panel.__cvbPersistentScrollbarBound = true;
-    }
-    sync();
-  }
-
-  function apply() {
-    for (var i = 0; i < PANEL_SELECTORS.length; i++) {
-      var panel = doc.querySelector(PANEL_SELECTORS[i]);
-      if (panel) bindPanel(panel);
-    }
-  }
-
-  apply();
-  setTimeout(apply, 120);
-  setTimeout(apply, 420);
-  setTimeout(apply, 900);
-
-  if (w.__cvbPersistentScrollbarObserver) {
-    w.__cvbPersistentScrollbarObserver.disconnect();
-  }
-  w.__cvbPersistentScrollbarObserver = new MutationObserver(function() { apply(); });
-  w.__cvbPersistentScrollbarObserver.observe(doc.body, { childList: true, subtree: true });
-})();
-</script>""",
-        height=0,
-    )
-
 
 def _inject_builder_css(is_dark: bool) -> None:
     """Compatibility wrapper for older call-sites."""
@@ -2240,6 +2306,23 @@ section[data-testid="stMain"]:has(.st-key-cvb-page-native) .block-container {{
   border:1px solid rgba(0, 89, 179, 0.22);
   white-space:nowrap;
 }}
+.st-key-cvb_toolbar_title_native {{
+  min-width: 260px !important;
+}}
+.st-key-cvb_toolbar_title_native label {{
+  display: none !important;
+}}
+.st-key-cvb_toolbar_title_native [data-baseweb="input"] {{
+  border-radius: 8px !important;
+  border: 1px solid #d7e1ec !important;
+  background: #ffffff !important;
+  min-height: 38px !important;
+}}
+.st-key-cvb_toolbar_title_native input {{
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  color: #0f172a !important;
+}}
 .st-key-cvb-toolbar-actions-native [data-testid="stHorizontalBlock"] {{
   align-items: center !important;
   justify-content: flex-end !important;
@@ -2257,6 +2340,7 @@ section[data-testid="stMain"]:has(.st-key-cvb-page-native) .block-container {{
 }}
 .st-key-cvb-toolbar-actions-native .st-key-cvb_toolbar_import button,
 .st-key-cvb-toolbar-actions-native .st-key-cvb_toolbar_backup button,
+.st-key-cvb-toolbar-actions-native .st-key-cvb_toolbar_save button,
 .st-key-cvb-toolbar-actions-native .st-key-cvb_toolbar_reset button {{
   display: inline-flex !important;
   align-items: center !important;
@@ -2295,6 +2379,11 @@ section[data-testid="stMain"]:has(.st-key-cvb-page-native) .block-container {{
   min-width: 93px !important;
   max-width: 93px !important;
 }}
+.st-key-cvb-toolbar-actions-native .st-key-cvb_toolbar_save button {{
+  width: 84px !important;
+  min-width: 84px !important;
+  max-width: 84px !important;
+}}
 .st-key-cvb-toolbar-actions-native .st-key-cvb_toolbar_reset button {{
   width: 80px !important;
   min-width: 80px !important;
@@ -2302,6 +2391,7 @@ section[data-testid="stMain"]:has(.st-key-cvb-page-native) .block-container {{
 }}
 .st-key-cvb-toolbar-actions-native .st-key-cvb_toolbar_import button::before,
 .st-key-cvb-toolbar-actions-native .st-key-cvb_toolbar_backup button::before,
+.st-key-cvb-toolbar-actions-native .st-key-cvb_toolbar_save button::before,
 .st-key-cvb-toolbar-actions-native .st-key-cvb_toolbar_reset button::before {{
   content: "" !important;
   display: inline-flex !important;
@@ -2327,6 +2417,10 @@ section[data-testid="stMain"]:has(.st-key-cvb-page-native) .block-container {{
   -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23000' stroke-width='2'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M4 7a2 2 0 0 1 2-2h9l5 5v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7z'/%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M9 3v5h6'/%3E%3C/svg%3E") !important;
   mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23000' stroke-width='2'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M4 7a2 2 0 0 1 2-2h9l5 5v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7z'/%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M9 3v5h6'/%3E%3C/svg%3E") !important;
 }}
+.st-key-cvb-toolbar-actions-native .st-key-cvb_toolbar_save button::before {{
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23000' stroke-width='2'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19 21H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h11l5 5v9a2 2 0 0 1-2 2z'/%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M17 21v-8H7v8'/%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M7 3v5h8'/%3E%3C/svg%3E") !important;
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23000' stroke-width='2'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19 21H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h11l5 5v9a2 2 0 0 1-2 2z'/%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M17 21v-8H7v8'/%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M7 3v5h8'/%3E%3C/svg%3E") !important;
+}}
 .st-key-cvb-toolbar-actions-native .st-key-cvb_toolbar_reset button::before {{
   -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23000' stroke-width='2'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M4 4v6h6M20 20v-6h-6'/%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M20 9a8 8 0 0 0-13.66-4.66L4 6m16 12l-2.34 1.66A8 8 0 0 1 4 15'/%3E%3C/svg%3E") !important;
   mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23000' stroke-width='2'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M4 4v6h6M20 20v-6h-6'/%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M20 9a8 8 0 0 0-13.66-4.66L4 6m16 12l-2.34 1.66A8 8 0 0 1 4 15'/%3E%3C/svg%3E") !important;
@@ -2337,6 +2431,11 @@ section[data-testid="stMain"]:has(.st-key-cvb-page-native) .block-container {{
 .st-key-cvb-toolbar-actions-native .st-key-cvb_toolbar_backup button:focus-visible {{
   background: #eff4fa !important;
   color: #0d5ec0 !important;
+}}
+.st-key-cvb-toolbar-actions-native .st-key-cvb_toolbar_save button:hover,
+.st-key-cvb-toolbar-actions-native .st-key-cvb_toolbar_save button:focus-visible {{
+  background: #ebf8f1 !important;
+  color: #0f8a4c !important;
 }}
 .st-key-cvb-toolbar-actions-native .st-key-cvb_toolbar_reset button:hover,
 .st-key-cvb-toolbar-actions-native .st-key-cvb_toolbar_reset button:focus-visible {{
@@ -2415,32 +2514,39 @@ section[data-testid="stMain"]:has(.st-key-cvb-page-native) .block-container {{
   margin-top: 0 !important;
   padding-top: 0 !important;
 }}
-.st-key-cvb-main-row-native > [data-testid="stHorizontalBlock"] {{
+.st-key-cvb-main-row-native > [data-testid="stHorizontalBlock"],
+.st-key-cvb-main-row-native > div > [data-testid="stHorizontalBlock"] {{
   height: var(--cvb-native-panel-h) !important;
   max-height: var(--cvb-native-panel-h) !important;
   min-height: 0 !important;
   align-items: stretch !important;
   gap: 0 !important;
+  column-gap: 0 !important;
+  row-gap: 0 !important;
 }}
-.st-key-cvb-main-row-native > [data-testid="stHorizontalBlock"] > [data-testid="column"] {{
+.st-key-cvb-main-row-native > [data-testid="stHorizontalBlock"] > [data-testid="column"],
+.st-key-cvb-main-row-native > div > [data-testid="stHorizontalBlock"] > [data-testid="column"] {{
   height: 100% !important;
   min-height: 0 !important;
   padding: 0 !important;
   margin: 0 !important;
 }}
-.st-key-cvb-main-row-native > [data-testid="stHorizontalBlock"] > [data-testid="column"]:nth-child(1) {{
+.st-key-cvb-main-row-native > [data-testid="stHorizontalBlock"] > [data-testid="column"]:nth-child(1),
+.st-key-cvb-main-row-native > div > [data-testid="stHorizontalBlock"] > [data-testid="column"]:nth-child(1) {{
   flex: 0 0 256px !important;
   width: 256px !important;
   min-width: 256px !important;
   max-width: 256px !important;
 }}
-.st-key-cvb-main-row-native > [data-testid="stHorizontalBlock"] > [data-testid="column"]:nth-child(2) {{
+.st-key-cvb-main-row-native > [data-testid="stHorizontalBlock"] > [data-testid="column"]:nth-child(2),
+.st-key-cvb-main-row-native > div > [data-testid="stHorizontalBlock"] > [data-testid="column"]:nth-child(2) {{
   flex: 9 1 0 !important;
   width: auto !important;
   max-width: none !important;
   min-width: 0 !important;
 }}
-.st-key-cvb-main-row-native > [data-testid="stHorizontalBlock"] > [data-testid="column"]:nth-child(3) {{
+.st-key-cvb-main-row-native > [data-testid="stHorizontalBlock"] > [data-testid="column"]:nth-child(3),
+.st-key-cvb-main-row-native > div > [data-testid="stHorizontalBlock"] > [data-testid="column"]:nth-child(3) {{
   flex: 7 1 0 !important;
   width: auto !important;
   max-width: none !important;
@@ -2449,16 +2555,22 @@ section[data-testid="stMain"]:has(.st-key-cvb-page-native) .block-container {{
 .st-key-cvb-main-row-native > [data-testid="stHorizontalBlock"] > [data-testid="column"] > div,
 .st-key-cvb-main-row-native > [data-testid="stHorizontalBlock"] > [data-testid="column"] [data-testid="stElementContainer"],
 .st-key-cvb-main-row-native > [data-testid="stHorizontalBlock"] > [data-testid="column"] [data-testid="stVerticalBlockBorderWrapper"],
-.st-key-cvb-main-row-native > [data-testid="stHorizontalBlock"] > [data-testid="column"] [data-testid="stVerticalBlock"] {{
+.st-key-cvb-main-row-native > [data-testid="stHorizontalBlock"] > [data-testid="column"] [data-testid="stVerticalBlock"],
+.st-key-cvb-main-row-native > div > [data-testid="stHorizontalBlock"] > [data-testid="column"] > div,
+.st-key-cvb-main-row-native > div > [data-testid="stHorizontalBlock"] > [data-testid="column"] [data-testid="stElementContainer"],
+.st-key-cvb-main-row-native > div > [data-testid="stHorizontalBlock"] > [data-testid="column"] [data-testid="stVerticalBlockBorderWrapper"],
+.st-key-cvb-main-row-native > div > [data-testid="stHorizontalBlock"] > [data-testid="column"] [data-testid="stVerticalBlock"] {{
   padding: 0 !important;
   margin: 0 !important;
   border: 0 !important;
+  width: 100% !important;
+  max-width: 100% !important;
 }}
 .st-key-cvb-middle-scroll-native {{
   background:#f3f5f8;
   border:none;
   border-radius:0;
-  padding:8px !important;
+  padding:8px 0 8px 8px !important;
   margin:0 !important;
   height: var(--cvb-native-panel-h) !important;
   max-height: var(--cvb-native-panel-h) !important;
@@ -2476,10 +2588,10 @@ section[data-testid="stMain"]:has(.st-key-cvb-page-native) .block-container {{
   border-right:none;
   border-bottom:none;
   border-radius:0;
-  padding:8px !important;
+  padding:8px 8px 8px 0 !important;
   margin:0 !important;
-  height: var(--cvb-native-panel-h) !important;
-  max-height: var(--cvb-native-panel-h) !important;
+  height: calc(var(--cvb-native-panel-h) - 56px) !important;
+  max-height: calc(var(--cvb-native-panel-h) - 56px) !important;
   min-height: 0 !important;
   overflow-y: scroll !important;
   overflow-x: hidden !important;
@@ -2494,7 +2606,7 @@ section[data-testid="stMain"]:has(.st-key-cvb-page-native) .block-container {{
   border-top:none;
   border-bottom:none;
   border-radius:0;
-  padding:16px !important;
+  padding:16px 0 16px 16px !important;
   margin:0 !important;
   height: var(--cvb-native-panel-h) !important;
   max-height: var(--cvb-native-panel-h) !important;
@@ -2512,18 +2624,18 @@ section[data-testid="stMain"]:has(.st-key-cvb-page-native) .block-container {{
   letter-spacing: 0.08em !important;
   text-transform: uppercase !important;
   color: #65758b !important;
-  margin: 0 0 8px 0 !important;
+  margin: 6px 0 16px 0 !important;
   padding: 0 !important;
-  line-height: 1.35 !important;
+  line-height: 1.45 !important;
   display: flex !important;
   align-items: center !important;
-  gap: 8px !important;
+  gap: 10px !important;
   position: relative !important;
   z-index: 2 !important;
   clear: both !important;
 }}
 .st-key-cvb-left-scroll-native > [data-testid="stVerticalBlock"] > div:first-child .cvb-rail-heading {{
-  margin-top: 0 !important;
+  margin-top: 4px !important;
 }}
 .st-key-cvb-left-scroll-native .cvb-rail-heading-icon {{
   width: 14px !important;
@@ -2543,6 +2655,15 @@ section[data-testid="stMain"]:has(.st-key-cvb-page-native) .block-container {{
 .st-key-cvb-right-scroll-native > [data-testid="stVerticalBlock"] {{
   min-height: 0 !important;
   overflow: visible !important;
+}}
+.st-key-cvb-left-scroll-native > [data-testid="stVerticalBlock"] {{
+  padding-right: 8px !important;
+}}
+.st-key-cvb-middle-scroll-native > [data-testid="stVerticalBlock"] {{
+  padding-right: 8px !important;
+}}
+.st-key-cvb-right-scroll-native > [data-testid="stVerticalBlock"] {{
+  padding-left: 8px !important;
 }}
 .st-key-cvb-left-scroll-native::-webkit-scrollbar,
 .st-key-cvb-middle-scroll-native::-webkit-scrollbar,
@@ -2610,6 +2731,11 @@ section[data-testid="stMain"]:has(.st-key-cvb-page-native) .block-container {{
   font-size: 14px !important;
   font-weight: 500 !important;
 }}
+.st-key-cvb-middle-scroll-native [data-testid="InputInstructions"],
+.st-key-cvb-middle-scroll-native [data-testid="stTextInputInstructions"],
+.st-key-cvb-middle-scroll-native [data-testid="stTextAreaInstructions"] {{
+  display: none !important;
+}}
 .st-key-cvb-middle-scroll-native .stTextInput input,
 .st-key-cvb-middle-scroll-native .stTextArea textarea,
 .st-key-cvb-middle-scroll-native div[data-baseweb="input"] input,
@@ -2662,19 +2788,19 @@ section[data-testid="stMain"]:has(.st-key-cvb-page-native) .block-container {{
   letter-spacing:0.08em;
   color:#65758b;
   text-transform:uppercase;
-  margin:0 0 8px;
+  margin:6px 0 16px;
   padding:0;
   display:flex;
   align-items:center;
-  gap:8px;
-  line-height:1.35;
+  gap:10px;
+  line-height:1.45;
   position:relative;
   z-index:2;
   clear:both;
 }}
 .cvb-rail-divider {{
   border-top:1px solid #dbe3ef;
-  margin:12px 0 12px;
+  margin:16px 0 16px;
 }}
 .cvb-rail-heading-icon {{
   width:14px;
@@ -2876,8 +3002,11 @@ section[data-testid="stMain"]:has(.st-key-cvb-page-native) .block-container {{
   height: 8px;
 }}
 .st-key-cvb-preview-tools-native {{
-  margin: -8px -10px 10px !important;
+  margin: 0 0 8px !important;
   padding: 0 !important;
+  position: relative !important;
+  z-index: 2 !important;
+  background: #f6f7f9 !important;
 }}
 .st-key-cvb-preview-tools-native > div,
 .st-key-cvb-preview-tools-native [data-testid="stVerticalBlock"],
@@ -3075,7 +3204,9 @@ document.querySelectorAll('.tpl-card').forEach(function(card){{
 </script>
 """
     # 3 cards: ~54px each + 7px gap × 2 + 2px top padding = 182px; use 188 for safety
-    components.html(html, height=188, scrolling=False)
+    card_count = max(1, len(TEMPLATE_CHOICES))
+    comp_h = 10 + (card_count * 58) + ((card_count - 1) * 8)
+    components.html(html, height=comp_h, scrolling=False)
 
 
 # --- Modern template fidelity overrides (preview-first placeholders) ---
@@ -3164,6 +3295,7 @@ def generate_cv_html(
     font_size: int = 11,
     line_height: float = 1.4,
     entry_spacing: int = 8,
+    show_icons: bool = True,
     preview_dark: bool = False,
     section_visibility: dict | None = None,
     section_order: list | None = None,
@@ -3504,13 +3636,13 @@ _SCALE_VALUES = [80, 85, 90, 95, 100, 105, 110, 115, 120, 125, 130]
 
 def _render_style_component(
     current_accent: str, font_size: int, line_height: float, entry_spacing: int,
-    show_icons: bool, show_photo: bool, is_dark: bool
+    show_icons: bool, is_dark: bool
 ) -> None:
     """STYLE section as a custom HTML component matching CVReviewer exactly.
 
     Accent swatches (24px circles, 4-per-row grid, ring-2 on selected),
     Font Scale / Line Height / Entry Spacing sliders (6px track),
-    Show icons / Show photo toggle switches (36x20px, sliding thumb).
+    Show icons toggle switch (36x20px, sliding thumb).
     All interactions via postMessage -> relay -> hidden buttons.
     """
     lbl_color = "#94a3b8" if is_dark else "#64748b"
@@ -3541,25 +3673,24 @@ def _render_style_component(
         )
 
     icons_on = "on" if show_icons else ""
-    photo_on = "on" if show_photo else ""
 
     html = f"""<!DOCTYPE html><html><head><meta charset='UTF-8'>
 <style>
 *{{box-sizing:border-box;margin:0;padding:0;}}
 html,body{{background:transparent;font-family:Poppins,Montserrat,system-ui,-apple-system,sans-serif;overflow:hidden;padding:2px 0 4px;}}
 .lbl{{font-size:12px;font-weight:500;color:{lbl_color};display:block;margin-bottom:8px;line-height:1.2;}}
-.swatches{{display:flex;flex-wrap:wrap;gap:8px;width:208px;max-width:100%;}}
+.swatches{{display:flex;flex-wrap:wrap;gap:8px;width:220px;max-width:100%;padding:4px 6px 2px;box-sizing:border-box;}}
 .sw{{
   width:28px;height:28px;border-radius:999px;border:none;cursor:pointer;
-  box-shadow:0 0 0 1px #cbd5e1;outline:none;
+  box-shadow:0 0 0 1px #cbd5e1;outline:none;border:2px solid transparent;
   transition:transform 0.12s,box-shadow 0.12s;
 }}
-.sw:hover{{transform:scale(1.10);}}
-.sw.sel{{transform:scale(1.10);box-shadow:0 0 0 1px #cbd5e1,0 0 0 3px {ring_bg},0 0 0 5px #2563eb;}}
-.section{{margin-top:14px;}}
-.row-lbl{{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px;}}
+.sw:hover{{transform:scale(1.05);}}
+.sw.sel{{transform:none;border-color:#2563eb;box-shadow:inset 0 0 0 2px {ring_bg},0 0 0 1px #2563eb;}}
+.section{{margin-top:14px;padding-right:14px;}}
+.row-lbl{{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px;padding-right:4px;}}
 .row-lbl span{{font-size:13px;font-weight:500;color:{lbl_color};}}
-.row-lbl strong{{font-size:13px;font-weight:700;color:#0b5cb8;}}
+.row-lbl strong{{font-size:13px;font-weight:700;color:#0b5cb8;padding-right:6px;}}
 input[type=range]{{
   -webkit-appearance:none;width:100%;height:6px;border-radius:9999px;
   background:{track_bg};cursor:pointer;outline:none;border:none;
@@ -3616,10 +3747,6 @@ input[type=range]::-webkit-slider-thumb:hover{{transform:scale(1.15);}}
   <div class='tog-track {icons_on}' id='icons-trk'><div class='tog-thumb'></div></div>
   <span class='tog-text'>Show icons</span>
 </label>
-<label class='tog-row' id='photo-lbl'>
-  <div class='tog-track {photo_on}' id='photo-trk'><div class='tog-thumb'></div></div>
-  <span class='tog-text'>Show photo</span>
-</label>
 
 <script>
 document.querySelectorAll('.sw').forEach(function(b){{
@@ -3651,16 +3778,15 @@ function tog(trackId,msgType){{
   try{{window.parent.postMessage({{type:msgType,on:on}},'*');}}catch(e){{}}
 }}
 document.getElementById('icons-lbl').addEventListener('click',function(e){{e.preventDefault();tog('icons-trk','cvb-icons-toggle');}});
-document.getElementById('photo-lbl').addEventListener('click',function(e){{e.preventDefault();tog('photo-trk','cvb-photo-toggle');}});
 </script>
 </body></html>"""
     # Swatches (2 rows of 4 × 24px + gap): ~66px
     # Accent label: ~20px
     # 3 sliders (label+slider+section margin): 3 × 46px = 138px
-    # 2 toggles (36px each + margin): ~80px
+    # 1 toggle (36px + margin): ~40px
     # padding: ~10px
     # Total: ~314px → use 330 for safety
-    components.html(html, height=380, scrolling=False)
+    components.html(html, height=340, scrolling=False)
 
 
 def _render_zoom_toolbar_component(zoom: int) -> None:
@@ -3795,9 +3921,6 @@ def _render_left_panel_native() -> None:
         if st.button("_", key="cvb_icons_toggle"):
             ss["cvb_show_icons"] = not ss.get("cvb_show_icons", True)
             st.rerun()
-        if st.button("_", key="cvb_photo_toggle"):
-            ss["cvb_show_photo"] = not ss.get("cvb_show_photo", False)
-            st.rerun()
 
     _render_left_rail_heading("Sections", "")
     _render_sections_list_component(section_order, visibility, is_dark)
@@ -3815,7 +3938,6 @@ def _render_left_panel_native() -> None:
         line_height=float(ss.get("cvb_line_height", 1.4)),
         entry_spacing=int(ss.get("cvb_entry_spacing", 8)),
         show_icons=bool(ss.get("cvb_show_icons", True)),
-        show_photo=bool(ss.get("cvb_show_photo", False)),
         is_dark=is_dark,
     )
 
@@ -3871,9 +3993,6 @@ def _render_right_panel_native(cv_data: dict, is_dark: bool) -> None:
             ss["cvb_zoom"] = _default_zoom_for_template(ss.get("cvb_template", "classic"))
             st.rerun()
 
-    with st.container(key="cvb-preview-tools-native"):
-        _render_zoom_toolbar_component(zoom)
-
     template = _normalize_template(ss.get("cvb_template", "classic"))
     accent = ss.get("cvb_accent_color") or None
     font = FONT_OPTIONS.get(ss.get("cvb_font", "System Sans"))
@@ -3893,6 +4012,7 @@ def _render_right_panel_native(cv_data: dict, is_dark: bool) -> None:
         font_size=font_size,
         line_height=line_height,
         entry_spacing=entry_spacing,
+        show_icons=bool(ss.get("cvb_show_icons", True)),
         preview_dark=is_dark,
         section_visibility=sec_vis,
         section_order=sec_order,
@@ -3952,23 +4072,49 @@ def render_cv_builder_page() -> None:
     font_size = int(ss.get("cvb_font_size", 11))
     lh        = float(ss.get("cvb_line_height", 1.4))
     spacing   = int(ss.get("cvb_entry_spacing", 8))
-    cv_title  = ss.get("cvb_cv_title", "resume") or "resume"
+    show_icons = bool(ss.get("cvb_show_icons", True))
+    sec_vis = _normalize_section_visibility(ss.get("cvb_section_visibility"))
+    sec_order = _normalize_section_order(ss.get("cvb_section_order"))
+    ss["cvb_section_visibility"] = sec_vis
+    ss["cvb_section_order"] = sec_order
 
-    pdf_bytes = _cached_generate_cv_pdf(
+    pdf_bytes, pdf_error = _cached_generate_cv_pdf(
         json.dumps(cv_data, sort_keys=True),
-        template, accent, font, font_size, lh, spacing,
+        template,
+        accent,
+        font,
+        font_size,
+        lh,
+        spacing,
+        show_icons,
+        is_dark,
+        json.dumps(sec_vis, sort_keys=True),
+        json.dumps(sec_order),
     )
 
     with st.container(key="cvb-page-native"):
         with st.container(key="cvb-toolbar-native"):
-            col_left, col_spacer, col_right = st.columns([1.25, 5.75, 3.0], vertical_alignment="center")
+            col_left, col_title, col_right = st.columns([1.25, 2.25, 4.5], vertical_alignment="center")
             with col_left:
                 last_saved = ss.get("cvb_last_saved")
                 saved_txt = f"Saved {last_saved}" if last_saved else "Saved --:--:--"
                 st.markdown(f"<span class='cvb-saved-ts-native'>{saved_txt}</span>", unsafe_allow_html=True)
+            with col_title:
+                current_title = (ss.get("cvb_cv_title", "My Resume") or "My Resume").strip()
+                if ss.get("cvb_toolbar_title_native", "") != current_title:
+                    ss["cvb_toolbar_title_native"] = current_title
+                st.text_input(
+                    "Resume title",
+                    key="cvb_toolbar_title_native",
+                    label_visibility="collapsed",
+                    placeholder="My Resume",
+                )
+                title_from_toolbar = st.session_state.get("cvb_toolbar_title_native", "").strip()
+                if title_from_toolbar and title_from_toolbar != ss.get("cvb_cv_title", ""):
+                    ss["cvb_cv_title"] = title_from_toolbar
             with col_right:
                 with st.container(key="cvb-toolbar-actions-native"):
-                    a1, a2, a3, a4 = st.columns([1.0, 1.06, 1.57, 0.91], gap="small")
+                    a1, a2, a3, a4, a5 = st.columns([0.95, 0.95, 0.85, 1.35, 0.9], gap="small")
                     with a1:
                         if st.button("Import", key="cvb_toolbar_import"):
                             ss["cvb_show_import"] = not ss.get("cvb_show_import", False)
@@ -3980,20 +4126,32 @@ def render_cv_builder_page() -> None:
                             file_name="cv_backup.json",
                             mime="application/json",
                             key="cvb_toolbar_backup",
+                            on_click="ignore",
                         )
                     with a3:
+                        if st.button("Save", key="cvb_toolbar_save"):
+                            title = (ss.get("cvb_cv_title", "") or ss.get("cvb_toolbar_title_native", "") or "My Resume").strip()
+                            if _save_cv(cv_data, title, template):
+                                ss["cvb_cv_title"] = title
+                                ss["cvb_last_saved"] = datetime.now().strftime("%I:%M %p")
+                                st.rerun()
+                            else:
+                                st.error("Save failed.")
+                    with a4:
+                        cv_title_pdf = (ss.get("cvb_cv_title", "resume") or "resume").strip()
                         if pdf_bytes:
                             st.download_button(
                                 "Download PDF",
                                 data=pdf_bytes,
-                                file_name=f"{cv_title.replace(' ', '_')}.pdf",
+                                file_name=f"{cv_title_pdf.replace(' ', '_')}.pdf",
                                 mime="application/pdf",
                                 key="cvb_toolbar_download",
                                 type="primary",
+                                on_click="ignore",
                             )
                         else:
                             st.button("Download PDF", key="cvb_toolbar_download_disabled", disabled=True)
-                    with a4:
+                    with a5:
                         if st.button("Reset", key="cvb_toolbar_reset"):
                             ss["cvb_confirm_reset"] = True
                             st.rerun()
@@ -4013,6 +4171,8 @@ def render_cv_builder_page() -> None:
             uploaded = st.file_uploader("Upload JSON backup", type=["json"], key="cvb_import_file_native")
             if uploaded:
                 _import_from_json(uploaded)
+        if pdf_error:
+            st.warning(f"PDF export unavailable: {pdf_error}")
 
         with st.container(key="cvb-main-native"):
             with st.container(key="cvb-main-row-native"):
@@ -4027,6 +4187,10 @@ def render_cv_builder_page() -> None:
                     with st.container(key="cvb-middle-scroll-native"):
                         _render_middle_panel_native()
                 with col_preview:
+                    with st.container(key="cvb-preview-tools-native"):
+                        _render_zoom_toolbar_component(
+                            int(ss.get("cvb_zoom", _default_zoom_for_template(ss.get("cvb_template", "classic"))))
+                        )
                     with st.container(key="cvb-right-scroll-native"):
                         _render_right_panel_native(cv_data, is_dark)
 
@@ -4036,24 +4200,9 @@ def render_cv_builder_page() -> None:
 
 
         # ── TOOLBAR ──────────────────────────────────────────────────────
-    if False:
-        pass
-        with st.container(key="cvb-toolbar"):
-            tc_left, tc_title, tc_imp, tc_bak, tc_pdf, tc_save, tc_rst = st.columns(
-                [1.5, 2.5, 0.8, 0.8, 1.2, 0.8, 0.7], vertical_alignment="center"
-            )
-            with tc_left:
-                last_saved = ss.get("cvb_last_saved")
-                saved_txt  = f"Saved {last_saved}" if last_saved else "Not saved yet"
-                st.markdown(f"<span class='cvb-saved-ts'>{saved_txt}</span>", unsafe_allow_html=True)
-            with tc_title:
-                st.text_input(
-                    "Resume title",
-                    key="cvb_cv_title",
-                    placeholder="My Resume",
-                    label_visibility="collapsed",
-                )
-            with tc_imp:
+    # Legacy non-native renderer block removed.
+    """
+            # removed legacy block
                 if st.button("↑ Import", key="btn_import", use_container_width=True, help="Import JSON backup"):
                     ss["cvb_show_import"] = not ss.get("cvb_show_import", False)
                     st.rerun()
@@ -4141,6 +4290,8 @@ def render_cv_builder_page() -> None:
                 with st.container(key="cvb-right-panel"):
                     _render_right_panel(cv_data, is_dark)
 
+
+    """
 
 # --- CVReviewer middle-panel overrides (latest) ---
 def _experience_section() -> None:
@@ -4372,6 +4523,7 @@ def generate_cv_html(
     font_size: int = 11,
     line_height: float = 1.4,
     entry_spacing: int = 8,
+    show_icons: bool = True,
     preview_dark: bool = False,
     section_visibility: dict | None = None,
     section_order: list | None = None,
@@ -4412,15 +4564,29 @@ def generate_cv_html(
     summary = _html_escape((p.get("summary") or "").strip())
 
     contacts_raw = [
-        ("Email", p.get("email", "")),
-        ("Phone", p.get("phone", "")),
-        ("Location", p.get("location", "")),
-        ("Website", p.get("website", "")),
-        ("LinkedIn", p.get("linkedin", "")),
-        ("GitHub", p.get("github", "")),
+        ("email", "Email", p.get("email", "")),
+        ("phone", "Phone", p.get("phone", "")),
+        ("location", "Location", p.get("location", "")),
+        ("website", "Website", p.get("website", "")),
+        ("linkedin", "LinkedIn", p.get("linkedin", "")),
+        ("github", "GitHub", p.get("github", "")),
     ]
-    contacts = [(k, str(v).strip()) for k, v in contacts_raw if str(v or "").strip()]
-    contact_line = " \u00b7 ".join(_html_escape(v) for _, v in contacts)
+    contacts = [(k, lbl, str(v).strip()) for k, lbl, v in contacts_raw if str(v or "").strip()]
+    icon_map = {
+        "email": "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='currentColor'><path d='M0 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2zm2-1a1 1 0 0 0-1 1v.217l7 4.2 7-4.2V4a1 1 0 0 0-1-1zm13 2.383-4.708 2.825L15 11.105zm-.034 6.876-5.64-3.471L8 9.583l-1.326-.795-5.64 3.47A1 1 0 0 0 2 13h12a1 1 0 0 0 .966-.741M1 11.105l4.708-2.897L1 5.383z'/></svg>",
+        "phone": "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='currentColor'><path d='M3.654 1.328a.678.678 0 0 0-1.015-.063L1.605 2.3c-.483.484-.661 1.169-.45 1.77a17.6 17.6 0 0 0 4.168 6.608 17.6 17.6 0 0 0 6.608 4.168c.601.211 1.286.033 1.77-.45l1.034-1.034a.678.678 0 0 0-.063-1.015l-2.307-1.794a.68.68 0 0 0-.58-.122l-2.19.547a1.75 1.75 0 0 1-1.657-.459L5.482 8.062a1.75 1.75 0 0 1-.46-1.657l.548-2.19a.68.68 0 0 0-.122-.58z'/><path d='M1.884.511a1.745 1.745 0 0 1 2.612.163L6.29 2.98c.329.423.445.974.315 1.494l-.547 2.19a.68.68 0 0 0 .178.643l2.457 2.457a.68.68 0 0 0 .644.178l2.189-.547a1.75 1.75 0 0 1 1.494.315l2.306 1.794c.829.645.905 1.87.163 2.611l-1.034 1.034c-.74.74-1.846 1.065-2.877.702a18.6 18.6 0 0 1-7.01-4.42 18.6 18.6 0 0 1-4.42-7.009c-.362-1.03-.037-2.137.703-2.877z'/></svg>",
+        "location": "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='currentColor'><path d='M12.166 8.94c-.524 1.062-1.234 2.12-1.96 3.07A32 32 0 0 1 8 14.58a32 32 0 0 1-2.206-2.57c-.726-.95-1.436-2.008-1.96-3.07C3.304 7.867 3 6.862 3 6a5 5 0 0 1 10 0c0 .862-.305 1.867-.834 2.94M8 16s6-5.686 6-10A6 6 0 0 0 2 6c0 4.314 6 10 6 10'/><path d='M8 8a2 2 0 1 1 0-4 2 2 0 0 1 0 4m0 1a3 3 0 1 0 0-6 3 3 0 0 0 0 6'/></svg>",
+        "website": "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='currentColor'><path d='M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8m7.5-6.923c-.67.204-1.335.82-1.887 1.855A8 8 0 0 0 5.145 4H7.5zM4.09 4a9.3 9.3 0 0 1 .64-1.539 7 7 0 0 1 .597-.933A7.03 7.03 0 0 0 2.255 4zm-.582 3.5c.03-.877.138-1.718.312-2.5H1.674a7 7 0 0 0-.656 2.5zM4.847 5a12.5 12.5 0 0 0-.338 2.5H7.5V5zM8.5 5v2.5h2.99a12.5 12.5 0 0 0-.337-2.5zM4.51 8.5a12.5 12.5 0 0 0 .337 2.5H7.5V8.5zm3.99 0V11h2.653c.187-.765.306-1.608.338-2.5zM5.145 12q.208.58.468 1.068c.552 1.035 1.218 1.65 1.887 1.855V12zm.182 2.472a7 7 0 0 1-.597-.933A9.3 9.3 0 0 1 4.09 12H2.255a7 7 0 0 0 3.072 2.472M3.82 11a13.7 13.7 0 0 1-.312-2.5h-2.49c.062.89.291 1.733.656 2.5zm6.853 3.472A7 7 0 0 0 13.745 12H11.91a9.3 9.3 0 0 1-.64 1.539 7 7 0 0 1-.597.933M8.5 12v2.923c.67-.204 1.335-.82 1.887-1.855q.26-.487.468-1.068zm3.68-1h2.146c.365-.767.594-1.61.656-2.5h-2.49a13.7 13.7 0 0 1-.312 2.5m2.802-3.5a7 7 0 0 0-.656-2.5H12.18c.174.782.282 1.623.312 2.5zM11.27 2.461c.247.464.462.98.64 1.539h1.835a7 7 0 0 0-3.072-2.472c.218.284.418.598.597.933M10.855 4a8 8 0 0 0-.468-1.068C9.835 1.897 9.17 1.282 8.5 1.077V4z'/></svg>",
+        "linkedin": "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='currentColor'><path d='M0 1.146C0 .513.526 0 1.175 0h13.65C15.474 0 16 .513 16 1.146v13.708c0 .633-.526 1.146-1.175 1.146H1.175C.526 16 0 15.487 0 14.854zm4.943 12.248V6.169H2.542v7.225zm-1.2-8.212c.837 0 1.358-.554 1.358-1.248-.015-.709-.52-1.248-1.342-1.248S2.4 3.226 2.4 3.934c0 .694.521 1.248 1.327 1.248zm4.908 8.212V9.359c0-.216.016-.432.08-.586.173-.431.568-.878 1.232-.878.869 0 1.216.662 1.216 1.634v3.865h2.401V9.25c0-2.22-1.184-3.252-2.764-3.252-1.274 0-1.845.7-2.165 1.193v.025h-.016l.016-.025V6.169h-2.4c.03.678 0 7.225 0 7.225z'/></svg>",
+        "github": "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='currentColor'><path d='M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8'/></svg>",
+    }
+    if show_icons:
+        contact_line = " <span class='ci-sep'>\u00b7</span> ".join(
+            f"<span class='ci-item'><span class='ci-ico'>{icon_map.get(k, '')}</span><span>{_html_escape(v)}</span></span>"
+            for k, _, v in contacts
+        )
+    else:
+        contact_line = " \u00b7 ".join(_html_escape(v) for _, _, v in contacts)
 
     def _skills_list() -> list[str]:
         vals: list[str] = []
@@ -4462,7 +4628,7 @@ def generate_cv_html(
     def _summary_html() -> str:
         if not summary:
             return ""
-        return f"<p class='cv-p'>{summary}</p>"
+        return f"<p id='cv-summary' class='cv-p'>{summary}</p>"
 
     def _experience_html() -> str:
         parts: list[str] = []
@@ -4567,26 +4733,18 @@ def generate_cv_html(
             return ""
         return f"<p class='cv-p'>{_html_escape(', '.join(vals))}</p>"
 
-    def _skills_plain_html() -> str:
+    def _skills_bullet_columns_html(column_count: int) -> str:
         if not skill_values:
             return ""
-        return "".join(f"<p class='cv-p'>{_html_escape(v)}</p>" for v in skill_values)
-
-    def _skills_dots_html() -> str:
-        if not skill_values:
-            return ""
-        rows: list[str] = []
-        for idx, sk in enumerate(skill_values):
-            filled = 3 + ((len(sk) + idx) % 3)  # 3..5 (deterministic for preview stability)
-            dots = "".join("<i class='dot on'></i>" if i < filled else "<i class='dot'></i>" for i in range(5))
-            rows.append(f"<div class='skill-row'><span>{_html_escape(sk)}</span><span class='dots'>{dots}</span></div>")
-        return "".join(rows)
+        cols = max(1, min(3, int(column_count)))
+        items = "".join(f"<li>{_html_escape(v)}</li>" for v in skill_values)
+        return f"<ul class='skills-grid skills-cols-{cols}'>{items}</ul>"
 
     section_map = {
         "summary": _summary_html(),
         "experience": _experience_html(),
         "education": _education_html(),
-        "skills": _skills_plain_html(),
+        "skills": _skills_bullet_columns_html(3),
         "projects": _projects_html(),
         "languages": _languages_html(),
         "certifications": _certifications_html(),
@@ -4615,7 +4773,7 @@ def generate_cv_html(
         "<div class='cv-paper classic'>"
         "<header class='cv-head center'>"
         f"<h1 id='cv-name'>{name}</h1>"
-        + (f"<p class='cv-title'>{title}</p>" if title else "")
+        + (f"<p class='cv-title' id='cv-title'>{title}</p>" if title else "<p class='cv-title' id='cv-title' style='display:none'></p>")
         + (f"<p id='cv-contact' class='cv-contact'>{contact_line}</p>" if contact_line else "<p id='cv-contact' class='cv-contact' style='display:none'></p>")
         + "</header>"
         + _ordered_sections(order, compact=False)
@@ -4629,7 +4787,7 @@ def generate_cv_html(
     modern_left_sections: list[str] = []
     for sid in left_modern_ids:
         if sid == "skills":
-            modern_left_sections.append(_sec_compact("Skills", _skills_dots_html()))
+            modern_left_sections.append(_sec_compact("Skills", _skills_bullet_columns_html(2)))
         else:
             inner = section_map.get(sid, "")
             if inner.strip():
@@ -4640,10 +4798,17 @@ def generate_cv_html(
         "<div class='modern-grid'>"
         "<aside class='modern-left'>"
         f"<h1 id='cv-name'>{name}</h1>"
-        + (f"<p class='cv-title'>{title}</p>" if title else "")
+        + (f"<p class='cv-title' id='cv-title'>{title}</p>" if title else "<p class='cv-title' id='cv-title' style='display:none'></p>")
         + (
             "<div class='contact-stack'>"
-            + "".join(f"<p>{_html_escape(v)}</p>" for _, v in contacts)
+            + "".join(
+                (
+                    f"<p class='contact-item'><span class='ci-ico'>{icon_map.get(k, '')}</span><span class='ci-val' data-cf='{k}'>{_html_escape(v)}</span></p>"
+                    if show_icons
+                    else f"<p class='contact-item'><span class='ci-val' data-cf='{k}'>{_html_escape(v)}</span></p>"
+                )
+                for k, _, v in contacts
+            )
             + "</div>"
             if contacts else ""
         )
@@ -4663,12 +4828,7 @@ def generate_cv_html(
     creative_left_sections: list[str] = []
     for sid in left_creative_ids:
         if sid == "skills":
-            if skill_values:
-                bars = "".join(
-                    f"<div class='bar-row'><span>{_html_escape(sk)}</span><i></i></div>"
-                    for sk in skill_values
-                )
-                creative_left_sections.append(_sec_compact("Skills", f"<div class='bars'>{bars}</div>"))
+            creative_left_sections.append(_sec_compact("Skills", _skills_bullet_columns_html(2)))
         else:
             inner = section_map.get(sid, "")
             if inner.strip():
@@ -4679,10 +4839,17 @@ def generate_cv_html(
         "<div class='creative-grid'>"
         "<aside class='creative-left'>"
         f"<h1 id='cv-name'>{name}</h1>"
-        + (f"<p class='cv-title'>{title}</p>" if title else "")
+        + (f"<p class='cv-title' id='cv-title'>{title}</p>" if title else "<p class='cv-title' id='cv-title' style='display:none'></p>")
         + (
             "<div class='contact-stack'>"
-            + "".join(f"<p>{_html_escape(v)}</p>" for _, v in contacts)
+            + "".join(
+                (
+                    f"<p class='contact-item'><span class='ci-ico'>{icon_map.get(k, '')}</span><span class='ci-val' data-cf='{k}'>{_html_escape(v)}</span></p>"
+                    if show_icons
+                    else f"<p class='contact-item'><span class='ci-val' data-cf='{k}'>{_html_escape(v)}</span></p>"
+                )
+                for k, _, v in contacts
+            )
             + "</div>"
             if contacts else ""
         )
@@ -4729,6 +4896,10 @@ body {{
 #cv-name {{ margin:0; font-size:{max(20, fs + 8)}px; font-weight:800; color:{primary}; line-height:1.1; }}
 .cv-title {{ margin:3px 0 0; color:{muted}; font-size:{fs}px; }}
 .cv-contact {{ margin:5px 0 0; color:{muted}; font-size:{fs_xs}px; }}
+.ci-item {{ display:inline-flex; align-items:center; gap:4px; vertical-align:middle; }}
+.ci-sep {{ opacity:.75; margin:0 2px; }}
+.ci-ico {{ width:{max(9, fs_xs + 1)}px; height:{max(9, fs_xs + 1)}px; display:inline-flex; color:currentColor; flex:0 0 auto; }}
+.ci-ico svg {{ width:100%; height:100%; display:block; }}
 .cv-sec {{ margin-top:{max(7, es)}px; }}
 .cv-sec-h {{
   margin:0 0 5px;
@@ -4755,6 +4926,20 @@ body {{
 .cv-p {{ margin:0 0 3px; font-size:{fs_xs}px; line-height:{lh}; color:{text}; }}
 .cv-link {{ margin:2px 0 0; font-size:{fs_xs}px; color:{link_color}; word-break:break-word; }}
 .kv {{ display:flex; justify-content:space-between; gap:8px; margin:0 0 3px; font-size:{fs_xs}px; line-height:{lh}; }}
+.skills-grid {{
+  margin:0;
+  padding-left:14px;
+  display:grid;
+  gap:2px 14px;
+}}
+.skills-grid li {{
+  margin:0;
+  font-size:{fs_xs}px;
+  line-height:{lh};
+  break-inside:avoid;
+}}
+.skills-cols-2 {{ grid-template-columns:repeat(2, minmax(0, 1fr)); }}
+.skills-cols-3 {{ grid-template-columns:repeat(3, minmax(0, 1fr)); }}
 
 /* Modern template */
 .modern .modern-grid {{ display:grid; grid-template-columns: 32% 68%; }}
@@ -4774,26 +4959,15 @@ body {{
   color:inherit;
   word-break:break-word;
 }}
+.contact-item {{ display:flex; align-items:flex-start; gap:6px; }}
 .modern-left .cv-sec {{ margin-top:{max(6, es - 1)}px; }}
 .modern-left .cv-sec-h {{
   color:#ffffff;
   border-bottom:1px solid rgba(255,255,255,0.45);
 }}
 .modern-left .cv-p, .modern-left .kv, .modern-left .row-sub {{ color:#eff6ff; }}
+.modern-left .skills-grid li {{ color:#eff6ff; }}
 .modern-right {{ padding:14px 16px; }}
-.skill-row {{
-  display:flex;
-  justify-content:space-between;
-  gap:8px;
-  margin:0 0 4px;
-  font-size:{fs_xs}px;
-}}
-.dots {{ display:inline-flex; gap:3px; align-items:center; }}
-.dot {{
-  width:6px; height:6px; border-radius:50%;
-  background:rgba(255,255,255,0.35);
-}}
-.dot.on {{ background:#ffffff; }}
 
 /* Creative template */
 .creative .creative-grid {{ display:grid; grid-template-columns: 30% 70%; }}
@@ -4813,20 +4987,6 @@ body {{
   border-left:2px solid {primary_soft};
   padding-left:10px;
 }}
-.bars .bar-row {{
-  display:grid;
-  grid-template-columns:1fr 1fr;
-  align-items:center;
-  gap:8px;
-  margin:0 0 4px;
-  font-size:{fs_xs}px;
-}}
-.bars .bar-row i {{
-  display:block;
-  height:5px;
-  border-radius:999px;
-  background:linear-gradient(90deg, {primary} 70%, #cbd5e1 70%);
-}}
 </style>
 </head>
 <body>
@@ -4835,10 +4995,51 @@ body {{
 window.addEventListener('message', function(ev) {{
   var d = ev.data;
   if (!d || d.type !== 'cv-rt-update') return;
-  var el;
+  var el, val;
   if (d.field === 'cvb_full_name') {{
     el = document.getElementById('cv-name');
     if (el) el.textContent = d.value || 'Your Name';
+    return;
+  }}
+  if (d.field === 'cvb_prof_title') {{
+    el = document.getElementById('cv-title');
+    if (el) {{
+      val = (d.value || '').trim();
+      el.textContent = val;
+      el.style.display = val ? '' : 'none';
+    }}
+    return;
+  }}
+  if (d.field === 'cvb_summary') {{
+    el = document.getElementById('cv-summary');
+    if (el) el.textContent = d.value || '';
+    return;
+  }}
+  if (d.field === 'cvb_contact') {{
+    el = document.getElementById('cv-contact');
+    if (el) {{
+      val = (d.value || '').trim();
+      el.textContent = val;
+      el.style.display = val ? '' : 'none';
+    }}
+    return;
+  }}
+  var keyMap = {{
+    cvb_email: 'email',
+    cvb_phone: 'phone',
+    cvb_location: 'location',
+    cvb_website: 'website',
+    cvb_linkedin: 'linkedin',
+    cvb_github: 'github'
+  }};
+  if (keyMap[d.field]) {{
+    var v = (d.value || '').trim();
+    var vals = document.querySelectorAll('.ci-val[data-cf=\"' + keyMap[d.field] + '\"]');
+    for (var i = 0; i < vals.length; i++) {{
+      vals[i].textContent = v;
+    }}
+    var row = vals.length ? vals[0].closest('.contact-item') : null;
+    if (row) row.style.display = v ? '' : 'none';
   }}
 }});
 </script>
@@ -5109,4 +5310,6 @@ document.querySelectorAll('.tpl-card').forEach(function(card){{
 }});
 </script>
 """
-    components.html(html, height=188, scrolling=False)
+    card_count = max(1, len(TEMPLATE_CHOICES))
+    comp_h = 10 + (card_count * 58) + ((card_count - 1) * 8)
+    components.html(html, height=comp_h, scrolling=False)

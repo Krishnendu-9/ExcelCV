@@ -15,7 +15,9 @@
       "PowerShell(Get-Command python3,py -ErrorAction SilentlyContinue)",
       "PowerShell(Get-Command streamlit -ErrorAction SilentlyContinue)",
       "PowerShell(py -m py_compile \"e:\\\\Academic\\\\minor-project\\\\cv-review\\\\src\\\\ui\\\\cv_builder_page.py\")",
-      "Bash(python -c \"import ast; ast.parse\\(open\\('src/ui/cv_builder_page.py'\\).read\\(\\)\\); print\\('Syntax OK'\\)\")"
+      "Bash(python -c \"import ast; ast.parse\\(open\\('src/ui/cv_builder_page.py'\\).read\\(\\)\\); print\\('Syntax OK'\\)\")",
+      "Bash(py -c \"import ast; ast.parse\\(open\\('src/ui/cv_builder_page.py'\\).read\\(\\)\\); print\\('OK'\\)\")",
+      "Bash(py -c \"import ast; ast.parse\\(open\\('src/ui/cv_builder_page.py', encoding='utf-8'\\).read\\(\\)\\); print\\('OK'\\)\")"
     ]
   }
 }

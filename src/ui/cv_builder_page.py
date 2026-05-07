@@ -68,8 +68,8 @@ PROFICIENCY_OPTIONS = ["Basic", "Intermediate", "Advanced", "Fluent", "Native"]
 A4_WIDTH_PX = 794
 A4_HEIGHT_PX = 1123
 TEMPLATE_DEFAULT_ZOOM: dict[str, int] = {
-    "modern": 90,
-    "classic": 65,
+    "modern": 100,
+    "classic": 100,
     "creative": 100,
 }
 
@@ -188,7 +188,7 @@ def _init_builder() -> None:
         "cvb_entry_spacing":  8,
         "cvb_show_icons":     True,
         "cvb_show_photo":     False,
-        "cvb_zoom":           65,
+        "cvb_zoom":           100,
         "cvb_section_order":      list(SECTION_IDS),
         "cvb_section_visibility": {sid: True for sid in SECTION_IDS},
         "cvb_active_section":     "personal",
@@ -233,6 +233,11 @@ def _init_builder() -> None:
         if current_zoom in (45, 75, 95):
             st.session_state["cvb_zoom"] = _default_zoom_for_template(st.session_state.get("cvb_template", "classic"))
         st.session_state["cvb_zoom_default_v4_migrated"] = True
+    if "cvb_zoom_default_v5_migrated" not in st.session_state:
+        current_zoom = int(st.session_state.get("cvb_zoom", 100))
+        if current_zoom in (65, 90):
+            st.session_state["cvb_zoom"] = 100
+        st.session_state["cvb_zoom_default_v5_migrated"] = True
     if "cvb_skills_flat_v1_migrated" not in st.session_state:
         if not st.session_state.get("cvb_skill_ids"):
             migrated: list[str] = []
@@ -774,7 +779,7 @@ def _cached_generate_cv_pdf(
         cv_data = json.loads(data_json) if data_json else {}
         section_visibility = json.loads(section_visibility_json) if section_visibility_json else None
         section_order = json.loads(section_order_json) if section_order_json else None
-        preview_source = _build_preview_data_with_demo_defaults(cv_data)
+        preview_source = _build_preview_source(cv_data)
         preview_html = generate_cv_html(
             preview_source,
             template,
@@ -943,7 +948,6 @@ def _personal_section() -> None:
     with c4:
         st.text_input("Website", key="cvb_website", placeholder="Enter website URL")
     st.text_input("LinkedIn", key="cvb_linkedin", placeholder="Enter LinkedIn profile URL")
-    st.text_input("GitHub", key="cvb_github", placeholder="Enter GitHub profile URL")
 
 
 def _summary_section() -> None:
@@ -1489,11 +1493,44 @@ def _inject_realtime_js() -> None:
     return null;
   }
 
-  function computeContact(cardSel) {
+  function getFieldValue(labelText, cardSel) {
+    var card = doc.querySelector(cardSel);
+    if (!card) return '';
+    var labels = card.querySelectorAll('label');
+    for (var i = 0; i < labels.length; i++) {
+      if (labels[i].textContent.trim() !== labelText) continue;
+      var t1 = labels[i].closest('[data-testid="stTextInput"]');
+      if (t1) {
+        var inp = t1.querySelector('input');
+        return inp ? String(inp.value || '') : '';
+      }
+      var t2 = labels[i].closest('[data-testid="stTextArea"]');
+      if (t2) {
+        var ta = t2.querySelector('textarea');
+        return ta ? String(ta.value || '') : '';
+      }
+    }
+    return '';
+  }
+
+function computeContact(cardSel) {
     return CONTACT_LABELS
       .map(function(lbl) { var inp = getInput(lbl, cardSel); return inp ? inp.value.trim() : ''; })
       .filter(function(v) { return v.length > 0; })
       .join(' · ');
+  }
+
+  function hasAnyMeaningfulInput(cardSel) {
+    var root = doc.querySelector(cardSel);
+    if (!root) return false;
+    var nodes = root.querySelectorAll('input, textarea');
+    for (var i = 0; i < nodes.length; i++) {
+      var n = nodes[i];
+      var type = (n.type || '').toLowerCase();
+      if (type === 'hidden' || type === 'button' || type === 'submit' || type === 'reset') continue;
+      if (String(n.value || '').trim().length > 0) return true;
+    }
+    return false;
   }
 
   function broadcast(msg) {
@@ -1501,6 +1538,20 @@ def _inject_realtime_js() -> None:
     for (var i = 0; i < iframes.length; i++) {
       try { iframes[i].contentWindow.postMessage(msg, '*'); } catch(e) {}
     }
+  }
+
+  function syncAllPersonalFields(cardSel) {
+    var labels = [
+      'Full Name', 'Professional Title', 'Email', 'Phone',
+      'Location', 'Website', 'LinkedIn', 'GitHub', 'Summary'
+    ];
+    for (var i = 0; i < labels.length; i++) {
+      var l = labels[i];
+      var f = FIELD_BY_LABEL[l];
+      if (!f) continue;
+      broadcast({ type: 'cv-rt-update', field: f, value: getFieldValue(l, cardSel) });
+    }
+    broadcast({ type: 'cv-rt-update', field: 'cvb_contact', value: computeContact(cardSel) });
   }
 
   function handleInput(e) {
@@ -1522,12 +1573,22 @@ def _inject_realtime_js() -> None:
     if (CONTACT_LABELS.indexOf(lt) !== -1) {
       broadcast({ type: 'cv-rt-update', field: 'cvb_contact', value: computeContact(CARD) });
     }
+    syncAllPersonalFields(CARD);
+    broadcast({ type: 'cv-rt-user-mode', active: hasAnyMeaningfulInput(CARD) });
   }
 
   var KEY = '__excalcv_rt__';
   if (doc[KEY]) doc.removeEventListener('input', doc[KEY], true);
   doc[KEY] = handleInput;
   doc.addEventListener('input', handleInput, true);
+  setTimeout(function() {
+    var CARD = '.st-key-cvb-middle-scroll-native, .st-key-cvb-personal-card, .st-key-cvb-center-panel';
+    var hasInput = hasAnyMeaningfulInput(CARD);
+    if (hasInput) {
+      syncAllPersonalFields(CARD);
+    }
+    broadcast({ type: 'cv-rt-user-mode', active: hasInput });
+  }, 0);
 })();
 </script>""",
         height=0,
@@ -1553,6 +1614,28 @@ def _inject_sections_relay_js() -> None:
     return doc.querySelector('[class*="' + classFragment + '"] button') || null;
   }
 
+  function postToPreview(msg) {
+    var iframes = doc.querySelectorAll('iframe');
+    for (var i = 0; i < iframes.length; i++) {
+      try { iframes[i].contentWindow.postMessage(msg, '*'); } catch(e) {}
+    }
+  }
+
+  function clickWithInputCommit(btn) {
+    if (!btn) return;
+    try {
+      var ae = doc.activeElement;
+      if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA')) {
+        try { ae.dispatchEvent(new Event('input', { bubbles: true })); } catch(e) {}
+        try { ae.dispatchEvent(new Event('change', { bubbles: true })); } catch(e) {}
+        try { ae.blur(); } catch(e) {}
+      }
+    } catch(e) {}
+    setTimeout(function() {
+      try { btn.click(); } catch(e) {}
+    }, 40);
+  }
+
   var KEY = '__cvb_sections_relay__';
   try { if (w[KEY]) w.removeEventListener('message', w[KEY]); } catch(e) {}
 
@@ -1564,7 +1647,7 @@ def _inject_sections_relay_js() -> None:
       if (!sid) return;
       var btn = findBtn('st-key-cvb_eye_' + sid);
       if (!btn) btn = findBtn('st-key-cvb-eye-' + sid.replace(/_/g, '-'));
-      if (btn) { try { btn.click(); } catch(e) {} }
+      clickWithInputCommit(btn);
     }
 
     if (ev.data.type === 'cvb-drag-end') {
@@ -1573,7 +1656,7 @@ def _inject_sections_relay_js() -> None:
       if (!movedId) return;
       var btn = findBtn('st-key-cvb_pos_' + movedId + '_' + newPos);
       if (!btn) btn = findBtn('st-key-cvb-pos-' + movedId.replace(/_/g,'-') + '-' + newPos);
-      if (btn) { try { btn.click(); } catch(e) {} }
+      clickWithInputCommit(btn);
     }
 
     if (ev.data.type === 'cvb-tpl-select') {
@@ -1581,41 +1664,42 @@ def _inject_sections_relay_js() -> None:
       if (!tpl) return;
       var btn = findBtn('st-key-cvb_tpl_' + tpl);
       if (!btn) btn = findBtn('st-key-cvb-tpl-' + tpl);
-      if (btn) { try { btn.click(); } catch(e) {} }
+      clickWithInputCommit(btn);
     }
 
     if (ev.data.type === 'cvb-acc-select') {
       var idx = String(ev.data.idx || '0');
       var btn = findBtn('st-key-cvb_acc_' + idx);
       if (!btn) btn = findBtn('st-key-cvb-acc-' + idx);
-      if (btn) { try { btn.click(); } catch(e) {} }
+      clickWithInputCommit(btn);
     }
 
     if (ev.data.type === 'cvb-scale-select') {
       var val = String(ev.data.val || '100');
       var btn = findBtn('st-key-cvb_scale_' + val);
       if (!btn) btn = findBtn('st-key-cvb-scale-' + val);
-      if (btn) { try { btn.click(); } catch(e) {} }
+      clickWithInputCommit(btn);
     }
 
     if (ev.data.type === 'cvb-icons-toggle') {
+      postToPreview({ type: 'cv-rt-icons-toggle', on: !!ev.data.on });
       var btn = findBtn('st-key-cvb_icons_toggle');
       if (!btn) btn = findBtn('st-key-cvb-icons-toggle');
-      if (btn) { try { btn.click(); } catch(e) {} }
+      clickWithInputCommit(btn);
     }
 
     if (ev.data.type === 'cvb-lh-select') {
       var val = String(ev.data.val || '14');
       var btn = findBtn('st-key-cvb_lh_' + val);
       if (!btn) btn = findBtn('st-key-cvb-lh-' + val);
-      if (btn) { try { btn.click(); } catch(e) {} }
+      clickWithInputCommit(btn);
     }
 
     if (ev.data.type === 'cvb-es-select') {
       var val = String(ev.data.val || '8');
       var btn = findBtn('st-key-cvb_es_' + val);
       if (!btn) btn = findBtn('st-key-cvb-es-' + val);
-      if (btn) { try { btn.click(); } catch(e) {} }
+      clickWithInputCommit(btn);
     }
 
     if (ev.data.type === 'cvb-zoom-toolbar') {
@@ -1631,7 +1715,7 @@ def _inject_sections_relay_js() -> None:
         btn = findBtn('st-key-cvb_zoom_reset_relay');
         if (!btn) btn = findBtn('st-key-cvb-zoom-reset-relay');
       }
-      if (btn) { try { btn.click(); } catch(e) {} }
+      clickWithInputCommit(btn);
     }
   };
 
@@ -2215,6 +2299,15 @@ def _inject_builder_css_native(is_dark: bool) -> None:
     border = "#334155" if is_dark else "#d3dce8"
     text = "#e2e8f0" if is_dark else "#0f172a"
     muted = "#94a3b8" if is_dark else "#64748b"
+    toolbar_bg = "#0f172a" if is_dark else "linear-gradient(90deg, #edf3fa 0%, #f6f9fe 18%, #ffffff 48%, #ffffff 100%)"
+    toolbar_brd = "#334155" if is_dark else "#d7e1ec"
+    toolbar_input_bg = "#1e293b" if is_dark else "#ffffff"
+    toolbar_input_brd = "#475569" if is_dark else "#d7e1ec"
+    toolbar_input_text = "#e2e8f0" if is_dark else "#0f172a"
+    saved_bg = "rgba(37,99,235,0.15)" if is_dark else "rgba(0, 89, 179, 0.10)"
+    saved_color = "#93c5fd" if is_dark else "#0059B3"
+    saved_brd = "rgba(37,99,235,0.30)" if is_dark else "rgba(0, 89, 179, 0.22)"
+    toolbar_btn_color = "#94a3b8" if is_dark else "#65758B"
     cur_accent = st.session_state.get("cvb_accent_color", ACCENT_COLORS[0])
     native_dot_parts: list[str] = []
     for i, color in enumerate(ACCENT_COLORS):
@@ -2275,9 +2368,9 @@ section[data-testid="stMain"]:has(.st-key-cvb-page-native) .block-container {{
   display: flex !important;
   align-items: center !important;
   flex-shrink: 0 !important;
-  background: linear-gradient(90deg, #edf3fa 0%, #f6f9fe 18%, #ffffff 48%, #ffffff 100%) !important;
-  border-top:1px solid #d7e1ec !important;
-  border-bottom:1px solid #d7e1ec !important;
+  background: {toolbar_bg} !important;
+  border-top:1px solid {toolbar_brd} !important;
+  border-bottom:1px solid {toolbar_brd} !important;
   border-radius:0;
   padding:0 20px !important;
   margin:0 !important;
@@ -2298,12 +2391,12 @@ section[data-testid="stMain"]:has(.st-key-cvb-page-native) .block-container {{
   min-height: 24px;
   padding: 3px 11px;
   border-radius:999px;
-  background: rgba(0, 89, 179, 0.10);
-  color:#0059B3;
+  background: {saved_bg};
+  color:{saved_color};
   font-size:12px;
   font-weight:500;
   line-height: 1;
-  border:1px solid rgba(0, 89, 179, 0.22);
+  border:1px solid {saved_brd};
   white-space:nowrap;
 }}
 .st-key-cvb_toolbar_title_native {{
@@ -2314,14 +2407,14 @@ section[data-testid="stMain"]:has(.st-key-cvb-page-native) .block-container {{
 }}
 .st-key-cvb_toolbar_title_native [data-baseweb="input"] {{
   border-radius: 8px !important;
-  border: 1px solid #d7e1ec !important;
-  background: #ffffff !important;
+  border: 1px solid {toolbar_input_brd} !important;
+  background: {toolbar_input_bg} !important;
   min-height: 38px !important;
 }}
 .st-key-cvb_toolbar_title_native input {{
   font-size: 13px !important;
   font-weight: 500 !important;
-  color: #0f172a !important;
+  color: {toolbar_input_text} !important;
 }}
 .st-key-cvb-toolbar-actions-native [data-testid="stHorizontalBlock"] {{
   align-items: center !important;
@@ -2361,7 +2454,7 @@ section[data-testid="stMain"]:has(.st-key-cvb-page-native) .block-container {{
   outline: none !important;
   border: none !important;
   background: transparent !important;
-  color: #65758B !important;
+  color: {toolbar_btn_color} !important;
   box-shadow: none !important;
   font-size: 14px !important;
   font-weight: 500 !important;
@@ -3287,6 +3380,17 @@ def _build_preview_data_with_demo_defaults(user_data: dict) -> dict:
     return out
 
 
+def _build_preview_source(cv_data: dict) -> dict:
+    """Return preview data source.
+
+    - Empty builder state: show demo content so template structure is visible.
+    - Once user enters any real content: show only user data (no demo fallback).
+    """
+    if _is_cv_data_effectively_empty(cv_data):
+        return _build_preview_data_with_demo_defaults(cv_data)
+    return cv_data if isinstance(cv_data, dict) else {}
+
+
 def generate_cv_html(
     data: dict,
     template: str = "classic",
@@ -3966,12 +4070,13 @@ def _render_middle_panel_native() -> None:
 
     current_active = ss.get("cvb_active_section", "personal")
     if current_active not in visible_order:
-        ss["cvb_active_section"] = visible_order[0]
+        current_active = visible_order[0]
+        ss["cvb_active_section"] = current_active
 
     for sid in visible_order:
         label = SECTION_ID_TO_LABEL.get(sid, sid.title())
         with st.container(key=f"cvb-section-{sid}"):
-            with _section_expander(label, sid, expanded=True):
+            with _section_expander(label, sid, expanded=(sid == current_active)):
                 render_map[sid]()
 
 
@@ -4002,7 +4107,7 @@ def _render_right_panel_native(cv_data: dict, is_dark: bool) -> None:
     sec_vis = ss.get("cvb_section_visibility")
     sec_order = ss.get("cvb_section_order")
 
-    preview_source = _build_preview_data_with_demo_defaults(cv_data)
+    preview_source = _build_preview_source(cv_data)
 
     preview_html = generate_cv_html(
         preview_source,
@@ -4054,7 +4159,8 @@ body {{ padding:0; }}
 </body>
 </html>"""
 
-    components.html(preview_doc, height=1160, scrolling=False)
+    frame_height = max(900, int(A4_HEIGHT_PX * scale) + 80)
+    components.html(preview_doc, height=frame_height, scrolling=False)
 
 
 def render_cv_builder_page() -> None:
@@ -4305,7 +4411,7 @@ def _experience_section() -> None:
     for idx, eid in enumerate(list(st.session_state.get("cvb_exp_ids", []))):
         role = st.session_state.get(f"cvb_exp_role_{eid}", "")
         label = role or f"Position {idx + 1}"
-        with st.expander(label, expanded=True):
+        with st.expander(label, expanded=(idx == 0)):
             c1, c2 = st.columns(2)
             with c1:
                 st.text_input("Job Title", key=f"cvb_exp_role_{eid}", placeholder="Enter job title")
@@ -4394,7 +4500,7 @@ def _education_section() -> None:
 
     for idx, eid in enumerate(list(st.session_state.get("cvb_edu_ids", []))):
         inst = st.session_state.get(f"cvb_edu_inst_{eid}", "")
-        with st.expander(inst or f"Education {idx + 1}", expanded=True):
+        with st.expander(inst or f"Education {idx + 1}", expanded=(idx == 0)):
             c1, c2 = st.columns(2)
             with c1:
                 st.text_input("Institution", key=f"cvb_edu_inst_{eid}", placeholder="Enter institution name")
@@ -4461,7 +4567,7 @@ def _projects_section() -> None:
         st.rerun()
     for idx, pid in enumerate(list(st.session_state.get("cvb_proj_ids", []))):
         name = st.session_state.get(f"cvb_proj_name_{pid}", "")
-        with st.expander(name or f"Project {idx + 1}", expanded=True):
+        with st.expander(name or f"Project {idx + 1}", expanded=(idx == 0)):
             c1, c2 = st.columns(2)
             with c1:
                 st.text_input("Project Name", key=f"cvb_proj_name_{pid}", placeholder="Enter project name")
@@ -4501,7 +4607,7 @@ def _certifications_section() -> None:
         st.rerun()
     for idx, cid in enumerate(list(st.session_state.get("cvb_cert_ids", []))):
         name = st.session_state.get(f"cvb_cert_name_{cid}", "")
-        with st.expander(name or f"Certification {idx + 1}", expanded=True):
+        with st.expander(name or f"Certification {idx + 1}", expanded=(idx == 0)):
             c1, c2 = st.columns(2)
             with c1:
                 st.text_input("Title", key=f"cvb_cert_name_{cid}", placeholder="Enter certification title")
@@ -4569,7 +4675,6 @@ def generate_cv_html(
         ("location", "Location", p.get("location", "")),
         ("website", "Website", p.get("website", "")),
         ("linkedin", "LinkedIn", p.get("linkedin", "")),
-        ("github", "GitHub", p.get("github", "")),
     ]
     contacts = [(k, lbl, str(v).strip()) for k, lbl, v in contacts_raw if str(v or "").strip()]
     icon_map = {
@@ -4580,13 +4685,38 @@ def generate_cv_html(
         "linkedin": "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='currentColor'><path d='M0 1.146C0 .513.526 0 1.175 0h13.65C15.474 0 16 .513 16 1.146v13.708c0 .633-.526 1.146-1.175 1.146H1.175C.526 16 0 15.487 0 14.854zm4.943 12.248V6.169H2.542v7.225zm-1.2-8.212c.837 0 1.358-.554 1.358-1.248-.015-.709-.52-1.248-1.342-1.248S2.4 3.226 2.4 3.934c0 .694.521 1.248 1.327 1.248zm4.908 8.212V9.359c0-.216.016-.432.08-.586.173-.431.568-.878 1.232-.878.869 0 1.216.662 1.216 1.634v3.865h2.401V9.25c0-2.22-1.184-3.252-2.764-3.252-1.274 0-1.845.7-2.165 1.193v.025h-.016l.016-.025V6.169h-2.4c.03.678 0 7.225 0 7.225z'/></svg>",
         "github": "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='currentColor'><path d='M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8'/></svg>",
     }
-    if show_icons:
-        contact_line = " <span class='ci-sep'>\u00b7</span> ".join(
-            f"<span class='ci-item'><span class='ci-ico'>{icon_map.get(k, '')}</span><span>{_html_escape(v)}</span></span>"
-            for k, _, v in contacts
-        )
-    else:
-        contact_line = " \u00b7 ".join(_html_escape(v) for _, _, v in contacts)
+    icons_class = "icons-on" if show_icons else "icons-off"
+
+    def _classic_contact_row() -> str:
+        parts = []
+        for k, _, v in contacts_raw:
+            val = str(v or "").strip()
+            ico = icon_map.get(k, "")
+            hidden = " style='display:none'" if not val else ""
+            parts.append(
+                f"<span class='ci-wrapper' data-cf='{k}'{hidden}>"
+                f"<span class='ci-sep' style='display:none'>\u00b7</span>"
+                f"<span class='ci-item'><span class='ci-ico'>{ico}</span>"
+                f"<span class='ci-val'>{_html_escape(val)}</span></span>"
+                f"</span>"
+            )
+        any_visible = any(str(v or "").strip() for _, _, v in contacts_raw)
+        hidden_row = "" if any_visible else " style='display:none'"
+        return f"<p id='cv-contact' class='cv-contact'{hidden_row}>{''.join(parts)}</p>"
+
+    def _modern_contact_stack() -> str:
+        parts = []
+        for k, _, v in contacts_raw:
+            val = str(v or "").strip()
+            ico = icon_map.get(k, "")
+            hidden_attr = " style='display:none'" if not val else ""
+            parts.append(
+                f"<p class='contact-item' data-cf='{k}'{hidden_attr}>"
+                f"<span class='ci-ico'>{ico}</span>"
+                f"<span class='ci-val' data-cf='{k}'>{_html_escape(val)}</span>"
+                f"</p>"
+            )
+        return f"<div class='contact-stack'>{''.join(parts)}</div>"
 
     def _skills_list() -> list[str]:
         vals: list[str] = []
@@ -4770,11 +4900,11 @@ def generate_cv_html(
 
     # Classic (ATS single column)
     classic_body = (
-        "<div class='cv-paper classic'>"
+        f"<div class='cv-paper classic {icons_class}'>"
         "<header class='cv-head center'>"
         f"<h1 id='cv-name'>{name}</h1>"
         + (f"<p class='cv-title' id='cv-title'>{title}</p>" if title else "<p class='cv-title' id='cv-title' style='display:none'></p>")
-        + (f"<p id='cv-contact' class='cv-contact'>{contact_line}</p>" if contact_line else "<p id='cv-contact' class='cv-contact' style='display:none'></p>")
+        + _classic_contact_row()
         + "</header>"
         + _ordered_sections(order, compact=False)
         + "</div>"
@@ -4794,24 +4924,12 @@ def generate_cv_html(
                 modern_left_sections.append(_sec_compact(_section_label(sid), inner))
 
     modern_body = (
-        "<div class='cv-paper modern'>"
+        f"<div class='cv-paper modern {icons_class}'>"
         "<div class='modern-grid'>"
         "<aside class='modern-left'>"
         f"<h1 id='cv-name'>{name}</h1>"
         + (f"<p class='cv-title' id='cv-title'>{title}</p>" if title else "<p class='cv-title' id='cv-title' style='display:none'></p>")
-        + (
-            "<div class='contact-stack'>"
-            + "".join(
-                (
-                    f"<p class='contact-item'><span class='ci-ico'>{icon_map.get(k, '')}</span><span class='ci-val' data-cf='{k}'>{_html_escape(v)}</span></p>"
-                    if show_icons
-                    else f"<p class='contact-item'><span class='ci-val' data-cf='{k}'>{_html_escape(v)}</span></p>"
-                )
-                for k, _, v in contacts
-            )
-            + "</div>"
-            if contacts else ""
-        )
+        + _modern_contact_stack()
         + "".join(modern_left_sections)
         + "</aside>"
         "<main class='modern-right'>"
@@ -4835,24 +4953,12 @@ def generate_cv_html(
                 creative_left_sections.append(_sec_compact(_section_label(sid), inner))
 
     creative_body = (
-        "<div class='cv-paper creative'>"
+        f"<div class='cv-paper creative {icons_class}'>"
         "<div class='creative-grid'>"
         "<aside class='creative-left'>"
         f"<h1 id='cv-name'>{name}</h1>"
         + (f"<p class='cv-title' id='cv-title'>{title}</p>" if title else "<p class='cv-title' id='cv-title' style='display:none'></p>")
-        + (
-            "<div class='contact-stack'>"
-            + "".join(
-                (
-                    f"<p class='contact-item'><span class='ci-ico'>{icon_map.get(k, '')}</span><span class='ci-val' data-cf='{k}'>{_html_escape(v)}</span></p>"
-                    if show_icons
-                    else f"<p class='contact-item'><span class='ci-val' data-cf='{k}'>{_html_escape(v)}</span></p>"
-                )
-                for k, _, v in contacts
-            )
-            + "</div>"
-            if contacts else ""
-        )
+        + _modern_contact_stack()
         + "".join(creative_left_sections)
         + "</aside>"
         "<main class='creative-right'>"
@@ -4895,11 +5001,13 @@ body {{
 .cv-head.center {{ text-align:center; margin-bottom:8px; }}
 #cv-name {{ margin:0; font-size:{max(20, fs + 8)}px; font-weight:800; color:{primary}; line-height:1.1; }}
 .cv-title {{ margin:3px 0 0; color:{muted}; font-size:{fs}px; }}
-.cv-contact {{ margin:5px 0 0; color:{muted}; font-size:{fs_xs}px; }}
+.cv-contact {{ margin:5px 0 0; color:{muted}; font-size:{fs_xs}px; display:flex; flex-wrap:wrap; align-items:center; gap:0 1px; }}
+.ci-wrapper {{ display:inline-flex; align-items:center; }}
 .ci-item {{ display:inline-flex; align-items:center; gap:4px; vertical-align:middle; }}
-.ci-sep {{ opacity:.75; margin:0 2px; }}
+.ci-sep {{ opacity:.75; margin:0 3px; }}
 .ci-ico {{ width:{max(9, fs_xs + 1)}px; height:{max(9, fs_xs + 1)}px; display:inline-flex; color:currentColor; flex:0 0 auto; }}
 .ci-ico svg {{ width:100%; height:100%; display:block; }}
+.icons-off .ci-ico {{ display:none !important; }}
 .cv-sec {{ margin-top:{max(7, es)}px; }}
 .cv-sec-h {{
   margin:0 0 5px;
@@ -4992,9 +5100,85 @@ body {{
 <body>
 {selected_body}
 <script>
+function setRealtimeUserMode(active) {{
+  var keepHeadings = {{ 'professional summary': true, 'about me': true }};
+  var sections = document.querySelectorAll('.cv-sec');
+  for (var i = 0; i < sections.length; i++) {{
+    var sec = sections[i];
+    var headingEl = sec.querySelector('.cv-sec-h');
+    var heading = headingEl ? String(headingEl.textContent || '').trim().toLowerCase() : '';
+    if (!active) {{
+      sec.style.display = '';
+      continue;
+    }}
+    if (!keepHeadings[heading]) {{
+      sec.style.display = 'none';
+      continue;
+    }}
+    var summaryEl = document.getElementById('cv-summary');
+    var summaryText = summaryEl ? String(summaryEl.textContent || '').trim() : '';
+    sec.style.display = summaryText ? '' : 'none';
+  }}
+}}
+
+function setRealtimeIcons(on) {{
+  var papers = document.querySelectorAll('.cv-paper');
+  for (var i = 0; i < papers.length; i++) {{
+    papers[i].classList.toggle('icons-on', !!on);
+    papers[i].classList.toggle('icons-off', !on);
+  }}
+}}
+
+function updateClassicSeps() {{
+  var wrappers = document.querySelectorAll('#cv-contact .ci-wrapper');
+  var firstVisible = true;
+  for (var i = 0; i < wrappers.length; i++) {{
+    if (wrappers[i].style.display === 'none') continue;
+    var sep = wrappers[i].querySelector('.ci-sep');
+    if (sep) sep.style.display = firstVisible ? 'none' : '';
+    firstVisible = false;
+  }}
+  var contact = document.getElementById('cv-contact');
+  if (contact) {{
+    var anyVis = false;
+    for (var j = 0; j < wrappers.length; j++) {{
+      if (wrappers[j].style.display !== 'none') {{ anyVis = true; break; }}
+    }}
+    contact.style.display = anyVis ? '' : 'none';
+  }}
+}}
+
+function setContactField(cf, v) {{
+  var wrapper = document.querySelector('#cv-contact .ci-wrapper[data-cf="' + cf + '"]');
+  if (wrapper) {{
+    var valEl = wrapper.querySelector('.ci-val');
+    if (valEl) valEl.textContent = v;
+    wrapper.style.display = v ? '' : 'none';
+    updateClassicSeps();
+  }}
+  var item = document.querySelector('.contact-item[data-cf="' + cf + '"]');
+  if (item) {{
+    var valEl2 = item.querySelector('.ci-val');
+    if (valEl2) valEl2.textContent = v;
+    item.style.display = v ? '' : 'none';
+  }}
+}}
+
+updateClassicSeps();
+
 window.addEventListener('message', function(ev) {{
   var d = ev.data;
-  if (!d || d.type !== 'cv-rt-update') return;
+  if (!d) return;
+  if (d.type === 'cv-rt-icons-toggle') {{
+    setRealtimeIcons(!!d.on);
+    return;
+  }}
+  if (d.type === 'cv-rt-user-mode') {{
+    setRealtimeUserMode(!!d.active);
+    return;
+  }}
+  if (d.type !== 'cv-rt-update') return;
+
   var el, val;
   if (d.field === 'cvb_full_name') {{
     el = document.getElementById('cv-name');
@@ -5012,15 +5196,24 @@ window.addEventListener('message', function(ev) {{
   }}
   if (d.field === 'cvb_summary') {{
     el = document.getElementById('cv-summary');
-    if (el) el.textContent = d.value || '';
-    return;
-  }}
-  if (d.field === 'cvb_contact') {{
-    el = document.getElementById('cv-contact');
     if (el) {{
       val = (d.value || '').trim();
       el.textContent = val;
-      el.style.display = val ? '' : 'none';
+      var sec = el.closest('.cv-sec');
+      if (sec && sec.style.display === 'none' && val) sec.style.display = '';
+      if (sec && !val && (document.body || document.documentElement)) {{
+        var allHiddenNonSummary = true;
+        var secs = document.querySelectorAll('.cv-sec');
+        for (var si = 0; si < secs.length; si++) {{
+          var hs = secs[si].querySelector('.cv-sec-h');
+          var ht = hs ? String(hs.textContent || '').trim().toLowerCase() : '';
+          if (ht !== 'professional summary' && ht !== 'about me' && secs[si].style.display !== 'none') {{
+            allHiddenNonSummary = false;
+            break;
+          }}
+        }}
+        if (allHiddenNonSummary) sec.style.display = 'none';
+      }}
     }}
     return;
   }}
@@ -5033,13 +5226,7 @@ window.addEventListener('message', function(ev) {{
     cvb_github: 'github'
   }};
   if (keyMap[d.field]) {{
-    var v = (d.value || '').trim();
-    var vals = document.querySelectorAll('.ci-val[data-cf=\"' + keyMap[d.field] + '\"]');
-    for (var i = 0; i < vals.length; i++) {{
-      vals[i].textContent = v;
-    }}
-    var row = vals.length ? vals[0].closest('.contact-item') : null;
-    if (row) row.style.display = v ? '' : 'none';
+    setContactField(keyMap[d.field], (d.value || '').trim());
   }}
 }});
 </script>
@@ -5058,7 +5245,6 @@ def _get_demo_cv_data() -> dict:
             "location": "Your City, Country",
             "website": "yourwebsite.dev",
             "linkedin": "linkedin.com/in/yourprofile",
-            "github": "github.com/yourhandle",
             "summary": (
                 "Write a concise professional summary highlighting your years of experience, "
                 "core strengths, and measurable impact."

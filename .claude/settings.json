@@ -17,7 +17,8 @@
       "PowerShell(py -m py_compile \"e:\\\\Academic\\\\minor-project\\\\cv-review\\\\src\\\\ui\\\\cv_builder_page.py\")",
       "Bash(python -c \"import ast; ast.parse\\(open\\('src/ui/cv_builder_page.py'\\).read\\(\\)\\); print\\('Syntax OK'\\)\")",
       "Bash(py -c \"import ast; ast.parse\\(open\\('src/ui/cv_builder_page.py'\\).read\\(\\)\\); print\\('OK'\\)\")",
-      "Bash(py -c \"import ast; ast.parse\\(open\\('src/ui/cv_builder_page.py', encoding='utf-8'\\).read\\(\\)\\); print\\('OK'\\)\")"
+      "Bash(py -c \"import ast; ast.parse\\(open\\('src/ui/cv_builder_page.py', encoding='utf-8'\\).read\\(\\)\\); print\\('OK'\\)\")",
+      "Bash(py -m py_compile src/ui/cv_builder_page.py)"
     ]
   }
 }

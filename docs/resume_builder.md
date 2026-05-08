@@ -64,9 +64,9 @@ Template choices and left-rail card order:
 3. `modern` (Two-column sidebar)
 
 Template default zoom:
-- classic: `65%`
+- classic: `100%`
 - creative: `100%`
-- modern: `90%`
+- modern: `100%`
 
 ## Builder State Contract (`st.session_state`)
 Primary keys:
@@ -180,6 +180,12 @@ Section renderer map:
 
 If all sections are hidden, an info message is shown.
 
+Middle panel interaction details:
+- Personal Information includes LinkedIn and GitHub inputs.
+- Work Experience supports per-position Duplicate and Delete actions.
+- Work Experience includes a `Currently working here` toggle that forces End Date to `Present`.
+- Work Experience bullet rows support add/remove actions inline.
+
 ## Right Panel Behavior
 `_render_right_panel_native(cv_data, is_dark)`:
 - Reads current template/style/visibility/order
@@ -286,7 +292,7 @@ Mitigations already in place:
 - `on_click="ignore"` on download buttons.
 - Input commit before relay click.
 
-### Temporary “blurred/faded” UI overlay
+### Temporary ï¿½blurred/fadedï¿½ UI overlay
 Meaning:
 - Streamlit is processing a rerun cycle.
 

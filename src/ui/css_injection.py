@@ -617,6 +617,14 @@ def inject_compact_header_css() -> None:
             background: transparent !important;
             box-shadow: none !important;
         }
+        [data-testid="stAppViewContainer"] .st-key-compare_section_shell {
+            margin-top: 0 !important;
+            padding: 28px 26px !important;
+            border-radius: 18px !important;
+            border: 1px solid var(--border-color) !important;
+            background: linear-gradient(160deg, var(--bg-card), var(--bg-secondary)) !important;
+            box-shadow: 0 12px 24px var(--shadow) !important;
+        }
         .compare-section-title {
             margin: 0 0 8px 0 !important;
             font-size: 3rem !important;
@@ -1017,13 +1025,13 @@ def inject_compact_header_css() -> None:
             font-size: 1.0rem !important;
         }
         .compare-next-shell {
-            max-width: 980px !important;
-            margin: 14px auto 6px auto !important;
-            padding: 22px 24px 16px 24px !important;
-            border-radius: 16px !important;
+            max-width: none !important;
+            margin: 14px 0 0 0 !important;
+            padding: 18px 18px 14px 18px !important;
+            border-radius: 14px !important;
             border: 1px solid var(--border-color) !important;
-            background: linear-gradient(160deg, var(--bg-card), var(--bg-secondary)) !important;
-            box-shadow: 0 12px 24px var(--shadow) !important;
+            background: var(--bg-card) !important;
+            box-shadow: 0 8px 18px var(--shadow) !important;
         }
         .compare-next-title {
             margin: 0 0 12px 0 !important;
@@ -1058,14 +1066,15 @@ def inject_compact_header_css() -> None:
             box-sizing: border-box !important;
         }
         [data-testid="stAppViewContainer"] .landing-extended {
-            margin-top: 24px !important;
+            margin-top: 50px !important;
+            margin-bottom: 50px !important;
             padding: 0 !important;
             border: none !important;
             background: transparent !important;
             box-shadow: none !important;
             display: flex !important;
             flex-direction: column !important;
-            gap: 18px !important;
+            gap: 50px !important;
         }
         [data-testid="stAppViewContainer"] .landing-clean-section {
             background: linear-gradient(160deg, var(--bg-card), var(--bg-secondary)) !important;
@@ -1358,6 +1367,15 @@ def inject_compact_header_css() -> None:
             .compare-section-shell {
                 margin-top: 16px !important;
                 padding: 0 !important;
+            }
+            [data-testid="stAppViewContainer"] .st-key-compare_section_shell {
+                margin-top: 0 !important;
+                padding: 18px 14px !important;
+            }
+            [data-testid="stAppViewContainer"] .landing-extended {
+                margin-top: 30px !important;
+                margin-bottom: 30px !important;
+                gap: 30px !important;
             }
             .compare-section-title {
                 font-size: 1.9rem !important;

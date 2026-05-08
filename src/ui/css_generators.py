@@ -119,9 +119,6 @@ def generate_css_variables(is_light: bool, bg_color: str, text_color: str) -> st
                 --report-pill-bg: {"rgba(203, 213, 225, 0.84)" if is_light else "rgba(17, 24, 39, 0.45)"};
                 --report-pill-border: {"rgba(100, 116, 139, 0.40)" if is_light else "rgba(148, 163, 184, 0.28)"};
                 --report-pill-text: {"#1f2937" if is_light else "#cbd5e1"};
-                --scrollbar-track: {"#e2e8f0" if is_light else "#0f172a"};
-                --scrollbar-thumb: {"#94a3b8" if is_light else "#475569"};
-                --scrollbar-thumb-hover: {"#64748b" if is_light else "#64748b"};
             }}
     """
 

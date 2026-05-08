@@ -2,7 +2,12 @@
             
             {css_variables}
 
-            /* Global scrollbar visibility for both themes */
+            /* Native browser scrollbar — color-scheme tells the browser/OS
+               which scrollbar variant to render (light vs dark). No custom
+               styling, so it always matches the active theme like Udemy /
+               LinkedIn. overflow-y:scroll + scrollbar-gutter:stable on body
+               (below) keep the gutter permanently reserved so the scrollbar
+               never auto-hides. */
             body.theme-light,
             .stApp.theme-light {
                 color-scheme: light;
@@ -10,45 +15,6 @@
             body.theme-dark,
             .stApp.theme-dark {
                 color-scheme: dark;
-            }
-            html,
-            body,
-            [data-testid="stAppViewContainer"],
-            [data-testid="stMain"],
-            .report-sidebar {
-                scrollbar-width: auto;
-                scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
-            }
-            html::-webkit-scrollbar,
-            body::-webkit-scrollbar,
-            [data-testid="stAppViewContainer"]::-webkit-scrollbar,
-            [data-testid="stMain"]::-webkit-scrollbar,
-            .report-sidebar::-webkit-scrollbar {
-                width: 12px;
-                height: 12px;
-            }
-            html::-webkit-scrollbar-track,
-            body::-webkit-scrollbar-track,
-            [data-testid="stAppViewContainer"]::-webkit-scrollbar-track,
-            [data-testid="stMain"]::-webkit-scrollbar-track,
-            .report-sidebar::-webkit-scrollbar-track {
-                background: var(--scrollbar-track);
-            }
-            html::-webkit-scrollbar-thumb,
-            body::-webkit-scrollbar-thumb,
-            [data-testid="stAppViewContainer"]::-webkit-scrollbar-thumb,
-            [data-testid="stMain"]::-webkit-scrollbar-thumb,
-            .report-sidebar::-webkit-scrollbar-thumb {
-                background: var(--scrollbar-thumb);
-                border-radius: 999px;
-                border: 2px solid var(--scrollbar-track);
-            }
-            html::-webkit-scrollbar-thumb:hover,
-            body::-webkit-scrollbar-thumb:hover,
-            [data-testid="stAppViewContainer"]::-webkit-scrollbar-thumb:hover,
-            [data-testid="stMain"]::-webkit-scrollbar-thumb:hover,
-            .report-sidebar::-webkit-scrollbar-thumb:hover {
-                background: var(--scrollbar-thumb-hover);
             }
             
             /* Keep layout defaults intact; page-level modules can opt-in to custom overflow rules. */
@@ -1375,7 +1341,13 @@
                 overflow-x: hidden !important;
             }}
             body {{
-                overflow-y: auto !important;
+                overflow-y: scroll !important;
+                scrollbar-gutter: stable !important;
+                /* scrollbar-width:thin forces Chrome out of overlay mode
+                   into the permanent always-visible thin variant — same
+                   approach LinkedIn / Udemy use. Colors are still picked
+                   by the browser based on color-scheme above. */
+                scrollbar-width: thin !important;
             }}
             [data-testid="stAppViewContainer"],
             [data-testid="stAppViewContainer"] > section.main,

@@ -2,6 +2,7 @@
 
 import base64
 import json
+import textwrap
 from pathlib import Path
 
 import streamlit as st
@@ -141,7 +142,8 @@ _GOOGLE_SVG = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" wid
 
 
 def _base_css(t: dict) -> str:
-    return f"""
+    return textwrap.dedent(
+        f"""
     <style>
     html, body,
     [data-testid="stApp"],
@@ -532,6 +534,7 @@ def _base_css(t: dict) -> str:
     }}
     </style>
     """
+    ).strip()
 
 
 def render_auth_page(theme: str = "light") -> None:

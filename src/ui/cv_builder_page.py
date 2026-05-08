@@ -121,6 +121,15 @@ SECTION_ICON_BY_ID: dict[str, str] = {
     "interests": ":material/interests:",
 }
 
+SECTION_ADD_BUTTON_BY_ID: dict[str, str] = {
+    "experience": "Add Position",
+    "education": "Add Education",
+    "skills": "Add Skill",
+    "projects": "Add Project",
+    "languages": "Add Language",
+    "certifications": "Add Certification",
+}
+
 
 def _normalize_template(template: str | None) -> str:
     value = (template or "").strip().lower()
@@ -132,7 +141,7 @@ def _normalize_template(template: str | None) -> str:
 
 
 def _default_zoom_for_template(template: str | None) -> int:
-    return TEMPLATE_DEFAULT_ZOOM.get(_normalize_template(template), 75)
+    return TEMPLATE_DEFAULT_ZOOM.get(_normalize_template(template), 100)
 
 
 def _section_id(value: str) -> str | None:
@@ -165,11 +174,16 @@ def _normalize_section_visibility(visibility: dict | None) -> dict[str, bool]:
 
 
 def _section_expander(label: str, section_id: str, expanded: bool = True):
-    icon = SECTION_ICON_BY_ID.get(section_id)
-    try:
-        return st.expander(label, expanded=expanded, icon=icon)
-    except TypeError:
-        return st.expander(label, expanded=expanded)
+    """Render an expander where the section icon is embedded in the label text.
+
+    Passing icon= as a separate parameter makes Streamlit reuse that slot for the
+    hover-state chevron, causing the icon to disappear on hover. Embedding the
+    icon inside the label keeps it permanently visible on the left and frees the
+    native toggle to live on the right.
+    """
+    icon = SECTION_ICON_BY_ID.get(section_id, "")
+    full_label = f"{icon} {label}".strip() if icon else label
+    return st.expander(full_label, expanded=expanded)
 
 # ─── Session-state initialisation ────────────────────────────────────────────
 
@@ -238,6 +252,19 @@ def _init_builder() -> None:
         if current_zoom in (65, 90):
             st.session_state["cvb_zoom"] = 100
         st.session_state["cvb_zoom_default_v5_migrated"] = True
+    if "cvb_exp_default_seed_v1" not in st.session_state:
+        if not st.session_state.get("cvb_exp_ids"):
+            eid = str(uuid.uuid4())
+            st.session_state["cvb_exp_ids"] = [eid]
+            st.session_state[f"cvb_exp_bcount_{eid}"] = 1
+            st.session_state[f"cvb_exp_b_{eid}_0"] = ""
+            st.session_state[f"cvb_exp_curr_{eid}"] = False
+            st.session_state[f"cvb_exp_desc_{eid}"] = ""
+        st.session_state["cvb_exp_default_seed_v1"] = True
+    if "cvb_sections_open_default_v1" not in st.session_state:
+        for sid in SECTION_IDS:
+            st.session_state[f"cvb_section_open_{sid}"] = True
+        st.session_state["cvb_sections_open_default_v1"] = True
     if "cvb_skills_flat_v1_migrated" not in st.session_state:
         if not st.session_state.get("cvb_skill_ids"):
             migrated: list[str] = []
@@ -286,6 +313,7 @@ def collect_cv_data() -> dict:
             "start_date": ss.get(f"cvb_exp_start_{eid}", ""),
             "end_date":   ss.get(f"cvb_exp_end_{eid}", ""),
             "current":    ss.get(f"cvb_exp_curr_{eid}", False),
+            "description": ss.get(f"cvb_exp_desc_{eid}", ""),
             "bullets":    [b for b in bullets if b.strip()],
         })
     education = []
@@ -374,6 +402,7 @@ def load_cv_into_builder(cv_record: CV) -> None:
         ss[f"cvb_exp_start_{eid}"]   = exp.get("start_date", "")
         ss[f"cvb_exp_end_{eid}"]     = exp.get("end_date", "")
         ss[f"cvb_exp_curr_{eid}"]    = exp.get("current", False)
+        ss[f"cvb_exp_desc_{eid}"]    = exp.get("description", "")
         bullets = exp.get("bullets", [""])
         ss[f"cvb_exp_bcount_{eid}"]  = len(bullets) or 1
         for i, b in enumerate(bullets):
@@ -508,17 +537,21 @@ def _date_field(label: str, storage_key: str, disabled: bool = False) -> None:
     parsed = _parse_date_for_input(st.session_state.get(storage_key, ""))
     if ui_key not in st.session_state:
         st.session_state[ui_key] = parsed
-    elif parsed is None and st.session_state.get(storage_key, "") == "":
-        st.session_state[ui_key] = None
 
     picked = st.date_input(
         label,
         value=st.session_state.get(ui_key),
         key=ui_key,
-        format="YYYY-MM-DD",
+        format="MM/DD/YYYY",
+        help="Type manually or choose from calendar.",
         disabled=disabled,
     )
     st.session_state[storage_key] = _format_date_for_storage(picked)
+
+
+def _clear_date_field(storage_key: str) -> None:
+    st.session_state[storage_key] = ""
+    st.session_state[f"{storage_key}__ui"] = None
 
 
 def generate_cv_html(
@@ -960,7 +993,10 @@ def _summary_section() -> None:
         max_chars=500,
         placeholder="Write a short summary of your experience and strengths.",
     )
-    st.caption(f"{char_count}/500")
+    st.markdown(
+        f"<div style='text-align:right;color:#64748b;font-size:0.95rem;line-height:1.2;margin-top:0.2rem;'>{char_count}/500</div>",
+        unsafe_allow_html=True,
+    )
 
 
 def _experience_section() -> None:
@@ -1136,24 +1172,32 @@ def _projects_section() -> None:
 
 
 def _languages_section() -> None:
-    if st.button("+ Add Language", key="btn_add_lang", type="secondary"):
+    _lang_spacer, _lang_action = st.columns([5, 2])
+    with _lang_action:
+        add_lang = st.button("+ Add Language", key="btn_add_lang", type="secondary")
+    if add_lang:
         lid = str(uuid.uuid4())
         st.session_state["cvb_lang_ids"].append(lid)
         st.rerun()
-    for idx, lid in enumerate(list(st.session_state.get("cvb_lang_ids", []))):
-        lang_name = st.session_state.get(f"cvb_lang_name_{lid}", "")
-        lbl = lang_name or f"Language {idx + 1}"
-        with st.expander(lbl, expanded=True):
-            c1, c2, c3 = st.columns([3, 3, 1])
-            with c1:
-                st.text_input("Language", key=f"cvb_lang_name_{lid}", placeholder="Enter language")
-            with c2:
-                st.selectbox("Proficiency", PROFICIENCY_OPTIONS, key=f"cvb_lang_prof_{lid}")
-            with c3:
-                st.markdown("<div style='height:1.6rem'></div>", unsafe_allow_html=True)
-                if st.button("🗑", key=f"rem_lang_{lid}", help="Delete"):
-                    st.session_state["cvb_lang_ids"].remove(lid)
-                    st.rerun()
+    lang_ids = list(st.session_state.get("cvb_lang_ids", []))
+    if lang_ids:
+        h1, h2, _ = st.columns([4, 4, 1])
+        with h1:
+            st.caption("Language")
+        with h2:
+            st.caption("Proficiency")
+    for idx, lid in enumerate(lang_ids):
+        c1, c2, c3 = st.columns([4, 4, 1])
+        with c1:
+            st.text_input("Language", key=f"cvb_lang_name_{lid}", placeholder="e.g. English",
+                          label_visibility="collapsed")
+        with c2:
+            st.selectbox("Proficiency", PROFICIENCY_OPTIONS, key=f"cvb_lang_prof_{lid}",
+                         label_visibility="collapsed")
+        with c3:
+            if st.button("Delete", key=f"rem_lang_{lid}", help="Delete"):
+                st.session_state["cvb_lang_ids"].remove(lid)
+                st.rerun()
 
 
 def _certifications_section() -> None:
@@ -1182,7 +1226,7 @@ def _interests_section() -> None:
     if interests:
         tags_html = "<div style='display:flex;flex-wrap:wrap;gap:0.3rem;margin-bottom:0.6rem'>" + "".join(
             f"<span style='display:inline-flex;align-items:center;gap:0.2rem;padding:0.2rem 0.6rem;"
-            f"border-radius:999px;background:#dbeafe;color:#1d4ed8;font-size:0.82rem;font-weight:500'>"
+            f"border-radius:6px;background:#1e293b;color:#f1f5f9;font-size:0.82rem;font-weight:500'>"
             f"{_html_escape(t)}</span>"
             for t in interests
         ) + "</div>"
@@ -1190,7 +1234,7 @@ def _interests_section() -> None:
         remove_cols = st.columns(min(len(interests), 5))
         for i, interest in enumerate(interests):
             with remove_cols[i % 5]:
-                if st.button(f"× {interest[:12]}", key=f"rm_int_{i}", help=f"Remove {interest}"):
+                if st.button("Remove", key=f"rm_int_{i}", help=f"Remove {interest}"):
                     interests.pop(i)
                     st.session_state["cvb_interests"] = interests
                     st.rerun()
@@ -1477,7 +1521,8 @@ def _inject_realtime_js() -> None:
     'Website': 'cvb_website',
     'LinkedIn': 'cvb_linkedin',
     'GitHub': 'cvb_github',
-    'Summary': 'cvb_summary'
+    'Summary': 'cvb_summary',
+    'Professional Summary': 'cvb_summary'
   };
 
   function getInput(labelText, cardSel) {
@@ -1543,7 +1588,7 @@ function computeContact(cardSel) {
   function syncAllPersonalFields(cardSel) {
     var labels = [
       'Full Name', 'Professional Title', 'Email', 'Phone',
-      'Location', 'Website', 'LinkedIn', 'GitHub', 'Summary'
+      'Location', 'Website', 'LinkedIn', 'GitHub', 'Professional Summary'
     ];
     for (var i = 0; i < labels.length; i++) {
       var l = labels[i];
@@ -1717,9 +1762,529 @@ def _inject_sections_relay_js() -> None:
       }
       clickWithInputCommit(btn);
     }
+
   };
 
   w.addEventListener('message', w[KEY]);
+})();
+</script>""", height=0)
+
+
+def _inject_middle_section_exact_css() -> None:
+    """Final high-specificity middle-panel card overrides for CVReviewer parity."""
+    st.markdown(
+        """
+<style>
+.st-key-cvb-middle-scroll-native .st-key-cvb-section-personal,
+.st-key-cvb-middle-scroll-native .st-key-cvb-section-summary,
+.st-key-cvb-middle-scroll-native .st-key-cvb-section-experience,
+.st-key-cvb-middle-scroll-native .st-key-cvb-section-education,
+.st-key-cvb-middle-scroll-native .st-key-cvb-section-skills,
+.st-key-cvb-middle-scroll-native .st-key-cvb-section-projects,
+.st-key-cvb-middle-scroll-native .st-key-cvb-section-languages,
+.st-key-cvb-middle-scroll-native .st-key-cvb-section-certifications,
+.st-key-cvb-middle-scroll-native .st-key-cvb-section-interests {
+  border: 1px solid #d3dce8 !important;
+  border-radius: 14px !important;
+  background: #ffffff !important;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05) !important;
+  overflow: hidden !important;
+  margin: 0 0 12px !important;
+}
+.st-key-cvb-middle-scroll-native .st-key-cvb-section-header-personal,
+.st-key-cvb-middle-scroll-native .st-key-cvb-section-header-summary,
+.st-key-cvb-middle-scroll-native .st-key-cvb-section-header-experience,
+.st-key-cvb-middle-scroll-native .st-key-cvb-section-header-education,
+.st-key-cvb-middle-scroll-native .st-key-cvb-section-header-skills,
+.st-key-cvb-middle-scroll-native .st-key-cvb-section-header-projects,
+.st-key-cvb-middle-scroll-native .st-key-cvb-section-header-languages,
+.st-key-cvb-middle-scroll-native .st-key-cvb-section-header-certifications,
+.st-key-cvb-middle-scroll-native .st-key-cvb-section-header-interests {
+  background: #f3f5f7 !important;
+  border-bottom: 1px solid #dbe4f0 !important;
+  padding: 12px 16px !important;
+  min-height: 64.8px !important;
+  box-sizing: border-box !important;
+}
+.st-key-cvb-middle-scroll-native [class*="st-key-cvb-section-header-"] [data-testid="stHorizontalBlock"] {
+  min-height: 100% !important;
+  align-items: center !important;
+}
+.st-key-cvb-middle-scroll-native [class*="st-key-cvb-section-header-"] .stMarkdown p {
+  margin: 0 !important;
+  color: #0f172a !important;
+  font-size: 15px !important;
+  font-weight: 700 !important;
+}
+.st-key-cvb-middle-scroll-native [class*="st-key-cvb-section-header-"] .stMarkdown [data-testid="stIconMaterial"] {
+  color: #0b63ce !important;
+}
+
+.st-key-cvb-middle-scroll-native [class*="st-key-cvb_section_add_"] button,
+.st-key-cvb-middle-scroll-native [class*="st-key-cvb_section_add_"] [data-testid="stButton"] > button {
+  all: unset !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 4px !important;
+  min-height: 24px !important;
+  height: 24px !important;
+  max-height: 24px !important;
+  border-radius: 999px !important;
+  padding: 4px 10px !important;
+  border: none !important;
+  background: rgba(0,89,179,0.10) !important;
+  color: #0059b3 !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  line-height: 1 !important;
+  box-shadow: inset 0 0 0 1px rgba(0,89,179,0.20) !important;
+  cursor: pointer !important;
+  white-space: nowrap !important;
+}
+.st-key-cvb-middle-scroll-native [class*="st-key-cvb_section_add_"] button:hover,
+.st-key-cvb-middle-scroll-native [class*="st-key-cvb_section_add_"] [data-testid="stButton"] > button:hover {
+  background: rgba(0,89,179,0.15) !important;
+  box-shadow: inset 0 0 0 1px rgba(0,89,179,0.20) !important;
+  color: #0059b3 !important;
+}
+.st-key-cvb-middle-scroll-native [class*="st-key-cvb_section_add_"] button [data-testid="stIconMaterial"],
+.st-key-cvb-middle-scroll-native [class*="st-key-cvb_section_add_"] [data-testid="stButton"] > button [data-testid="stIconMaterial"] {
+  font-size: 14px !important;
+  line-height: 1 !important;
+}
+.st-key-cvb-middle-scroll-native [class*="st-key-cvb_section_add_"] button > div,
+.st-key-cvb-middle-scroll-native [class*="st-key-cvb_section_add_"] button p,
+.st-key-cvb-middle-scroll-native [class*="st-key-cvb_section_add_"] button span,
+.st-key-cvb-middle-scroll-native [class*="st-key-cvb_section_add_"] [data-testid="stButton"] > button > div,
+.st-key-cvb-middle-scroll-native [class*="st-key-cvb_section_add_"] [data-testid="stButton"] > button p,
+.st-key-cvb-middle-scroll-native [class*="st-key-cvb_section_add_"] [data-testid="stButton"] > button span {
+  background: transparent !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+  border: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+.st-key-cvb-middle-scroll-native [class*="st-key-cvb_section_add_"] button p,
+.st-key-cvb-middle-scroll-native [class*="st-key-cvb_section_add_"] [data-testid="stButton"] > button p {
+  line-height: 1 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+}
+
+.st-key-cvb-middle-scroll-native [class*="st-key-cvb-section-chevron-"],
+.st-key-cvb-middle-scroll-native [class*="st-key-cvb-section-chevron-"] > div,
+.st-key-cvb-middle-scroll-native [class*="st-key-cvb-section-chevron-"] [data-testid="stElementContainer"],
+.st-key-cvb-middle-scroll-native [class*="st-key-cvb-section-chevron-"] [data-testid="stVerticalBlock"],
+.st-key-cvb-middle-scroll-native [class*="st-key-cvb-section-chevron-"] [data-testid="stVerticalBlockBorderWrapper"],
+.st-key-cvb-middle-scroll-native [class*="st-key-cvb-section-chevron-"] [data-testid="stButton"],
+.st-key-cvb-middle-scroll-native [class*="st-key-cvb_section_toggle_"],
+.st-key-cvb-middle-scroll-native [class*="st-key-cvb_section_toggle_"] > div,
+.st-key-cvb-middle-scroll-native [class*="st-key-cvb_section_toggle_"] [data-testid="stElementContainer"],
+.st-key-cvb-middle-scroll-native [class*="st-key-cvb_section_toggle_"] [data-testid="stVerticalBlock"],
+.st-key-cvb-middle-scroll-native [class*="st-key-cvb_section_toggle_"] [data-testid="stVerticalBlockBorderWrapper"],
+.st-key-cvb-middle-scroll-native [class*="st-key-cvb_section_toggle_"] [data-testid="stButton"] {
+  background: transparent !important;
+  background-color: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+.st-key-cvb-middle-scroll-native [class*="st-key-cvb-section-chevron-"] [data-testid="stButton"] > button,
+.st-key-cvb-middle-scroll-native [class*="st-key-cvb_section_toggle_"] [data-testid="stButton"] > button,
+.st-key-cvb-middle-scroll-native [class*="st-key-cvb-section-chevron-"] button,
+.st-key-cvb-middle-scroll-native [class*="st-key-cvb_section_toggle_"] button {
+  all: unset !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 24px !important;
+  min-width: 24px !important;
+  max-width: 24px !important;
+  height: 24px !important;
+  min-height: 24px !important;
+  max-height: 24px !important;
+  padding: 4px !important;
+  border-radius: 6px !important;
+  border: none !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+  color: #64748b !important;
+  cursor: pointer !important;
+}
+.st-key-cvb-middle-scroll-native [class*="st-key-cvb-section-chevron-"] [data-testid="stButton"] > button:hover,
+.st-key-cvb-middle-scroll-native [class*="st-key-cvb_section_toggle_"] [data-testid="stButton"] > button:hover,
+.st-key-cvb-middle-scroll-native [class*="st-key-cvb-section-chevron-"] button:hover,
+.st-key-cvb-middle-scroll-native [class*="st-key-cvb_section_toggle_"] button:hover {
+  background: rgba(15, 23, 42, 0.06) !important;
+  color: #0f172a !important;
+}
+.st-key-cvb-middle-scroll-native [class*="st-key-cvb-section-chevron-"] [data-testid="stButton"] > button [data-testid="stIconMaterial"],
+.st-key-cvb-middle-scroll-native [class*="st-key-cvb_section_toggle_"] [data-testid="stButton"] > button [data-testid="stIconMaterial"],
+.st-key-cvb-middle-scroll-native [class*="st-key-cvb-section-chevron-"] button [data-testid="stIconMaterial"],
+.st-key-cvb-middle-scroll-native [class*="st-key-cvb_section_toggle_"] button [data-testid="stIconMaterial"] {
+  font-size: 16px !important;
+  line-height: 1 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* Final force-override for header action buttons:
+   Streamlit can emit either underscore or hyphen key classes and nested wrappers.
+   This block neutralizes any remaining default button tile/skin. */
+.st-key-cvb-page-native .st-key-cvb-middle-scroll-native [class*="st-key-cvb_section_add_"] button,
+.st-key-cvb-page-native .st-key-cvb-middle-scroll-native [class*="st-key-cvb-section-add-"] button,
+.st-key-cvb-page-native .st-key-cvb-middle-scroll-native [class*="st-key-cvb_section_add_"] [data-testid="stButton"] > button,
+.st-key-cvb-page-native .st-key-cvb-middle-scroll-native [class*="st-key-cvb-section-add-"] [data-testid="stButton"] > button {
+  all: unset !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 4px !important;
+  height: 24px !important;
+  min-height: 24px !important;
+  max-height: 24px !important;
+  border-radius: 999px !important;
+  padding: 4px 10px !important;
+  background: rgba(0,89,179,0.10) !important;
+  box-shadow: inset 0 0 0 1px rgba(0,89,179,0.20) !important;
+  color: #0059b3 !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+  cursor: pointer !important;
+}
+.st-key-cvb-page-native .st-key-cvb-middle-scroll-native [class*="st-key-cvb_section_add_"] button:hover,
+.st-key-cvb-page-native .st-key-cvb-middle-scroll-native [class*="st-key-cvb-section-add-"] button:hover,
+.st-key-cvb-page-native .st-key-cvb-middle-scroll-native [class*="st-key-cvb_section_add_"] [data-testid="stButton"] > button:hover,
+.st-key-cvb-page-native .st-key-cvb-middle-scroll-native [class*="st-key-cvb-section-add-"] [data-testid="stButton"] > button:hover {
+  background: rgba(0,89,179,0.15) !important;
+  box-shadow: inset 0 0 0 1px rgba(0,89,179,0.20) !important;
+  color: #0059b3 !important;
+}
+.st-key-cvb-page-native .st-key-cvb-middle-scroll-native [class*="st-key-cvb_section_add_"] button *,
+.st-key-cvb-page-native .st-key-cvb-middle-scroll-native [class*="st-key-cvb-section-add-"] button *,
+.st-key-cvb-page-native .st-key-cvb-middle-scroll-native [class*="st-key-cvb_section_add_"] [data-testid="stButton"] > button *,
+.st-key-cvb-page-native .st-key-cvb-middle-scroll-native [class*="st-key-cvb-section-add-"] [data-testid="stButton"] > button * {
+  background: transparent !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+  border: 0 !important;
+  color: #0059b3 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+.st-key-cvb-page-native .st-key-cvb-middle-scroll-native [class*="st-key-cvb_section_add_"] button [data-testid="stIconMaterial"],
+.st-key-cvb-page-native .st-key-cvb-middle-scroll-native [class*="st-key-cvb-section-add-"] button [data-testid="stIconMaterial"] {
+  font-size: 14px !important;
+  line-height: 1 !important;
+}
+
+.st-key-cvb-middle-scroll-native [class*="st-key-cvb-section-content-"] {
+  background: #ffffff !important;
+  padding: 14px 18px 18px !important;
+}
+
+.st-key-cvb-middle-scroll-native [class*="st-key-cvb-exp-item-"] {
+  border: 1px solid #d3deec !important;
+  border-radius: 12px !important;
+  background: #ffffff !important;
+  padding: 12px 14px 14px !important;
+  margin: 8px 0 10px !important;
+}
+.st-key-cvb-middle-scroll-native [class*="st-key-dup_exp_"] button,
+.st-key-cvb-middle-scroll-native [class*="st-key-dup_exp_"] [data-testid="stButton"] > button {
+  all: unset !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  height: 28px !important;
+  min-height: 28px !important;
+  max-height: 28px !important;
+  width: auto !important;
+  min-width: auto !important;
+  padding: 6px !important;
+  border-radius: 6px !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  border: 0 !important;
+  color: #65758b !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+  cursor: pointer !important;
+}
+.st-key-cvb-middle-scroll-native [class*="st-key-dup_exp_"] button:hover,
+.st-key-cvb-middle-scroll-native [class*="st-key-dup_exp_"] [data-testid="stButton"] > button:hover {
+  background: rgba(0,89,179,0.10) !important;
+  color: #0059b3 !important;
+}
+.st-key-cvb-middle-scroll-native [class*="st-key-dup_exp_"] button *,
+.st-key-cvb-middle-scroll-native [class*="st-key-dup_exp_"] [data-testid="stButton"] > button * {
+  background: transparent !important;
+  box-shadow: none !important;
+  border: 0 !important;
+  color: inherit !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+.st-key-cvb-middle-scroll-native [class*="st-key-rem_exp_"] button,
+.st-key-cvb-middle-scroll-native [class*="st-key-rem-exp-"] button,
+.st-key-cvb-middle-scroll-native [class*="st-key-rem_exp_"] [data-testid="stButton"] > button,
+.st-key-cvb-middle-scroll-native [class*="st-key-rem-exp-"] [data-testid="stButton"] > button {
+  all: unset !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 28px !important;
+  min-width: 28px !important;
+  max-width: 28px !important;
+  height: 28px !important;
+  min-height: 28px !important;
+  max-height: 28px !important;
+  padding: 0 !important;
+  border-radius: 6px !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  border: 0 !important;
+  color: #65758b !important;
+  cursor: pointer !important;
+  transition: background-color .12s ease, color .12s ease !important;
+}
+.st-key-cvb-middle-scroll-native [class*="st-key-rem_exp_"] button:hover,
+.st-key-cvb-middle-scroll-native [class*="st-key-rem-exp-"] button:hover,
+.st-key-cvb-middle-scroll-native [class*="st-key-rem_exp_"] [data-testid="stButton"] > button:hover,
+.st-key-cvb-middle-scroll-native [class*="st-key-rem-exp-"] [data-testid="stButton"] > button:hover,
+.st-key-cvb-middle-scroll-native [class*="st-key-rem_exp_"] [data-testid="stButton"]:hover > button,
+.st-key-cvb-middle-scroll-native [class*="st-key-rem-exp-"] [data-testid="stButton"]:hover > button,
+.st-key-cvb-middle-scroll-native [class*="st-key-rem_exp_"]:hover [data-testid="stButton"] > button,
+.st-key-cvb-middle-scroll-native [class*="st-key-rem-exp-"]:hover [data-testid="stButton"] > button,
+.st-key-cvb-middle-scroll-native [class*="st-key-rem_exp_"] button:focus-visible,
+.st-key-cvb-middle-scroll-native [class*="st-key-rem-exp-"] button:focus-visible {
+  background: rgba(239, 68, 68, 0.18) !important;
+  box-shadow: inset 0 0 0 1px rgba(239, 68, 68, 0.26) !important;
+  color: #ef4444 !important;
+}
+.st-key-cvb-middle-scroll-native [class*="st-key-rem_exp_"] button *,
+.st-key-cvb-middle-scroll-native [class*="st-key-rem-exp-"] button *,
+.st-key-cvb-middle-scroll-native [class*="st-key-rem_exp_"] [data-testid="stButton"] > button *,
+.st-key-cvb-middle-scroll-native [class*="st-key-rem-exp-"] [data-testid="stButton"] > button * {
+  background: transparent !important;
+  box-shadow: none !important;
+  border: 0 !important;
+  color: inherit !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+.st-key-cvb-middle-scroll-native [class*="st-key-rem_exp_"] button [data-testid="stIconMaterial"],
+.st-key-cvb-middle-scroll-native [class*="st-key-rem-exp-"] button [data-testid="stIconMaterial"] {
+  color: #65758b !important;
+}
+.st-key-cvb-middle-scroll-native [class*="st-key-rem_exp_"] button:hover [data-testid="stIconMaterial"],
+.st-key-cvb-middle-scroll-native [class*="st-key-rem-exp-"] button:hover [data-testid="stIconMaterial"],
+.st-key-cvb-middle-scroll-native [class*="st-key-rem_exp_"] [data-testid="stButton"]:hover > button [data-testid="stIconMaterial"],
+.st-key-cvb-middle-scroll-native [class*="st-key-rem-exp-"] [data-testid="stButton"]:hover > button [data-testid="stIconMaterial"],
+.st-key-cvb-middle-scroll-native [class*="st-key-rem_exp_"]:hover [data-testid="stButton"] > button [data-testid="stIconMaterial"],
+.st-key-cvb-middle-scroll-native [class*="st-key-rem-exp-"]:hover [data-testid="stButton"] > button [data-testid="stIconMaterial"] {
+  color: #ef4444 !important;
+}
+.st-key-cvb-middle-scroll-native [class*="st-key-rem_bullet_"] [data-testid="stButton"] > button {
+  border: none !important;
+  background: transparent !important;
+  color: #7c8ba1 !important;
+  min-height: 26px !important;
+  height: 26px !important;
+  width: 26px !important;
+  min-width: 26px !important;
+  padding: 0 !important;
+  border-radius: 6px !important;
+}
+.st-key-cvb-middle-scroll-native [class*="st-key-cvb-exp-actions-"] [data-testid="stHorizontalBlock"] {
+  justify-content: flex-end !important;
+  align-items: center !important;
+}
+.st-key-cvb-middle-scroll-native [class*="st-key-cvb-exp-end-field-"] [data-testid="stHorizontalBlock"] {
+  align-items: flex-end !important;
+  gap: 8px !important;
+}
+.st-key-cvb-middle-scroll-native [class*="st-key-clear_exp_end_"] button,
+.st-key-cvb-middle-scroll-native [class*="st-key-clear_exp_end_"] [data-testid="stButton"] > button {
+  all: unset !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 24px !important;
+  min-width: 24px !important;
+  max-width: 24px !important;
+  height: 24px !important;
+  min-height: 24px !important;
+  max-height: 24px !important;
+  margin-bottom: 6px !important;
+  border-radius: 6px !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: #7b8797 !important;
+  cursor: pointer !important;
+  transition: background-color .12s ease, color .12s ease !important;
+}
+.st-key-cvb-middle-scroll-native [class*="st-key-clear_exp_end_"] button:hover,
+.st-key-cvb-middle-scroll-native [class*="st-key-clear_exp_end_"] [data-testid="stButton"] > button:hover {
+  background: rgba(15, 23, 42, 0.06) !important;
+  color: #475569 !important;
+}
+.st-key-cvb-middle-scroll-native [class*="st-key-clear_exp_end_"] button[disabled],
+.st-key-cvb-middle-scroll-native [class*="st-key-clear_exp_end_"] [data-testid="stButton"] > button[disabled] {
+  opacity: 0.35 !important;
+  cursor: not-allowed !important;
+}
+.st-key-cvb-middle-scroll-native [class*="st-key-clear_exp_end_"] button [data-testid="stIconMaterial"],
+.st-key-cvb-middle-scroll-native [class*="st-key-clear_exp_end_"] [data-testid="stButton"] > button [data-testid="stIconMaterial"] {
+  font-size: 16px !important;
+  line-height: 1 !important;
+}
+.st-key-cvb-middle-scroll-native [class*="st-key-mark_exp_present_"] button,
+.st-key-cvb-middle-scroll-native [class*="st-key-mark_exp_present_"] [data-testid="stButton"] > button {
+  all: unset !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-height: 24px !important;
+  height: 24px !important;
+  padding: 3px 10px !important;
+  margin-bottom: 6px !important;
+  border-radius: 999px !important;
+  background: rgba(0,89,179,0.10) !important;
+  box-shadow: inset 0 0 0 1px rgba(0,89,179,0.20) !important;
+  color: #0059b3 !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  line-height: 1 !important;
+  cursor: pointer !important;
+  white-space: nowrap !important;
+}
+.st-key-cvb-middle-scroll-native [class*="st-key-mark_exp_present_"] button:hover,
+.st-key-cvb-middle-scroll-native [class*="st-key-mark_exp_present_"] [data-testid="stButton"] > button:hover {
+  background: rgba(0,89,179,0.16) !important;
+}
+.st-key-cvb-middle-scroll-native [class*="st-key-add_b_"] [data-testid="stButton"] > button {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  border: none !important;
+  background: transparent !important;
+  color: #0059b3 !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  min-height: 16px !important;
+  height: 16px !important;
+  padding: 0 !important;
+  justify-content: flex-start !important;
+  box-shadow: none !important;
+}
+.st-key-cvb-middle-scroll-native [class*="st-key-add_b_"] [data-testid="stButton"] > button::before {
+  content: "+" !important;
+  margin-right: 2px !important;
+}
+.st-key-cvb-middle-scroll-native [class*="st-key-add_b_"] [data-testid="stButton"] > button:hover {
+  color: rgba(0,89,179,0.80) !important;
+  background: transparent !important;
+}
+
+.st-key-cvb-page-native .st-key-cvb-middle-scroll-native [class*="st-key-add_b_"] [data-testid="stButton"] > button,
+.st-key-cvb-page-native .st-key-cvb-middle-scroll-native [class*="st-key-add_b_"] button {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  color: #0059b3 !important;
+  height: 16px !important;
+  min-height: 16px !important;
+  padding: 0 !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  line-height: 1 !important;
+  justify-content: flex-start !important;
+}
+.st-key-cvb-page-native .st-key-cvb-middle-scroll-native [class*="st-key-add_b_"] [data-testid="stButton"] > button *,
+.st-key-cvb-page-native .st-key-cvb-middle-scroll-native [class*="st-key-add_b_"] button * {
+  color: #0059b3 !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+}
+.st-key-cvb-page-native .st-key-cvb-middle-scroll-native [class*="st-key-add_b_"] [data-testid="stButton"] > button:hover,
+.st-key-cvb-page-native .st-key-cvb-middle-scroll-native [class*="st-key-add_b_"] button:hover {
+  background: transparent !important;
+  color: rgba(0,89,179,0.80) !important;
+}
+</style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def _inject_chevron_hider_js() -> None:
+    """Hide Streamlit's built-in expander chevron precisely (safe — only hides the icon
+    span itself, never walks up to potentially break the heading).
+
+    Streamlit renders the chevron as a Material Symbols Rounded ligature in
+    <span data-testid="stIconMaterial">keyboard_arrow_down</span>. We only target spans
+    whose text is exactly a chevron glyph name and hide them. The flex wrappers around
+    them collapse naturally when empty.
+    """
+    components.html("""<script>
+(function() {
+  var w = window.parent && window.parent !== window ? window.parent : window;
+  var doc = w.document;
+  var KEY = '__cvbChevronHiderInstalled__';
+  if (w[KEY]) return;
+  w[KEY] = true;
+
+  var CHEVRON_TEXTS = {
+    'keyboard_arrow_down': 1,
+    'keyboard_arrow_up': 1,
+    'expand_more': 1,
+    'expand_less': 1
+  };
+
+  function hideChevrons() {
+    var icons = doc.querySelectorAll(
+      '.st-key-cvb-middle-scroll-native [data-testid="stExpander"] summary [data-testid="stIconMaterial"]'
+    );
+    for (var i = 0; i < icons.length; i++) {
+      var icon = icons[i];
+      var text = (icon.textContent || '').trim();
+      if (CHEVRON_TEXTS[text] && icon.style.display !== 'none') {
+        // Hide ONLY the icon span — never walk up. This guarantees the section heading
+        // and label are never touched.
+        icon.style.display = 'none';
+        // Collapse any direct wrapper that has no other content, by making it zero-size.
+        var p = icon.parentElement;
+        while (p && p.tagName !== 'SUMMARY') {
+          if ((p.textContent || '').trim() === '') {
+            p.style.padding = '0';
+            p.style.margin = '0';
+            p.style.width = '0';
+          } else {
+            break;
+          }
+          p = p.parentElement;
+        }
+      }
+    }
+  }
+
+  hideChevrons();
+  var observer = new MutationObserver(hideChevrons);
+  observer.observe(doc.body, { childList: true, subtree: true });
 })();
 </script>""", height=0)
 
@@ -2798,58 +3363,148 @@ section[data-testid="stMain"]:has(.st-key-cvb-page-native) .block-container {{
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05) !important;
 }}
 .st-key-cvb-middle-scroll-native [data-testid="stExpander"] summary {{
-  min-height: 58px !important;
-  padding: 0 18px !important;
-  background: #ffffff !important;
+  min-height: 52px !important;
+  padding: 0 48px 0 18px !important;
+  background: rgba(243,245,247,0.90) !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  cursor: pointer !important;
+  list-style: none !important;
+  position: relative !important;
 }}
-.st-key-cvb-middle-scroll-native [data-testid="stExpander"] summary p,
-.st-key-cvb-middle-scroll-native [data-testid="stExpander"] summary span {{
-  color: #0f172a !important;
-  font-size: 17px !important;
-  font-weight: 700 !important;
+/* Hide browser default disclosure markers */
+.st-key-cvb-middle-scroll-native [data-testid="stExpander"] summary::-webkit-details-marker {{
+  display: none !important;
 }}
-.st-key-cvb-middle-scroll-native [data-testid="stExpander"] summary svg {{
+.st-key-cvb-middle-scroll-native [data-testid="stExpander"] summary::marker {{
+  content: "" !important;
+}}
+/* The chevron itself is hidden by JavaScript (_inject_chevron_hider_js) — it walks the
+   DOM, finds Material Icon spans with text "keyboard_arrow_down" / "keyboard_arrow_up",
+   and hides only their wrapper. CSS can't reliably target it because the wrapping
+   structure varies across Streamlit versions. */
+/* Custom chevron drawn on the right via ::after — rotates when expanded */
+.st-key-cvb-middle-scroll-native [data-testid="stExpander"] summary::after {{
+  content: "" !important;
+  position: absolute !important;
+  right: 18px !important;
+  top: 50% !important;
+  width: 14px !important;
+  height: 14px !important;
+  margin-top: -7px !important;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>") !important;
+  background-size: contain !important;
+  background-repeat: no-repeat !important;
+  background-position: center !important;
+  transform: rotate(-90deg) !important;
+  transition: transform 0.2s ease !important;
+  pointer-events: none !important;
+}}
+.st-key-cvb-middle-scroll-native [data-testid="stExpander"] details[open] summary::after {{
+  transform: rotate(0deg) !important;
+}}
+/* Embedded section icon inside the label — blue, vertically centered */
+.st-key-cvb-middle-scroll-native [data-testid="stExpander"] summary p svg,
+.st-key-cvb-middle-scroll-native [data-testid="stExpander"] summary [data-testid="stMarkdownContainer"] svg {{
   color: #0b63ce !important;
+  fill: #0b63ce !important;
+  vertical-align: middle !important;
+  margin-right: 6px !important;
+  flex-shrink: 0 !important;
+}}
+.st-key-cvb-middle-scroll-native [data-testid="stExpander"] summary p {{
+  color: #0f172a !important;
+  font-size: 15px !important;
+  font-weight: 700 !important;
+  margin: 0 !important;
+  display: inline-flex !important;
+  align-items: center !important;
 }}
 .st-key-cvb-middle-scroll-native [data-testid="stExpander"] details > div {{
   background: #ffffff !important;
   border-top: 1px solid #e2e8f0 !important;
-  padding: 10px 18px 18px !important;
+  padding: 14px 18px 20px !important;
 }}
-.st-key-cvb-middle-scroll-native .stTextInput label,
-.st-key-cvb-middle-scroll-native .stTextArea label,
-.st-key-cvb-middle-scroll-native .stSelectbox label,
-.st-key-cvb-middle-scroll-native .stCheckbox label {{
-  color: #475569 !important;
-  font-size: 14px !important;
-  font-weight: 500 !important;
+
+/* ─── Custom section card (CVReviewer-style: icon+label LEFT, chevron RIGHT) ─── */
+/* Outer card */
+.st-key-cvb-section-personal,
+.st-key-cvb-section-summary,
+.st-key-cvb-section-experience,
+.st-key-cvb-section-education,
+.st-key-cvb-section-skills,
+.st-key-cvb-section-projects,
+.st-key-cvb-section-languages,
+.st-key-cvb-section-certifications,
+.st-key-cvb-section-interests {{
+  background: #ffffff !important;
+  border: 1px solid #d3dce8 !important;
+  border-radius: 14px !important;
+  margin: 0 0 12px !important;
+  overflow: hidden !important;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05) !important;
 }}
+/* Header/add/chevron styling is centralized in _inject_middle_section_exact_css().
+   Keeping only one source of truth prevents size drift and cross-rule conflicts. */
+/* Content area — white, with consistent padding */
+[class*="st-key-cvb-section-content-"] {{
+  background: #ffffff !important;
+  padding: 14px 18px 18px !important;
+  margin: 0 !important;
+}}
+
 .st-key-cvb-middle-scroll-native [data-testid="InputInstructions"],
 .st-key-cvb-middle-scroll-native [data-testid="stTextInputInstructions"],
 .st-key-cvb-middle-scroll-native [data-testid="stTextAreaInstructions"] {{
   display: none !important;
 }}
-.st-key-cvb-middle-scroll-native .stTextInput input,
-.st-key-cvb-middle-scroll-native .stTextArea textarea,
-.st-key-cvb-middle-scroll-native div[data-baseweb="input"] input,
-.st-key-cvb-middle-scroll-native div[data-baseweb="textarea"] textarea,
+/* Input / textarea / select — wrapper gets the visible border & background */
+.st-key-cvb-middle-scroll-native div[data-baseweb="input"],
+.st-key-cvb-middle-scroll-native div[data-baseweb="textarea"],
 .st-key-cvb-middle-scroll-native div[data-baseweb="select"] > div {{
-  border: 1px solid #cfd8e3 !important;
-  background: #f8fafc !important;
-  border-radius: 10px !important;
+  border: 1.5px solid #d1dae6 !important;
+  background: rgba(243,245,247,0.75) !important;
+  border-radius: 8px !important;
+  min-height: 42px !important;
+  transition: border-color .15s ease, box-shadow .15s ease, background .15s ease !important;
+  box-shadow: none !important;
+}}
+/* Inner input/textarea element — transparent so wrapper shows through */
+.st-key-cvb-middle-scroll-native div[data-baseweb="input"] input,
+.st-key-cvb-middle-scroll-native div[data-baseweb="textarea"] textarea {{
+  background: transparent !important;
+  border: none !important;
+  outline: none !important;
   color: #0f172a !important;
-  font-size: 15px !important;
-  min-height: 48px !important;
+  font-size: 14px !important;
+  padding: 8px 12px !important;
 }}
-.st-key-cvb-middle-scroll-native .stTextArea textarea {{
-  min-height: 118px !important;
+.st-key-cvb-middle-scroll-native div[data-baseweb="textarea"] textarea {{
+  min-height: 86px !important;
 }}
-.st-key-cvb-middle-scroll-native .stTextInput input::placeholder,
-.st-key-cvb-middle-scroll-native .stTextArea textarea::placeholder,
+/* Focus: blue border + soft glow on wrapper, white background */
+.st-key-cvb-middle-scroll-native div[data-baseweb="input"]:focus-within,
+.st-key-cvb-middle-scroll-native div[data-baseweb="textarea"]:focus-within {{
+  border-color: #0b63ce !important;
+  box-shadow: 0 0 0 3px rgba(11,99,206,0.14) !important;
+  background: #ffffff !important;
+}}
+/* Placeholder */
 .st-key-cvb-middle-scroll-native div[data-baseweb="input"] input::placeholder,
 .st-key-cvb-middle-scroll-native div[data-baseweb="textarea"] textarea::placeholder {{
-  color: #64748b !important;
+  color: #94a3b8 !important;
   opacity: 1 !important;
+}}
+/* Field labels */
+.st-key-cvb-middle-scroll-native .stTextInput label,
+.st-key-cvb-middle-scroll-native .stTextArea label,
+.st-key-cvb-middle-scroll-native .stSelectbox label,
+.st-key-cvb-middle-scroll-native .stDateInput label {{
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  color: #64748b !important;
+  margin-bottom: 3px !important;
 }}
 .st-key-cvb-middle-scroll-native .stButton button,
 .st-key-cvb-middle-scroll-native .stDownloadButton button {{
@@ -2859,21 +3514,7 @@ section[data-testid="stMain"]:has(.st-key-cvb-page-native) .block-container {{
   font-size: 14px !important;
   font-weight: 600 !important;
 }}
-.st-key-cvb-section-experience [class*="st-key-btn_add_exp"] button,
-.st-key-cvb-section-education [class*="st-key-btn_add_edu"] button,
-.st-key-cvb-section-skills [class*="st-key-btn_add_skill"] button,
-.st-key-cvb-section-projects [class*="st-key-btn_add_proj"] button,
-.st-key-cvb-section-languages [class*="st-key-btn_add_lang"] button,
-.st-key-cvb-section-certifications [class*="st-key-btn_add_cert"] button {{
-  background: #eaf2fb !important;
-  color: #0b63ce !important;
-  border: 1px solid #b8d4f3 !important;
-  box-shadow: none !important;
-  height: 34px !important;
-  min-height: 34px !important;
-  border-radius: 999px !important;
-  padding: 0 16px !important;
-}}
+/* Header/add/chevron styling is defined only in _inject_middle_section_exact_css(). */
 .cvb-rail-heading {{
   font-size:12px;
   font-weight:600;
@@ -4047,6 +4688,32 @@ def _render_left_panel_native() -> None:
 
 
 def _render_middle_panel_native() -> None:
+    def _handle_header_add(section_id: str) -> bool:
+        if section_id == "experience":
+            eid = str(uuid.uuid4())
+            st.session_state["cvb_exp_ids"].append(eid)
+            st.session_state[f"cvb_exp_bcount_{eid}"] = 1
+            st.session_state[f"cvb_exp_b_{eid}_0"] = ""
+            return True
+        if section_id == "education":
+            st.session_state["cvb_edu_ids"].append(str(uuid.uuid4()))
+            return True
+        if section_id == "skills":
+            sid = str(uuid.uuid4())
+            st.session_state["cvb_skill_ids"].append(sid)
+            st.session_state[f"cvb_skill_item_{sid}"] = ""
+            return True
+        if section_id == "projects":
+            st.session_state["cvb_proj_ids"].append(str(uuid.uuid4()))
+            return True
+        if section_id == "languages":
+            st.session_state["cvb_lang_ids"].append(str(uuid.uuid4()))
+            return True
+        if section_id == "certifications":
+            st.session_state["cvb_cert_ids"].append(str(uuid.uuid4()))
+            return True
+        return False
+
     ss = st.session_state
     order = _normalize_section_order(ss.get("cvb_section_order"))
     visibility = _normalize_section_visibility(ss.get("cvb_section_visibility"))
@@ -4073,11 +4740,51 @@ def _render_middle_panel_native() -> None:
         current_active = visible_order[0]
         ss["cvb_active_section"] = current_active
 
+    # Custom CVReviewer-style section: header row (icon + label on left, chevron button
+    # on right) + conditionally-rendered content. Replaces st.expander entirely so we
+    # have full control over the visual layout.
     for sid in visible_order:
         label = SECTION_ID_TO_LABEL.get(sid, sid.title())
+        icon_md = SECTION_ICON_BY_ID.get(sid, "")
+        state_key = f"cvb_section_open_{sid}"
+        if state_key not in ss:
+            ss[state_key] = True
+        is_open = bool(ss[state_key])
+
         with st.container(key=f"cvb-section-{sid}"):
-            with _section_expander(label, sid, expanded=(sid == current_active)):
-                render_map[sid]()
+            # Header row: title on left, chevron button on right
+            with st.container(key=f"cvb-section-header-{sid}"):
+                add_label = SECTION_ADD_BUTTON_BY_ID.get(sid)
+                if add_label:
+                    hl, ha, hr = st.columns([14, 6, 1], gap="small")
+                else:
+                    hl, hr = st.columns([20, 1], gap="small")
+                with hl:
+                    title_md = f"{icon_md} **{label}**" if icon_md else f"**{label}**"
+                    st.markdown(title_md)
+                if add_label:
+                    add_btn_label = f":material/add: {add_label}"
+                    with ha:
+                        if st.button(add_btn_label, key=f"cvb_section_add_{sid}", type="secondary"):
+                            if _handle_header_add(sid):
+                                st.rerun()
+                with hr:
+                    with st.container(key=f"cvb-section-chevron-{sid}"):
+                        chevron_glyph = ":material/keyboard_arrow_down:" if is_open else ":material/chevron_right:"
+                        if st.button(
+                            chevron_glyph,
+                            key=f"cvb_section_toggle_{sid}",
+                            type="tertiary",
+                            help="Collapse" if is_open else "Expand",
+                        ):
+                            ss[state_key] = not is_open
+                            st.rerun()
+
+            # Content — only rendered when open. Widget values in st.session_state persist
+            # across collapse/expand because session_state is independent of widget render.
+            if is_open:
+                with st.container(key=f"cvb-section-content-{sid}"):
+                    render_map[sid]()
 
 
 def _render_right_panel_native(cv_data: dict, is_dark: bool) -> None:
@@ -4169,6 +4876,7 @@ def render_cv_builder_page() -> None:
 
     is_dark = st.session_state.get("theme", "light") == "dark"
     _inject_builder_css_native(is_dark)
+    _inject_middle_section_exact_css()
 
     ss        = st.session_state
     cv_data   = collect_cv_data()
@@ -4302,6 +5010,7 @@ def render_cv_builder_page() -> None:
 
     _inject_realtime_js()
     _inject_sections_relay_js()
+    _inject_chevron_hider_js()
     return
 
 
@@ -4401,17 +5110,56 @@ def render_cv_builder_page() -> None:
 
 # --- CVReviewer middle-panel overrides (latest) ---
 def _experience_section() -> None:
-    if st.button("+ Add Position", key="btn_add_exp", type="secondary"):
-        eid = str(uuid.uuid4())
-        st.session_state["cvb_exp_ids"].append(eid)
-        st.session_state[f"cvb_exp_bcount_{eid}"] = 1
-        st.session_state[f"cvb_exp_b_{eid}_0"] = ""
-        st.rerun()
+    exp_ids = list(st.session_state.get("cvb_exp_ids", []))
+    if not exp_ids:
+        st.markdown(
+            "<div style='border:1px dashed #cbd5e1;border-radius:12px;padding:0.8rem 0.95rem;"
+            "color:#64748b;background:#f8fafc;'>Click <strong>Add Position</strong> to add your work history.</div>",
+            unsafe_allow_html=True,
+        )
+        return
 
-    for idx, eid in enumerate(list(st.session_state.get("cvb_exp_ids", []))):
-        role = st.session_state.get(f"cvb_exp_role_{eid}", "")
-        label = role or f"Position {idx + 1}"
-        with st.expander(label, expanded=(idx == 0)):
+    def _clone_position(source_id: str) -> None:
+        new_id = str(uuid.uuid4())
+        ids = list(st.session_state.get("cvb_exp_ids", []))
+        try:
+            at = ids.index(source_id) + 1
+        except ValueError:
+            at = len(ids)
+        ids.insert(at, new_id)
+        st.session_state["cvb_exp_ids"] = ids
+
+        fields = [
+            "role",
+            "company",
+            "loc",
+            "start",
+            "end",
+            "curr",
+            "desc",
+        ]
+        for f in fields:
+            st.session_state[f"cvb_exp_{f}_{new_id}"] = st.session_state.get(f"cvb_exp_{f}_{source_id}", "")
+        bcount = int(st.session_state.get(f"cvb_exp_bcount_{source_id}", 1))
+        st.session_state[f"cvb_exp_bcount_{new_id}"] = max(1, bcount)
+        for i in range(max(1, bcount)):
+            st.session_state[f"cvb_exp_b_{new_id}_{i}"] = st.session_state.get(f"cvb_exp_b_{source_id}_{i}", "")
+
+    for idx, eid in enumerate(exp_ids):
+        with st.container(key=f"cvb-exp-item-{eid}"):
+            ah1, ah2, ah3 = st.columns([6.5, 1.6, 0.8])
+            with ah1:
+                st.markdown(f"<div style='height:0.15rem'></div>", unsafe_allow_html=True)
+            with ah2:
+                if st.button("Duplicate", key=f"dup_exp_{eid}", type="tertiary"):
+                    _clone_position(eid)
+                    st.rerun()
+            with ah3:
+                if st.button(":material/delete:", key=f"rem_exp_{eid}", type="tertiary", help="Delete position"):
+                    st.session_state["cvb_exp_ids"].remove(eid)
+                    st.session_state.pop(f"cvb_ai_sug_{eid}", None)
+                    st.rerun()
+
             c1, c2 = st.columns(2)
             with c1:
                 st.text_input("Job Title", key=f"cvb_exp_role_{eid}", placeholder="Enter job title")
@@ -4422,119 +5170,78 @@ def _experience_section() -> None:
             with c3:
                 st.text_input("Location", key=f"cvb_exp_loc_{eid}", placeholder="Enter location")
             with c4:
-                st.checkbox("Currently working here", key=f"cvb_exp_curr_{eid}")
-
-            c5, c6 = st.columns(2)
-            with c5:
                 _date_field("Start Date", f"cvb_exp_start_{eid}")
-            with c6:
-                if st.session_state.get(f"cvb_exp_curr_{eid}", False):
-                    st.text_input("End Date", value="Present", disabled=True, key=f"cvb_exp_end_dis_{eid}")
-                    st.session_state[f"cvb_exp_end_{eid}"] = ""
-                else:
-                    _date_field("End Date", f"cvb_exp_end_{eid}")
+
+            if not st.session_state.get(f"cvb_exp_curr_{eid}", False):
+                _date_field("End Date", f"cvb_exp_end_{eid}")
+            else:
+                st.text_input("End Date", value="Present", disabled=True, key=f"cvb_exp_end_dis_{eid}")
+                st.session_state[f"cvb_exp_end_{eid}"] = ""
+
+            st.toggle("Currently working here", key=f"cvb_exp_curr_{eid}")
+
+            st.text_area(
+                "Description",
+                key=f"cvb_exp_desc_{eid}",
+                height=78,
+                placeholder="Briefly describe your core responsibilities in this role",
+            )
 
             st.markdown("**Key Achievements**")
-            bcount = st.session_state.get(f"cvb_exp_bcount_{eid}", 1)
-            for i in range(bcount):
-                st.text_input(
-                    f"Bullet {i + 1}",
-                    key=f"cvb_exp_b_{eid}_{i}",
-                    placeholder="Describe a measurable impact or responsibility",
-                )
-
-            ba, bb, bc, bd = st.columns([1, 1, 1.4, 1.4])
-            with ba:
-                if st.button("+ Bullet", key=f"add_b_{eid}"):
-                    st.session_state[f"cvb_exp_bcount_{eid}"] = bcount + 1
-                    st.rerun()
-            with bb:
-                if bcount > 1 and st.button("Remove Bullet", key=f"rem_b_{eid}"):
-                    st.session_state.pop(f"cvb_exp_b_{eid}_{bcount - 1}", None)
-                    st.session_state[f"cvb_exp_bcount_{eid}"] = bcount - 1
-                    st.rerun()
-            with bc:
-                if st.button("AI Suggest", key=f"ai_suggest_{eid}"):
-                    role_val = st.session_state.get(f"cvb_exp_role_{eid}", "").strip()
-                    company_val = st.session_state.get(f"cvb_exp_company_{eid}", "").strip()
-                    if not role_val:
-                        st.warning("Enter a job title first.")
-                    else:
-                        with st.spinner("Generating..."):
-                            try:
-                                existing = [
-                                    st.session_state.get(f"cvb_exp_b_{eid}_{i}", "")
-                                    for i in range(bcount)
-                                    if st.session_state.get(f"cvb_exp_b_{eid}_{i}", "").strip()
-                                ]
-                                context = ("Existing: " + " | ".join(existing)) if existing else ""
-                                st.session_state[f"cvb_ai_sug_{eid}"] = suggest_cv_bullets(role_val, company_val, context)
-                            except Exception as exc:
-                                st.error(str(exc))
-            with bd:
-                if st.button("Delete Position", key=f"rem_exp_{eid}"):
-                    st.session_state["cvb_exp_ids"].remove(eid)
-                    st.session_state.pop(f"cvb_ai_sug_{eid}", None)
-                    st.rerun()
-
-            suggestions = st.session_state.get(f"cvb_ai_sug_{eid}", [])
-            if suggestions:
-                st.markdown("**AI Suggestions**")
-                for si, sug in enumerate(suggestions):
-                    sc1, sc2 = st.columns([6, 1])
-                    with sc1:
-                        st.caption(f"- {sug}")
-                    with sc2:
-                        if st.button("Use", key=f"use_s_{eid}_{si}"):
-                            new_idx = st.session_state.get(f"cvb_exp_bcount_{eid}", 1)
-                            st.session_state[f"cvb_exp_b_{eid}_{new_idx}"] = sug
-                            st.session_state[f"cvb_exp_bcount_{eid}"] = new_idx + 1
+            bcount = int(st.session_state.get(f"cvb_exp_bcount_{eid}", 1))
+            for i in range(max(1, bcount)):
+                bc1, bc2, bc3 = st.columns([0.3, 8, 0.5])
+                with bc1:
+                    st.markdown("<div style='color:#0b63ce;font-size:1.0rem;line-height:2.1;'>•</div>", unsafe_allow_html=True)
+                with bc2:
+                    st.text_input(
+                        f"Bullet {i + 1}",
+                        key=f"cvb_exp_b_{eid}_{i}",
+                        placeholder="Describe a measurable impact or responsibility",
+                        label_visibility="collapsed",
+                    )
+                with bc3:
+                    if st.button("×", key=f"rem_bullet_{eid}_{i}", type="tertiary", help="Remove bullet"):
+                        if bcount > 1:
+                            for j in range(i, bcount - 1):
+                                st.session_state[f"cvb_exp_b_{eid}_{j}"] = st.session_state.get(
+                                    f"cvb_exp_b_{eid}_{j + 1}", ""
+                                )
+                            st.session_state.pop(f"cvb_exp_b_{eid}_{bcount - 1}", None)
+                            st.session_state[f"cvb_exp_bcount_{eid}"] = bcount - 1
                             st.rerun()
+
+            if st.button("Add bullet point", key=f"add_b_{eid}", type="tertiary"):
+                st.session_state[f"cvb_exp_bcount_{eid}"] = max(1, bcount) + 1
+                st.rerun()
 
 
 def _education_section() -> None:
-    if st.button("+ Add Education", key="btn_add_edu", type="secondary"):
-        eid = str(uuid.uuid4())
-        st.session_state["cvb_edu_ids"].append(eid)
-        st.rerun()
-
     for idx, eid in enumerate(list(st.session_state.get("cvb_edu_ids", []))):
         inst = st.session_state.get(f"cvb_edu_inst_{eid}", "")
-        with st.expander(inst or f"Education {idx + 1}", expanded=(idx == 0)):
+        with st.expander(inst or f"Education {idx + 1}", expanded=True):
+            st.text_input("Degree", key=f"cvb_edu_degree_{eid}", placeholder="e.g. B.S. Computer Science")
+
             c1, c2 = st.columns(2)
             with c1:
                 st.text_input("Institution", key=f"cvb_edu_inst_{eid}", placeholder="Enter institution name")
             with c2:
-                st.text_input("Degree", key=f"cvb_edu_degree_{eid}", placeholder="Enter degree")
+                st.text_input("Location", key=f"cvb_edu_loc_{eid}", placeholder="City, Country")
 
             c3, c4 = st.columns(2)
             with c3:
-                st.text_input("Field of Study", key=f"cvb_edu_field_{eid}", placeholder="Enter field of study")
-            with c4:
-                st.text_input("Location", key=f"cvb_edu_loc_{eid}", placeholder="Enter location")
-
-            c5, c6 = st.columns(2)
-            with c5:
                 _date_field("Start Date", f"cvb_edu_start_{eid}")
-            with c6:
+            with c4:
                 _date_field("End Date", f"cvb_edu_end_{eid}")
 
-            st.text_input("GPA / Percentage", key=f"cvb_edu_gpa_{eid}", placeholder="Enter GPA or percentage")
+            st.text_area("Additional details", key=f"cvb_edu_gpa_{eid}", height=70,
+                         placeholder="GPA, honours, relevant coursework…")
             if st.button("Delete Education", key=f"rem_edu_{eid}"):
                 st.session_state["cvb_edu_ids"].remove(eid)
                 st.rerun()
 
 
 def _skills_section() -> None:
-    _skill_spacer, _skill_action = st.columns([5, 2])
-    with _skill_action:
-        add_skill = st.button("+ Add Skill", key="btn_add_skill", type="secondary")
-    if add_skill:
-        sid = str(uuid.uuid4())
-        st.session_state["cvb_skill_ids"].append(sid)
-        st.session_state[f"cvb_skill_item_{sid}"] = ""
-        st.rerun()
-
     skill_ids = list(st.session_state.get("cvb_skill_ids", []))
     if not skill_ids:
         st.info("Add skills one by one, for example: React, Python, SQL.")
@@ -4558,27 +5265,16 @@ def _skills_section() -> None:
 
 
 def _projects_section() -> None:
-    _proj_spacer, _proj_action = st.columns([5, 2])
-    with _proj_action:
-        add_project = st.button("+ Add Project", key="btn_add_proj", type="secondary")
-    if add_project:
-        pid = str(uuid.uuid4())
-        st.session_state["cvb_proj_ids"].append(pid)
-        st.rerun()
     for idx, pid in enumerate(list(st.session_state.get("cvb_proj_ids", []))):
         name = st.session_state.get(f"cvb_proj_name_{pid}", "")
-        with st.expander(name or f"Project {idx + 1}", expanded=(idx == 0)):
+        with st.expander(name or f"Project {idx + 1}", expanded=True):
             c1, c2 = st.columns(2)
             with c1:
                 st.text_input("Project Name", key=f"cvb_proj_name_{pid}", placeholder="Enter project name")
             with c2:
                 st.text_input("Your Role", key=f"cvb_proj_role_{pid}", placeholder="Enter your role")
 
-            c3, c4 = st.columns(2)
-            with c3:
-                _date_field("Start Date", f"cvb_proj_start_{pid}")
-            with c4:
-                _date_field("End Date", f"cvb_proj_end_{pid}")
+            _date_field("Date", f"cvb_proj_start_{pid}")
 
             st.text_area(
                 "Description",
@@ -4586,11 +5282,47 @@ def _projects_section() -> None:
                 height=80,
                 placeholder="Describe what the project does and your impact",
             )
-            st.text_input(
-                "Technologies (comma-separated)",
-                key=f"cvb_proj_tech_{pid}",
-                placeholder="Enter technologies separated by commas",
-            )
+
+            st.caption("Technologies")
+            tech_str = st.session_state.get(f"cvb_proj_tech_{pid}", "")
+            tech_tags = [t.strip() for t in tech_str.split(",") if t.strip()]
+            if tech_tags:
+                chips_html = (
+                    "<div style='display:flex;flex-wrap:wrap;gap:0.3rem;margin-bottom:0.4rem'>"
+                    + "".join(
+                        f"<span style='display:inline-flex;align-items:center;padding:0.2rem 0.6rem;"
+                        f"border-radius:6px;background:#1e293b;color:#f1f5f9;"
+                        f"font-size:0.8rem;font-weight:500'>{_html_escape(t)}</span>"
+                        for t in tech_tags
+                    )
+                    + "</div>"
+                )
+                st.markdown(chips_html, unsafe_allow_html=True)
+                rem_cols = st.columns(min(len(tech_tags), 6))
+                for i, tag in enumerate(tech_tags):
+                    with rem_cols[i % 6]:
+                        if st.button("Remove", key=f"rm_tech_{pid}_{i}", help=f"Remove {tag}"):
+                            tech_tags.pop(i)
+                            st.session_state[f"cvb_proj_tech_{pid}"] = ", ".join(tech_tags)
+                            st.rerun()
+            tech_ctr = st.session_state.get(f"cvb_proj_tech_ctr_{pid}", 0)
+            ta, tb = st.columns([4, 1])
+            with ta:
+                new_tech = st.text_input(
+                    "Add technology",
+                    key=f"cvb_proj_tech_new_{pid}_{tech_ctr}",
+                    label_visibility="collapsed",
+                    placeholder="Add technology…",
+                )
+            with tb:
+                if st.button("+ Add", key=f"btn_add_tech_{pid}_{tech_ctr}"):
+                    tag = new_tech.strip()
+                    if tag and tag not in tech_tags:
+                        tech_tags.append(tag)
+                        st.session_state[f"cvb_proj_tech_{pid}"] = ", ".join(tech_tags)
+                        st.session_state[f"cvb_proj_tech_ctr_{pid}"] = tech_ctr + 1
+                        st.rerun()
+
             st.text_input("Link (GitHub / Live)", key=f"cvb_proj_link_{pid}", placeholder="Enter project link")
             if st.button("Delete Project", key=f"rem_proj_{pid}"):
                 st.session_state["cvb_proj_ids"].remove(pid)
@@ -4607,17 +5339,469 @@ def _certifications_section() -> None:
         st.rerun()
     for idx, cid in enumerate(list(st.session_state.get("cvb_cert_ids", []))):
         name = st.session_state.get(f"cvb_cert_name_{cid}", "")
-        with st.expander(name or f"Certification {idx + 1}", expanded=(idx == 0)):
+        with st.expander(name or f"Certification {idx + 1}", expanded=True):
+            st.text_input("Title", key=f"cvb_cert_name_{cid}", placeholder="Enter certification title")
             c1, c2 = st.columns(2)
             with c1:
-                st.text_input("Title", key=f"cvb_cert_name_{cid}", placeholder="Enter certification title")
-            with c2:
                 st.text_input("Issuer", key=f"cvb_cert_issuer_{cid}", placeholder="Enter issuer")
-            _date_field("Date", f"cvb_cert_date_{cid}")
+            with c2:
+                _date_field("Date", f"cvb_cert_date_{cid}")
             st.text_input("Credential URL", key=f"cvb_cert_link_{cid}", placeholder="Enter credential URL")
             if st.button("Delete Certification", key=f"rem_cert_{cid}"):
                 st.session_state["cvb_cert_ids"].remove(cid)
                 st.rerun()
+
+
+# --- CVReviewer middle-panel runtime overrides (final) ---
+def _personal_section() -> None:
+    st.text_input("Full Name", key="cvb_full_name", placeholder="Enter full name")
+    st.text_input("Professional Title", key="cvb_prof_title", placeholder="Enter professional title")
+
+    c1, c2 = st.columns(2)
+    with c1:
+        st.text_input("Email", key="cvb_email", placeholder="you@email.com")
+    with c2:
+        st.text_input("Phone", key="cvb_phone", placeholder="Enter phone number")
+
+    c3, c4 = st.columns(2)
+    with c3:
+        st.text_input("Location", key="cvb_location", placeholder="Enter location")
+    with c4:
+        st.text_input("Website", key="cvb_website", placeholder="Enter website URL")
+
+    st.text_input("LinkedIn", key="cvb_linkedin", placeholder="Enter LinkedIn profile URL")
+
+
+def _summary_section() -> None:
+    st.text_area(
+        "Professional Summary",
+        key="cvb_summary",
+        height=130,
+        max_chars=500,
+        placeholder="Write a short summary of your experience and strengths.",
+    )
+    char_count = len(st.session_state.get("cvb_summary", ""))
+    st.markdown(
+        f"<div style='text-align:right;color:#64748b;font-size:0.95rem;line-height:1.2;margin-top:0.2rem;'>{char_count}/500</div>",
+        unsafe_allow_html=True,
+    )
+
+
+def _experience_section() -> None:
+    exp_ids = list(st.session_state.get("cvb_exp_ids", []))
+    for idx, eid in enumerate(exp_ids):
+        st.markdown(f"**Position {idx + 1}**")
+        c1, c2 = st.columns(2)
+        with c1:
+            st.text_input("Job Title", key=f"cvb_exp_role_{eid}", placeholder="Enter job title")
+        with c2:
+            st.text_input("Employer", key=f"cvb_exp_company_{eid}", placeholder="Enter employer")
+
+        c3, c4, c5 = st.columns([1.05, 1.05, 1.3])
+        with c3:
+            _date_field("Start Date", f"cvb_exp_start_{eid}")
+        with c4:
+            if st.session_state.get(f"cvb_exp_curr_{eid}", False):
+                st.text_input("End Date", value="Present", disabled=True, key=f"cvb_exp_end_dis_{eid}")
+                st.session_state[f"cvb_exp_end_{eid}"] = ""
+            else:
+                _date_field("End Date", f"cvb_exp_end_{eid}")
+        with c5:
+            st.text_input("Location", key=f"cvb_exp_loc_{eid}", placeholder="City, Country")
+
+        st.text_area(
+            "Description",
+            key=f"cvb_exp_desc_{eid}",
+            height=78,
+            placeholder="Briefly describe your core responsibilities in this role",
+        )
+
+        st.markdown("**Key Achievements**")
+        bcount = max(1, int(st.session_state.get(f"cvb_exp_bcount_{eid}", 1)))
+        for i in range(bcount):
+            bc1, bc2, bc3 = st.columns([0.25, 8.2, 0.55])
+            with bc1:
+                st.markdown("<div style='color:#0b63ce;font-size:1rem;line-height:2.1;'>•</div>", unsafe_allow_html=True)
+            with bc2:
+                st.text_input(
+                    f"bullet_{eid}_{i}",
+                    key=f"cvb_exp_b_{eid}_{i}",
+                    placeholder="Describe an achievement...",
+                    label_visibility="collapsed",
+                )
+            with bc3:
+                if st.button("×", key=f"rem_bullet_{eid}_{i}", type="tertiary", help="Remove bullet"):
+                    if bcount > 1:
+                        for j in range(i, bcount - 1):
+                            st.session_state[f"cvb_exp_b_{eid}_{j}"] = st.session_state.get(
+                                f"cvb_exp_b_{eid}_{j + 1}", ""
+                            )
+                        st.session_state.pop(f"cvb_exp_b_{eid}_{bcount - 1}", None)
+                        st.session_state[f"cvb_exp_bcount_{eid}"] = bcount - 1
+                    else:
+                        st.session_state[f"cvb_exp_b_{eid}_0"] = ""
+                    st.rerun()
+
+        if st.button("Add bullet point", key=f"add_b_{eid}", type="tertiary"):
+            st.session_state[f"cvb_exp_bcount_{eid}"] = bcount + 1
+            st.rerun()
+
+        if idx < len(exp_ids) - 1:
+            st.markdown("<div style='height:0.5rem'></div><hr style='margin:0.35rem 0 0.5rem;border:none;border-top:1px solid #dbe4f0'>", unsafe_allow_html=True)
+
+
+def _education_section() -> None:
+    edu_ids = list(st.session_state.get("cvb_edu_ids", []))
+    for idx, eid in enumerate(edu_ids):
+        st.markdown(f"**Education {idx + 1}**")
+        st.text_input("Degree", key=f"cvb_edu_degree_{eid}", placeholder="e.g. B.S. Computer Science")
+
+        c1, c2 = st.columns(2)
+        with c1:
+            st.text_input("Institution", key=f"cvb_edu_inst_{eid}", placeholder="Enter institution name")
+        with c2:
+            st.text_input("Location", key=f"cvb_edu_loc_{eid}", placeholder="City, Country")
+
+        c3, c4 = st.columns(2)
+        with c3:
+            _date_field("Start Date", f"cvb_edu_start_{eid}")
+        with c4:
+            _date_field("End Date", f"cvb_edu_end_{eid}")
+
+        st.text_area(
+            "Additional details",
+            key=f"cvb_edu_gpa_{eid}",
+            height=70,
+            placeholder="GPA, honors, relevant coursework...",
+        )
+        _, dc = st.columns([7, 1.4])
+        with dc:
+            if st.button("Delete", key=f"rem_edu_{eid}"):
+                st.session_state["cvb_edu_ids"].remove(eid)
+                st.rerun()
+
+        if idx < len(edu_ids) - 1:
+            st.markdown("<div style='height:0.5rem'></div><hr style='margin:0.35rem 0 0.5rem;border:none;border-top:1px solid #dbe4f0'>", unsafe_allow_html=True)
+
+
+def _skills_section() -> None:
+    skill_ids = list(st.session_state.get("cvb_skill_ids", []))
+    if not skill_ids:
+        st.markdown(
+            "<div style='border:1px solid #d5deeb;border-radius:12px;background:#f5f9ff;"
+            "padding:0.85rem 1rem;color:#1f2937;font-size:0.96rem;'>"
+            "Add skills one by one, for example: React, Python, SQL."
+            "</div>",
+            unsafe_allow_html=True,
+        )
+        return
+
+    for idx, sid in enumerate(skill_ids):
+        c1, c2 = st.columns([8, 1.3])
+        with c1:
+            st.text_input(
+                f"Skill {idx + 1}",
+                key=f"cvb_skill_item_{sid}",
+                placeholder="Enter skill",
+                label_visibility="collapsed",
+            )
+        with c2:
+            if st.button("Delete", key=f"rem_skill_{sid}", help="Remove skill"):
+                st.session_state["cvb_skill_ids"].remove(sid)
+                st.session_state.pop(f"cvb_skill_item_{sid}", None)
+                st.rerun()
+
+
+def _projects_section() -> None:
+    proj_ids = list(st.session_state.get("cvb_proj_ids", []))
+    for idx, pid in enumerate(proj_ids):
+        st.markdown(f"**Project {idx + 1}**")
+        c1, c2 = st.columns(2)
+        with c1:
+            st.text_input("Project Name", key=f"cvb_proj_name_{pid}", placeholder="Enter project name")
+        with c2:
+            st.text_input("Your Role", key=f"cvb_proj_role_{pid}", placeholder="Enter your role")
+
+        _date_field("Date", f"cvb_proj_start_{pid}")
+        st.text_area(
+            "Description",
+            key=f"cvb_proj_desc_{pid}",
+            height=90,
+            placeholder="Describe what the project does and your impact",
+        )
+        st.text_input(
+            "Technologies",
+            key=f"cvb_proj_tech_{pid}",
+            placeholder="React, Node.js, PostgreSQL",
+            help="Comma separated technologies used in this project.",
+        )
+        st.text_input("Project Link", key=f"cvb_proj_link_{pid}", placeholder="Enter project link")
+        _, dc = st.columns([7, 1.4])
+        with dc:
+            if st.button("Delete", key=f"rem_proj_{pid}"):
+                st.session_state["cvb_proj_ids"].remove(pid)
+                st.rerun()
+
+        if idx < len(proj_ids) - 1:
+            st.markdown("<div style='height:0.5rem'></div><hr style='margin:0.35rem 0 0.5rem;border:none;border-top:1px solid #dbe4f0'>", unsafe_allow_html=True)
+
+
+def _languages_section() -> None:
+    lang_ids = list(st.session_state.get("cvb_lang_ids", []))
+    if lang_ids:
+        h1, h2, _ = st.columns([4, 4, 1])
+        with h1:
+            st.caption("Language")
+        with h2:
+            st.caption("Proficiency")
+
+    for lid in lang_ids:
+        c1, c2, c3 = st.columns([4, 4, 1])
+        with c1:
+            st.text_input(
+                "Language",
+                key=f"cvb_lang_name_{lid}",
+                placeholder="e.g. English",
+                label_visibility="collapsed",
+            )
+        with c2:
+            st.selectbox(
+                "Proficiency",
+                PROFICIENCY_OPTIONS,
+                key=f"cvb_lang_prof_{lid}",
+                label_visibility="collapsed",
+            )
+        with c3:
+            if st.button("Delete", key=f"rem_lang_{lid}", help="Delete"):
+                st.session_state["cvb_lang_ids"].remove(lid)
+                st.rerun()
+
+
+def _certifications_section() -> None:
+    cert_ids = list(st.session_state.get("cvb_cert_ids", []))
+    for idx, cid in enumerate(cert_ids):
+        st.markdown(f"**Certification {idx + 1}**")
+        st.text_input("Title", key=f"cvb_cert_name_{cid}", placeholder="Enter certification title")
+        c1, c2 = st.columns(2)
+        with c1:
+            st.text_input("Issuer", key=f"cvb_cert_issuer_{cid}", placeholder="Enter issuer")
+        with c2:
+            _date_field("Date", f"cvb_cert_date_{cid}")
+        st.text_input("Credential URL", key=f"cvb_cert_link_{cid}", placeholder="Enter credential URL")
+        _, dc = st.columns([7, 1.4])
+        with dc:
+            if st.button("Delete", key=f"rem_cert_{cid}"):
+                st.session_state["cvb_cert_ids"].remove(cid)
+                st.rerun()
+
+        if idx < len(cert_ids) - 1:
+            st.markdown("<div style='height:0.5rem'></div><hr style='margin:0.35rem 0 0.5rem;border:none;border-top:1px solid #dbe4f0'>", unsafe_allow_html=True)
+
+
+def _interests_section() -> None:
+    interests = list(st.session_state.get("cvb_interests", []))
+    if interests:
+        for i, interest in enumerate(interests):
+            c1, c2 = st.columns([8, 1.4])
+            with c1:
+                st.text_input(
+                    f"Interest {i + 1}",
+                    value=interest,
+                    key=f"cvb_interest_readonly_{i}",
+                    disabled=True,
+                    label_visibility="collapsed",
+                )
+            with c2:
+                if st.button("Delete", key=f"rm_int_{i}", help=f"Remove {interest}"):
+                    interests.pop(i)
+                    st.session_state["cvb_interests"] = interests
+                    st.rerun()
+
+    ctr = st.session_state.get("cvb_interest_ctr", 0)
+    ia, ib = st.columns([4, 1])
+    with ia:
+        new_tag = st.text_input(
+            "Add interest",
+            key=f"cvb_new_interest_{ctr}",
+            label_visibility="collapsed",
+            placeholder="Enter an interest",
+        )
+    with ib:
+        if st.button("Add", key=f"btn_add_int_{ctr}"):
+            tag = new_tag.strip()
+            if tag and tag not in interests:
+                interests.append(tag)
+                st.session_state["cvb_interests"] = interests
+                st.session_state["cvb_interest_ctr"] = ctr + 1
+                st.rerun()
+
+
+# --- CVReviewer middle-panel runtime overrides (v2) ---
+def _personal_section() -> None:
+    st.text_input("Full Name", key="cvb_full_name", placeholder="Enter full name")
+    st.text_input("Professional Title", key="cvb_prof_title", placeholder="Enter professional title")
+
+    c1, c2 = st.columns(2)
+    with c1:
+        st.text_input("Email", key="cvb_email", placeholder="you@email.com")
+    with c2:
+        st.text_input("Phone", key="cvb_phone", placeholder="Enter phone number")
+
+    c3, c4 = st.columns(2)
+    with c3:
+        st.text_input("Location", key="cvb_location", placeholder="Enter location")
+    with c4:
+        st.text_input("Website", key="cvb_website", placeholder="Enter website URL")
+
+    st.text_input("LinkedIn", key="cvb_linkedin", placeholder="Enter LinkedIn profile URL")
+    st.text_input("GitHub", key="cvb_github", placeholder="Enter GitHub profile URL")
+
+
+def _experience_section() -> None:
+    exp_ids = list(st.session_state.get("cvb_exp_ids", []))
+    if not exp_ids:
+        st.info("Add a position to start building your work experience.")
+        return
+
+    def _clone_position(source_id: str) -> None:
+        new_id = str(uuid.uuid4())
+        ids = list(st.session_state.get("cvb_exp_ids", []))
+        try:
+            insert_at = ids.index(source_id) + 1
+        except ValueError:
+            insert_at = len(ids)
+        ids.insert(insert_at, new_id)
+        st.session_state["cvb_exp_ids"] = ids
+
+        for field in ["role", "company", "loc", "start", "end", "curr", "desc"]:
+            st.session_state[f"cvb_exp_{field}_{new_id}"] = st.session_state.get(
+                f"cvb_exp_{field}_{source_id}",
+                "",
+            )
+        bcount = max(1, int(st.session_state.get(f"cvb_exp_bcount_{source_id}", 1)))
+        st.session_state[f"cvb_exp_bcount_{new_id}"] = bcount
+        for i in range(bcount):
+            st.session_state[f"cvb_exp_b_{new_id}_{i}"] = st.session_state.get(
+                f"cvb_exp_b_{source_id}_{i}",
+                "",
+            )
+
+    def _remove_position(exp_id: str) -> None:
+        ids = list(st.session_state.get("cvb_exp_ids", []))
+        if exp_id in ids:
+            ids.remove(exp_id)
+            st.session_state["cvb_exp_ids"] = ids
+        for field in ["role", "company", "loc", "start", "end", "curr", "desc", "bcount", "end_dis"]:
+            st.session_state.pop(f"cvb_exp_{field}_{exp_id}", None)
+        st.session_state.pop(f"cvb_exp_start_{exp_id}__ui", None)
+        st.session_state.pop(f"cvb_exp_end_{exp_id}__ui", None)
+        for key in list(st.session_state.keys()):
+            if key.startswith(f"cvb_exp_b_{exp_id}_"):
+                st.session_state.pop(key, None)
+
+    for idx, eid in enumerate(exp_ids):
+        ch1, ch2 = st.columns([7.2, 2.8], gap="small")
+        with ch1:
+            st.markdown(f"**Position {idx + 1}**")
+        with ch2:
+            with st.container(key=f"cvb-exp-actions-{eid}"):
+                act_dup, act_del = st.columns([2.0, 1.0], gap="small")
+                with act_dup:
+                    if st.button("Duplicate", key=f"dup_exp_{eid}", type="tertiary"):
+                        _clone_position(eid)
+                        st.rerun()
+                with act_del:
+                    if st.button(":material/delete:", key=f"rem_exp_{eid}", type="tertiary", help="Delete position"):
+                        _remove_position(eid)
+                        st.rerun()
+
+        c1, c2 = st.columns(2)
+        with c1:
+            st.text_input("Job Title", key=f"cvb_exp_role_{eid}", placeholder="Enter job title")
+        with c2:
+            st.text_input("Employer", key=f"cvb_exp_company_{eid}", placeholder="Enter employer")
+
+        c3, c4, c5 = st.columns([1.05, 1.05, 1.3])
+        with c3:
+            _date_field("Start Date", f"cvb_exp_start_{eid}")
+        with c4:
+            curr_key = f"cvb_exp_curr_{eid}"
+            end_key = f"cvb_exp_end_{eid}"
+            curr_before = bool(st.session_state.get(curr_key, False))
+            with st.container(key=f"cvb-exp-end-field-{eid}"):
+                end_input_col, end_clear_col, end_present_col = st.columns([1.0, 0.16, 0.33], gap="small")
+                with end_input_col:
+                    if curr_before:
+                        st.text_input("End Date", value="Present", disabled=True, key=f"cvb_exp_end_dis_{eid}")
+                        _clear_date_field(end_key)
+                    else:
+                        _date_field("End Date", end_key)
+                with end_clear_col:
+                    clear_disabled = (not curr_before) and (not str(st.session_state.get(end_key, "")).strip())
+                    if st.button(
+                        ":material/close:",
+                        key=f"clear_exp_end_{eid}",
+                        type="tertiary",
+                        help="Clear end date",
+                        disabled=clear_disabled,
+                    ):
+                        st.session_state[curr_key] = False
+                        _clear_date_field(end_key)
+                        st.rerun()
+                with end_present_col:
+                    present_label = "Present ✓" if curr_before else "Present"
+                    if st.button(present_label, key=f"mark_exp_present_{eid}", type="tertiary", help="Mark this role as current"):
+                        next_state = not curr_before
+                        st.session_state[curr_key] = next_state
+                        if next_state:
+                            _clear_date_field(end_key)
+                        st.rerun()
+        with c5:
+            st.text_input("Location", key=f"cvb_exp_loc_{eid}", placeholder="City, Country")
+
+        st.text_area(
+            "Description",
+            key=f"cvb_exp_desc_{eid}",
+            height=78,
+            placeholder="Briefly describe your core responsibilities in this role",
+        )
+
+        st.markdown("**Key Achievements**")
+        bcount = max(1, int(st.session_state.get(f"cvb_exp_bcount_{eid}", 1)))
+        for i in range(bcount):
+            bc1, bc2, bc3 = st.columns([0.25, 8.2, 0.55])
+            with bc1:
+                st.markdown("<div style='color:#0b63ce;font-size:1rem;line-height:2.1;'>&bull;</div>", unsafe_allow_html=True)
+            with bc2:
+                st.text_input(
+                    f"bullet_{eid}_{i}",
+                    key=f"cvb_exp_b_{eid}_{i}",
+                    placeholder="Describe an achievement...",
+                    label_visibility="collapsed",
+                )
+            with bc3:
+                if st.button(":material/close:", key=f"rem_bullet_{eid}_{i}", type="tertiary", help="Remove bullet"):
+                    if bcount > 1:
+                        for j in range(i, bcount - 1):
+                            st.session_state[f"cvb_exp_b_{eid}_{j}"] = st.session_state.get(
+                                f"cvb_exp_b_{eid}_{j + 1}",
+                                "",
+                            )
+                        st.session_state.pop(f"cvb_exp_b_{eid}_{bcount - 1}", None)
+                        st.session_state[f"cvb_exp_bcount_{eid}"] = bcount - 1
+                    else:
+                        st.session_state[f"cvb_exp_b_{eid}_0"] = ""
+                    st.rerun()
+
+        if st.button("Add bullet point", key=f"add_b_{eid}", type="tertiary"):
+            st.session_state[f"cvb_exp_bcount_{eid}"] = bcount + 1
+            st.rerun()
+
+        if idx < len(exp_ids) - 1:
+            st.markdown(
+                "<div style='height:0.5rem'></div><hr style='margin:0.35rem 0 0.5rem;border:none;border-top:1px solid #dbe4f0'>",
+                unsafe_allow_html=True,
+            )
 
 
 # --- CVReviewer template-structure overrides (safe, isolated) ---
@@ -4763,9 +5947,12 @@ def generate_cv_html(
     def _experience_html() -> str:
         parts: list[str] = []
         for exp in data.get("experience", []) or []:
+            if not _row_has_meaningful_data(exp):
+                continue
             role = _html_escape(exp.get("role", ""))
             company = _html_escape(exp.get("company", ""))
             loc = _html_escape(exp.get("location", ""))
+            desc = _html_escape(exp.get("description", ""))
             dr = _date_range_html(exp.get("start_date", ""), exp.get("end_date", ""), bool(exp.get("current", False)))
             bullets = [str(b).strip() for b in exp.get("bullets", []) if str(b).strip()]
 
@@ -4780,6 +5967,7 @@ def generate_cv_html(
             parts.append(
                 "<div class='cv-entry'>"
                 f"{row_top}{row_sub}"
+                + (f"<p class='cv-p'>{desc}</p>" if desc else "")
                 + (f"<ul class='cv-ul'>{bullet_html}</ul>" if bullet_html else "")
                 + "</div>"
             )
@@ -4788,6 +5976,8 @@ def generate_cv_html(
     def _education_html() -> str:
         parts: list[str] = []
         for edu in data.get("education", []) or []:
+            if not _row_has_meaningful_data(edu):
+                continue
             inst = _html_escape(edu.get("institution", ""))
             degree = _html_escape(edu.get("degree", ""))
             field = _html_escape(edu.get("field", ""))
@@ -4812,6 +6002,8 @@ def generate_cv_html(
     def _projects_html() -> str:
         parts: list[str] = []
         for proj in data.get("projects", []) or []:
+            if not _row_has_meaningful_data(proj):
+                continue
             name_val = _html_escape(proj.get("name", ""))
             role_val = _html_escape(proj.get("role", ""))
             desc = _html_escape(proj.get("description", ""))
@@ -5332,7 +6524,10 @@ def _has_meaningful_text(value: object) -> bool:
 def _row_has_meaningful_data(row: object) -> bool:
     if not isinstance(row, dict):
         return False
-    for value in row.values():
+    for key, value in row.items():
+        # Internal row ids should never count as user content.
+        if str(key).strip().lower() == "id":
+            continue
         if isinstance(value, list):
             if any(_has_meaningful_text(v) for v in value):
                 return True
@@ -5416,12 +6611,8 @@ def _is_cv_data_effectively_empty(cv_data: dict) -> bool:
     for key in ["experience", "education", "projects", "certifications", "languages"]:
         rows = cv_data.get(key, []) or []
         for row in rows:
-            if isinstance(row, dict) and any(str(v).strip() for v in row.values() if not isinstance(v, (list, dict, bool))):
+            if _row_has_meaningful_data(row):
                 return False
-            if isinstance(row, dict):
-                for v in row.values():
-                    if isinstance(v, list) and any(str(x).strip() for x in v):
-                        return False
 
     skills = cv_data.get("skills", {}) or {}
     for item in skills.get("items", []) or []:

@@ -255,4 +255,3 @@ This project is structured as an MCA final-year capstone demo:
 - Measurable human-vs-AI evaluation toolkit
 - Full authentication (email + OAuth)
 - Cloud-ready architecture (Streamlit Community Cloud + SQLite)
-

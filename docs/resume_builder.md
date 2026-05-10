@@ -1,52 +1,41 @@
-# Resume Builder: Current Behavior and Implementation Guide
+# Resume Builder: Implementation Reference (Current)
 
-This document is the source of truth for the current Resume Builder behavior in this repository.
+This document describes the actual current behavior of the Resume Builder page, including UI controls, state keys, section/card behavior, calendar behavior, preview behavior, and data flow.
 
 ## Scope
-- Page route: `?page=cv-builder` and `?page=resume-builder`
-- Main implementation file: `src/ui/cv_builder_page.py`
-- Entry function: `render_cv_builder_page()`
-- Goal: CVReviewer-like editing experience with three synchronized panels and WYSIWYG PDF output
+- Route: `?page=cv-builder` (and alias `?page=resume-builder`)
+- Main file: `src/ui/cv_builder_page.py`
+- Page entry: `render_cv_builder_page()`
 
-## Runtime Entry Flow
-1. `render_cv_builder_page()` initializes builder state via `_init_builder()`.
-2. Optional DB load is handled via `_load_cv_for_builder_if_requested()`.
-3. Page-level CSS is injected via `_inject_builder_css_native(is_dark)`.
-4. Current builder data is assembled via `collect_cv_data()`.
-5. PDF bytes are precomputed via `_cached_generate_cv_pdf(...)`.
-6. Toolbar + 3-column workspace are rendered.
-7. Realtime JS bridges are injected:
-- `_inject_realtime_js()` for live preview updates.
-- `_inject_sections_relay_js()` for component postMessage -> hidden button routing.
+## Runtime Flow
+1. Initialize state in `_init_builder()`.
+2. Load selected CV (if requested) via `_load_cv_for_builder_if_requested()`.
+3. Inject page styles via `_inject_builder_css_native(...)` and `_inject_middle_section_exact_css()`.
+4. Build editor data with `collect_cv_data()`.
+5. Pre-generate PDF bytes via `_cached_generate_cv_pdf(...)`.
+6. Render toolbar + 3-panel workspace.
+7. Re-collect data after middle panel render and paint right preview.
+8. Inject JS bridges (`_inject_realtime_js()`, `_inject_sections_relay_js()`, `_inject_chevron_hider_js()`).
 
-## Layout Model
-The page uses a 3-panel layout with fixed-height scroll regions.
+## Page Layout
+Three columns:
+1. Left panel: sections list, templates, style controls.
+2. Middle panel: section editors (cards with custom headers, add buttons, chevron collapse).
+3. Right panel: preview zoom controls + resume preview iframe.
 
-1. Left panel (`cvb-left-scroll-native`)
-- Sections list (reorder + hide/show)
-- Templates
-- Style controls
+## Canonical Sections
+Section schema:
+- `personal` → Personal Information
+- `summary` → Professional Summary
+- `experience` → Work Experience
+- `education` → Education
+- `skills` → Skills
+- `projects` → Projects
+- `languages` → Languages
+- `certifications` → Certifications
+- `interests` → Interests
 
-2. Middle panel (`cvb-middle-scroll-native`)
-- Section editors in expanders
-
-3. Right panel (`cvb-right-scroll-native`)
-- Fixed zoom toolbar at top
-- Scrollable preview canvas below
-
-## Section Schema
-Canonical section ids and labels:
-- `personal`: Personal Information
-- `summary`: Professional Summary
-- `experience`: Work Experience
-- `education`: Education
-- `skills`: Skills
-- `projects`: Projects
-- `languages`: Languages
-- `certifications`: Certifications
-- `interests`: Interests
-
-Default section order (`CVR_SECTION_ORDER`):
+Default order in UI (`CVR_SECTION_ORDER`):
 1. personal
 2. summary
 3. experience
@@ -57,272 +46,289 @@ Default section order (`CVR_SECTION_ORDER`):
 8. certifications
 9. interests
 
-## Templates
-Template choices and left-rail card order:
-1. `classic` (Single column, ATS-friendly)
-2. `creative` (Colored sidebar)
-3. `modern` (Two-column sidebar)
+## Section Visibility vs Section Collapse
+There are two different controls:
 
-Template default zoom:
-- classic: `100%`
-- creative: `100%`
-- modern: `100%`
+1. Left sidebar eye control (`cvb_section_visibility`):
+- Hides/shows an entire section globally.
+- Hidden sections are not shown in middle editor and not rendered in preview.
 
-## Builder State Contract (`st.session_state`)
-Primary keys:
-- `cvb_cv_title`, `cvb_template`, `cvb_loaded_cv_id`, `cvb_last_saved`
-- `cvb_show_import`, `cvb_confirm_reset`, `cvb_zoom`
+2. Middle panel chevron (`cvb_section_open_<section_id>`):
+- Collapses/expands section body only.
+- Section remains visible in list and preview logic.
 
-Style keys:
-- `cvb_accent_color`
-- `cvb_font`
-- `cvb_font_size`
-- `cvb_line_height`
-- `cvb_entry_spacing`
-- `cvb_show_icons`
+All sections are initialized expanded by migration keys:
+- `cvb_sections_open_default_v1`
+- `cvb_sections_open_default_v2`
+- `cvb_sections_open_default_v3`
 
-Section control keys:
-- `cvb_section_order`
-- `cvb_section_visibility`
-- `cvb_active_section`
+## Header Add Buttons
+Section headers include add buttons for:
+- Experience: `Add Position`
+- Education: `Add Education`
+- Skills: `Add Skill`
+- Projects: `Add Project`
+- Languages: `Add Language`
+- Certifications: `Add Certification`
 
-Personal fields:
-- `cvb_full_name`, `cvb_prof_title`, `cvb_email`, `cvb_phone`
-- `cvb_location`, `cvb_website`, `cvb_linkedin`, `cvb_github`, `cvb_summary`
+The header add handler initializes all required keys for each new row to avoid partial state.
 
-Dynamic list keys:
-- Experience: `cvb_exp_ids`, per-item `cvb_exp_*`
-- Education: `cvb_edu_ids`, per-item `cvb_edu_*`
-- Skills: `cvb_skill_ids`, per-item `cvb_skill_item_*`
-- Projects: `cvb_proj_ids`, per-item `cvb_proj_*`
-- Certifications: `cvb_cert_ids`, per-item `cvb_cert_*`
-- Languages: `cvb_lang_ids`, per-item `cvb_lang_*`
-- Interests: `cvb_interests`
+## Row Seeds (Initial Visible Rows)
+The editor seeds default rows so sections are immediately usable:
+- Experience: 1 row (plus 1 bullet)
+- Education: 1 row
+- Skills: 3 rows
+- Projects: 1 row
+- Languages: 1 row
+- Certifications: 1 row
+- Interests: no seed list item (free-add style)
 
-Compatibility note:
-- `cvb_show_photo` may still exist in state for backward compatibility, but photo toggle UI is intentionally removed from active style panel.
-
-## Data Normalization Rules
-- `_normalize_template(...)` maps invalid/legacy values to valid template keys.
-- `_normalize_section_order(...)` deduplicates and fills missing ids.
-- `_normalize_section_visibility(...)` ensures full `{section_id: bool}` map.
-
-## Left Panel Behavior
-Left panel interactive components use `components.html` and a relay pattern.
-
-### Relay Pattern
-1. Component posts message: `window.parent.postMessage(...)`.
-2. `_inject_sections_relay_js()` listens in parent context.
-3. Relay finds hidden Streamlit button and clicks it.
-4. Python handler updates state and triggers rerun.
-
-### Hidden Buttons
-Hidden controls are rendered inside `st.container(key="cvb-hidden-buttons")`.
-
-Supported hidden actions:
-- Reorder: `cvb_pos_{sid}_{pos}`
-- Eye toggle: `cvb_eye_{sid}`
-- Template select: `cvb_tpl_{template}`
-- Accent select: `cvb_acc_{index}`
-- Font scale: `cvb_scale_{80..130}`
-- Line height: `cvb_lh_{10..20}`
-- Spacing: `cvb_es_{0..24 step 2}`
-- Icons toggle: `cvb_icons_toggle`
-
-### Input-Commit Safety Before Relay Click
-The relay now commits currently-focused text input before clicking hidden buttons.
+## Row-Level Eye Toggle (Hide Without Delete)
+For card rows that have delete buttons, an eye toggle is present:
+- Experience rows: `vis_exp_<id>`
+- Education rows: `vis_edu_<id>`
+- Skills rows: `vis_skill_<id>`
+- Projects rows: `vis_proj_<id>`
+- Languages rows: `vis_lang_<id>`
+- Certifications rows: `vis_cert_<id>`
 
 Behavior:
-- Dispatches `input` and `change`
-- Blurs active `input/textarea`
-- Waits briefly
-- Clicks hidden button
+- Eye open (`:material/visibility:`): row is included in CV output.
+- Eye closed (`:material/visibility_off:`): row remains editable in form but is excluded from preview/PDF data.
 
-Why:
-- Prevents loss of in-progress typed values when style/template/section actions rerun the app.
-- This specifically fixes the `Show icons` toggle wiping unsaved text.
+Visibility keys:
+- `cvb_exp_visible_<id>`
+- `cvb_edu_visible_<id>`
+- `cvb_skill_visible_<id>`
+- `cvb_proj_visible_<id>`
+- `cvb_lang_visible_<id>`
+- `cvb_cert_visible_<id>`
 
-### Sections Component
-`_render_sections_list_component(...)` provides:
-- Drag handle reorder
-- Eye visibility toggle
-- CVReviewer-like list styling
+Initialized by:
+- seed paths
+- add-row paths
+- load-from-DB path
+- migration `cvb_item_visibility_defaults_v1`
 
-### Template Component
-`_render_template_component(...)` provides:
-- Card list for Classic / Creative / Modern
-- Active card state styling
-- Click -> `cvb-tpl-select`
+## Delete Buttons
+Delete buttons are standardized to icon style matching Work Experience card actions:
+- `:material/delete:`
+- `type="tertiary"`
+- shared compact icon-button CSS and red hover feedback
 
-### Style Component
-`_render_style_component(...)` provides:
-- Accent color swatches
-- Font scale slider
-- Line height slider
-- Spacing slider
-- Show icons toggle
+Applies to:
+- experience rows
+- education rows
+- skills rows
+- projects rows
+- languages rows
+- certifications rows
 
-No Show Photo toggle is rendered in active UI.
+Note:
+- Experience bullet delete uses close icon (`:material/close:`) and remains separate from row delete.
 
-## Middle Panel Behavior
-`_render_middle_panel_native()` renders visible sections only.
+## Section-by-Section Editor Behavior
 
-Section renderer map:
-- `personal` -> `_personal_section`
-- `summary` -> `_summary_section`
-- `experience` -> `_experience_section`
-- `education` -> `_education_section`
-- `skills` -> `_skills_section`
-- `projects` -> `_projects_section`
-- `languages` -> `_languages_section`
-- `certifications` -> `_certifications_section`
-- `interests` -> `_interests_section`
+### Personal Information
+- Full Name
+- Professional Title
+- Email / Phone
+- Location / Website
+- LinkedIn / GitHub
 
-If all sections are hidden, an info message is shown.
+### Professional Summary
+- Text area (`max_chars=500`, height `130`)
+- Live counter (`<count>/500`)
 
-Middle panel interaction details:
-- Personal Information includes LinkedIn and GitHub inputs.
-- Work Experience supports per-position Duplicate and Delete actions.
-- Work Experience includes a `Currently working here` toggle that forces End Date to `Present`.
-- Work Experience bullet rows support add/remove actions inline.
+### Work Experience
+Each row has:
+- Header actions: `Duplicate`, eye toggle, delete
+- Job Title, Company
+- Start Date (month/year popover)
+- End Date (month/year popover + Present toggle inside popover)
+- Location
+- Description
+- Key Achievements bullets:
+  - inline bullet rows
+  - add bullet
+  - remove bullet with stable shifting logic (prevents key holes)
 
-## Right Panel Behavior
-`_render_right_panel_native(cv_data, is_dark)`:
-- Reads current template/style/visibility/order
-- Builds `preview_source = _build_preview_source(cv_data)`
-- Generates HTML via `generate_cv_html(...)`
-- Wraps it in a zoom shell
-- Renders via `components.html(..., scrolling=False)`
+Duplicate behavior:
+- Inserts cloned row immediately below source row.
+- Clones role/company/location/start/end/current/description and bullets.
+- New row visibility defaults to visible.
 
-Zoom controls:
-- Toolbar UI comes from `_render_zoom_toolbar_component(zoom)`
-- Actions are relayed to hidden zoom buttons in right panel
-- Zoom levels: `[35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 90, 100]`
+### Education
+Each row has:
+- Header actions: eye toggle, delete (delete shown when more than one row exists)
+- Degree
+- Institution / Location
+- Start Date (month/year popover)
+- End Date (month/year popover + Present toggle inside popover)
+- Description (stored in `cvb_edu_gpa_<id>` field key)
 
-## Demo-to-User Content Switching
-Core function: `_build_preview_source(cv_data)`
+### Skills
+Each row has:
+- Skill input
+- Eye toggle
+- Delete
 
-Rules:
-- If builder data is effectively empty (`_is_cv_data_effectively_empty(...) == True`):
-- Preview uses demo placeholders so selected layout is visible.
-- If any meaningful user content exists:
-- Preview uses user data only, without demo fallback.
+Starts with three empty rows on first use.
 
-This behavior is used consistently in:
-- Live preview (`_render_right_panel_native`)
-- PDF generation (`_cached_generate_cv_pdf`)
+### Projects
+Each row has:
+- Header actions: eye toggle, delete
+- Project Name / Your Role
+- Date (month/year popover)
+- Description
+- Technologies (comma-separated string)
+- Project Link
 
-## Realtime Preview Behavior
-`_inject_realtime_js()` listens to middle-panel input events and broadcasts live updates to preview iframe(s).
+### Languages
+Each row has:
+- Language input
+- Proficiency select (`Basic`, `Intermediate`, `Advanced`, `Fluent`, `Native`)
+- Eye toggle
+- Delete
 
-Realtime events:
-- `cv-rt-update` for personal/contact fields
-- `cv-rt-user-mode` to switch preview from demo mode to user-only mode as soon as typing starts
+Important data rule:
+- Row is only included in CV output when Language name is non-empty.
 
-Key realtime guarantees:
-- Name/title/contact/summary update while typing.
-- Untouched personal fields are also synchronized so demo leftovers clear immediately.
-- User mode is toggled on first meaningful input without waiting for blur.
+### Certifications
+Each row has:
+- Header actions: eye toggle, delete
+- Title
+- Issuer
+- Date (month/year popover)
+- Credential URL
 
-## Realtime Icon Toggle Behavior
-`Show icons` now has two paths:
-1. Immediate client-side update:
-- Relay posts `cv-rt-icons-toggle` to preview.
-- Preview toggles CSS class (`icons-on` / `icons-off`) instantly.
-2. Server state persistence:
-- Relay clicks hidden `cvb_icons_toggle` to persist state and rerun.
+### Interests
+- Existing interests shown as readonly rows with delete
+- Add input + Add button
+- No row-level eye toggle currently
 
-This gives instant visual feedback and keeps state/PDF output consistent.
+## Date Picker (Month/Year Popover)
+Used by experience/education/project/certification dates.
 
-## CV HTML Rendering Rules
-Active renderer: the later `generate_cv_html(...)` definition in `cv_builder_page.py`.
+Display:
+- Field label rendered above the clickable popover trigger.
+- Trigger shows:
+  - `MM/YYYY` when empty
+  - stored value like `03/2024` when selected
+  - `Present (Current)` when current toggle is on
 
-Important behavior:
-- Builds template-accurate layout for `classic`, `creative`, `modern`.
-- Applies section order and visibility from state.
-- Renders sections only when they have meaningful content.
-- Contact icons are always present in markup.
-- Icon visibility is controlled by paper class:
-- `icons-on`
-- `icons-off` (`.icons-off .ci-ico { display:none !important; }`)
+Popover layout:
+- Left: Month grid (12 buttons, Jan–Dec, 4x3)
+- Right: Year grid in scroll container
 
-Skills formatting by template:
-- Classic: 3-column bullet grid (`skills-cols-3`)
-- Creative: 2-column bullet grid (`skills-cols-2`)
-- Modern: 2-column bullet grid (`skills-cols-2`)
+Year range:
+- Starts from `current year + 1`
+- 48 years total
+- 3 columns
+- compact scrollable year area
 
-## Save / Load / Import / Backup / Reset
-- Save: `_save_cv(cv_data, title, template)` stores CV + customization to DB.
-- Load: `load_cv_into_builder(cv_record)` restores fields and list ids.
-- Backup: `_get_backup_json()` exports all `cvb_*` keys.
-- Import: `_import_from_json(...)` restores `cvb_*` keys and reruns.
-- Reset: `_reset_all()` clears `cvb_*` keys and reruns.
+Actions:
+- Select month/year writes `MM/YYYY` to storage key
+- `Clear` resets month/year (and resets current toggle if present-enabled field)
+- Optional `Present (Current)` toggle appears for end dates where `allow_present=True`
 
-Toolbar detail:
-- Backup and PDF download buttons use `on_click="ignore"` to reduce needless rerun/media churn.
+For present-enabled end date:
+- When toggled ON:
+  - stored date is cleared
+  - field display becomes `Present (Current)`
+- When toggled OFF:
+  - user selects month/year again
 
-## PDF Pipeline (Preview-Parity First)
-Entry: `_cached_generate_cv_pdf(...)` with `@st.cache_data(show_spinner=False)`.
+## Realtime and Rerun Behavior
+- Streamlit reruns on widget interactions.
+- Realtime bridge JS updates preview fields quickly for personal/contact interactions.
+- After middle panel renders, app re-collects data (`cv_data_live = collect_cv_data()`) so row-level button actions appear immediately in preview on same rerun.
 
-Steps:
-1. Deserialize CV and section settings.
-2. Build preview source via `_build_preview_source`.
-3. Render HTML via `generate_cv_html`.
-4. Wrap with print CSS via `_build_pdf_ready_html`.
-5. Render with Playwright Chromium.
+## Preview Data Source Rules
+Function: `_build_preview_source(cv_data)`
 
-Windows behavior:
-- Uses `_render_html_to_pdf_bytes_windows_subprocess(...)`.
-- Child process enforces Proactor loop policy to avoid `NotImplementedError` subprocess transport failures seen in Streamlit/Tornado environments.
+1. If CV is effectively empty:
+- Show demo resume content (template visibility aid).
 
-Dependency requirement:
-1. `py -3 -m pip install playwright`
-2. `py -3 -m playwright install chromium`
+2. If user has meaningful content:
+- Show user data.
 
-## Known Runtime Messages
-### `MediaFileHandler: Missing file <id>.json`
-Meaning:
-- Streamlit component/media ID got recycled between reruns.
+Effective-empty check uses `_is_cv_data_effectively_empty(...)`, with row-level meaningful-data checks and current language blank-name guard.
 
-Impact:
-- Usually non-fatal noise; app keeps working.
+## Data Collection Contract (`collect_cv_data`)
+`collect_cv_data()` builds normalized dict for preview/save/PDF:
+- `personal`
+- `experience`
+- `education`
+- `skills` (`items` + `categories`)
+- `projects`
+- `certifications`
+- `languages`
+- `interests`
+- `customization`
 
-Mitigations already in place:
-- Reduced unnecessary rerun paths.
-- `on_click="ignore"` on download buttons.
-- Input commit before relay click.
+Filtering behavior:
+- Any row with row-eye OFF is excluded.
+- Skills include only non-empty names.
+- Languages include only rows with non-empty language name.
+- Experience bullets include only non-empty bullet text.
 
-### Temporary �blurred/faded� UI overlay
-Meaning:
-- Streamlit is processing a rerun cycle.
+## Left Panel Component Relay
+Left panel uses HTML component + hidden relay buttons:
+- Section reorder
+- Section eye hide/show
+- Template switch
+- Style controls
 
-Impact:
-- Expected transient behavior when state-changing actions run.
+Before relay clicks, JS commits active input value (`input`/`change` + blur) to reduce value-loss during reruns.
 
-## Active vs Legacy Code Notes
-`src/ui/cv_builder_page.py` still contains older/deprecated definitions for compatibility/history.
+## Templates and Zoom
+Templates:
+- `classic`
+- `creative`
+- `modern`
 
-Practical rule:
-- In Python, the last definition with the same name wins.
-- Current runtime uses the later/native path (`render_cv_builder_page` + native panel renderers + latest `generate_cv_html`).
+Default zoom for each template: `100`.
 
-## Quick Element Behavior Matrix
-| Element | Where | Behavior |
-|---|---|---|
-| Sections list row drag | Left panel | Reorders section ids and reruns |
-| Eye icon | Left panel | Toggles section visibility and reruns |
-| Template card | Left panel | Switches template, resets zoom to template default, reruns |
-| Accent swatch | Left panel | Updates accent color and reruns |
-| Font scale slider | Left panel | Live number in component; commits on change and reruns |
-| Line height slider | Left panel | Live number in component; commits on change and reruns |
-| Spacing slider | Left panel | Live number in component; commits on change and reruns |
-| Show icons toggle | Left panel | Instant preview icon hide/show + persisted rerun |
-| Middle text inputs | Middle panel | Realtime preview updates while typing |
-| Preview zoom controls | Right toolbar | Updates zoom step and reruns |
-| Download PDF | Toolbar | Exports current preview-equivalent layout/content |
+Zoom steps:
+- `35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 90, 100`
 
-## Recommended Maintenance Rule
-When changing behavior in `src/ui/cv_builder_page.py`, always validate all 3 surfaces together:
-1. Live preview in right panel
-2. Saved DB data and restore flow
-3. Downloaded PDF parity with preview
+## Save / Load / Backup / Import / Reset
+- Save: `_save_cv(...)`
+- Load DB CV: `load_cv_into_builder(...)`
+- Backup JSON: `_get_backup_json()`
+- Import JSON: `_import_from_json(...)`
+- Reset all builder keys: `_reset_all()`
+
+Toolbar buttons:
+- Import
+- Backup
+- Save
+- Download PDF
+- Reset
+
+## PDF Generation
+Pipeline:
+1. Build preview source.
+2. Generate HTML with active renderer.
+3. Wrap print CSS.
+4. Render to PDF (Playwright-based).
+
+Goal: keep PDF output aligned with on-screen preview.
+
+## Active Definitions Note
+`src/ui/cv_builder_page.py` contains older duplicate definitions kept for historical compatibility.
+
+Python uses the last definition for each function name, so runtime behavior is governed by the last active definitions in the file.
+
+## Practical QA Checklist
+1. All sections are open on first load.
+2. Chevron can collapse/expand each section.
+3. Left sidebar eye hides/shows whole section.
+4. Row eye hides row from preview without deleting data.
+5. Delete removes row data from state.
+6. Month/year popovers are compact and usable.
+7. End-date present toggle works in experience and education.
+8. Demo CV appears when user data is empty.
+9. Typing updates preview in expected rerun cycle.
+10. Downloaded PDF matches visible preview content/visibility.

@@ -8,37 +8,50 @@ import streamlit as st
 
 
 def render_upload_preview_card() -> None:
-    """Static preview card on the upload screen."""
+    """Animated 'live report' illustration shown beside the hero copy."""
     st.markdown(
         """
-        <div class="upload-preview">
-            <div class="preview-card">
-                <div class="preview-header">
-                    <div>
-                        <div style="font-weight:700;" class="text-primary">ATS Resume Score</div>
-                        <div class="text-muted" style="font-size:0.9rem;">Sample preview</div>
-                    </div>
-                    <div class="preview-badge">LIVE</div>
+        <div class="hero-visual">
+            <div class="hv-glow"></div>
+            <div class="hv-header">
+                <span class="hv-dot"></span>
+                <span class="hv-title">ATS Resume Report</span>
+                <span class="hv-live">SAMPLE</span>
+            </div>
+            <div class="hv-ring-wrap">
+                <div class="hv-ring"></div>
+                <div class="hv-ring-label">
+                    <span class="hv-score">92</span>
+                    <span class="hv-out">OUT OF 100</span>
                 </div>
-                <div class="preview-score"><span class="num">92</span><span class="den">/100</span></div>
-                <div class="pill-row">
-                    <span class="pill">ATS Parse</span>
-                    <span class="pill">Quantified Impact</span>
-                    <span class="pill">Sections</span>
-                    <span class="pill">Skills</span>
+            </div>
+            <div class="hv-grade">Strong match &mdash; recruiter-ready</div>
+            <div class="hv-bars">
+                <div class="hv-bar-row">
+                    <span class="hv-bar-name">Content</span>
+                    <span class="hv-bar"><span class="hv-bar-fill" style="--w:92%"></span></span>
+                    <span class="hv-bar-val">92%</span>
                 </div>
-                <div class="progress-shell">
-                    <div class="progress-track">
-                        <div class="progress-fill" style="width:90%;"></div>
-                    </div>
-                    <div style="display:flex;justify-content:space-between;font-size:0.9rem;margin-top:6px;" class="text-secondary">
-                        <span>Parse rate</span><span>90%</span>
-                    </div>
+                <div class="hv-bar-row">
+                    <span class="hv-bar-name">Sections</span>
+                    <span class="hv-bar"><span class="hv-bar-fill" style="--w:88%"></span></span>
+                    <span class="hv-bar-val">88%</span>
                 </div>
-                <div class="list-row"><span>ATS Parse Rate</span><span>&#10003;</span></div>
-                <div class="list-row"><span>Quantifying Impact</span><span>&#10003;</span></div>
-                <div class="list-row"><span>Repetition</span><span>&#9888;</span></div>
-                <div class="list-row"><span>Spelling & Grammar</span><span>&#10005;</span></div>
+                <div class="hv-bar-row">
+                    <span class="hv-bar-name">ATS Essentials</span>
+                    <span class="hv-bar"><span class="hv-bar-fill" style="--w:100%"></span></span>
+                    <span class="hv-bar-val">100%</span>
+                </div>
+                <div class="hv-bar-row">
+                    <span class="hv-bar-name">Insights</span>
+                    <span class="hv-bar"><span class="hv-bar-fill" style="--w:80%"></span></span>
+                    <span class="hv-bar-val">80%</span>
+                </div>
+            </div>
+            <div class="hv-tips">
+                <span class="hv-tip">Quantify achievements with concrete metrics</span>
+                <span class="hv-tip">Add missing keyword: &ldquo;Kubernetes&rdquo;</span>
+                <span class="hv-tip">Trim the summary to three sharp lines</span>
             </div>
         </div>
         """,
@@ -240,24 +253,26 @@ from src.ui.common import issue_count
 def render_upload_page(compare_mode: bool = False) -> None:
     """Landing page: upload CV + JD."""
     _current_user = get_session_user()
+    # Set when the upload form is submitted; the analysis itself runs *after* the
+    # whole page is rendered and all layout contexts have closed (see end of fn).
+    pending_analysis = None  # tuple[str, UploadedFile] | None
     with st.container(key="hero_wrapper"):
         left, right = st.columns([1.0, 1.0], gap="medium")
         with right:
             render_upload_preview_card()
-            analysis_status_slot = st.container()
+            analysis_status_slot = st.container(key="analysis_status_box")
 
         with left:
             st.markdown(
                 """
                 <div class="hero-copy">
                     <h1 class="hero-title">Is your resume <span>good enough?</span></h1>
-                    <p class="hero-subtitle">
-                        Drop your resume, paste the JD, and get an ATS-ready report in seconds.
-                    </p>
+                    <p class="hero-subtitle">Drop your resume, paste the job description, and get an ATS-ready score with &mdash; in seconds.</p>
                     <div class="hero-chip-row">
-                        <span class="hero-chip">100% free</span>
-                        <span class="hero-chip">Free account</span>
-                        <span class="hero-chip">History saved</span>
+                        <span class="hero-chip">&#10003; 100% free</span>
+                        <span class="hero-chip">&#10003; ATS-scored</span>
+                        <span class="hero-chip">&#10003; Instant fixes</span>
+                        <span class="hero-chip">&#10003; History saved</span>
                     </div>
                 </div>
                 """,
@@ -270,7 +285,7 @@ def render_upload_page(compare_mode: bool = False) -> None:
                     jd = st.text_area(
                         "Job description",
                         key="jd",
-                        height=120,
+                        height=92,
                         placeholder="Paste the role description, must-have skills, and seniority expectations.",
                     )
                     uploaded_cv = st.file_uploader(
@@ -281,41 +296,16 @@ def render_upload_page(compare_mode: bool = False) -> None:
                         help="PDF or DOCX supported. Maximum file size: 2MB.",
                     )
                     submitted = st.form_submit_button("Upload & analyze", use_container_width=True)
-                    st.caption("Max 2MB per file.")
-                    st.markdown(
-                        '<div class="privacy-note">&#128274; Analysis is saved to your account history.</div>',
-                        unsafe_allow_html=True,
-                    )
 
                 if submitted:
-                    result = run_single_analysis(
-                        jd,
-                        uploaded_cv,
-                        status_container=analysis_status_slot,
-                    )
-                    if result:
-                        analysis, cv_text = result
-                        safe_cv_name = _sanitize_cv_filename(getattr(uploaded_cv, "name", "CV.pdf"))
-                        st.session_state["cv_text"] = cv_text
-                        st.session_state["job_description"] = jd
-                        st.session_state["analysis"] = analysis
-                        st.session_state["cv_name"] = safe_cv_name
-                        st.session_state["cv_file_size"] = getattr(uploaded_cv, "size", 0)
-                        st.session_state["issues"] = issue_count(analysis)
-                        st.session_state["page"] = "report"
-                        st.query_params["page"] = "report"
-                        snapshot_id = _save_report_snapshot()
-                        st.session_state["report_snapshot_id"] = snapshot_id
-                        st.query_params["rid"] = snapshot_id
-                        _autosave_analysis(safe_cv_name, jd, analysis)
-                        st.rerun()
+                    pending_analysis = (jd, uploaded_cv)
 
             else:
                 # ── Guest: JD preview + sign-in prompt in place of file uploader ──
                 st.text_area(
                     "Job description",
                     key="jd_guest",
-                    height=120,
+                    height=92,
                     placeholder="Paste the role description, must-have skills, and seniority expectations.",
                 )
                 _auth_href = _build_page_href("auth", next_page="upload-cv")
@@ -457,4 +447,30 @@ def render_upload_page(compare_mode: bool = False) -> None:
         )
 
     render_upload_landing_sections()
+
+    # ── Run the submitted analysis last ───────────────────────────────────────
+    # Doing it here — after the whole page is rendered and every `with` layout
+    # context (hero_wrapper, columns, the form) has closed cleanly — means the
+    # st.rerun() that navigates to the report fires from the function's top
+    # level, not from deep inside the hero. That avoids the stale duplicate-hero
+    # render that occurred when rerun unwound those contexts mid-render.
+    if pending_analysis is not None:
+        jd, uploaded_cv = pending_analysis
+        result = run_single_analysis(jd, uploaded_cv, status_container=analysis_status_slot)
+        if result:
+            analysis, cv_text = result
+            safe_cv_name = _sanitize_cv_filename(getattr(uploaded_cv, "name", "CV.pdf"))
+            st.session_state["cv_text"] = cv_text
+            st.session_state["job_description"] = jd
+            st.session_state["analysis"] = analysis
+            st.session_state["cv_name"] = safe_cv_name
+            st.session_state["cv_file_size"] = getattr(uploaded_cv, "size", 0)
+            st.session_state["issues"] = issue_count(analysis)
+            st.session_state["page"] = "report"
+            st.query_params["page"] = "report"
+            snapshot_id = _save_report_snapshot()
+            st.session_state["report_snapshot_id"] = snapshot_id
+            st.query_params["rid"] = snapshot_id
+            _autosave_analysis(safe_cv_name, jd, analysis)
+            st.rerun()
 

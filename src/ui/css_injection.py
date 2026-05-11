@@ -4,129 +4,91 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 def inject_file_uploader_spacing_css() -> None:
-    """
-    Inject custom CSS to position labels directly on top of their boxes
-    for both 'Job description' and 'Upload resume (PDF or DOCX)'.
+    """Matching outer-box treatment for the "Job description" textarea and the file uploader.
+
+    Both render as a card: 1px border, soft fill, 14px radius, the section label pinned at
+    the top of the card, then the input below it.  Scoped via the parent container keys
+    (hero card / compare card), which reliably carry st-key-* classes.
     """
     st.markdown(
         """
         <style>
-
-        /* ── Position labels directly on top of boxes - Clean design ── */
-
-        /* Textarea labels - scoped only to upload/comparison forms */
-        .st-key-upload_form .stTextArea > label,
-        .st-key-upload_form .stTextArea label,
-        .st-key-upload_form [data-testid="stTextArea"] > label,
-        .st-key-upload_form [data-testid="stTextArea"] label,
-        .st-key-comparison_form .stTextArea > label,
-        .st-key-comparison_form .stTextArea label,
-        .st-key-comparison_form [data-testid="stTextArea"] > label,
-        .st-key-comparison_form [data-testid="stTextArea"] label {
-            margin-bottom: 2px !important;
-            margin-top: 0 !important;
-            padding-bottom: 2px !important;
+        /* Card box — Job description textarea (light) */
+        body .st-key-hero_wrapper .stTextArea,
+        body .st-key-hero_wrapper [data-testid="stTextArea"],
+        body .st-key-compare_form_box .stTextArea,
+        body .st-key-compare_form_box [data-testid="stTextArea"] {
+            border: 1px solid rgba(0, 0, 0, 0.1) !important;
+            background: #f9fafb !important;
         }
-
-        /* File uploader labels - scoped only to upload/comparison forms */
-        .st-key-upload_form .stFileUploader > label,
-        .st-key-upload_form .stFileUploader label,
-        .st-key-upload_form [data-testid="stFileUploader"] > label,
-        .st-key-upload_form [data-testid="stFileUploader"] label,
-        .st-key-comparison_form .stFileUploader > label,
-        .st-key-comparison_form .stFileUploader label,
-        .st-key-comparison_form [data-testid="stFileUploader"] > label,
-        .st-key-comparison_form [data-testid="stFileUploader"] label {
-            margin-bottom: 0 !important;
-            margin-top: 0 !important;
-            padding-bottom: 0 !important;
+        body.theme-dark .st-key-hero_wrapper .stTextArea,
+        body.theme-dark .st-key-hero_wrapper [data-testid="stTextArea"],
+        body.theme-dark .st-key-compare_form_box .stTextArea,
+        body.theme-dark .st-key-compare_form_box [data-testid="stTextArea"] {
+            border: 1px solid rgba(255, 255, 255, 0.1) !important;
+            background: #111827 !important;
         }
-
-        /* Remove ALL gaps between label containers and input boxes */
-        .st-key-upload_form .stTextArea > div:first-child,
-        .st-key-upload_form .stTextArea > div:first-of-type,
-        .st-key-upload_form .stTextArea > div,
-        .st-key-comparison_form .stTextArea > div:first-child,
-        .st-key-comparison_form .stTextArea > div:first-of-type,
-        .st-key-comparison_form .stTextArea > div {
-            margin-bottom: 0 !important;
-            padding-bottom: 0 !important;
-            margin-top: 0 !important;
+        /* Shared card layout for BOTH the textarea box and the file-uploader box. */
+        body .st-key-hero_wrapper .stTextArea,
+        body .st-key-hero_wrapper [data-testid="stTextArea"],
+        body .st-key-hero_wrapper .stFileUploader,
+        body .st-key-hero_wrapper [data-testid="stFileUploader"],
+        body .st-key-compare_form_box .stTextArea,
+        body .st-key-compare_form_box [data-testid="stTextArea"],
+        body .st-key-compare_form_box .stFileUploader,
+        body .st-key-compare_form_box [data-testid="stFileUploader"] {
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: stretch !important;
+            justify-content: flex-start !important;
+            gap: 8px !important;
+            border-radius: 14px !important;
+            padding: 16px 18px 18px 18px !important;
+            box-sizing: border-box !important;
+            overflow: visible !important;
         }
-
-        .st-key-upload_form .stFileUploader > div:first-of-type,
-        .st-key-upload_form .stFileUploader > div,
-        .st-key-upload_form [data-testid="stFileUploader"] > div,
-        .st-key-upload_form [data-testid="stFileUploader"] > div:first-child,
-        .st-key-comparison_form .stFileUploader > div:first-of-type,
-        .st-key-comparison_form .stFileUploader > div,
-        .st-key-comparison_form [data-testid="stFileUploader"] > div,
-        .st-key-comparison_form [data-testid="stFileUploader"] > div:first-child {
-            margin-top: 0 !important;
-            padding-top: 0 !important;
-            margin-bottom: 0 !important;
-            padding-bottom: 0 !important;
+        /* Section labels — pinned to the top of the card, never straddling the border. */
+        body .st-key-hero_wrapper .stTextArea > label,
+        body .st-key-hero_wrapper .stTextArea label,
+        body .st-key-hero_wrapper .stTextArea > div:first-child,
+        body .st-key-hero_wrapper .stFileUploader > label,
+        body .st-key-hero_wrapper .stFileUploader label,
+        body .st-key-hero_wrapper .stFileUploader > div:first-child,
+        body .st-key-compare_form_box .stTextArea > label,
+        body .st-key-compare_form_box .stTextArea label,
+        body .st-key-compare_form_box .stTextArea > div:first-child,
+        body .st-key-compare_form_box .stFileUploader > label,
+        body .st-key-compare_form_box .stFileUploader label,
+        body .st-key-compare_form_box .stFileUploader > div:first-child {
+            display: block !important;
+            width: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            transform: none !important;
+            position: static !important;
+            top: auto !important;
+            order: -1 !important;
+            align-self: stretch !important;
+            line-height: 1.25 !important;
+            border-bottom: none !important;
         }
-
-        /* Ensure textarea sits directly below label with no gap */
-        .st-key-upload_form .stTextArea textarea,
-        .st-key-comparison_form .stTextArea textarea {
-            margin-top: 0 !important;
-            padding-top: 10px !important;
+        body .st-key-hero_wrapper .stTextArea label p,
+        body .st-key-hero_wrapper .stFileUploader label p,
+        body .st-key-compare_form_box .stTextArea label p,
+        body .st-key-compare_form_box .stFileUploader label p {
+            margin: 0 !important;
         }
-
-        /* Ensure dropzone sits directly below label with no gap */
-        .st-key-upload_form [data-testid="stFileUploaderDropzone"],
-        .st-key-upload_form section[data-testid="stFileUploadDropzone"],
-        .st-key-upload_form .stFileUploader [data-testid="stFileUploaderDropzone"],
-        .st-key-comparison_form [data-testid="stFileUploaderDropzone"],
-        .st-key-comparison_form section[data-testid="stFileUploadDropzone"],
-        .st-key-comparison_form .stFileUploader [data-testid="stFileUploaderDropzone"] {
-            margin-top: 0 !important;
+        /* Even rhythm between the form's stacked widgets (textarea → uploader → button). */
+        .st-key-hero_wrapper [data-testid="stForm"] [data-testid="stVerticalBlock"] > div,
+        .st-key-compare_form_box [data-testid="stForm"] [data-testid="stVerticalBlock"] > div {
+            margin-bottom: 6px !important;
+        }
+        /* Dropzone sits flush inside its card. */
+        .st-key-hero_wrapper [data-testid="stFileUploaderDropzone"],
+        .st-key-compare_form_box [data-testid="stFileUploaderDropzone"] {
+            margin: 0 !important;
             padding-top: 0.5rem !important;
             padding-bottom: 0.5rem !important;
-        }
-
-        /* Remove any wrapper gaps completely */
-        .st-key-upload_form .stTextArea,
-        .st-key-comparison_form .stTextArea {
-            margin-bottom: 0 !important;
-            margin-top: 0 !important;
-        }
-
-        .st-key-upload_form .stFileUploader,
-        .st-key-comparison_form .stFileUploader {
-            margin-top: 0 !important;
-            margin-bottom: 0 !important;
-        }
-
-        /* Remove spacing from form containers */
-        .st-key-upload_form .stTextArea,
-        .st-key-upload_form .stFileUploader,
-        .st-key-comparison_form .stTextArea,
-        .st-key-comparison_form .stFileUploader {
-            margin-top: 0 !important;
-            margin-bottom: 0 !important;
-        }
-
-        /* Tighten top controls only inside upload/comparison forms (avoid leaking into CV Builder). */
-        .st-key-upload_form .stSelectbox,
-        .st-key-upload_form .stCheckbox,
-        .st-key-upload_form .stSelectbox label,
-        .st-key-upload_form .stCheckbox label,
-        .st-key-comparison_form .stSelectbox,
-        .st-key-comparison_form .stCheckbox,
-        .st-key-comparison_form .stSelectbox label,
-        .st-key-comparison_form .stCheckbox label {
-            margin-top: 0 !important;
-            margin-bottom: 2px !important;
-            padding-top: 0 !important;
-            padding-bottom: 0 !important;
-            line-height: 1.2 !important;
-        }
-        .st-key-upload_form [data-testid="stVerticalBlock"] > div,
-        .st-key-comparison_form [data-testid="stVerticalBlock"] > div {
-            margin-bottom: 6px !important;
         }
         </style>
         """,
@@ -665,9 +627,9 @@ def inject_compact_header_css() -> None:
         }
         .st-key-compare_form_box,
         .st-key-upload_guest_box {
-            margin-top: 14px !important;
-            margin-bottom: 12px !important;
-            padding: 20px 18px 16px 18px !important;
+            margin-top: 10px !important;
+            margin-bottom: 4px !important;
+            padding: 16px 16px 14px 16px !important;
             border-radius: 14px !important;
             border: 1px solid __COMPARE_BOX_BORDER__ !important;
             background: __COMPARE_BOX_BG__ !important;
@@ -675,38 +637,38 @@ def inject_compact_header_css() -> None:
         }
         .guest-auth-shell {
             text-align: center !important;
-            padding: 1.25rem 0.75rem !important;
+            padding: 0.5rem 0.75rem 0.35rem !important;
         }
         .guest-auth-icon {
-            width: 62px !important;
-            height: 62px !important;
-            margin: 0 auto 0.85rem auto !important;
+            width: 46px !important;
+            height: 46px !important;
+            margin: 0 auto 0.6rem auto !important;
             border-radius: 999px !important;
             display: inline-flex !important;
             align-items: center !important;
             justify-content: center !important;
-            font-size: 1.6rem !important;
+            font-size: 1.25rem !important;
             background: __GUEST_ICON_BG__ !important;
             color: __GUEST_ICON_COLOR__ !important;
             border: 1px solid rgba(59, 130, 246, 0.22) !important;
         }
         .guest-auth-title {
-            margin: 0 0 0.5rem 0 !important;
-            font-size: 1.9rem !important;
-            line-height: 1.12 !important;
+            margin: 0 0 0.4rem 0 !important;
+            font-size: 1.45rem !important;
+            line-height: 1.15 !important;
             font-weight: 800 !important;
             color: __GUEST_TITLE_COLOR__ !important;
         }
         .guest-auth-copy {
-            margin: 0 auto 1.25rem auto !important;
-            max-width: 720px !important;
-            font-size: 1.02rem !important;
-            line-height: 1.5 !important;
+            margin: 0 auto 0.95rem auto !important;
+            max-width: 640px !important;
+            font-size: 0.94rem !important;
+            line-height: 1.45 !important;
             color: __GUEST_BODY_COLOR__ !important;
         }
         .guest-auth-cta {
             display: inline-block !important;
-            padding: 0.65rem 2rem !important;
+            padding: 0.6rem 1.85rem !important;
             border-radius: 0.65rem !important;
             text-decoration: none !important;
             font-weight: 800 !important;
@@ -723,6 +685,72 @@ def inject_compact_header_css() -> None:
             box-shadow: 0 14px 24px rgba(37, 99, 235, 0.28) !important;
             color: __GUEST_CTA_TEXT__ !important;
         }
+        /* Analysis progress panel (renders under the hero scorecard while a CV is analyzed).
+           Guarded with :has() so the empty container leaves no ghost card on the page. */
+        .st-key-analysis_status_box:has([data-testid="stElementContainer"]) {
+            margin-top: 16px !important;
+            padding: 14px 16px 12px 16px !important;
+            border: 1px solid __COMPARE_BOX_BORDER__ !important;
+            border-radius: 14px !important;
+            background: __COMPARE_BOX_BG__ !important;
+            box-shadow: __COMPARE_BOX_SHADOW__ !important;
+        }
+        .st-key-analysis_status_box [data-testid="stVerticalBlock"] {
+            gap: 0.6rem !important;
+        }
+        .st-key-analysis_status_box [data-testid="stExpander"] {
+            margin: 0 !important;
+        }
+        .st-key-analysis_status_box [data-testid="stExpander"] summary {
+            display: flex !important;
+            align-items: center !important;
+            gap: 8px !important;
+            min-height: 0 !important;
+        }
+        .st-key-analysis_status_box [data-testid="stExpander"] summary [data-testid="stIconMaterial"] {
+            flex: 0 0 1.25rem !important;
+            width: 1.25rem !important;
+            max-width: 1.25rem !important;
+            overflow: hidden !important;
+            white-space: nowrap !important;
+            font-family: "Material Symbols Rounded", "Material Symbols Outlined", "Material Icons" !important;
+        }
+        .st-key-analysis_status_box [data-testid="stExpander"] summary p,
+        .st-key-analysis_status_box [data-testid="stExpander"] summary span:not([data-testid="stIconMaterial"]) {
+            min-width: 0 !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+            white-space: nowrap !important;
+        }
+        .st-key-analysis_status_box [data-testid="stStatusWidget"],
+        .st-key-analysis_status_box [data-testid="stSpinner"] {
+            margin-top: 2px !important;
+        }
+        .st-key-analysis_status_box .chip {
+            display: inline-flex !important;
+            align-items: center !important;
+            gap: 6px !important;
+            padding: 4px 11px !important;
+            border-radius: 999px !important;
+            font-size: 0.78rem !important;
+            font-weight: 700 !important;
+            color: #0e7490 !important;
+            background: rgba(20, 184, 166, 0.12) !important;
+            border: 1px solid rgba(20, 184, 166, 0.28) !important;
+        }
+        .st-key-analysis_status_box .chip.chip-warn {
+            color: #b45309 !important;
+            background: rgba(245, 158, 11, 0.12) !important;
+            border-color: rgba(245, 158, 11, 0.30) !important;
+        }
+        body.theme-dark .st-key-analysis_status_box .chip {
+            color: #5eead4 !important;
+            background: rgba(20, 184, 166, 0.18) !important;
+        }
+        body.theme-dark .st-key-analysis_status_box .chip.chip-warn {
+            color: #fcd34d !important;
+            background: rgba(245, 158, 11, 0.18) !important;
+        }
         .st-key-compare_form_box [data-testid="stForm"] {
             margin: 0 !important;
             padding: 0 !important;
@@ -731,20 +759,15 @@ def inject_compact_header_css() -> None:
             box-shadow: none !important;
         }
         .st-key-compare_form_box [data-testid="stForm"] [data-testid="stVerticalBlock"] > div {
-            margin-bottom: 12px !important;
+            margin-bottom: 6px !important;
         }
         .st-key-compare_form_box .stTextArea label,
         .st-key-compare_form_box .stFileUploader label {
             color: __COMPARE_LABEL_COLOR__ !important;
             font-weight: 700 !important;
         }
-        .st-key-compare_form_box .stTextArea textarea {
-            background: __COMPARE_TEXTAREA_BG__ !important;
-            border: 1px solid __COMPARE_TEXTAREA_BORDER__ !important;
-            color: __COMPARE_TEXTAREA_TEXT__ !important;
-            border-radius: 10px !important;
-            transition: background-color 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease !important;
-        }
+        /* The comparison "Job description" field uses the same textarea styling as the
+           main "Job description" field — no compare-specific colours. */
         .stForm .stTextArea textarea:hover,
         .stForm .stTextArea textarea:focus,
         .stForm .stTextArea > div:hover textarea,
@@ -752,17 +775,6 @@ def inject_compact_header_css() -> None:
             background: var(--excelcv-uniform-hover-bg) !important;
             border-color: var(--excelcv-uniform-hover-border) !important;
             box-shadow: var(--excelcv-uniform-hover-shadow) !important;
-        }
-        .st-key-compare_form_box .stTextArea textarea::placeholder {
-            color: __COMPARE_PLACEHOLDER__ !important;
-        }
-        .st-key-compare_form_box .stTextArea > div:hover textarea,
-        .st-key-compare_form_box .stTextArea > div:focus-within textarea,
-        .st-key-compare_form_box .stTextArea textarea:hover,
-        .st-key-compare_form_box .stTextArea textarea:focus {
-            background: __COMPARE_HOVER_BG__ !important;
-            border-color: __COMPARE_HOVER_BORDER__ !important;
-            box-shadow: __COMPARE_HOVER_SHADOW__ !important;
         }
         .st-key-compare_form_box .stFileUploader [data-testid="stFileUploaderDropzone"] {
             border-radius: 10px !important;

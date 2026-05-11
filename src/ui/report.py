@@ -15,18 +15,48 @@ from src.ui.common import (
     issue_count,
 )
 
-def _build_sidebar_html(score: int, issues: int, categories: list) -> str:
+def _build_sidebar_html(
+    score: int,
+    issues: int,
+    categories: list,
+    score_breakdown: Dict[str, Any] | None = None,
+    cv_name: str = "",
+) -> str:
     """Build the entire sidebar as one complete HTML string."""
     issues_cls = 'clickable' if issues > 0 else ''
     issues_attr = 'data-section-id="suggestions"' if issues > 0 else ''
+    breakdown_html = _build_score_breakdown_html(score_breakdown or {})
+
+    score_int = int(score) if isinstance(score, (int, float)) else 0
+    if score_int >= 80:
+        ring_color = "#10b981"
+    elif score_int >= 60:
+        ring_color = "#f59e0b"
+    else:
+        ring_color = "#ef4444"
+    issue_word = "issue" if issues == 1 else "issues"
+    name_clean = (cv_name or "").strip()
+    file_line = (
+        f'<div class="score-file text-muted" title="{_escape_html(name_clean)}">{_escape_html(name_clean)}</div>'
+        if name_clean
+        else ""
+    )
 
     html = f"""
     <div class="report-sidebar">
         <div class="score-card">
+            {file_line}
             <div class="score-title text-muted" style="font-size:0.95rem;">Your Score</div>
-            <div class="score-number">{score}<span>/100</span></div>
-            <div class="issues-text {issues_cls}" {issues_attr}>{issues} issues</div>
-        </div>"""
+            <div class="report-score-ring-wrap" style="--rsr-c:{ring_color};">
+                <div class="report-score-ring" style="--hv-p:{score_int}%;"></div>
+                <div class="report-score-ring-label">
+                    <span class="rsr-num">{score}</span>
+                    <span class="rsr-den">/ 100</span>
+                    <span class="issues-text rsr-issues {issues_cls}" {issues_attr}>{issues} {issue_word}</span>
+                </div>
+            </div>
+        </div>
+        {breakdown_html}"""
 
     for title, cat_score, items in categories:
         safe_score = int(cat_score) if cat_score is not None else 0
@@ -55,14 +85,13 @@ def _build_sidebar_html(score: int, issues: int, categories: list) -> str:
                                "error": "badge badge-warn", "lock": "badge badge-lock"
                                }.get(status, "badge badge-warn")
 
-                # For Content category metrics, always show percentage score.
-                # always show percentage score, not issue count
+                # Content category metrics always show a percentage score, not an issue count.
                 is_content_metric = item_label in (
-                    "Explainable Scoring",
                     "ATS Parse Rate",
                     "Quantifying Impact",
                     "Repetition",
                     "Spelling & Grammar",
+                    "Bullets Consistency",
                 )
                 
                 if is_content_metric:
@@ -99,7 +128,9 @@ def _build_sidebar_html(score: int, issues: int, categories: list) -> str:
         html += '</div>'  # close category
 
     html += '</div>'  # close report-sidebar
-    return html
+    # Collapse to a continuous HTML block: strip leading whitespace and drop blank lines
+    # so st.markdown never treats an indented / blank-prefixed line as a code block.
+    return "\n".join(line.lstrip() for line in html.splitlines() if line.strip())
 
 
 
@@ -137,8 +168,8 @@ def _build_ats_parse_rate_html(ats_val: int) -> str:
             """
 
 
-def _build_explainable_scoring_html(score_breakdown: Dict[str, Any]) -> str:
-    """Build explainable weighted scoring card."""
+def _build_score_breakdown_html(score_breakdown: Dict[str, Any]) -> str:
+    """Build the collapsible 'how this score is calculated' card shown in the sidebar."""
     final_score = int(score_breakdown.get("final_score", 0))
     mode = score_breakdown.get("mode", "jd_aligned")
     content_avg = int(score_breakdown.get("content_average", 0))
@@ -150,14 +181,14 @@ def _build_explainable_scoring_html(score_breakdown: Dict[str, Any]) -> str:
         else "No-JD mode (weights redistributed)"
     )
     html = f"""
-        <div class="detail-card section-anchor" id="explainable-scoring">
+        <div class="detail-card section-anchor score-breakdown-card collapsed" id="score-breakdown">
             <div class="detail-head">
-                <h3>Explainable Scoring</h3>
+                <h3>How this score is calculated<span class="detail-chevron">&#9660;</span></h3>
                 <span class="badge badge-ok">{final_score}%</span>
             </div>
-            <div class="section-body">
+            <div class="section-body collapsed">
                 <p class="section-body-item text-description">
-                    Final score is calculated by weighted deterministic components. Mode: {mode_text}.
+                    Your score is a weighted sum of deterministic components. Mode: {mode_text}.
                     Content average is {content_avg}% from ATS Parse, Quantifying Impact, Repetition, and Spelling.
                 </p>
                 <div class="issue-card good-card" style="margin-top:10px;">
@@ -177,289 +208,6 @@ def _build_explainable_scoring_html(score_breakdown: Dict[str, Any]) -> str:
         """
     html += """
                 </div>
-            </div>
-        </div>
-    """
-    return html
-
-
-def _build_skill_matrix_html(skill_matrix: List[Dict[str, Any]]) -> str:
-    """Build JD-to-skill evidence matrix card."""
-    if not skill_matrix:
-        return """
-        <div class="detail-card section-anchor" id="jd-skill-matrix">
-            <div class="detail-head">
-                <h3>JD Skill Matrix</h3>
-                <span class="badge badge-lock">Locked</span>
-            </div>
-            <div class="section-body">
-                <div class="issue-card">
-                    <div class="issue-heading">Add a job description to generate the skill evidence matrix.</div>
-                </div>
-            </div>
-        </div>
-        """
-
-    found = sum(1 for row in skill_matrix if row.get("status") == "Found")
-    partial = sum(1 for row in skill_matrix if row.get("status") == "Partial")
-    missing = sum(1 for row in skill_matrix if row.get("status") == "Missing")
-    badge_cls = "ok" if missing == 0 else "warn"
-    badge_text = "All covered" if missing == 0 else f"{missing} missing"
-
-    html = f"""
-        <div class="detail-card section-anchor" id="jd-skill-matrix">
-            <div class="detail-head">
-                <h3>JD Skill Matrix</h3>
-                <span class="badge badge-{badge_cls}">{badge_text}</span>
-            </div>
-            <div class="section-body">
-                <p class="section-body-item text-description">
-                    Skill evidence mapping: {found} found, {partial} partial, {missing} missing.
-                </p>
-                <div class="issue-card" style="margin-top:10px;">
-    """
-    for row in skill_matrix:
-        skill = _escape_html(row.get("skill", ""))
-        status = row.get("status", "Missing")
-        evidence = _escape_html(row.get("evidence", ""))
-        icon = "&#10003;" if status == "Found" else ("&#9888;" if status == "Partial" else "&#10005;")
-        icon_cls = "found" if status == "Found" else "missing"
-        html += f"""
-                    <div class="contact-row">
-                        <span class="contact-icon {icon_cls}">{icon}</span>
-                        <span class="contact-label">{skill}</span>
-                        <span class="contact-sep">&mdash;</span>
-                        <span class="contact-value contact-msg">{status}: {evidence}</span>
-                    </div>
-        """
-    html += """
-                </div>
-            </div>
-        </div>
-    """
-    return html
-
-
-def _build_rewrite_assistant_html(rewrite_recommendations: List[Dict[str, Any]]) -> str:
-    """Build before/after rewrite suggestions card."""
-    if not rewrite_recommendations:
-        return """
-        <div class="detail-card section-anchor" id="rewrite-assistant">
-            <div class="detail-head">
-                <h3>Rewrite Assistant</h3>
-                <span class="badge badge-ok">No issues</span>
-            </div>
-            <div class="section-body">
-                <div class="issue-card good-card">
-                    <div class="issue-heading">No rewrite recommendations generated from current analysis.</div>
-                </div>
-            </div>
-        </div>
-        """
-
-    html = f"""
-        <div class="detail-card section-anchor" id="rewrite-assistant">
-            <div class="detail-head">
-                <h3>Rewrite Assistant</h3>
-                <span class="badge badge-warn">{len(rewrite_recommendations)} suggestions</span>
-            </div>
-            <div class="section-body">
-                <p class="section-body-item text-description">
-                    Before/after rewrites to strengthen impact and clarity. Replace placeholders with real metrics.
-                </p>
-    """
-    for row in rewrite_recommendations:
-        before = _escape_html(row.get("before", ""))
-        after = _escape_html(row.get("after", ""))
-        rationale = _escape_html(row.get("rationale", ""))
-        html += f"""
-                <div class="issue-card" style="margin-top:10px;">
-                    <div class="contact-row">
-                        <span class="contact-label">Before</span>
-                        <span class="contact-sep">&mdash;</span>
-                        <span class="contact-value contact-msg">{before}</span>
-                    </div>
-                    <div class="contact-row">
-                        <span class="contact-label">After</span>
-                        <span class="contact-sep">&mdash;</span>
-                        <span class="contact-value contact-msg">{after}</span>
-                    </div>
-                    <div class="contact-row">
-                        <span class="contact-label">Why</span>
-                        <span class="contact-sep">&mdash;</span>
-                        <span class="contact-value contact-msg">{rationale}</span>
-                    </div>
-                </div>
-        """
-    html += """
-            </div>
-        </div>
-    """
-    return html
-
-
-def _build_recruiter_snapshot_html(snapshot: Dict[str, Any]) -> str:
-    verdict = _escape_html(snapshot.get("verdict", "Snapshot"))
-    summary = _escape_html(snapshot.get("summary", "No recruiter snapshot available."))
-    badge = "ok" if verdict == "Strong Fit" else ("warn" if verdict == "Potential Fit" else "warn")
-    return f"""
-        <div class="detail-card section-anchor" id="recruiter-snapshot">
-            <div class="detail-head">
-                <h3>Recruiter Snapshot</h3>
-                <span class="badge badge-{badge}">{verdict}</span>
-            </div>
-            <div class="section-body">
-                <div class="issue-card" style="margin-top:10px;">
-                    <div class="issue-heading">Quick recruiter-view summary</div>
-                    <div class="text-description" style="margin-top:8px;">{summary}</div>
-                </div>
-            </div>
-        </div>
-    """
-
-
-def _build_priority_action_plan_html(action_plan: List[Dict[str, Any]]) -> str:
-    if not action_plan:
-        return """
-        <div class="detail-card section-anchor" id="priority-action-plan">
-            <div class="detail-head">
-                <h3>Priority Action Plan</h3>
-                <span class="badge badge-ok">No issues</span>
-            </div>
-            <div class="section-body">
-                <div class="issue-card good-card">
-                    <div class="issue-heading">No immediate high-priority actions detected.</div>
-                </div>
-            </div>
-        </div>
-        """
-
-    html = f"""
-        <div class="detail-card section-anchor" id="priority-action-plan">
-            <div class="detail-head">
-                <h3>Priority Action Plan</h3>
-                <span class="badge badge-warn">{len(action_plan)} actions</span>
-            </div>
-            <div class="section-body">
-    """
-    for idx, item in enumerate(action_plan, start=1):
-        title = _escape_html(item.get("title", "Action item"))
-        priority = _escape_html(item.get("priority", "Medium"))
-        impact = _escape_html(item.get("impact", "Medium"))
-        effort = _escape_html(item.get("effort", "Medium"))
-        action = _escape_html(item.get("action", ""))
-        html += f"""
-                <div class="issue-card" style="margin-top:10px;text-align:left;">
-                    <div class="issue-heading">{idx}. {title}</div>
-                    <div class="text-description" style="margin-top:6px;">Priority: {priority} | Impact: {impact} | Effort: {effort}</div>
-                    <div class="contact-row" style="margin-top:10px;">
-                        <span class="contact-label">Next Step</span>
-                        <span class="contact-sep">&mdash;</span>
-                        <span class="contact-value contact-msg">{action}</span>
-                    </div>
-                </div>
-        """
-    html += """
-            </div>
-        </div>
-    """
-    return html
-
-
-def _build_interview_prep_html(interview_prep: List[Dict[str, Any]]) -> str:
-    if not interview_prep:
-        return """
-        <div class="detail-card section-anchor" id="interview-prep">
-            <div class="detail-head">
-                <h3>Interview Prep</h3>
-                <span class="badge badge-lock">Locked</span>
-            </div>
-            <div class="section-body">
-                <div class="issue-card">
-                    <div class="issue-heading">Not enough data to generate interview prep prompts.</div>
-                </div>
-            </div>
-        </div>
-        """
-
-    html = f"""
-        <div class="detail-card section-anchor" id="interview-prep">
-            <div class="detail-head">
-                <h3>Interview Prep</h3>
-                <span class="badge badge-ok">{len(interview_prep)} questions</span>
-            </div>
-            <div class="section-body">
-    """
-    for row in interview_prep:
-        q_type = _escape_html(row.get("type", "Question"))
-        question = _escape_html(row.get("question", ""))
-        why = _escape_html(row.get("why", ""))
-        html += f"""
-                <div class="issue-card" style="margin-top:10px;text-align:left;">
-                    <div class="issue-heading">{q_type}</div>
-                    <div class="contact-row">
-                        <span class="contact-label">Q</span>
-                        <span class="contact-sep">&mdash;</span>
-                        <span class="contact-value contact-msg">{question}</span>
-                    </div>
-                    <div class="contact-row">
-                        <span class="contact-label">Why</span>
-                        <span class="contact-sep">&mdash;</span>
-                        <span class="contact-value contact-msg">{why}</span>
-                    </div>
-                </div>
-        """
-    html += """
-            </div>
-        </div>
-    """
-    return html
-
-
-def _build_learning_roadmap_html(roadmap: List[Dict[str, Any]]) -> str:
-    if not roadmap:
-        return """
-        <div class="detail-card section-anchor" id="learning-roadmap">
-            <div class="detail-head">
-                <h3>Learning Roadmap</h3>
-                <span class="badge badge-ok">On track</span>
-            </div>
-            <div class="section-body">
-                <div class="issue-card good-card">
-                    <div class="issue-heading">No significant skill-gap roadmap required right now.</div>
-                </div>
-            </div>
-        </div>
-        """
-
-    html = f"""
-        <div class="detail-card section-anchor" id="learning-roadmap">
-            <div class="detail-head">
-                <h3>Learning Roadmap</h3>
-                <span class="badge badge-warn">{len(roadmap)} targets</span>
-            </div>
-            <div class="section-body">
-    """
-    for row in roadmap:
-        skill = _escape_html(row.get("skill", "Skill"))
-        target = _escape_html(row.get("target", ""))
-        plan = _escape_html(row.get("plan", ""))
-        html += f"""
-                <div class="issue-card" style="margin-top:10px;text-align:left;">
-                    <div class="issue-heading">{skill}</div>
-                    <div class="contact-row">
-                        <span class="contact-label">Target</span>
-                        <span class="contact-sep">&mdash;</span>
-                        <span class="contact-value contact-msg">{target}</span>
-                    </div>
-                    <div class="contact-row">
-                        <span class="contact-label">Plan</span>
-                        <span class="contact-sep">&mdash;</span>
-                        <span class="contact-value contact-msg">{plan}</span>
-                    </div>
-                </div>
-        """
-    html += """
             </div>
         </div>
     """
@@ -629,6 +377,64 @@ def _build_spelling_grammar_html(spelling_grammar: Dict[str, Any]) -> str:
     return spell_html
 
 
+def _build_bullets_consistency_html(bullets_consistency: Dict[str, Any]) -> str:
+    b_score = bullets_consistency.get("score")
+    b_status = bullets_consistency.get("status", "ok")
+    out_of_range = bullets_consistency.get("out_of_range", []) or []
+    total = bullets_consistency.get("total_bullets", 0)
+    min_w = bullets_consistency.get("min_words", 15)
+    max_w = bullets_consistency.get("max_words", 45)
+    has_data = bool(bullets_consistency) and b_score is not None
+    b_badge = "ok" if b_status == "ok" else "warn"
+    if not has_data:
+        b_label = "Not assessed"
+    elif b_status == "ok":
+        b_label = "No issues"
+    else:
+        b_label = f"{len(out_of_range)} issues"
+    bar_w = int(b_score) if isinstance(b_score, (int, float)) else 0
+
+    html = f"""
+        <div class="detail-card section-anchor" id="bullets-consistency">
+            <div class="detail-head">
+                <h3>Bullets Consistency</h3>
+                <span class="badge badge-{b_badge}">{b_label}</span>
+            </div>
+            <div class="section-body">
+                <p class="section-body-item text-description">Recruiters skim resumes in seconds. Bullets that are too short read vague, and bullets that are too long get skipped &mdash; aim for {min_w}&ndash;{max_w} words each. (Based on detected bullet lines.)</p>"""
+    if has_data:
+        html += f"""
+                <div class="progress-track dark"><div class="progress-fill dark" style="width:{bar_w}%"></div></div>
+                <div style="display:flex;justify-content:space-between;font-size:0.9rem;" class="text-muted">
+                    <span>Score</span><span>{bar_w}%</span>
+                </div>"""
+    if out_of_range:
+        html += f"""
+                <div class="issue-card" style="margin-top:14px;">
+                    <div class="issue-heading">These bullets fall outside the {min_w}&ndash;{max_w} word range:</div>"""
+        for item in out_of_range:
+            line = _escape_html(item.get("line", ""))
+            words = item.get("words", 0)
+            issue = _escape_html(item.get("issue", ""))
+            html += (
+                f'<div class="issue-item"><span class="issue-x">&#10005;</span>'
+                f'<span><strong>{words} words ({issue})</strong> &mdash; {line}</span></div>'
+            )
+        html += '</div>'
+    elif has_data and b_status == "ok":
+        html += f"""
+                <div class="issue-card good-card" style="margin-top:14px;">
+                    <div class="issue-heading">Great &mdash; all {total} bullets are within the {min_w}&ndash;{max_w} word range.</div>
+                </div>"""
+    elif not has_data:
+        html += """
+                <div class="issue-card" style="margin-top:14px;">
+                    <div class="issue-heading">Not enough bullet points were detected to assess length consistency.</div>
+                </div>"""
+    html += '</div></div>'
+    return html
+
+
 def _build_essential_sections_html(sections_details: Dict[str, Any]) -> str:
     essential_sections_map = [
         ("contact", "Contact", sections_details.get("has_contact", False)),
@@ -722,6 +528,51 @@ def _build_contact_information_html(contact_found: List[Dict[str, Any]], contact
 
     contact_html += "</div></div>"
     return contact_html
+
+
+def _build_sections_order_html(section_order: Dict[str, Any]) -> str:
+    has_data = bool(section_order)
+    status = section_order.get("status", "ok")
+    message = section_order.get("message", "")
+    detected_order = section_order.get("detected_order", []) or []
+    badge = "warn" if status == "warn" else "ok"
+    if not has_data:
+        label = "Not assessed"
+    elif status == "warn":
+        label = "1 issue"
+    else:
+        label = "No issues"
+
+    html = f"""
+        <div class="detail-card section-anchor" id="sections-order">
+            <div class="detail-head">
+                <h3>Sections Order</h3>
+                <span class="badge badge-{badge}">{label}</span>
+            </div>
+            <div class="section-body">
+                <p class="section-body-item text-description">Recruiters spend about six seconds on a first scan. Put the section that proves your value fastest near the top &mdash; Summary and Experience for experienced candidates, Education for students and new grads &mdash; not buried under skills lists or coursework. (Based on detected section headers.)</p>"""
+    if detected_order:
+        nice = " &rarr; ".join(_escape_html(s.title()) for s in detected_order)
+        html += f"""
+                <div class="text-muted" style="font-size:0.9rem;margin-top:8px;">Detected order: {nice}</div>"""
+    if not has_data:
+        html += """
+                <div class="issue-card" style="margin-top:14px;">
+                    <div class="issue-heading">Not enough section headers were detected to assess ordering.</div>
+                </div>"""
+    elif status == "warn":
+        html += f"""
+                <div class="issue-card" style="margin-top:14px;">
+                    <div class="issue-heading">{_escape_html(message)}</div>
+                </div>"""
+    else:
+        good_msg = message or "Your section order looks well-suited to your experience level."
+        html += f"""
+                <div class="issue-card good-card" style="margin-top:14px;">
+                    <div class="issue-heading">{_escape_html(good_msg)}</div>
+                </div>"""
+    html += "</div></div>"
+    return html
 
 
 def _build_file_format_size_html(file_format_info: Dict[str, Any]) -> str:
@@ -885,6 +736,58 @@ def _build_header_links_html(header_links_info: Dict[str, Any]) -> str:
 
     hl_html += "</div></div>"
     return hl_html
+
+
+def _build_file_name_check_html(file_name_check: Dict[str, Any]) -> str:
+    has_data = bool(file_name_check)
+    status = file_name_check.get("status", "ok")
+    fname = file_name_check.get("file_name", "")
+    issues = file_name_check.get("issues", []) or []
+    suggested = file_name_check.get("suggested", "FirstNameLastName.pdf")
+    badge = "warn" if status == "warn" else "ok"
+    if not has_data:
+        label = "Not assessed"
+    elif status == "warn":
+        label = f"{len(issues)} issue{'s' if len(issues) != 1 else ''}"
+    else:
+        label = "No issues"
+
+    html = f"""
+        <div class="detail-card section-anchor" id="file-name-check">
+            <div class="detail-head">
+                <h3>File Name Check</h3>
+                <span class="badge badge-{badge}">{label}</span>
+            </div>
+            <div class="section-body">
+                <p class="section-body-item text-description">Your file name should look clean and professional when a recruiter downloads it. A safe format is <strong>FirstNameLastName.pdf</strong>.</p>"""
+    if fname:
+        html += f"""
+                <div class="text-muted" style="font-size:0.9rem;margin-top:8px;">Current file: <strong>{_escape_html(fname)}</strong></div>"""
+    if not has_data:
+        html += """
+                <div class="issue-card" style="margin-top:14px;">
+                    <div class="issue-heading">The file name wasn't available for this analysis.</div>
+                </div>"""
+    elif issues:
+        html += """
+                <div class="issue-card" style="margin-top:14px;">
+                    <div class="issue-heading">A few things to clean up:</div>"""
+        for issue in issues:
+            html += f'<div class="issue-item"><span class="issue-x">&#10005;</span><span>{_escape_html(issue)}</span></div>'
+        html += f"""
+                    <div class="contact-row" style="margin-top:10px;">
+                        <span class="contact-label">Suggested</span>
+                        <span class="contact-sep">&mdash;</span>
+                        <span class="contact-value"><strong>{_escape_html(suggested)}</strong></span>
+                    </div>
+                </div>"""
+    else:
+        html += f"""
+                <div class="issue-card good-card" style="margin-top:14px;">
+                    <div class="issue-heading">Your file name looks clean and professional.</div>
+                </div>"""
+    html += "</div></div>"
+    return html
 
 
 def _build_list_card(
@@ -1384,6 +1287,7 @@ def render_report_page(analysis: Dict[str, Any], name: str = "CV") -> None:
     quant_impact = content_metrics.get("quantifying_impact", {}) or {}
     repetition = content_metrics.get("repetition", {}) or {}
     spelling_grammar = content_metrics.get("spelling_grammar", {}) or {}
+    bullets_consistency = content_metrics.get("bullets_consistency", {}) or {}
     score_breakdown = analysis.get("score_breakdown", {}) or {}
 
     # Calculate Content category score as average of content metrics
@@ -1393,21 +1297,29 @@ def render_report_page(analysis: Dict[str, Any], name: str = "CV") -> None:
         repetition.get("score", 0),
         spelling_grammar.get("score", 0),
     ]
+    # Older analyses won't have bullets_consistency — only fold it in when present.
+    if bullets_consistency.get("score") is not None:
+        content_items.append(bullets_consistency["score"])
     content_score = int(sum(content_items) / len(content_items)) if content_items else subs.get("ats_readiness", score)
 
     # Build Content category items: (label, status, score)
     content_items_list = [
-        ("Explainable Scoring", "ok", score),
         ("ATS Parse Rate", "ok" if ats_parse_rate >= 80 else "warn" if ats_parse_rate >= 60 else "error", ats_parse_rate),
         ("Quantifying Impact", quant_impact.get("status", "ok"), quant_impact.get("score", 0)),
         ("Repetition", repetition.get("status", "ok"), repetition.get("score", 0)),
         ("Spelling & Grammar", spelling_grammar.get("status", "ok"), spelling_grammar.get("score", 0)),
     ]
+    if bullets_consistency:
+        content_items_list.append(
+            ("Bullets Consistency", bullets_consistency.get("status", "ok"), bullets_consistency.get("score"))
+        )
 
     # Extract other category metrics
     sections_metrics = analysis.get("sections_metrics", {}) or {}
     sections_score = sections_metrics.get("score", subs.get("experience_alignment", score)) or 0
     sections_details = sections_metrics.get("details", {}) or {}
+    section_order = sections_metrics.get("section_order", {}) or {}
+    section_order_flagged = section_order.get("status") == "warn"
 
     # Extract contact info
     contact_info = analysis.get("contact_info", {}) or {}
@@ -1427,6 +1339,11 @@ def render_report_page(analysis: Dict[str, Any], name: str = "CV") -> None:
     else:
         sections_items_list.append(("Contact Information", "ok", None))
 
+    if section_order:
+        sections_items_list.append(
+            ("Sections Order", "warn" if section_order_flagged else "ok", 1 if section_order_flagged else None)
+        )
+
     ats_essentials_metrics = analysis.get("ats_essentials_metrics", {}) or {}
     ats_essentials_score = ats_essentials_metrics.get("score", subs.get("ats_readiness", score)) or 0
     ats_essentials_details = ats_essentials_metrics.get("details", {}) or {}
@@ -1435,6 +1352,9 @@ def render_report_page(analysis: Dict[str, Any], name: str = "CV") -> None:
     file_format_info = ats_essentials_details.get("file_format", {}) or {}
     email_check_info = ats_essentials_details.get("email_check", {}) or {}
     header_links_info = ats_essentials_details.get("header_links", {}) or {}
+    file_name_check = ats_essentials_details.get("file_name_check", {}) or {}
+    file_name_issues = file_name_check.get("issues", []) or []
+    file_name_flagged = file_name_check.get("status") == "warn"
 
     # Build ATS Essentials category items
     ats_items_list = []
@@ -1461,64 +1381,32 @@ def render_report_page(analysis: Dict[str, Any], name: str = "CV") -> None:
     has_links = header_links_info.get("has_links", False)
     ats_items_list.append(("Header Links", "ok" if has_links else "warn", None if has_links else 1))
 
+    if file_name_check:
+        ats_items_list.append(
+            ("File Name Check", "warn" if file_name_flagged else "ok", len(file_name_issues) if file_name_flagged else None)
+        )
+
     # Build Insights category items
     strengths_list = analysis.get("strengths", [])
     missing_skills_list = analysis.get("missing_skills", [])
     missing_keywords_list = analysis.get("missing_keywords", [])
     suggestions_list = analysis.get("suggestions", [])
-    jd_skill_matrix = analysis.get("jd_skill_matrix", []) or []
-    rewrite_recommendations = analysis.get("rewrite_recommendations", []) or []
-    recruiter_snapshot = analysis.get("recruiter_snapshot", {}) or {}
-    priority_action_plan = analysis.get("priority_action_plan", []) or []
-    interview_prep = analysis.get("interview_prep", []) or []
-    learning_roadmap = analysis.get("learning_roadmap", []) or []
-    portfolio_checklist = analysis.get("portfolio_checklist", {}) or {}
-    portfolio_missing = portfolio_checklist.get("missing", []) or []
-
-    matrix_missing_count = sum(1 for row in jd_skill_matrix if row.get("status") == "Missing")
-    matrix_partial_count = sum(1 for row in jd_skill_matrix if row.get("status") == "Partial")
-    matrix_issue_count = matrix_missing_count + matrix_partial_count
 
     insights_items_list = [
         ("Strengths", "ok" if strengths_list else "warn", len(strengths_list) if strengths_list else None),
         ("Missing Skills", "warn" if missing_skills_list else "ok", len(missing_skills_list) if missing_skills_list else None),
         ("Missing Keywords", "warn" if missing_keywords_list else "ok", len(missing_keywords_list) if missing_keywords_list else None),
         ("Suggestions", "ok" if suggestions_list else "warn", len(suggestions_list) if suggestions_list else None),
-        ("Recruiter Snapshot", "ok", None),
-        (
-            "Priority Action Plan",
-            "warn" if priority_action_plan else "ok",
-            len(priority_action_plan) if priority_action_plan else None,
-        ),
-        (
-            "Interview Prep",
-            "ok" if interview_prep else "lock",
-            len(interview_prep) if interview_prep else None,
-        ),
-        (
-            "Learning Roadmap",
-            "warn" if learning_roadmap else "ok",
-            len(learning_roadmap) if learning_roadmap else None,
-        ),
-        (
-            "Portfolio Checklist",
-            "warn" if portfolio_missing else "ok",
-            len(portfolio_missing) if portfolio_missing else None,
-        ),
-        (
-            "JD Skill Matrix",
-            "lock" if not jd_skill_matrix else ("warn" if matrix_issue_count > 0 else "ok"),
-            None if not jd_skill_matrix else (matrix_issue_count if matrix_issue_count > 0 else 0),
-        ),
-        (
-            "Rewrite Assistant",
-            "warn" if rewrite_recommendations else "ok",
-            len(rewrite_recommendations) if rewrite_recommendations else None,
-        ),
     ]
 
-    total_insights = len(strengths_list) + len(missing_skills_list) + len(missing_keywords_list)
-    insights_score = int((len(strengths_list) / total_insights) * 100) if total_insights else 80
+    # Insights category % = share of the insight areas that are clean.
+    _insights_ok = (
+        (1 if strengths_list else 0)
+        + (0 if missing_skills_list else 1)
+        + (0 if missing_keywords_list else 1)
+        + 1  # Suggestions are informational ("tips"), not an issue
+    )
+    insights_score = round(100 * _insights_ok / len(insights_items_list))
 
     categories = [
         ("Content", content_score, content_items_list),
@@ -1531,7 +1419,7 @@ def render_report_page(analysis: Dict[str, Any], name: str = "CV") -> None:
     sidebar, main = st.columns([1, 1.6], gap="large")
 
     with sidebar:
-        sidebar_html = _build_sidebar_html(score, issues, categories)
+        sidebar_html = _build_sidebar_html(score, issues, categories, score_breakdown, name)
         st.markdown(sidebar_html, unsafe_allow_html=True)
         components.html(_build_sidebar_js(), height=0)
 
@@ -1585,8 +1473,10 @@ def render_report_page(analysis: Dict[str, Any], name: str = "CV") -> None:
             content_issue_count += max(1, len(repetition.get("repeated_words", [])))
         if spelling_grammar.get("status", "ok") != "ok":
             content_issue_count += max(1, len(spelling_grammar.get("issues_list", [])))
+        if bullets_consistency.get("status", "ok") != "ok":
+            content_issue_count += max(1, len(bullets_consistency.get("out_of_range", [])))
 
-        sections_issue_count = len(missing_sections) + len(contact_missing)
+        sections_issue_count = len(missing_sections) + len(contact_missing) + (1 if section_order_flagged else 0)
 
         ats_issue_count = 0
         if not ff_ok:
@@ -1596,16 +1486,10 @@ def render_report_page(analysis: Dict[str, Any], name: str = "CV") -> None:
             ats_issue_count += 1
         if not has_links:
             ats_issue_count += 1
+        if file_name_flagged:
+            ats_issue_count += len(file_name_issues)
 
-        insights_issue_count = (
-            len(missing_skills_list)
-            + len(missing_keywords_list)
-            + matrix_issue_count
-            + len(rewrite_recommendations)
-            + len(priority_action_plan)
-            + len(learning_roadmap)
-            + len(portfolio_missing)
-        )
+        insights_issue_count = len(missing_skills_list) + len(missing_keywords_list)
 
         content_group_html = _build_group_card(
             "Content",
@@ -1613,11 +1497,11 @@ def render_report_page(analysis: Dict[str, Any], name: str = "CV") -> None:
             content_issue_count,
             "".join(
                 [
-                    _build_explainable_scoring_html(score_breakdown),
                     _build_ats_parse_rate_html(content_metrics.get("ats_parse_rate", 0)),
                     _build_quantifying_impact_html(quant_impact),
                     _build_repetition_html(repetition),
                     _build_spelling_grammar_html(spelling_grammar),
+                    _build_bullets_consistency_html(bullets_consistency),
                 ]
             ),
         )
@@ -1629,6 +1513,7 @@ def render_report_page(analysis: Dict[str, Any], name: str = "CV") -> None:
                 [
                     _build_essential_sections_html(sections_details),
                     _build_contact_information_html(contact_found, contact_missing),
+                    _build_sections_order_html(section_order),
                 ]
             ),
         )
@@ -1642,6 +1527,7 @@ def render_report_page(analysis: Dict[str, Any], name: str = "CV") -> None:
                     _build_design_html(ats_issues),
                     _build_email_address_html(email_check_info),
                     _build_header_links_html(header_links_info),
+                    _build_file_name_check_html(file_name_check),
                 ]
             ),
         )
@@ -1649,29 +1535,7 @@ def render_report_page(analysis: Dict[str, Any], name: str = "CV") -> None:
             "Insights",
             "group-insights",
             insights_issue_count,
-            "".join(
-                [
-                    _build_recruiter_snapshot_html(recruiter_snapshot),
-                    _build_priority_action_plan_html(priority_action_plan),
-                    _build_interview_prep_html(interview_prep),
-                    _build_learning_roadmap_html(learning_roadmap),
-                    _build_list_card(
-                        "Portfolio Checklist",
-                        portfolio_missing,
-                        "portfolio-checklist",
-                        "warn" if portfolio_missing else "ok",
-                        f"{len(portfolio_missing)} pending" if portfolio_missing else "Ready",
-                        "&#10005;" if portfolio_missing else "&#10003;",
-                        "Portfolio checklist is complete for current review.",
-                    ),
-                    _build_skill_matrix_html(jd_skill_matrix),
-                    _build_rewrite_assistant_html(rewrite_recommendations),
-                    strengths_html,
-                    missing_skills_html,
-                    missing_kw_html,
-                    suggestions_html,
-                ]
-            ),
+            "".join([strengths_html, missing_skills_html, missing_kw_html, suggestions_html]),
         )
 
         report_main_html = (
@@ -1686,16 +1550,15 @@ def render_report_page(analysis: Dict[str, Any], name: str = "CV") -> None:
 
         _render_download_buttons(name, analysis)
 
-import html as _html
 
 from src.services.evaluation import build_evaluation_record, summarize_evaluation
 from src.ui.app_utils import _clear_analysis_state, _save_report_snapshot
 
+
 def render_evaluation_toolkit(analysis: Dict[str, Any], resume_name: str) -> None:
     """Render benchmark/evaluation controls for model-vs-human validation."""
-    st.markdown("### Evaluation Toolkit")
     st.caption(
-        "Add human-review scores to validate model quality (MAE, RMSE, correlation) for your final project."
+        "Add human-review scores to validate model quality (MAE, RMSE, correlation) for the project benchmark."
     )
 
     with st.form("evaluation_form", clear_on_submit=True):
@@ -1745,7 +1608,6 @@ def render_report_view() -> None:
     """Results page based on stored analysis."""
     analysis = st.session_state.get("analysis")
     name = st.session_state.get("cv_name", "CV")
-    safe_name = _html.escape(str(name), quote=True)
 
     if not analysis:
         st.info("No analysis found. Upload a resume to get started.")
@@ -1762,39 +1624,29 @@ def render_report_view() -> None:
     st.query_params["page"] = "report"
     st.query_params["rid"] = persisted_sid
 
-    # Marker for CSS/JS: center theme + Upload buttons with PDF section
-    st.markdown('<div id="report-pdf-row-marker" aria-hidden="true"></div>', unsafe_allow_html=True)
-    top_left, top_right = st.columns([1.72, 0.88], gap="small")
-    with top_left:
-        st.markdown(
-            f"""
-            <div class="report-topline report-fileline">
-                <span class="report-mode-label">Resume report - Standard scoring</span>
-                <div class="report-file-row">
-                    <h2 class="report-file-title">{safe_name}</h2>
-                    <div class="score-pill">{analysis.get("match_score", 0)} / 100</div>
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-    with top_right:
-        st.markdown('<div id="report-top-actions-marker" aria-hidden="true"></div>', unsafe_allow_html=True)
-        if st.button("Upload another resume", use_container_width=True, help="Upload a new resume"):
-            _clear_analysis_state(clear_comparison=True)
-            st.session_state["page"] = "upload-cv"
-            st.query_params["page"] = "upload-cv"
-            if "rid" in st.query_params:
-                del st.query_params["rid"]
-            st.rerun()
-
     render_report_page(analysis, name=name)
 
-    # Keep post-report tools aligned with the right report lane so the sticky
-    # left score sidebar behavior remains unchanged.
-    toolkit_spacer, toolkit_main = st.columns([1, 1.6], gap="large")
-    with toolkit_main:
-        render_evaluation_toolkit(analysis, str(name))
+    # End-of-report actions, aligned with the main report lane (the sticky left
+    # score sidebar carries the file name + score now, so no separate header row).
+    upload_clicked = False
+    _spacer, actions_col = st.columns([1, 1.6], gap="large")
+    with actions_col:
+        upload_clicked = st.button(
+            "↻  Upload another resume",
+            use_container_width=True,
+            key="report_upload_another",
+            help="Start a fresh analysis",
+        )
+        with st.expander("Model evaluation (project benchmark)", expanded=False):
+            render_evaluation_toolkit(analysis, str(name))
+
+    if upload_clicked:
+        _clear_analysis_state(clear_comparison=True)
+        st.session_state["page"] = "upload-cv"
+        st.query_params["page"] = "upload-cv"
+        if "rid" in st.query_params:
+            del st.query_params["rid"]
+        st.rerun()
 
 
 if __name__ == "__main__":

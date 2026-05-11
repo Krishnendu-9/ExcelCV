@@ -27,42 +27,41 @@ def run_single_analysis(
     Returns:
         (analysis_dict, cv_text) if successful, None otherwise. cv_text is returned
         so the caller can keep extracted content in session.
+
+    All output (validation errors, parse chip, preview, spinner, model errors) is
+    rendered into ``status_container`` when provided, so the caller can place it.
     """
-    if not job_description.strip():
-        st.error("Please provide a job description.")
-        return None
-
-    if uploaded_cv is None:
-        st.error("Please upload a PDF or DOCX CV.")
-        return None
-
-    if getattr(uploaded_cv, "size", 0) > MAX_FILE_BYTES:
-        st.error(f"{uploaded_cv.name} is too large. Max {MAX_FILE_MB}MB.")
-        return None
-
-    cv_name = getattr(uploaded_cv, "name", "resume.pdf")
-    try:
-        cv_text = extract_cv_text(uploaded_cv, cv_name)
-    except ValueError as exc:
-        st.error(str(exc))
-        return None
-
-    # Show progress in the requested area (right panel under scorecard when provided).
     progress_area = status_container if status_container is not None else st.container()
 
     with progress_area:
-        preview = cv_text[:900]
-        if len(cv_text) > 900:
-            preview += "..."
-        with st.expander(f"Preview CV Text: {uploaded_cv.name}"):
-            st.write(preview)
+        if not (job_description or "").strip():
+            st.error("Please provide a job description.")
+            return None
+        if uploaded_cv is None:
+            st.error("Please upload a PDF or DOCX CV.")
+            return None
+        if getattr(uploaded_cv, "size", 0) > MAX_FILE_BYTES:
+            st.error(f"{uploaded_cv.name} is too large. Max {MAX_FILE_MB}MB.")
+            return None
 
-        # Show parse confidence
+        cv_name = getattr(uploaded_cv, "name", "resume.pdf")
+        try:
+            cv_text = extract_cv_text(uploaded_cv, cv_name)
+        except ValueError as exc:
+            st.error(str(exc))
+            return None
+
+        # Parse confidence chip first — it's the at-a-glance signal.
         ext = Path(cv_name).suffix.lower()
         label, cls = parse_confidence_chip(cv_text, ext)
         st.markdown(f"<span class='{cls}'>{label}</span>", unsafe_allow_html=True)
 
-        # Run analysis
+        preview = cv_text[:900]
+        if len(cv_text) > 900:
+            preview += "..."
+        with st.expander("Preview extracted resume text"):
+            st.write(preview)
+
         with st.spinner(f"Analyzing {uploaded_cv.name} with Gemini..."):
             try:
                 analysis = analyze_cv_with_gemini(

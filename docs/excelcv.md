@@ -150,24 +150,28 @@ Main goal: help users improve resumes quickly with transparent and actionable fe
   - theme + style injections.
 
 ## 5.2 Analysis Pipeline
-- Main execution module: `src/ui/analysis_runner.py`.
+- Main execution module: `src/ui/analysis_runner.py` (`run_single_analysis`); the upload page calls it *after* the page is fully rendered, then `st.rerun()`s to the report.
 - Steps:
   1. Validate inputs.
   2. Extract resume text (`src/pdf_utils.py`).
-  3. Run Gemini + deterministic scoring (`src/gemini_client.py`, `src/scoring.py`).
+  3. Run Gemini + deterministic scoring (`src/gemini_client.py`, `src/services/scoring.py`).
   4. Save to session + snapshot.
   5. Optionally autosave analysis to DB for logged-in users.
 
-## 5.3 Deterministic Scoring (`src/scoring.py`)
+## 5.3 Deterministic Scoring (`src/services/scoring.py`)
 - Metrics include:
   - ATS parse rate,
   - quantifying impact,
   - repetition (action-verb variety),
   - spelling/grammar heuristics,
+  - bullet-length consistency (`calculate_bullets_consistency` — flags experience bullets outside ~15-45 words; fails soft when too few bullets are detected),
   - section completeness,
+  - section ordering (`calculate_sections_order` — infers experience level and flags Education-above-Experience for experienced candidates / Experience-above-Education for entry-level; fails soft / stays neutral when the level can't be confidently inferred),
+  - file-name quality (`calculate_file_name_quality` — flags numbers/dates, extra periods, spaces/special chars, generic words like "resume"/"final", or a name that looks incomplete; suggests a clean `FirstNameLastName.pdf`),
   - ATS essentials,
   - contact completeness,
   - tailoring/JD alignment.
+- "Content Quality" in the final-score breakdown is the average of ATS Parse, Quantifying Impact, Repetition, Spelling & Grammar, and Bullets Consistency (`calculate_final_score_breakdown`).
 - Final score breakdown:
   - With JD:
     - Content Quality `0.30`
@@ -257,12 +261,14 @@ Also includes lightweight migration helper (`_migrate`) for additive schema upda
 ## 8) Page-by-Page Frontend Logic
 
 ## 8.1 Home/Upload (`src/ui/upload.py`)
-- Hero + chips + JD textarea.
-- Logged-in:
-  - upload form and analyze button.
-- Logged-out:
-  - upload locked card and sign-in CTA.
-- Compare section rendered below and can work in compare mode.
+- Two-column hero inside one rounded card (`.st-key-hero_wrapper`):
+  - left: headline ("Is your resume good enough?"), one-line subtitle, trust chips, then the JD + upload form;
+  - right: an animated **"ATS Resume Report — SAMPLE"** scorecard (`render_upload_preview_card()` -> `.hero-visual`) — CSS-only animation: a conic-gradient score ring that sweeps to 92, four metric bars (Content / Sections / ATS Essentials / Insights — mirrors the report's categories) that grow in, and a rotating tips strip; honours `prefers-reduced-motion`.
+- Logged-in: a form with the "Job description" textarea + the resume file uploader (both rendered as matching outer card boxes — 1px border, soft fill, 14px radius, the section label pinned at the top, the input below) + "Upload & analyze".
+- Logged-out: JD textarea + a "Sign in to upload your resume" card with CTA in place of the uploader.
+- **Analyze flow**: on submit the inputs are captured; the actual analysis runs *after* the whole page is rendered and every layout context has closed, then `st.rerun()` navigates to the report (this ordering avoids a stale duplicate-hero render). Progress — parse-confidence chip -> "Preview extracted resume text" expander -> Gemini spinner, plus validation errors — renders into a styled `.st-key-analysis_status_box` card under the scorecard, via `run_single_analysis(..., status_container=...)`.
+- The hero card is sized to fit above the fold on a typical laptop (compact spacing; no "Max 2MB"/"saved to history" notes — the uploader help text and the trust chips already convey those).
+- Compare section ("Compare Multiple Resumes (2-5 files)") rendered below; its form fields use the same card styling as the main upload form. `compare_mode=True` scrolls to and activates that section.
 
 ## 8.2 Auth (`src/ui/auth_page.py`)
 - Unified auth workspace:
@@ -318,9 +324,11 @@ Also includes lightweight migration helper (`_migrate`) for additive schema upda
   - delete record.
 
 ## 8.6 Report (`src/ui/report.py`)
-- Sidebar score summary + expandable categories.
-- Detailed cards for all metrics and recommendations.
-- Download buttons and evaluation toolkit integration.
+- No separate header row — the report opens straight on the **sticky left score card**: the resume file name (small, at the top), an **animated score ring** (`.report-score-ring` — same conic-gradient sweep engine as the homepage hero panel; colour reflects the score: green >=80 / amber >=60 / red <60), the issue count, a collapsible **"How this score is calculated"** card (the weighted-component breakdown — `_build_score_breakdown_html`, collapsed by default), then an accordion of the four categories (Content / Sections / ATS Essentials / Insights) with per-sub-item status badges. Clicking a sub-item scrolls to and expands its detail card. (Insights now holds just Strengths / Missing Skills / Missing Keywords / Suggestions — the recruiter-snapshot / action-plan / interview-prep / learning-roadmap / portfolio / JD-matrix / rewrite cards were removed.)
+- Right column: four group cards (Content / Sections / ATS Essentials / Insights), each holding collapsible detail cards. **Content** holds, in order: ATS Parse Rate -> Quantifying Impact -> Repetition -> Spelling & Grammar -> **Bullets Consistency** (the bullet-length check, see §5.3). **Sections** holds: Essential Sections -> Contact Information -> **Sections Order** (the experience-level-aware ordering check, see §5.3). **ATS Essentials** holds: File Format & Size -> Design -> Email Address -> Header Links -> **File Name Check** (the file-name-quality check, see §5.3).
+- End of the report (main lane): Download buttons (PDF + JSON/markdown), an **"↻ Upload another resume"** button, and a collapsed **"Model evaluation (project benchmark)"** expander wrapping the MAE/RMSE/correlation toolkit (`render_evaluation_toolkit`).
+- Deep technical reference for this page: **`report_page.md`**.
+- The sidebar HTML is emitted as one continuous block (leading whitespace stripped, blank lines dropped) so `st.markdown` renders it as a single HTML block rather than misreading an indented line as a code block.
 
 ## 8.7 Static Pages (`src/ui/static_pages.py`)
 - Project notes, ATS insights, how-it-works, legal pages, contact, etc.

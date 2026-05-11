@@ -198,37 +198,7 @@ def generate_label_css() -> str:
             .stForm .stTextArea label,
             .stForm .stTextArea > label,
             form .stTextArea label,
-            form .stTextArea > label {{
-                color: var(--text-primary) !important;
-                font-weight: 700 !important;
-                font-size: 1.35rem !important;
-                margin-bottom: 0 !important;
-                margin-top: 0 !important;
-                display: block !important;
-                letter-spacing: 0.03em !important;
-                line-height: 1.6 !important;
-                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
-                text-transform: none !important;
-            }}
-            body.theme-light .stTextArea label,
-            body.theme-light .stTextArea > label,
-            body.theme-light [data-testid="stTextArea"] label,
-            body.theme-light .stForm .stTextArea label {{
-                color: #1f2937 !important;
-                border-bottom: 2px solid rgba(124, 107, 255, 0.25) !important;
-                padding-bottom: 6px !important;
-                margin-bottom: 4px !important;
-            }}
-            body.theme-dark .stTextArea label,
-            body.theme-dark .stTextArea > label,
-            body.theme-dark [data-testid="stTextArea"] label,
-            body.theme-dark .stForm .stTextArea label {{
-                color: #f9fafb !important;
-                border-bottom: 2px solid rgba(124, 107, 255, 0.35) !important;
-                padding-bottom: 6px !important;
-                margin-bottom: 4px !important;
-            }}
-            
+            form .stTextArea > label,
             .stFileUploader label,
             .stFileUploader > label,
             [data-testid="stFileUploader"] label,
@@ -236,27 +206,29 @@ def generate_label_css() -> str:
                 color: var(--text-primary) !important;
                 font-weight: 700 !important;
                 font-size: 1.35rem !important;
-                margin-bottom: 0 !important;
                 margin-top: 0 !important;
+                margin-bottom: 8px !important;
+                padding-bottom: 0 !important;
+                border-bottom: none !important;
                 display: block !important;
                 letter-spacing: 0.03em !important;
-                line-height: 1.6 !important;
+                line-height: 1.3 !important;
                 font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
                 text-transform: none !important;
             }}
-            body.theme-light [data-testid="stFileUploader"] label,
-            body.theme-light .stFileUploader label {{
+            body.theme-light .stTextArea label,
+            body.theme-light [data-testid="stTextArea"] label,
+            body.theme-light .stForm .stTextArea label,
+            body.theme-light .stFileUploader label,
+            body.theme-light [data-testid="stFileUploader"] label {{
                 color: #1f2937 !important;
-                border-bottom: 2px solid rgba(124, 107, 255, 0.25) !important;
-                padding-bottom: 6px !important;
-                margin-bottom: 4px !important;
             }}
-            body.theme-dark [data-testid="stFileUploader"] label,
-            body.theme-dark .stFileUploader label {{
+            body.theme-dark .stTextArea label,
+            body.theme-dark [data-testid="stTextArea"] label,
+            body.theme-dark .stForm .stTextArea label,
+            body.theme-dark .stFileUploader label,
+            body.theme-dark [data-testid="stFileUploader"] label {{
                 color: #f9fafb !important;
-                border-bottom: 2px solid rgba(124, 107, 255, 0.35) !important;
-                padding-bottom: 6px !important;
-                margin-bottom: 4px !important;
             }}
     """
 

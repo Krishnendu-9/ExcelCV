@@ -26,11 +26,14 @@ from src.services.scoring import (
     build_jd_skill_matrix,
     calculate_ats_essentials,
     calculate_ats_parse_rate,
+    calculate_bullets_consistency,
     calculate_contact_info,
+    calculate_file_name_quality,
     calculate_final_score_breakdown,
     calculate_quantifying_impact,
     calculate_repetition,
     calculate_sections,
+    calculate_sections_order,
     calculate_spelling_grammar,
     calculate_tailoring,
     generate_section_rewrite_recommendations,
@@ -443,16 +446,27 @@ CV:
     spell_details = spell_prog_data["details"]
     spell_status = get_metric_status(spell_score, *SPELLING_GRAMMAR_THRESHOLDS)
 
+    # Bullets Consistency: purely programmatic (bullet-length range)
+    bullets_prog_score, bullets_prog_data = calculate_bullets_consistency(cv_text)
+    bullets_score = bullets_prog_score
+    bullets_status = bullets_prog_data.get("status", "ok")
+    bullets_details = bullets_prog_data.get("details", "")
+
     # Contact Information: purely programmatic
     contact_info = calculate_contact_info(cv_text)
 
     # Sections: purely programmatic
     sections_prog_score, sections_prog_details = calculate_sections(cv_text)
     sections_score = sections_prog_score
+    section_order_score, section_order_data = calculate_sections_order(cv_text)
 
     # ATS Essentials: purely programmatic
     ats_prog_score, ats_prog_details = calculate_ats_essentials(cv_text, file_name, file_size_bytes)
     ats_essentials_score = ats_prog_score
+
+    # File-name quality (purely from the file-name string we already have).
+    file_name_score, file_name_data = calculate_file_name_quality(file_name)
+    ats_prog_details["file_name_check"] = {"score": file_name_score, **file_name_data}
 
     # Use the cleaned email from contact_info (has PDF icon artifact removal)
     ci_emails = [c for c in contact_info.get("found", []) if c.get("type") == "email"]
@@ -494,6 +508,7 @@ CV:
         ats_essentials_score=ats_essentials_score,
         contact_score=contact_score_val,
         has_job_description=bool(job_desc and job_desc.strip()),
+        bullets_consistency_score=bullets_score,
     )
     match_score = score_breakdown.get("final_score", normalize_score(parsed.get("match_score", 0)))
 
@@ -570,11 +585,21 @@ CV:
                 "details": spell_details,
                 "issues_list": spell_prog_data.get("issues_list", []),
             },
+            "bullets_consistency": {
+                "score": bullets_score,
+                "status": bullets_status,
+                "details": bullets_details,
+                "total_bullets": bullets_prog_data.get("total_bullets", 0),
+                "out_of_range": bullets_prog_data.get("out_of_range", []),
+                "min_words": bullets_prog_data.get("min_words", 15),
+                "max_words": bullets_prog_data.get("max_words", 45),
+            },
         },
         "contact_info": contact_info,
         "sections_metrics": {
             "score": sections_score,
             "details": sections_prog_details,
+            "section_order": {"score": section_order_score, **section_order_data},
         },
         "ats_essentials_metrics": {
             "score": ats_essentials_score,
@@ -628,7 +653,7 @@ def suggest_cv_bullets(role: str, company: str, context: str = "") -> List[str]:
         except json.JSONDecodeError:
             result = json.loads(_extract_json_from_text(raw))
         if isinstance(result, list):
-            return [str(b).strip().lstrip("•\-– ") for b in result if str(b).strip()][:5]
+            return [str(b).strip().lstrip("•-– ") for b in result if str(b).strip()][:5]
     except Exception as exc:
         if _is_quota_error(exc):
             raise RuntimeError(_user_friendly_quota_message(exc)) from exc

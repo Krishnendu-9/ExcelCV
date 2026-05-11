@@ -710,7 +710,7 @@
             /* Style file uploader (Upload PDF/browse file) - LIGHT MODE */
             body.theme-light .stFileUploader {{
                 border: 1px solid rgba(0, 0, 0, 0.1) !important;
-                border-radius: 12px;
+                border-radius: 14px !important;
                 padding: 0;
                 background: #f9fafb !important;
                 transition: all 0.2s ease;
@@ -752,6 +752,7 @@
             /* Style file uploader - DARK MODE */
             body.theme-dark .stFileUploader {{
                 border: 1px solid rgba(255, 255, 255, 0.1) !important;
+                border-radius: 14px !important;
                 background: #111827 !important;
             }}
             /* Removed .stFileUploader:hover - only dropzone should glow, not the container */
@@ -830,12 +831,23 @@
 
             /* Upload page — hero wrapper card */
             .st-key-hero_wrapper {{
-                background: linear-gradient(135deg, var(--bg-hero), var(--bg-secondary));
+                position: relative;
+                overflow: hidden;
+                background:
+                    radial-gradient(120% 70% at 100% 0%, rgba(20, 184, 166, 0.08), transparent 55%),
+                    linear-gradient(135deg, var(--bg-hero), var(--bg-secondary));
                 border: 1px solid var(--border-light);
-                border-radius: 24px;
-                padding: 36px 40px 32px;
+                border-radius: 22px;
+                padding: 26px 40px 24px;
                 box-shadow: 0 8px 40px var(--shadow-lg);
-                margin-top: -44px;
+                margin-top: -24px;
+            }}
+            /* Even vertical rhythm inside the hero card. */
+            .st-key-hero_wrapper [data-testid="stVerticalBlock"] {{
+                gap: 1rem !important;
+            }}
+            .st-key-hero_wrapper [data-testid="stForm"] {{
+                margin-bottom: 0 !important;
             }}
             /* Hero CTA: make only the upload form submit button dark and prominent */
             .st-key-hero_wrapper [data-testid="stFormSubmitButton"] button,
@@ -857,55 +869,65 @@
                 padding-right: 12px;
                 margin-top: 0 !important;
             }}
-            .eyebrow {{
-                text-transform: uppercase;
-                letter-spacing: 0.14em;
-                font-size: 0.75rem;
-                color: var(--accent-2);
-                margin-bottom: 12px;
-                font-weight: 700;
-            }}
             .hero-title {{
-                font-size: 3.5rem;
-                line-height: 1.05;
-                margin: 0 0 6px;
+                font-size: clamp(2.3rem, 3.4vw, 3rem);
+                line-height: 1.06;
+                margin: 0 0 8px;
                 font-weight: 900;
+                letter-spacing: -0.02em;
                 color: var(--text-primary);
             }}
-            .hero-title span {{ 
-                color: var(--accent); 
+            .hero-title span {{
+                background: linear-gradient(118deg, #0f6ac9 8%, #14b8a6 92%);
+                -webkit-background-clip: text;
+                background-clip: text;
+                color: transparent;
             }}
             .hero-subtitle {{
                 color: var(--text-secondary);
-                font-size: 1.1rem;
-                margin-bottom: 6px;
-                line-height: 1.6;
+                font-size: 1.02rem;
+                max-width: none;
+                margin: 0 0 12px;
+                line-height: 1.5;
+                white-space: nowrap;
+            }}
+            /* Allow the one-liner to wrap on screens too narrow to hold it. */
+            @media (max-width: 1280px) {{
+                .hero-subtitle {{
+                    white-space: normal;
+                }}
             }}
             .hero-chip-row {{
                 display: flex;
                 flex-wrap: wrap;
                 gap: 8px;
-                margin: 6px 0 0;
+                margin: 12px 0 6px;
             }}
             .hero-chip {{
                 display: inline-flex;
                 align-items: center;
                 gap: 6px;
                 border-radius: 999px;
-                padding: 6px 11px;
+                padding: 5px 11px;
                 background: linear-gradient(145deg, var(--bg-card), var(--bg-secondary));
                 border: 1px solid var(--border-color);
                 color: var(--text-primary);
-                font-size: 0.8rem;
+                font-size: 0.78rem;
                 font-weight: 700;
                 letter-spacing: 0.01em;
                 margin: 0;
+                transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+            }}
+            .hero-chip:hover {{
+                transform: translateY(-1px);
+                border-color: rgba(20, 184, 166, 0.45);
+                box-shadow: 0 6px 16px var(--shadow);
             }}
             .privacy-note {{
                 color: var(--text-secondary);
-                font-size: 0.85rem;
-                margin-top: 8px;
-                margin-bottom: 12px;
+                font-size: 0.82rem;
+                margin-top: 6px;
+                margin-bottom: 4px;
                 display: flex;
                 align-items: center;
                 gap: 6px;
@@ -918,6 +940,224 @@
                 margin-top: 0;
                 box-shadow: inset 0 1px 0 var(--border-light);
             }}
+
+            /* ── Hero illustrative panel: animated "live report" mock ───────── */
+            @property --hv-p {{
+                syntax: '<percentage>';
+                inherits: false;
+                initial-value: 92%;
+            }}
+            .hero-visual {{
+                --hv-c1: #0f6ac9;
+                --hv-c2: #14b8a6;
+                position: relative;
+                overflow: hidden;
+                border-radius: 20px;
+                padding: 18px 20px 16px;
+                background:
+                    radial-gradient(120% 80% at 12% 0%, rgba(15, 106, 201, 0.10), transparent 60%),
+                    radial-gradient(130% 90% at 100% 100%, rgba(20, 184, 166, 0.13), transparent 55%),
+                    var(--bg-card);
+                border: 1px solid var(--border-light);
+                box-shadow: 0 22px 56px var(--shadow-lg);
+            }}
+            .hv-glow {{
+                position: absolute;
+                inset: -45% -20% auto -20%;
+                height: 240px;
+                background: radial-gradient(50% 60% at 50% 0%, rgba(20, 184, 166, 0.22), transparent 70%);
+                pointer-events: none;
+                animation: hv-glow-drift 9s ease-in-out infinite alternate;
+            }}
+            .hv-header {{
+                position: relative;
+                z-index: 1;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                margin-bottom: 10px;
+            }}
+            .hv-dot {{
+                width: 9px;
+                height: 9px;
+                border-radius: 999px;
+                background: #22c55e;
+                animation: hv-pulse 2.2s ease-out infinite;
+            }}
+            .hv-title {{
+                font-size: 0.95rem;
+                font-weight: 800;
+                color: var(--text-primary);
+                letter-spacing: 0.01em;
+            }}
+            .hv-live {{
+                margin-left: auto;
+                font-size: 0.62rem;
+                font-weight: 800;
+                letter-spacing: 0.16em;
+                color: #0e7490;
+                background: rgba(20, 184, 166, 0.14);
+                border: 1px solid rgba(20, 184, 166, 0.30);
+                border-radius: 999px;
+                padding: 3px 9px;
+            }}
+            .hv-ring-wrap {{
+                position: relative;
+                width: 148px;
+                height: 148px;
+                margin: 2px auto 8px;
+            }}
+            .hv-ring {{
+                width: 100%;
+                height: 100%;
+                border-radius: 50%;
+                background: conic-gradient(from -90deg, var(--hv-c1), var(--hv-c2) var(--hv-p, 92%), var(--bg-secondary) 0);
+                -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 13px), #000 calc(100% - 12px));
+                mask: radial-gradient(farthest-side, transparent calc(100% - 13px), #000 calc(100% - 12px));
+                animation: hv-sweep 1.7s cubic-bezier(.22, 1, .36, 1) .25s both;
+            }}
+            .hv-ring-label {{
+                position: absolute;
+                inset: 0;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                gap: 2px;
+            }}
+            .hv-score {{
+                font-size: 2.35rem;
+                font-weight: 900;
+                line-height: 1;
+                background: linear-gradient(120deg, var(--hv-c1), var(--hv-c2));
+                -webkit-background-clip: text;
+                background-clip: text;
+                color: transparent;
+            }}
+            .hv-out {{
+                font-size: 0.62rem;
+                font-weight: 800;
+                letter-spacing: 0.14em;
+                color: var(--text-muted);
+            }}
+            .hv-grade {{
+                text-align: center;
+                font-size: 0.84rem;
+                font-weight: 700;
+                color: var(--text-secondary);
+                margin: 0 0 12px;
+            }}
+            .hv-bars {{
+                position: relative;
+                z-index: 1;
+                display: flex;
+                flex-direction: column;
+                gap: 8px;
+                margin-bottom: 12px;
+            }}
+            .hv-bar-row {{
+                display: flex;
+                align-items: center;
+                gap: 9px;
+                font-size: 0.78rem;
+            }}
+            .hv-bar-name {{
+                flex: none;
+                width: 104px;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                color: var(--text-primary);
+                font-weight: 800;
+                letter-spacing: 0.01em;
+            }}
+            .hv-bar {{
+                flex: 1;
+                height: 7px;
+                border-radius: 999px;
+                background: var(--bg-secondary);
+                overflow: hidden;
+            }}
+            .hv-bar-fill {{
+                display: block;
+                height: 100%;
+                width: 0;
+                border-radius: 999px;
+                background: linear-gradient(90deg, var(--hv-c1), var(--hv-c2));
+                animation: hv-grow 1.3s cubic-bezier(.22, 1, .36, 1) both;
+            }}
+            .hv-bar-row:nth-child(1) .hv-bar-fill {{ animation-delay: .35s; }}
+            .hv-bar-row:nth-child(2) .hv-bar-fill {{ animation-delay: .47s; }}
+            .hv-bar-row:nth-child(3) .hv-bar-fill {{ animation-delay: .59s; }}
+            .hv-bar-row:nth-child(4) .hv-bar-fill {{ animation-delay: .71s; }}
+            .hv-bar-val {{
+                flex: none;
+                width: 40px;
+                text-align: right;
+                color: var(--text-primary);
+                font-weight: 700;
+            }}
+            .hv-tips {{
+                position: relative;
+                height: 20px;
+                border-top: 1px solid var(--border-color);
+                padding-top: 11px;
+            }}
+            .hv-tip {{
+                position: absolute;
+                left: 0;
+                right: 0;
+                top: 11px;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                font-size: 0.81rem;
+                color: var(--text-secondary);
+                opacity: 0;
+                animation: hv-cycle 12s ease-in-out infinite;
+            }}
+            .hv-tip::before {{
+                content: "✦";
+                flex: none;
+                color: #14b8a6;
+                font-size: 0.78rem;
+            }}
+            .hv-tip:nth-child(1) {{ animation-delay: 0s; }}
+            .hv-tip:nth-child(2) {{ animation-delay: -4s; }}
+            .hv-tip:nth-child(3) {{ animation-delay: -8s; }}
+            @keyframes hv-sweep {{
+                from {{ --hv-p: 0%; }}
+            }}
+            @keyframes hv-grow {{
+                to {{ width: var(--w, 100%); }}
+            }}
+            @keyframes hv-pulse {{
+                0%   {{ box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.45); }}
+                70%  {{ box-shadow: 0 0 0 9px rgba(34, 197, 94, 0); }}
+                100% {{ box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }}
+            }}
+            @keyframes hv-glow-drift {{
+                from {{ transform: translateX(-6%); opacity: 0.65; }}
+                to   {{ transform: translateX(6%);  opacity: 1; }}
+            }}
+            @keyframes hv-cycle {{
+                0%, 2%    {{ opacity: 0; transform: translateY(7px); }}
+                6%, 27%   {{ opacity: 1; transform: translateY(0); }}
+                33%, 100% {{ opacity: 0; transform: translateY(-7px); }}
+            }}
+            body.theme-dark .hv-visual,
+            body.theme-dark .hero-visual {{
+                box-shadow: 0 24px 60px rgba(2, 8, 23, 0.45);
+            }}
+            body.theme-dark .hv-live {{
+                color: #5eead4;
+                background: rgba(20, 184, 166, 0.18);
+                border-color: rgba(94, 234, 212, 0.30);
+            }}
+            body.theme-dark .hv-out {{
+                color: #94a3b8;
+            }}
+
             /* Hero columns: align top, zero out Streamlit's default column gap. */
             [data-testid="stHorizontalBlock"]:has(.hero-copy) {{
                 margin-top: 0 !important;
@@ -927,9 +1167,9 @@
                 margin-top: 0 !important;
                 padding-top: 0 !important;
             }}
-            [data-testid="stHorizontalBlock"]:has(.hero-copy) > div:last-child [data-testid="stVerticalBlock"] > div {{
+            [data-testid="stHorizontalBlock"]:has(.hero-copy) > div:last-child [data-testid="stVerticalBlock"] > div:first-child {{
                 margin-top: 0 !important;
-                margin-bottom: 6px !important;
+                margin-bottom: 0 !important;
             }}
             .landing-extended {{
                 margin-top: 28px;
@@ -1161,11 +1401,18 @@
                     padding: 18px;
                     margin-top: 10px;
                 }}
+                .hero-visual {{
+                    margin-top: 12px;
+                }}
                 .landing-extended {{
                     padding: 22px;
                 }}
             }}
             @media (max-width: 768px) {{
+                .st-key-hero_wrapper {{
+                    padding: 28px 22px 24px;
+                    margin-top: -16px;
+                }}
                 .hero-title {{
                     font-size: 2.15rem;
                     line-height: 1.12;
@@ -1179,6 +1426,16 @@
                 }}
                 .upload-preview {{
                     margin-top: 0;
+                }}
+                .hero-visual {{
+                    padding: 18px 18px 16px;
+                }}
+                .hv-ring-wrap {{
+                    width: 146px;
+                    height: 146px;
+                }}
+                .hv-score {{
+                    font-size: 2.2rem;
                 }}
                 .landing-title {{
                     font-size: 1.6rem;
@@ -1202,6 +1459,22 @@
                     opacity: 1;
                     transform: none;
                     animation: none;
+                }}
+                .hv-glow,
+                .hv-dot,
+                .hv-ring,
+                .hv-bar-fill,
+                .hv-tip {{
+                    animation: none !important;
+                }}
+                .hv-ring {{
+                    --hv-p: 92%;
+                }}
+                .hv-bar-fill {{
+                    width: var(--w, 100%) !important;
+                }}
+                .hv-tip:nth-child(1) {{
+                    opacity: 1;
                 }}
             }}
 
@@ -1670,18 +1943,82 @@
                 margin-bottom: 18px;
                 text-align: center;
             }}
-            .score-number {{ 
-                font-size: 2.8rem; 
-                font-weight: 900; 
-                color: #fcd34d; 
+            .score-card .score-file {{
+                font-size: 0.82rem;
+                font-weight: 600;
+                margin-bottom: 8px;
+                max-width: 100%;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
             }}
-            .score-number span {{ 
-                font-size: 1rem; 
-                color: var(--text-secondary); 
+            /* "How this score is calculated" — compact collapsible card under the score. */
+            .report-sidebar .score-breakdown-card {{
+                margin: 0 0 18px 0;
+                padding: 14px 16px;
+                background: var(--bg-card);
+                box-shadow: none;
             }}
-            .issues-text {{ 
-                color: var(--text-secondary); 
-                font-size: 0.95rem; 
+            .report-sidebar .score-breakdown-card .detail-head h3 {{
+                font-size: 1rem;
+                letter-spacing: 0;
+            }}
+            .report-sidebar .score-breakdown-card .text-description {{
+                font-size: 0.85rem;
+            }}
+            .report-sidebar .score-breakdown-card .issue-heading {{
+                font-size: 0.85rem;
+            }}
+            .report-sidebar .score-breakdown-card .contact-row {{
+                font-size: 0.82rem;
+                flex-wrap: wrap;
+            }}
+            /* Animated score ring — same sweep engine as the homepage hero panel. */
+            .report-score-ring-wrap {{
+                position: relative;
+                width: 140px;
+                height: 140px;
+                margin: 8px auto 6px;
+            }}
+            .report-score-ring {{
+                width: 100%;
+                height: 100%;
+                border-radius: 50%;
+                background: conic-gradient(from -90deg, var(--rsr-c, #f59e0b) var(--hv-p, 0%), var(--bg-secondary) 0);
+                -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 12px), #000 calc(100% - 11px));
+                mask: radial-gradient(farthest-side, transparent calc(100% - 12px), #000 calc(100% - 11px));
+                animation: hv-sweep 1.6s cubic-bezier(.22, 1, .36, 1) .2s both;
+            }}
+            .report-score-ring-label {{
+                position: absolute;
+                inset: 0;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+            }}
+            .report-score-ring-label .rsr-num {{
+                font-size: 2.3rem;
+                font-weight: 900;
+                line-height: 1;
+                color: var(--rsr-c, #f59e0b);
+            }}
+            .report-score-ring-label .rsr-den {{
+                font-size: 0.84rem;
+                font-weight: 700;
+                color: var(--text-secondary);
+                margin-top: 3px;
+            }}
+            .report-score-ring-label .rsr-issues {{
+                margin-top: 7px;
+                font-size: 0.85rem;
+            }}
+            @media (prefers-reduced-motion: reduce) {{
+                .report-score-ring {{ animation: none !important; }}
+            }}
+            .issues-text {{
+                color: var(--text-secondary);
+                font-size: 0.95rem;
             }}
             .issues-text.clickable {{
                 cursor: pointer;
@@ -2282,27 +2619,27 @@
                 position: absolute;
                 right: -6%;
                 top: -12%;
-                width: 220px;
-                height: 220px;
+                width: 230px;
+                height: 230px;
                 border-radius: 50%;
-                background: radial-gradient(circle, rgba(56, 189, 248, 0.24) 0%, rgba(56, 189, 248, 0) 72%);
-                filter: blur(6px);
+                background: radial-gradient(circle, rgba(20, 184, 166, 0.22) 0%, rgba(20, 184, 166, 0) 72%);
+                filter: blur(8px);
                 z-index: -1;
                 animation: hero-glow-drift 8s ease-in-out infinite alternate;
                 pointer-events: none;
             }}
             .hero-title {{
                 letter-spacing: -0.02em;
-                margin-bottom: 10px;
+                margin-bottom: 8px;
             }}
             .hero-title span {{
-                background: linear-gradient(90deg, #34d399, #22d3ee);
+                background: linear-gradient(118deg, #0f6ac9 8%, #14b8a6 92%);
                 -webkit-background-clip: text;
                 background-clip: text;
                 color: transparent;
             }}
             .hero-subtitle {{
-                max-width: 58ch;
+                max-width: none;
             }}
             .upload-preview {{
                 background: linear-gradient(155deg, rgba(15, 23, 42, 0.94), rgba(30, 41, 59, 0.88));

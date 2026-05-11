@@ -486,6 +486,85 @@ def calculate_quantifying_impact(cv_text: str) -> Tuple[int, Dict]:
     }
 
 
+# Recommended bullet-point word range ("Bullets Consistency" check).
+BULLET_MIN_WORDS = 15
+BULLET_MAX_WORDS = 45
+_BULLETS_NO_DATA_SCORE = 75
+
+
+def calculate_bullets_consistency(cv_text: str) -> Tuple[int, Dict]:
+    """
+    Score 0-100 based on whether experience/project bullet points fall within a
+    recruiter-friendly word range (10-35 words). Too short reads vague; too long
+    is a wall of text recruiters skip.
+
+    Reuses the same bullet-extraction pipeline as ``calculate_quantifying_impact``.
+    PDF text extraction routinely strips bullet markers, so this check fails soft
+    when too few bullets are detected.
+
+    Returns:
+        Tuple of (score, details_dict) with keys:
+            details: summary string
+            status: "ok" | "warn" | "error"
+            total_bullets: total bullet points analysed
+            out_of_range: list of {line, words, issue} for flagged bullets (capped)
+            min_words / max_words: the recommended range
+    """
+    text = (cv_text or "").strip()
+    base = {
+        "details": "Not enough bullet points detected to assess length consistency.",
+        "status": "ok",
+        "total_bullets": 0,
+        "out_of_range": [],
+        "min_words": BULLET_MIN_WORDS,
+        "max_words": BULLET_MAX_WORDS,
+    }
+    if not text:
+        return _BULLETS_NO_DATA_SCORE, base
+
+    experience_text = _extract_experience_sections(text)
+    all_items = _rejoin_pdf_lines(experience_text)
+    bullets = [item for item in all_items if _is_experience_bullet(item)]
+
+    if len(bullets) < 2:
+        return _BULLETS_NO_DATA_SCORE, base
+
+    out_of_range: List[Dict] = []
+    for bullet in bullets:
+        word_count = len(bullet.split())
+        if word_count < BULLET_MIN_WORDS:
+            out_of_range.append({"line": bullet, "words": word_count, "issue": "too short"})
+        elif word_count > BULLET_MAX_WORDS:
+            out_of_range.append({"line": bullet, "words": word_count, "issue": "too long"})
+
+    total = len(bullets)
+    bad = len(out_of_range)
+    frac_bad = bad / total
+    score = max(0, min(MAX_SCORE, round(100 - frac_bad * 55)))
+
+    if bad == 0:
+        status = "ok"
+    elif frac_bad <= 0.40:
+        status = "warn"
+    else:
+        status = "error"
+
+    details = (
+        f"All {total} bullet points are within the {BULLET_MIN_WORDS}-{BULLET_MAX_WORDS} word range."
+        if bad == 0
+        else f"{total - bad} of {total} bullet points are within the {BULLET_MIN_WORDS}-{BULLET_MAX_WORDS} word range."
+    )
+
+    return score, {
+        "details": details,
+        "status": status,
+        "total_bullets": total,
+        "out_of_range": out_of_range[:12],
+        "min_words": BULLET_MIN_WORDS,
+        "max_words": BULLET_MAX_WORDS,
+    }
+
+
 def calculate_repetition(cv_text: str) -> Tuple[int, Dict]:
     """
     Score 0-100: higher = less repetition.
@@ -898,8 +977,258 @@ def calculate_sections(cv_text: str) -> Tuple[int, Dict[str, Any]]:
         "has_summary": found.get("summary", False),
         "missing_sections": missing,
     }
-    
+
     return score, details
+
+
+# ── Sections Order check ──────────────────────────────────────────────────────
+# Header phrases used to locate where each section starts in the extracted text.
+_SECTION_HEADER_PHRASES: Dict[str, list] = {
+    "summary": [
+        "summary", "professional summary", "career summary", "executive summary",
+        "profile", "professional profile", "objective", "career objective", "about me", "about",
+    ],
+    "experience": [
+        "experience", "work experience", "professional experience", "work history",
+        "employment history", "employment", "career history", "professional background",
+        "relevant experience", "industry experience",
+    ],
+    "education": [
+        "education", "educational background", "academic background", "academic qualifications",
+        "academic history", "education and training", "academics",
+    ],
+    "skills": [
+        "skills", "technical skills", "key skills", "core skills", "core competencies",
+        "competencies", "areas of expertise", "technologies",
+    ],
+    "projects": ["projects", "personal projects", "academic projects", "key projects", "selected projects"],
+}
+
+_ENTRY_LEVEL_RE = re.compile(
+    r"\b(intern(?:ship)?|fresher|currently pursuing|expected graduation|expecting graduation|"
+    r"expected\s+20\d{2}|pursuing\s+(?:b\.?\s?(?:tech|sc|a|e)|m\.?\s?(?:tech|sc|a|s|ba)|bachelor|master))\b",
+    re.IGNORECASE,
+)
+_SENIOR_LEVEL_RE = re.compile(
+    r"\b(senior|sr\.?|principal|staff\s+engineer|engineering\s+manager|product\s+manager|"
+    r"project\s+manager|program\s+manager|director|head\s+of|vice\s+president|vp\s+of|"
+    r"tech(?:nical)?\s+lead|team\s+lead|solution[s]?\s+architect|software\s+architect|c[teo]o)\b",
+    re.IGNORECASE,
+)
+_DATE_RANGE_RE = re.compile(
+    r"\b(?:19|20)\d{2}\s*(?:[-–—]|to)\s*(?:(?:19|20)\d{2}|present|current|now)\b",
+    re.IGNORECASE,
+)
+
+
+def _section_header_positions(cv_text: str) -> Dict[str, int]:
+    """Return {section_name: first_line_index} for section headers found in the text."""
+    lines = (cv_text or "").splitlines()
+    positions: Dict[str, int] = {}
+    for idx, raw in enumerate(lines):
+        stripped = (raw or "").strip()
+        if not stripped or _BULLET_CHARS_RE.match(stripped):
+            continue
+        norm = re.sub(r"[\s:|•–—\-]+$", "", stripped).strip().lower()
+        norm = re.sub(r"\s+", " ", norm)
+        if not norm or len(norm.split()) > 5:
+            continue
+        for section, phrases in _SECTION_HEADER_PHRASES.items():
+            if section in positions:
+                continue
+            if norm in phrases or any(
+                norm == p or norm.startswith(p + " ") or norm.endswith(" " + p) for p in phrases
+            ):
+                positions[section] = idx
+    return positions
+
+
+def calculate_sections_order(cv_text: str) -> Tuple[int, Dict[str, Any]]:
+    """
+    Assess whether resume sections are ordered well for the candidate's experience level.
+
+    Fails soft: only gives directional advice when both an Experience and an Education
+    header are cleanly detected AND the experience level is confidently inferred.
+    Detection is from extracted text, so it can be thrown off by PDF column-order quirks.
+
+    Returns:
+        Tuple of (score, details_dict) with keys: status ("ok"|"warn"), message,
+        level ("entry"|"experienced"|"unknown"), detected_order (list of section names).
+    """
+    text = cv_text or ""
+    base: Dict[str, Any] = {
+        "status": "ok",
+        "message": "Couldn't confidently assess section order — based on detected section headers.",
+        "level": "unknown",
+        "detected_order": [],
+    }
+    if not text.strip():
+        return MAX_SCORE, base
+
+    positions = _section_header_positions(text)
+    detected_order = [s for s, _ in sorted(positions.items(), key=lambda kv: kv[1])]
+    base["detected_order"] = detected_order
+
+    if "experience" not in positions or "education" not in positions:
+        return MAX_SCORE, base  # nothing to compare — fail soft
+
+    experience_first = positions["experience"] < positions["education"]
+    low = text.lower()
+
+    try:
+        exp_bullets = [
+            b for b in _rejoin_pdf_lines(_extract_experience_sections(text)) if _is_experience_bullet(b)
+        ]
+        exp_bullet_count = len(exp_bullets)
+    except Exception:
+        exp_bullet_count = 0
+
+    has_entry_kw = bool(_ENTRY_LEVEL_RE.search(text))
+    has_senior_kw = bool(_SENIOR_LEVEL_RE.search(text))
+    date_ranges = len(_DATE_RANGE_RE.findall(low))
+
+    if has_entry_kw and not has_senior_kw and exp_bullet_count <= 2:
+        level = "entry"
+    elif (has_senior_kw or date_ranges >= 2 or exp_bullet_count >= 4) and not has_entry_kw:
+        level = "experienced"
+    else:
+        level = "unknown"
+
+    if level == "entry":
+        if experience_first:
+            return 80, {
+                "status": "warn",
+                "level": level,
+                "detected_order": detected_order,
+                "message": (
+                    "Since your work experience is still limited, lead with Education — it's your "
+                    "strongest credential right now. Move the Experience section below it."
+                ),
+            }
+        return MAX_SCORE, {
+            "status": "ok",
+            "level": level,
+            "detected_order": detected_order,
+            "message": "Education-first is the right order for your experience level — your strongest credential is up top.",
+        }
+
+    if level == "experienced":
+        if not experience_first:  # Education appears above Experience
+            return 80, {
+                "status": "warn",
+                "level": level,
+                "detected_order": detected_order,
+                "message": (
+                    "You have substantial work experience — put the Experience section above Education "
+                    "so recruiters see your impact first, not your academic history."
+                ),
+            }
+        return MAX_SCORE, {
+            "status": "ok",
+            "level": level,
+            "detected_order": detected_order,
+            "message": "Experience-first is the right order — recruiters see your impact immediately.",
+        }
+
+    return MAX_SCORE, {
+        "status": "ok",
+        "level": "unknown",
+        "detected_order": detected_order,
+        "message": "Section order looks reasonable — based on detected section headers.",
+    }
+
+
+# ── File Name Check ───────────────────────────────────────────────────────────
+# Generic / filler tokens that shouldn't be in a professional resume file name.
+_FILE_NAME_FILLER = {
+    "resume", "resumes", "cv", "cvs", "curriculum", "vitae", "final", "finalized",
+    "draft", "drafts", "updated", "update", "latest", "newest", "new", "old",
+    "copy", "version", "ver", "rev", "doc", "docx", "pdf", "document", "untitled",
+    "myresume", "mycv", "the", "for", "of", "and",
+    "jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "sept", "oct", "nov", "dec",
+    "january", "february", "march", "april", "june", "july", "august", "september",
+    "october", "november", "december",
+}
+
+
+def _split_camel(token: str) -> List[str]:
+    """Split a token on lowercase->uppercase boundaries ("JohnSmith" -> ["John", "Smith"])."""
+    return [p for p in re.split(r"(?<=[a-z])(?=[A-Z])", token) if p]
+
+
+def calculate_file_name_quality(file_name: str) -> Tuple[int, Dict[str, Any]]:
+    """
+    Check whether a resume's file name looks clean and professional.
+
+    Deterministic — operates only on the file-name string we already have.
+
+    Returns:
+        Tuple of (score, details_dict) with keys: status ("ok"|"warn"), file_name,
+        issues (list of short strings), suggested (a recommended file name),
+        name_token_count (int).
+    """
+    name = (file_name or "").strip()
+    if not name:
+        return 60, {
+            "status": "warn",
+            "file_name": "",
+            "issues": ["No file name was provided."],
+            "suggested": "FirstNameLastName.pdf",
+            "name_token_count": 0,
+        }
+
+    if "." in name:
+        stem, _, ext_raw = name.rpartition(".")
+        ext = "." + (ext_raw.lower() or "pdf")
+    else:
+        stem, ext = name, ".pdf"
+    if not stem:
+        stem = name
+
+    raw_tokens = [t for t in re.split(r"[\s_\-.]+", stem) if t]
+    sub_tokens = [s for t in raw_tokens for s in _split_camel(t)]
+    name_tokens = [
+        s for s in sub_tokens
+        if s.isalpha() and len(s) > 1 and s.lower() not in _FILE_NAME_FILLER
+    ]
+    has_filler = any(s.isalpha() and s.lower() in _FILE_NAME_FILLER for s in sub_tokens)
+
+    issues: List[str] = []
+    if re.search(r"\d", stem):
+        issues.append('Contains numbers — drop dates and version numbers (e.g. "2025", "v2").')
+    if "." in stem:
+        issues.append("Has extra periods — use a single dot only, before the file extension.")
+    if re.search(r"[^A-Za-z0-9_\-.]", stem):
+        issues.append("Has spaces or special characters — stick to letters, hyphens, or underscores.")
+    if has_filler:
+        issues.append('Contains generic words like "resume" or "final" — they add no value.')
+    if len(name_tokens) < 2:
+        issues.append("Looks like it may be missing your first and/or last name.")
+
+    if len(name_tokens) >= 2:
+        suggested = "".join(t.title() for t in name_tokens[:3]) + ext
+    elif len(name_tokens) == 1:
+        suggested = name_tokens[0].title() + "LastName" + ext
+    else:
+        suggested = "FirstNameLastName" + ext
+
+    if not issues:
+        return MAX_SCORE, {
+            "status": "ok",
+            "file_name": name,
+            "issues": [],
+            "suggested": suggested,
+            "name_token_count": len(name_tokens),
+        }
+
+    score = max(50, MAX_SCORE - 18 * len(issues))
+    return score, {
+        "status": "warn",
+        "file_name": name,
+        "issues": issues[:5],
+        "suggested": suggested,
+        "name_token_count": len(name_tokens),
+    }
 
 
 def calculate_ats_essentials(cv_text: str, file_name: str = "", file_size_bytes: int = 0) -> Tuple[int, Dict[str, Any]]:
@@ -1231,6 +1560,7 @@ def calculate_final_score_breakdown(
     ats_essentials_score: int,
     contact_score: int,
     has_job_description: bool,
+    bullets_consistency_score: Optional[int] = None,
 ) -> Dict[str, Any]:
     """
     Compute a transparent final score with weighted component breakdown.
@@ -1243,9 +1573,10 @@ def calculate_final_score_breakdown(
             components: list[{id,label,score,weight,weighted_points}]
             formula: human-readable formula string
     """
-    content_average = normalize_score(
-        int((ats_parse_rate + quant_score + repetition_score + spelling_score) / 4)
-    )
+    content_scores = [ats_parse_rate, quant_score, repetition_score, spelling_score]
+    if bullets_consistency_score is not None:
+        content_scores.append(bullets_consistency_score)
+    content_average = normalize_score(int(sum(content_scores) / len(content_scores)))
 
     if has_job_description:
         components = [

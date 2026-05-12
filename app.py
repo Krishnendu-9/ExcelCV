@@ -5,6 +5,8 @@ Thin routing and session-orchestration layer.
 All rendering logic lives in src/ui/*.
 """
 
+import json
+
 import streamlit as st
 import streamlit.components.v1 as components
 
@@ -49,12 +51,22 @@ NAV_ACTIVE_LABELS = {
     "upload": "Analyze CV",
     "upload-cv": "Analyze CV",
     "report": "Analyze CV",
+    "motivation-letter": "Cover Letter",
     "cv-builder": "Resume Builder",
     "resume-builder": "Resume Builder",
     "my-cvs": "My CVs",
     "my-analyses": "My Analyses",
-    "compare-cv": "Compare",
+    "compare-cv": "Compare Resumes",
 }
+NAV_ACTION_TO_PAGE = {
+    "upload-cv": "upload-cv",
+    "compare-anchor": "home",
+    "motivation-letter": "motivation-letter",
+    "cv-builder": "cv-builder",
+    "my-cvs": "my-cvs",
+    "my-analyses": "my-analyses",
+}
+HOME_COMPARE_FOCUS_KEY = "home_nav_focus_compare"
 
 
 def _query_params_dict() -> dict[str, str]:
@@ -112,10 +124,27 @@ def _inject_theme_persistence(theme: str) -> None:
     }}
     if (w._ecvThemeHooked) return;
     w._ecvThemeHooked = true;
+    function _navButtonClass(action) {{
+        var normalized = String(action || "").toLowerCase().replace(/[^a-z0-9]/g, "_");
+        return ".st-key-nav_action_" + normalized + " button";
+    }}
     w.document.addEventListener('click', function(e) {{
+        if (e.defaultPrevented) return;
+        if (typeof e.button === "number" && e.button !== 0) return;
+        if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
         var a = e.target && e.target.closest ? e.target.closest('a[href]') : null;
         if (!a) return;
         try {{
+            var navAction = a.getAttribute("data-nav-action");
+            if (navAction) {{
+                var btn = w.document.querySelector(_navButtonClass(navAction));
+                if (btn) {{
+                    e.preventDefault();
+                    e.stopPropagation();
+                    btn.click();
+                    return;
+                }}
+            }}
             var u = new URL(a.href, w.location.origin);
             if (u.hostname !== w.location.hostname) return;
             var t = w.localStorage.getItem('excelcv_theme');
@@ -128,13 +157,16 @@ def _inject_theme_persistence(theme: str) -> None:
     )
 
 
-def _inject_url_and_anchor_cleanup() -> None:
+def _inject_url_and_anchor_cleanup(current_page: str = "home", report_snapshot_id: str | None = None) -> None:
     """Keep URL clean, prevent hash-based reload jumps, and collapse invisible injection wrappers."""
-    components.html(
-        """<script>
+    desired_page_js = json.dumps(str(current_page or "home"))
+    desired_rid_js = json.dumps(str(report_snapshot_id or ""))
+    script = """<script>
 (function () {
     var w = window.parent && window.parent !== window ? window.parent : window;
     var doc = w.document;
+    var desiredPage = __DESIRED_PAGE__;
+    var desiredRid = __DESIRED_RID__;
 
     try {
         var styleId = "excelcv-hide-heading-anchors";
@@ -151,9 +183,10 @@ def _inject_url_and_anchor_cleanup() -> None:
         var page = (u.searchParams.get("page") || "").toLowerCase();
         var isHome = page === "home" || (page === "" && !u.searchParams.has("next"));
         var hadHash = !!u.hash;
+        var keepCompareHash = isHome && u.hash === "#compare-section-anchor";
         var changed = false;
 
-        if (isHome && hadHash) {
+        if (isHome && hadHash && !keepCompareHash) {
             u.hash = "";
             changed = true;
         }
@@ -170,18 +203,67 @@ def _inject_url_and_anchor_cleanup() -> None:
         }
 
         if (changed) {
-            var canonical = u.pathname + (u.search || "");
+            var canonical = u.pathname + (u.search || "") + (keepCompareHash ? u.hash : "");
             w.history.replaceState(null, "", canonical);
         }
 
-        if (isHome && hadHash) {
+        if (isHome && hadHash && !keepCompareHash) {
             try { w.scrollTo({ top: 0, left: 0, behavior: "instant" }); } catch (_e) { w.scrollTo(0, 0); }
             var main = doc.querySelector("[data-testid='stAppViewContainer']");
             if (main) {
                 try { main.scrollTo({ top: 0, left: 0, behavior: "instant" }); } catch (_e2) { main.scrollTop = 0; }
             }
+        } else if (keepCompareHash) {
+            var scrollToCompare = function() {
+                var anchor = doc.getElementById("compare-section-anchor");
+                if (anchor && anchor.scrollIntoView) {
+                    try { anchor.scrollIntoView({ behavior: "smooth", block: "start" }); } catch (_e3) { anchor.scrollIntoView(true); }
+                }
+            };
+            [60, 220, 600].forEach(function(ms) { setTimeout(scrollToCompare, ms); });
         }
     } catch (e) {}
+
+    // Sync URL to the current in-app route without triggering an extra Streamlit rerun.
+    try {
+        var target = new URL(w.location.href);
+        var normalizedDesired = String(desiredPage || "home").toLowerCase();
+        var homeLike = new Set(["home", "upload", "upload-cv"]);
+        var pageInUrl = (target.searchParams.get("page") || "").toLowerCase();
+        var changedUrl = false;
+
+        if (homeLike.has(normalizedDesired)) {
+            if (target.searchParams.has("page")) { target.searchParams.delete("page"); changedUrl = true; }
+            if (target.searchParams.has("rid")) { target.searchParams.delete("rid"); changedUrl = true; }
+            if (target.searchParams.has("next")) { target.searchParams.delete("next"); changedUrl = true; }
+        } else {
+            if (pageInUrl !== normalizedDesired) {
+                target.searchParams.set("page", normalizedDesired);
+                changedUrl = true;
+            }
+            if (normalizedDesired === "report" && desiredRid) {
+                if ((target.searchParams.get("rid") || "") !== desiredRid) {
+                    target.searchParams.set("rid", desiredRid);
+                    changedUrl = true;
+                }
+            } else if (target.searchParams.has("rid")) {
+                target.searchParams.delete("rid");
+                changedUrl = true;
+            }
+            if (normalizedDesired !== "auth" && target.searchParams.has("next")) {
+                target.searchParams.delete("next");
+                changedUrl = true;
+            }
+        }
+
+        if (changedUrl) {
+            var nextUrl = target.pathname + target.search + target.hash;
+            var currentUrl = w.location.pathname + w.location.search + w.location.hash;
+            if (nextUrl !== currentUrl) {
+                w.history.pushState({ excelcv: true, page: normalizedDesired }, "", nextUrl);
+            }
+        }
+    } catch (_urlSyncErr) {}
 
     // Collapse invisible injection wrappers so their flex-gap contribution is removed.
     // Runs after a short delay to ensure all sibling injection iframes have already
@@ -207,9 +289,9 @@ def _inject_url_and_anchor_cleanup() -> None:
     }, 150);
 
 })();
-</script>""",
-        height=0,
-    )
+</script>"""
+    script = script.replace("__DESIRED_PAGE__", desired_page_js).replace("__DESIRED_RID__", desired_rid_js)
+    components.html(script, height=0)
 
 
 def _inject_chunk_load_recovery() -> None:
@@ -459,7 +541,30 @@ def main() -> None:
         st.session_state['page'] = 'cv-builder'
 
     current_page = str(st.session_state.get('page', 'upload'))
-    render_top_nav(NAV_ACTIVE_LABELS.get(current_page, "Analyze CV"))
+    active_nav_label = NAV_ACTIVE_LABELS.get(current_page, "Analyze CV")
+    if current_page in ("home", "upload", "upload-cv") and st.session_state.get(HOME_COMPARE_FOCUS_KEY):
+        active_nav_label = "Compare Resumes"
+    nav_action = render_top_nav(active_nav_label)
+    if nav_action:
+        target_page = NAV_ACTION_TO_PAGE.get(nav_action, "home")
+        if nav_action == "compare-anchor":
+            st.session_state["scroll_to_compare_anchor"] = True
+            st.session_state[HOME_COMPARE_FOCUS_KEY] = True
+        elif nav_action == "upload-cv":
+            st.session_state[HOME_COMPARE_FOCUS_KEY] = False
+        elif target_page not in ("home", "upload", "upload-cv"):
+            st.session_state[HOME_COMPARE_FOCUS_KEY] = False
+        if not get_session_user() and target_page in PROTECTED_PAGES:
+            st.session_state.pop("nav_action_pending", None)
+            _render_auth_gate(target_page)
+        st.session_state["page"] = target_page
+        st.session_state.pop("nav_action_pending", None)
+        current_page = str(st.session_state.get("page", "home"))
+    else:
+        if current_page not in ("home", "upload", "upload-cv"):
+            st.session_state[HOME_COMPARE_FOCUS_KEY] = False
+        st.session_state.pop("nav_action_pending", None)
+        current_page = str(st.session_state.get('page', 'upload'))
 
     if current_page in ('home', 'upload', 'upload-cv'):
         render_upload_page(compare_mode=False)
@@ -492,7 +597,14 @@ def main() -> None:
     inject_dropdown_outside_click()
     inject_footer_full_width()
     inject_back_button_sync()
-    _inject_url_and_anchor_cleanup()
+    _inject_url_and_anchor_cleanup(
+        current_page=current_page,
+        report_snapshot_id=(
+            str(st.session_state.get("report_snapshot_id") or "")
+            if current_page == "report"
+            else ""
+        ),
+    )
 
     if current_page not in ("cv-builder", "resume-builder"):
         render_site_footer()

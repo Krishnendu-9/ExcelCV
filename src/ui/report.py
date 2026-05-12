@@ -847,7 +847,7 @@ def _render_download_buttons(name: str, analysis: Dict[str, Any]) -> None:
             data=pdf_bytes,
             file_name=f"{name}-analysis.pdf",
             mime="application/pdf",
-            use_container_width=True,
+            width="stretch",
             key="download_pdf_main",
             disabled=not bool(pdf_bytes),
         )
@@ -857,7 +857,7 @@ def _render_download_buttons(name: str, analysis: Dict[str, Any]) -> None:
             data=json.dumps(analysis, indent=2),
             file_name=f"{name}-analysis.json",
             mime="application/json",
-            use_container_width=True,
+            width="stretch",
             key="download_json_main",
         )
     if pdf_error:
@@ -1593,13 +1593,13 @@ def render_evaluation_toolkit(analysis: Dict[str, Any], resume_name: str) -> Non
         corr = summary.get("correlation")
         c4.metric("Correlation", "-" if corr is None else corr)
 
-        st.dataframe(records, use_container_width=True, hide_index=True)
+        st.dataframe(records, width="stretch", hide_index=True)
         st.download_button(
             "Download benchmark JSON",
             data=json.dumps(records, indent=2),
             file_name="excelcv-benchmark.json",
             mime="application/json",
-            use_container_width=True,
+            width="stretch",
             key="download_benchmark_json",
         )
 
@@ -1633,7 +1633,7 @@ def render_report_view() -> None:
     with actions_col:
         upload_clicked = st.button(
             "↻  Upload another resume",
-            use_container_width=True,
+            width="stretch",
             key="report_upload_another",
             help="Start a fresh analysis",
         )

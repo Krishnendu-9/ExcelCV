@@ -5,6 +5,7 @@ from datetime import datetime
 import streamlit as st
 
 from src.email_utils import is_email_configured, send_contact_email
+from src.cover_letter import render_cover_letter_page
 from src.ui.app_utils import _build_page_href
 from src.ui.report import render_evaluation_toolkit
 
@@ -44,24 +45,7 @@ def render_static_page(page: str) -> None:
         return
 
     if page_key == "motivation-letter":
-        _render_info_page_header(
-            "Motivation Letter",
-            "Build focused motivation letters that align with role goals and employer expectations.",
-        )
-        st.markdown("### Recommended Structure")
-        st.markdown(
-            "1. **Opening (Why this role/company)**\n"
-            "2. **Proof of fit (skills + projects + outcomes)**\n"
-            "3. **Value proposition (what you will contribute)**\n"
-            "4. **Closing (confidence + call to action)**"
-        )
-        st.markdown("### Quick Writing Checklist")
-        st.markdown(
-            "- Mention the role title and company\n"
-            "- Reference 1-2 relevant achievements with outcomes\n"
-            "- Keep it concise (250-400 words)\n"
-            "- Avoid generic copy-paste language"
-        )
+        render_cover_letter_page()
         return
 
     if page_key == "resume-builder":
@@ -241,7 +225,7 @@ def render_static_page(page: str) -> None:
         )
         if analysis:
             st.success("A recent report is available in this session.")
-            if st.button("Open Latest Report", key="open_latest_report_btn", use_container_width=False):
+            if st.button("Open Latest Report", key="open_latest_report_btn", width="content"):
                 st.session_state["page"] = "report"
                 st.query_params["page"] = "report"
                 rid = st.session_state.get("report_snapshot_id") or st.query_params.get("rid")
@@ -534,7 +518,7 @@ def render_static_page(page: str) -> None:
                     )
                     subject = st.text_input("Subject", placeholder="How can we help?")
                     message = st.text_area("Message", height=140, placeholder="Write your message...")
-                    sent = st.form_submit_button("Send Message", use_container_width=True)
+                    sent = st.form_submit_button("Send Message", width="stretch")
                 if sent:
                     if not name.strip() or not email.strip() or not message.strip():
                         st.error("Please fill in your name, email, and message.")

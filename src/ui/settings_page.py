@@ -246,11 +246,11 @@ def render_settings_page() -> None:
             if not panel:
                 c_e, c_p, _ = st.columns([1, 1, 2])
                 with c_e:
-                    if st.button("Change Email", key="settings_open_email", use_container_width=True):
+                    if st.button("Change Email", key="settings_open_email", width="stretch"):
                         st.session_state["settings_panel"] = "email"
                         st.rerun()
                 with c_p:
-                    if st.button("Change Password", key="settings_open_pass", use_container_width=True):
+                    if st.button("Change Password", key="settings_open_pass", width="stretch"):
                         st.session_state["settings_panel"] = "password"
                         st.rerun()
 
@@ -267,7 +267,7 @@ def render_settings_page() -> None:
                     cur_pass = st.text_input("Current password", type="password", key="settings_cur_pass_email")
                     fc1, fc2, _ = st.columns([1, 1, 2])
                     with fc1:
-                        if st.button("Save Email", key="settings_save_email", type="primary", use_container_width=True):
+                        if st.button("Save Email", key="settings_save_email", type="primary", width="stretch"):
                             if new_email and cur_pass:
                                 ok, msg = _change_email(user_id, cur_pass, new_email)
                                 if ok:
@@ -280,7 +280,7 @@ def render_settings_page() -> None:
                             else:
                                 st.warning("Please fill in all fields.")
                     with fc2:
-                        if st.button("Cancel", key="settings_cancel_email", use_container_width=True):
+                        if st.button("Cancel", key="settings_cancel_email", width="stretch"):
                             st.session_state.pop("settings_panel", None)
                             st.rerun()
 
@@ -298,7 +298,7 @@ def render_settings_page() -> None:
                     conf_pass = st.text_input("Confirm new password", type="password", key="settings_conf_pass")
                     pc1, pc2, _ = st.columns([1, 1, 2])
                     with pc1:
-                        if st.button("Save Password", key="settings_save_pass", type="primary", use_container_width=True):
+                        if st.button("Save Password", key="settings_save_pass", type="primary", width="stretch"):
                             if cur_pass and new_pass and conf_pass:
                                 if new_pass != conf_pass:
                                     st.error("New passwords do not match.")
@@ -313,7 +313,7 @@ def render_settings_page() -> None:
                             else:
                                 st.warning("Please fill in all fields.")
                     with pc2:
-                        if st.button("Cancel", key="settings_cancel_pass", use_container_width=True):
+                        if st.button("Cancel", key="settings_cancel_pass", width="stretch"):
                             st.session_state.pop("settings_panel", None)
                             st.rerun()
 
@@ -328,7 +328,7 @@ def render_settings_page() -> None:
                 st.warning("This will permanently delete your account and all data. Are you sure?")
                 dc1, dc2, _ = st.columns([1.4, 1, 2])
                 with dc1:
-                    if st.button("Yes, Delete My Account", key="settings_do_delete", type="primary", use_container_width=True):
+                    if st.button("Yes, Delete My Account", key="settings_do_delete", type="primary", width="stretch"):
                         ok, msg = _delete_account(user_id)
                         if ok:
                             logout_user()
@@ -336,7 +336,7 @@ def render_settings_page() -> None:
                         else:
                             st.error(msg)
                 with dc2:
-                    if st.button("Cancel", key="settings_cancel_delete", use_container_width=True):
+                    if st.button("Cancel", key="settings_cancel_delete", width="stretch"):
                         st.session_state.pop("settings_confirm_delete", None)
                         st.rerun()
             else:

@@ -106,6 +106,14 @@ def _clear_analysis_state(clear_comparison: bool = True) -> None:
     if clear_comparison:
         st.session_state.pop("comparison_results", None)
         st.session_state.pop("comparison_errors", None)
+        st.session_state.pop("comparison_warnings", None)
+        st.session_state.pop("comparison_signature", None)
+        st.session_state.pop("compare_jd", None)
+        st.session_state.pop("compare_selected_files", None)
+        st.session_state.pop("compare_cvs_rev", None)
+        for key in list(st.session_state.keys()):
+            if str(key).startswith("compare_cvs_input_"):
+                st.session_state.pop(key, None)
 
 
 @lru_cache(maxsize=4)

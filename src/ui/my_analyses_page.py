@@ -124,7 +124,7 @@ def render_my_analyses_page() -> None:
             col_view, col_delete = st.columns([3, 1])
 
             with col_view:
-                if st.button("View Full Report", key=f"view_{analysis.id}", use_container_width=True):
+                if st.button("View Full Report", key=f"view_{analysis.id}", width="stretch"):
                     st.session_state["analysis"] = analysis.result
                     st.session_state["cv_name"] = analysis.cv_name
                     st.session_state["jd"] = analysis.job_description
@@ -133,7 +133,7 @@ def render_my_analyses_page() -> None:
                     st.rerun()
 
             with col_delete:
-                if st.button("Delete", key=f"del_a_{analysis.id}", use_container_width=True):
+                if st.button("Delete", key=f"del_a_{analysis.id}", width="stretch"):
                     st.session_state[f"confirm_del_a_{analysis.id}"] = True
 
             if st.session_state.get(f"confirm_del_a_{analysis.id}"):

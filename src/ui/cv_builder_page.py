@@ -672,7 +672,7 @@ def _date_field(
         st.text_input(label, value=display_value, disabled=True, label_visibility="collapsed")
         return
 
-    with st.popover(display_value, use_container_width=True, width="content"):
+    with st.popover(display_value, width="stretch"):
         with st.container(key=pop_wrap_key):
             if allow_present and current_key:
                 st.toggle("Present (Current)", key=current_key)
@@ -1550,7 +1550,7 @@ def _render_left_panel() -> None:
             unsafe_allow_html=True,
         )
         if not active:
-            if st.button(f"Select", key=f"tpl_{tpl_key}", use_container_width=True):
+            if st.button(f"Select", key=f"tpl_{tpl_key}", width="stretch"):
                 ss["cvb_template"] = tpl_key
                 ss["cvb_zoom"] = _default_zoom_for_template(tpl_key)
                 st.rerun()
@@ -2710,6 +2710,90 @@ def _inject_middle_section_exact_css() -> None:
 .st-key-cvb-page-native .st-key-cvb-middle-scroll-native [class*="st-key-add_b_"] button:hover {
   background: transparent !important;
   color: rgba(0,89,179,0.80) !important;
+}
+
+/* Final CV Builder delete-button override:
+   keep icon buttons transparent in all wrapper variants; only show red on hover/focus. */
+[data-testid="stAppViewContainer"] .st-key-cvb-page-native .st-key-cvb-middle-scroll-native [class*="st-key-rem_exp_"] button,
+[data-testid="stAppViewContainer"] .st-key-cvb-page-native .st-key-cvb-middle-scroll-native [class*="st-key-rem-exp-"] button,
+[data-testid="stAppViewContainer"] .st-key-cvb-page-native .st-key-cvb-middle-scroll-native [class*="st-key-rem_edu_"] button,
+[data-testid="stAppViewContainer"] .st-key-cvb-page-native .st-key-cvb-middle-scroll-native [class*="st-key-rem-edu-"] button,
+[data-testid="stAppViewContainer"] .st-key-cvb-page-native .st-key-cvb-middle-scroll-native [class*="st-key-rem_skill_"] button,
+[data-testid="stAppViewContainer"] .st-key-cvb-page-native .st-key-cvb-middle-scroll-native [class*="st-key-rem-skill-"] button,
+[data-testid="stAppViewContainer"] .st-key-cvb-page-native .st-key-cvb-middle-scroll-native [class*="st-key-rem_proj_"] button,
+[data-testid="stAppViewContainer"] .st-key-cvb-page-native .st-key-cvb-middle-scroll-native [class*="st-key-rem_lang_"] button,
+[data-testid="stAppViewContainer"] .st-key-cvb-page-native .st-key-cvb-middle-scroll-native [class*="st-key-rem_cert_"] button,
+[data-testid="stAppViewContainer"] .st-key-cvb-page-native .st-key-cvb-middle-scroll-native [class*="st-key-rem_exp_"] [data-testid="stButton"] > button,
+[data-testid="stAppViewContainer"] .st-key-cvb-page-native .st-key-cvb-middle-scroll-native [class*="st-key-rem_edu_"] [data-testid="stButton"] > button,
+[data-testid="stAppViewContainer"] .st-key-cvb-page-native .st-key-cvb-middle-scroll-native [class*="st-key-rem_skill_"] [data-testid="stButton"] > button,
+[data-testid="stAppViewContainer"] .st-key-cvb-page-native .st-key-cvb-middle-scroll-native [class*="st-key-rem_proj_"] [data-testid="stButton"] > button,
+[data-testid="stAppViewContainer"] .st-key-cvb-page-native .st-key-cvb-middle-scroll-native [class*="st-key-rem_lang_"] [data-testid="stButton"] > button,
+[data-testid="stAppViewContainer"] .st-key-cvb-page-native .st-key-cvb-middle-scroll-native [class*="st-key-rem_cert_"] [data-testid="stButton"] > button,
+[data-testid="stAppViewContainer"] .st-key-cvb-page-native .st-key-cvb-middle-scroll-native [class*="st-key-rem_exp_"] [data-baseweb="button"],
+[data-testid="stAppViewContainer"] .st-key-cvb-page-native .st-key-cvb-middle-scroll-native [class*="st-key-rem_edu_"] [data-baseweb="button"],
+[data-testid="stAppViewContainer"] .st-key-cvb-page-native .st-key-cvb-middle-scroll-native [class*="st-key-rem_skill_"] [data-baseweb="button"],
+[data-testid="stAppViewContainer"] .st-key-cvb-page-native .st-key-cvb-middle-scroll-native [class*="st-key-rem_proj_"] [data-baseweb="button"],
+[data-testid="stAppViewContainer"] .st-key-cvb-page-native .st-key-cvb-middle-scroll-native [class*="st-key-rem_lang_"] [data-baseweb="button"],
+[data-testid="stAppViewContainer"] .st-key-cvb-page-native .st-key-cvb-middle-scroll-native [class*="st-key-rem_cert_"] [data-baseweb="button"] {
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  filter: none !important;
+  color: #64748b !important;
+}
+[data-testid="stAppViewContainer"] .st-key-cvb-page-native .st-key-cvb-middle-scroll-native [class*="st-key-rem_exp_"] button > div,
+[data-testid="stAppViewContainer"] .st-key-cvb-page-native .st-key-cvb-middle-scroll-native [class*="st-key-rem_edu_"] button > div,
+[data-testid="stAppViewContainer"] .st-key-cvb-page-native .st-key-cvb-middle-scroll-native [class*="st-key-rem_skill_"] button > div,
+[data-testid="stAppViewContainer"] .st-key-cvb-page-native .st-key-cvb-middle-scroll-native [class*="st-key-rem_proj_"] button > div,
+[data-testid="stAppViewContainer"] .st-key-cvb-page-native .st-key-cvb-middle-scroll-native [class*="st-key-rem_lang_"] button > div,
+[data-testid="stAppViewContainer"] .st-key-cvb-page-native .st-key-cvb-middle-scroll-native [class*="st-key-rem_cert_"] button > div,
+[data-testid="stAppViewContainer"] .st-key-cvb-page-native .st-key-cvb-middle-scroll-native [class*="st-key-rem_exp_"] [data-baseweb="button"] > div,
+[data-testid="stAppViewContainer"] .st-key-cvb-page-native .st-key-cvb-middle-scroll-native [class*="st-key-rem_edu_"] [data-baseweb="button"] > div,
+[data-testid="stAppViewContainer"] .st-key-cvb-page-native .st-key-cvb-middle-scroll-native [class*="st-key-rem_skill_"] [data-baseweb="button"] > div,
+[data-testid="stAppViewContainer"] .st-key-cvb-page-native .st-key-cvb-middle-scroll-native [class*="st-key-rem_proj_"] [data-baseweb="button"] > div,
+[data-testid="stAppViewContainer"] .st-key-cvb-page-native .st-key-cvb-middle-scroll-native [class*="st-key-rem_lang_"] [data-baseweb="button"] > div,
+[data-testid="stAppViewContainer"] .st-key-cvb-page-native .st-key-cvb-middle-scroll-native [class*="st-key-rem_cert_"] [data-baseweb="button"] > div,
+[data-testid="stAppViewContainer"] .st-key-cvb-page-native .st-key-cvb-middle-scroll-native [class*="st-key-rem_exp_"] button *,
+[data-testid="stAppViewContainer"] .st-key-cvb-page-native .st-key-cvb-middle-scroll-native [class*="st-key-rem_edu_"] button *,
+[data-testid="stAppViewContainer"] .st-key-cvb-page-native .st-key-cvb-middle-scroll-native [class*="st-key-rem_skill_"] button *,
+[data-testid="stAppViewContainer"] .st-key-cvb-page-native .st-key-cvb-middle-scroll-native [class*="st-key-rem_proj_"] button *,
+[data-testid="stAppViewContainer"] .st-key-cvb-page-native .st-key-cvb-middle-scroll-native [class*="st-key-rem_lang_"] button *,
+[data-testid="stAppViewContainer"] .st-key-cvb-page-native .st-key-cvb-middle-scroll-native [class*="st-key-rem_cert_"] button * {
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  color: inherit !important;
+}
+[data-testid="stAppViewContainer"] .st-key-cvb-page-native .st-key-cvb-middle-scroll-native [class*="st-key-rem_exp_"] button:hover,
+[data-testid="stAppViewContainer"] .st-key-cvb-page-native .st-key-cvb-middle-scroll-native [class*="st-key-rem_edu_"] button:hover,
+[data-testid="stAppViewContainer"] .st-key-cvb-page-native .st-key-cvb-middle-scroll-native [class*="st-key-rem_skill_"] button:hover,
+[data-testid="stAppViewContainer"] .st-key-cvb-page-native .st-key-cvb-middle-scroll-native [class*="st-key-rem_proj_"] button:hover,
+[data-testid="stAppViewContainer"] .st-key-cvb-page-native .st-key-cvb-middle-scroll-native [class*="st-key-rem_lang_"] button:hover,
+[data-testid="stAppViewContainer"] .st-key-cvb-page-native .st-key-cvb-middle-scroll-native [class*="st-key-rem_cert_"] button:hover,
+[data-testid="stAppViewContainer"] .st-key-cvb-page-native .st-key-cvb-middle-scroll-native [class*="st-key-rem_exp_"] button:focus-visible,
+[data-testid="stAppViewContainer"] .st-key-cvb-page-native .st-key-cvb-middle-scroll-native [class*="st-key-rem_edu_"] button:focus-visible,
+[data-testid="stAppViewContainer"] .st-key-cvb-page-native .st-key-cvb-middle-scroll-native [class*="st-key-rem_skill_"] button:focus-visible,
+[data-testid="stAppViewContainer"] .st-key-cvb-page-native .st-key-cvb-middle-scroll-native [class*="st-key-rem_proj_"] button:focus-visible,
+[data-testid="stAppViewContainer"] .st-key-cvb-page-native .st-key-cvb-middle-scroll-native [class*="st-key-rem_lang_"] button:focus-visible,
+[data-testid="stAppViewContainer"] .st-key-cvb-page-native .st-key-cvb-middle-scroll-native [class*="st-key-rem_cert_"] button:focus-visible,
+[data-testid="stAppViewContainer"] .st-key-cvb-page-native .st-key-cvb-middle-scroll-native [class*="st-key-rem_exp_"] [data-baseweb="button"]:hover,
+[data-testid="stAppViewContainer"] .st-key-cvb-page-native .st-key-cvb-middle-scroll-native [class*="st-key-rem_edu_"] [data-baseweb="button"]:hover,
+[data-testid="stAppViewContainer"] .st-key-cvb-page-native .st-key-cvb-middle-scroll-native [class*="st-key-rem_skill_"] [data-baseweb="button"]:hover,
+[data-testid="stAppViewContainer"] .st-key-cvb-page-native .st-key-cvb-middle-scroll-native [class*="st-key-rem_proj_"] [data-baseweb="button"]:hover,
+[data-testid="stAppViewContainer"] .st-key-cvb-page-native .st-key-cvb-middle-scroll-native [class*="st-key-rem_lang_"] [data-baseweb="button"]:hover,
+[data-testid="stAppViewContainer"] .st-key-cvb-page-native .st-key-cvb-middle-scroll-native [class*="st-key-rem_cert_"] [data-baseweb="button"]:hover,
+[data-testid="stAppViewContainer"] .st-key-cvb-page-native .st-key-cvb-middle-scroll-native [class*="st-key-rem_exp_"] [data-baseweb="button"]:focus-visible,
+[data-testid="stAppViewContainer"] .st-key-cvb-page-native .st-key-cvb-middle-scroll-native [class*="st-key-rem_edu_"] [data-baseweb="button"]:focus-visible,
+[data-testid="stAppViewContainer"] .st-key-cvb-page-native .st-key-cvb-middle-scroll-native [class*="st-key-rem_skill_"] [data-baseweb="button"]:focus-visible,
+[data-testid="stAppViewContainer"] .st-key-cvb-page-native .st-key-cvb-middle-scroll-native [class*="st-key-rem_proj_"] [data-baseweb="button"]:focus-visible,
+[data-testid="stAppViewContainer"] .st-key-cvb-page-native .st-key-cvb-middle-scroll-native [class*="st-key-rem_lang_"] [data-baseweb="button"]:focus-visible,
+[data-testid="stAppViewContainer"] .st-key-cvb-page-native .st-key-cvb-middle-scroll-native [class*="st-key-rem_cert_"] [data-baseweb="button"]:focus-visible {
+  background: rgba(239, 68, 68, 0.14) !important;
+  border-color: rgba(239, 68, 68, 0.78) !important;
+  color: #dc2626 !important;
 }
 </style>
         """,
@@ -5532,14 +5616,14 @@ def render_cv_builder_page() -> None:
     # Legacy non-native renderer block removed.
     """
             # removed legacy block
-                if st.button("↑ Import", key="btn_import", use_container_width=True, help="Import JSON backup"):
+                if st.button("↑ Import", key="btn_import", width="stretch", help="Import JSON backup"):
                     ss["cvb_show_import"] = not ss.get("cvb_show_import", False)
                     st.rerun()
             with tc_bak:
                 st.download_button(
                     "Backup", data=_get_backup_json(),
                     file_name="cv_backup.json", mime="application/json",
-                    use_container_width=True, key="btn_backup", help="Download JSON backup",
+                    width="stretch", key="btn_backup", help="Download JSON backup",
                 )
             with tc_pdf:
                 if pdf_bytes:
@@ -5547,12 +5631,12 @@ def render_cv_builder_page() -> None:
                         "⬇ Download PDF", data=pdf_bytes,
                         file_name=f"{cv_title.replace(' ', '_')}.pdf",
                         mime="application/pdf",
-                        use_container_width=True, key="btn_pdf", type="primary",
+                        width="stretch", key="btn_pdf", type="primary",
                     )
                 else:
-                    st.button("⬇ Download PDF", disabled=True, use_container_width=True, key="btn_pdf_dis")
+                    st.button("⬇ Download PDF", disabled=True, width="stretch", key="btn_pdf_dis")
             with tc_save:
-                if st.button("Save", key="btn_save", use_container_width=True):
+                if st.button("Save", key="btn_save", width="stretch"):
                     title = ss.get("cvb_cv_title", "My Resume") or "My Resume"
                     if _save_cv(cv_data, title, template):
                         ss["cvb_last_saved"] = datetime.now().strftime("%I:%M %p")
@@ -5560,7 +5644,7 @@ def render_cv_builder_page() -> None:
                     else:
                         st.error("Save failed.")
             with tc_rst:
-                if st.button("↺ Reset", key="btn_reset", use_container_width=True):
+                if st.button("↺ Reset", key="btn_reset", width="stretch"):
                     ss["cvb_confirm_reset"] = True
                     st.rerun()
 
@@ -5669,7 +5753,7 @@ def _experience_section() -> None:
                     _clone_position(eid)
                     st.rerun()
             with ah3:
-                if st.button(":material/delete:", key=f"rem_exp_{eid}", type="tertiary", help="Delete position"):
+                if st.button(":material/delete:", key=f"rem_exp_{eid}", type="tertiary"):
                     st.session_state["cvb_exp_ids"].remove(eid)
                     st.session_state.pop(f"cvb_ai_sug_{eid}", None)
                     st.rerun()
@@ -6002,7 +6086,7 @@ def _education_section() -> None:
                         st.session_state[f"cvb_edu_visible_{eid}"] = not edu_visible
                         st.rerun()
                 with del_col:
-                    if len(edu_ids) > 1 and st.button(":material/delete:", key=f"rem_edu_{eid}", type="tertiary", help="Delete education"):
+                    if len(edu_ids) > 1 and st.button(":material/delete:", key=f"rem_edu_{eid}", type="tertiary"):
                         _remove_education(eid)
                         st.rerun()
 
@@ -6080,7 +6164,6 @@ def _skills_section() -> None:
                     ":material/delete:",
                     key=f"rem_skill_{sid}",
                     type="tertiary",
-                    help="Remove skill",
                     on_click=_remove_skill,
                     args=(sid,),
                 )
@@ -6113,7 +6196,7 @@ def _projects_section() -> None:
                     st.session_state[f"cvb_proj_visible_{pid}"] = not proj_visible
                     st.rerun()
             with ph_del:
-                if st.button(":material/delete:", key=f"rem_proj_{pid}", type="tertiary", help="Delete project"):
+                if st.button(":material/delete:", key=f"rem_proj_{pid}", type="tertiary"):
                     st.session_state["cvb_proj_ids"].remove(pid)
                     st.session_state.pop(f"cvb_proj_visible_{pid}", None)
                     st.rerun()
@@ -6172,7 +6255,7 @@ def _languages_section() -> None:
                     st.session_state[f"cvb_lang_visible_{lid}"] = not lang_visible
                     st.rerun()
             with c4:
-                if st.button(":material/delete:", key=f"rem_lang_{lid}", type="tertiary", help="Delete language"):
+                if st.button(":material/delete:", key=f"rem_lang_{lid}", type="tertiary"):
                     st.session_state["cvb_lang_ids"].remove(lid)
                     st.session_state.pop(f"cvb_lang_visible_{lid}", None)
                     st.rerun()
@@ -6201,7 +6284,7 @@ def _certifications_section() -> None:
                     st.session_state[f"cvb_cert_visible_{cid}"] = not cert_visible
                     st.rerun()
             with ch_del:
-                if st.button(":material/delete:", key=f"rem_cert_{cid}", type="tertiary", help="Delete certification"):
+                if st.button(":material/delete:", key=f"rem_cert_{cid}", type="tertiary"):
                     st.session_state["cvb_cert_ids"].remove(cid)
                     st.session_state.pop(f"cvb_cert_visible_{cid}", None)
                     st.rerun()
@@ -6353,7 +6436,7 @@ def _experience_section() -> None:
                             st.session_state[f"cvb_exp_visible_{eid}"] = not exp_visible
                             st.rerun()
                     with act_del:
-                        if st.button(":material/delete:", key=f"rem_exp_{eid}", type="tertiary", help="Delete position"):
+                        if st.button(":material/delete:", key=f"rem_exp_{eid}", type="tertiary"):
                             _remove_position(eid)
                             st.rerun()
 

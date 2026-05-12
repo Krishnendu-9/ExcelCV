@@ -11,11 +11,37 @@ from src.ui.app_utils import _build_page_href, _load_logo_data_uri
 PROTECTED_HEADER_PAGES = {"cv-builder", "resume-builder", "my-cvs", "my-analyses", "compare-cv"}
 NAV_LABEL_TO_PAGE = {
     "Analyze CV": "upload-cv",
+    "Compare Resumes": "compare-cv",
+    "Cover Letter": "motivation-letter",
     "Resume Builder": "cv-builder",
     "My CVs": "my-cvs",
     "My Analyses": "my-analyses",
-    "Compare": "compare-cv",
 }
+NAV_ITEMS = [
+    ("Analyze CV", "upload-cv"),
+    ("Compare Resumes", "compare-anchor"),
+    ("Cover Letter", "motivation-letter"),
+    ("Resume Builder", "cv-builder"),
+    ("My CVs", "my-cvs"),
+    ("My Analyses", "my-analyses"),
+]
+
+
+def _nav_action_button_key(action: str) -> str:
+    """Return a stable widget key for JS-triggered nav action bridge buttons."""
+    normalized = "".join(ch if ch.isalnum() else "_" for ch in str(action).strip().lower())
+    return f"nav_action_{normalized}"
+
+
+def _nav_action_css_class(action: str) -> str:
+    """Return the CSS class used by Streamlit for a nav action button key."""
+    normalized = "".join(ch if ch.isalnum() else "_" for ch in str(action).strip().lower())
+    return f"st-key-nav_action_{normalized}"
+
+
+def _queue_nav_action(action: str) -> None:
+    """Persist the most recent nav action so header highlight can update immediately."""
+    st.session_state["nav_action_pending"] = str(action)
 
 
 def _render_html_block(html: str) -> None:
@@ -35,7 +61,7 @@ def render_theme_toggle(standalone: bool = True, key: str = "theme_toggle") -> N
         if st.button(
             theme_icon,
             key=key,
-            use_container_width=standalone,
+            width="stretch" if standalone else "content",
         ):
             new_theme = "dark" if current_theme == "light" else "light"
             st.session_state["theme"] = new_theme
@@ -44,7 +70,7 @@ def render_theme_toggle(standalone: bool = True, key: str = "theme_toggle") -> N
             # below are processed, causing typed values to be lost.
 
 
-def render_site_header(show_theme_toggle: bool = True, current_page: str = "upload") -> None:
+def render_site_header(show_theme_toggle: bool = True, current_page: str = "upload") -> str | None:
     """Render top branded header. Auth links are plain HTML — no nested st.columns."""
     _user = get_session_user()
 
@@ -71,13 +97,8 @@ def render_site_header(show_theme_toggle: bool = True, current_page: str = "uplo
     with col_brand:
         _render_html_block(f'<div class="site-brand">{logo_html}</div>')
 
-    nav_items = [
-        ("Analyze CV", "upload-cv"),
-        ("Resume Builder", "cv-builder"),
-        ("My CVs", "my-cvs"),
-        ("My Analyses", "my-analyses"),
-        ("Compare", "compare-cv"),
-    ]
+    nav_items = NAV_ITEMS
+    pending_action = str(st.session_state.get("nav_action_pending", "")).strip()
     if current_page in ("upload", "home", "upload-cv"):
         active_page = "upload-cv"
     elif current_page == "report":
@@ -86,17 +107,27 @@ def render_site_header(show_theme_toggle: bool = True, current_page: str = "uplo
         active_page = "cv-builder"
     else:
         active_page = current_page
+    if pending_action == "compare-anchor":
+        active_page = "compare-cv"
+    elif pending_action in {item[1] for item in nav_items}:
+        active_page = pending_action
 
     nav_links: List[str] = []
     for label, page_key in nav_items:
-        active_cls = " site-nav-item-active" if page_key == active_page else ""
-        if not _user and page_key in PROTECTED_HEADER_PAGES:
+        is_active = page_key == active_page or (page_key == "compare-anchor" and active_page == "compare-cv")
+        active_cls = " site-nav-item-active" if is_active else ""
+        if page_key == "compare-anchor":
+            href = _build_page_href("home") + "#compare-section-anchor"
+        elif not _user and page_key in PROTECTED_HEADER_PAGES:
             href = _build_page_href("auth", next_page=page_key)
         else:
             href = _build_page_href(page_key)
         nav_links.append(
             f'<a href="{href}" target="_self" '
-            f'class="site-nav-item{active_cls}" style="text-decoration:none;">{label}</a>'
+            f'onclick="try{{var w=window.parent&&window.parent!==window?window.parent:window;'
+            f'var b=w.document.querySelector(\'.{_nav_action_css_class(page_key)} button\');'
+            f'if(b){{event.preventDefault();event.stopPropagation();b.click();return false;}}}}catch(_e){{}}" '
+            f'class="site-nav-item{active_cls}" data-nav-action="{page_key}" style="text-decoration:none;">{label}</a>'
         )
 
     with col_nav:
@@ -168,13 +199,26 @@ def render_site_header(show_theme_toggle: bool = True, current_page: str = "uplo
             _render_html_block('<div class="theme-toggle-gap" aria-hidden="true"></div>')
             render_theme_toggle(standalone=False, key="theme_toggle_header")
 
+    nav_action: str | None = None
+    with st.container(key="site_nav_action_bridge"):
+        for _, page_key in nav_items:
+            if st.button(
+                " ",
+                key=_nav_action_button_key(page_key),
+                help=f"Internal navigation trigger for {page_key}",
+                on_click=_queue_nav_action,
+                args=(page_key,),
+            ):
+                nav_action = page_key
+
     _render_html_block('<div class="site-header-rule"></div>')
+    return nav_action
 
 
-def render_top_nav(active_page: str) -> None:
+def render_top_nav(active_page: str) -> str | None:
     """Render the shared global top navigation with the existing design."""
     normalized = NAV_LABEL_TO_PAGE.get(active_page, active_page)
-    render_site_header(show_theme_toggle=True, current_page=normalized)
+    return render_site_header(show_theme_toggle=True, current_page=normalized)
 
 
 def render_site_footer() -> None:
@@ -210,24 +254,29 @@ def render_site_footer() -> None:
                         AI-powered resume analysis and actionable feedback to help you land your target role faster.
                     </p>
                 </div>
-                <div class="site-footer-link-col">
-                    <h4>Product</h4>
-                    <a href="{footer_links["resume_checker"]}" target="_self">Resume Checker</a>
-                    <a href="{footer_links["ats_insights"]}" target="_self">ATS Insights</a>
-                    <a href="{footer_links["evaluation_toolkit"]}" target="_self">Evaluation Toolkit</a>
-                    <a href="{footer_links["explainable_scoring"]}" target="_self">Explainable Scoring</a>
-                </div>
-                <div class="site-footer-link-col">
-                    <h4>Resources</h4>
-                    <a href="{footer_links["project_notes"]}" target="_self">Project Notes</a>
-                    <a href="{footer_links["how_it_works"]}" target="_self">How It Works</a>
-                    <a href="{footer_links["interview_prep"]}" target="_self">Interview Prep</a>
-                </div>
-                <div class="site-footer-link-col">
-                    <h4>Legal</h4>
-                    <a href="{footer_links["privacy_policy"]}" target="_self">Privacy Policy</a>
-                    <a href="{footer_links["terms_of_service"]}" target="_self">Terms of Service</a>
-                    <a href="{footer_links["contact"]}" target="_self">Contact</a>
+                <div class="site-footer-links-grid">
+                    <div class="site-footer-link-col">
+                        <h4>Product</h4>
+                        <a href="{footer_links["resume_checker"]}" target="_self">Resume Checker</a>
+                        <a href="{footer_links["ats_insights"]}" target="_self">ATS Insights</a>
+                        <a href="{footer_links["evaluation_toolkit"]}" target="_self">Evaluation Toolkit</a>
+                        <a href="{footer_links["explainable_scoring"]}" target="_self">Explainable Scoring</a>
+                    </div>
+                    <div class="site-footer-link-col">
+                        <h4>Resources</h4>
+                        <a href="{footer_links["project_notes"]}" target="_self">Project Notes</a>
+                        <a href="{footer_links["how_it_works"]}" target="_self">How It Works</a>
+                        <a href="{footer_links["interview_prep"]}" target="_self">Interview Prep</a>
+                    </div>
+                    <div class="site-footer-link-col">
+                        <h4>Company</h4>
+                        <a href="{footer_links["contact"]}" target="_self">Contact</a>
+                    </div>
+                    <div class="site-footer-link-col">
+                        <h4>Legal</h4>
+                        <a href="{footer_links["privacy_policy"]}" target="_self">Privacy Policy</a>
+                        <a href="{footer_links["terms_of_service"]}" target="_self">Terms of Service</a>
+                    </div>
                 </div>
             </div>
             <div class="site-footer-bottom">

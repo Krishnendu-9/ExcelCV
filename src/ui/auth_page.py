@@ -609,7 +609,7 @@ def _render_sign_in_register(col, t: dict) -> None:
                 with st.form("login_form"):
                     email = st.text_input("Email", placeholder="you@example.com")
                     password = st.text_input("Password", type="password", placeholder="********")
-                    submitted = st.form_submit_button("Sign In", use_container_width=True, type="primary")
+                    submitted = st.form_submit_button("Sign In", width="stretch", type="primary")
 
                 with st.container(key="auth-inline-actions"):
                     forgot_cols = st.columns([0.6, 0.4])
@@ -617,7 +617,7 @@ def _render_sign_in_register(col, t: dict) -> None:
                         if st.button(
                             "Forgot your password?",
                             key="forgot_btn_inline",
-                            use_container_width=False,
+                            width="content",
                             type="primary",
                         ):
                             st.session_state["auth_view"] = "forgot_password"
@@ -651,7 +651,7 @@ def _render_sign_in_register(col, t: dict) -> None:
                     )
                     submitted_reg = st.form_submit_button(
                         "Create Account",
-                        use_container_width=True,
+                        width="stretch",
                         type="primary",
                     )
 
@@ -703,7 +703,7 @@ def _render_forgot_password_form(col, t: dict) -> None:
 
             with st.form("forgot_form"):
                 fp_email = st.text_input("Email", placeholder="you@example.com", key="fp_email")
-                send_btn = st.form_submit_button("Send reset link", use_container_width=True, type="primary")
+                send_btn = st.form_submit_button("Send reset link", width="stretch", type="primary")
 
             if send_btn:
                 if not fp_email:
@@ -760,7 +760,7 @@ def _render_reset_password_form(col, reset_token: str, t: dict) -> None:
                     placeholder="********",
                     key="rp_confirm",
                 )
-                reset_btn = st.form_submit_button("Set new password", use_container_width=True, type="primary")
+                reset_btn = st.form_submit_button("Set new password", width="stretch", type="primary")
 
             if reset_btn:
                 if not new_pass or not confirm_pass:

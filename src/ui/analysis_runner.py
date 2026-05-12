@@ -1,5 +1,6 @@
 """Analysis execution: single CV, multi-resume comparison, and DB auto-save."""
 
+import hashlib
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -11,6 +12,26 @@ from src.pdf_utils import extract_cv_text, parse_confidence_chip
 from src.auth_utils import get_session_user
 from src.ui.app_utils import _coerce_score, _normalize_missing_skills, _sanitize_cv_filename
 from src.ui.common import issue_count
+
+
+def _uploaded_file_sha256(uploaded_cv: Any) -> str:
+    """Return a stable content hash for deduplication, or an empty string."""
+    try:
+        if hasattr(uploaded_cv, "getvalue"):
+            raw_bytes = uploaded_cv.getvalue()
+            if isinstance(raw_bytes, (bytes, bytearray)):
+                return hashlib.sha256(bytes(raw_bytes)).hexdigest()
+
+        if hasattr(uploaded_cv, "seek") and hasattr(uploaded_cv, "read"):
+            uploaded_cv.seek(0)
+            raw_bytes = uploaded_cv.read()
+            uploaded_cv.seek(0)
+            if isinstance(raw_bytes, (bytes, bytearray)):
+                return hashlib.sha256(bytes(raw_bytes)).hexdigest()
+    except Exception:
+        return ""
+    return ""
+
 
 def run_single_analysis(
     job_description: str,
@@ -98,7 +119,8 @@ def _analyze_cv_payload(job_description: str, uploaded_cv) -> Tuple[Dict[str, An
 
 def run_multi_resume_comparison(job_description: str, uploaded_cvs: List[Any]) -> Dict[str, Any]:
     """Run analysis for multiple resumes and return comparison rows + errors."""
-    if not job_description.strip():
+    normalized_jd = (job_description or "").strip()
+    if not normalized_jd:
         raise ValueError("Please provide a job description for comparison.")
     files = uploaded_cvs or []
     if len(files) < 2:
@@ -106,11 +128,29 @@ def run_multi_resume_comparison(job_description: str, uploaded_cvs: List[Any]) -
     if len(files) > 5:
         raise ValueError("Please upload no more than 5 resumes at a time.")
 
+    deduped_files: List[Any] = []
+    seen_signatures: set[str] = set()
+    skipped_duplicates: List[str] = []
+    for uploaded_cv in files:
+        file_name = _sanitize_cv_filename(getattr(uploaded_cv, "name", "resume"))
+        file_size = int(getattr(uploaded_cv, "size", 0) or 0)
+        file_hash = _uploaded_file_sha256(uploaded_cv)
+        signature = f"{file_name.lower()}|{file_size}|{file_hash or 'nohash'}"
+        if signature in seen_signatures:
+            skipped_duplicates.append(file_name)
+            continue
+        seen_signatures.add(signature)
+        deduped_files.append(uploaded_cv)
+
+    if len(deduped_files) < 2:
+        raise ValueError("Please upload at least 2 unique resumes for comparison.")
+
     rows: List[Dict[str, Any]] = []
     errors: List[str] = []
-    for uploaded_cv in files:
+    warnings: List[str] = []
+    for uploaded_cv in deduped_files:
         try:
-            analysis, _ = _analyze_cv_payload(job_description, uploaded_cv)
+            analysis, _ = _analyze_cv_payload(normalized_jd, uploaded_cv)
             analysis = analysis if isinstance(analysis, dict) else {}
             tailoring_metrics = analysis.get("tailoring_metrics", {})
             content_metrics = analysis.get("content_metrics", {})
@@ -142,8 +182,22 @@ def run_multi_resume_comparison(job_description: str, uploaded_cvs: List[Any]) -
             file_name = _sanitize_cv_filename(getattr(uploaded_cv, "name", "resume"))
             errors.append(f"{file_name}: {exc}")
 
-    rows = sorted(rows, key=lambda row: row.get("Final Score", 0), reverse=True)
-    return {"rows": rows, "errors": errors}
+    rows = sorted(
+        rows,
+        key=lambda row: (
+            -int(row.get("Final Score", 0)),
+            int(row.get("Issues", 0)),
+            str(row.get("Resume", "")).lower(),
+        ),
+    )
+    for idx, row in enumerate(rows, start=1):
+        row["Rank"] = idx
+
+    if skipped_duplicates:
+        warnings.append(
+            "Skipped duplicate file selections: " + ", ".join(skipped_duplicates)
+        )
+    return {"rows": rows, "errors": errors, "warnings": warnings}
 
 
 def _autosave_analysis(cv_name: str, job_description: str, analysis: Dict[str, Any]) -> None:

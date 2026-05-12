@@ -185,8 +185,17 @@ def logout_user() -> None:
         "report_snapshot_id",
         "comparison_results",
         "comparison_errors",
+        "comparison_warnings",
+        "comparison_signature",
+        "compare_jd",
+        "compare_selected_files",
+        "compare_cvs_rev",
     ]:
         st.session_state.pop(key, None)
+
+    for key in list(st.session_state.keys()):
+        if str(key).startswith("compare_cvs_input_"):
+            st.session_state.pop(key, None)
 
     # Remove all resume-builder keys in one pass (covers old/new naming variants).
     for key in list(st.session_state.keys()):

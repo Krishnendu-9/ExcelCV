@@ -105,7 +105,7 @@ def render_my_cvs_page() -> None:
                 col_load, col_export, col_delete = st.columns([2, 2, 1])
 
                 with col_load:
-                    if st.button("Open in Builder", key=f"load_{cv.id}", use_container_width=True):
+                    if st.button("Open in Builder", key=f"load_{cv.id}", width="stretch"):
                         st.session_state["cvb_load_id"] = cv.id
                         st.session_state["page"] = "cv-builder"
                         st.rerun()
@@ -120,13 +120,13 @@ def render_my_cvs_page() -> None:
                             file_name=f"{safe_title}.pdf",
                             mime="application/pdf",
                             key=f"dl_{cv.id}",
-                            use_container_width=True,
+                            width="stretch",
                         )
                     except Exception:
-                        st.button("PDF unavailable", disabled=True, key=f"dl_err_{cv.id}", use_container_width=True)
+                        st.button("PDF unavailable", disabled=True, key=f"dl_err_{cv.id}", width="stretch")
 
                 with col_delete:
-                    if st.button("Delete", key=f"del_{cv.id}", use_container_width=True, type="secondary"):
+                    if st.button("Delete", key=f"del_{cv.id}", width="stretch", type="secondary"):
                         st.session_state[f"confirm_delete_{cv.id}"] = True
 
                 if st.session_state.get(f"confirm_delete_{cv.id}"):

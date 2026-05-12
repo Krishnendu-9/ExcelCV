@@ -2,19 +2,27 @@
             
             {css_variables}
 
-            /* Native browser scrollbar — color-scheme tells the browser/OS
-               which scrollbar variant to render (light vs dark). No custom
-               styling, so it always matches the active theme like Udemy /
-               LinkedIn. overflow-y:scroll + scrollbar-gutter:stable on body
-               (below) keep the gutter permanently reserved so the scrollbar
-               never auto-hides. */
+            /* App-level scrollbar baseline. */
+            :root {
+                --excelcv-scrollbar-track: #edf1f4;
+                --excelcv-scrollbar-thumb: #8e959d;
+                --excelcv-scrollbar-thumb-hover: #757d86;
+            }
             body.theme-light,
             .stApp.theme-light {
                 color-scheme: light;
+                --excelcv-scrollbar-track: #edf1f4;
+                --excelcv-scrollbar-thumb: #8e959d;
+                --excelcv-scrollbar-thumb-hover: #757d86;
             }
+            html:has(body.theme-dark),
+            html:has(.stApp.theme-dark),
             body.theme-dark,
             .stApp.theme-dark {
                 color-scheme: dark;
+                --excelcv-scrollbar-track: #1f2732;
+                --excelcv-scrollbar-thumb: #7f8b99;
+                --excelcv-scrollbar-thumb-hover: #9aa6b5;
             }
             
             /* Keep layout defaults intact; page-level modules can opt-in to custom overflow rules. */
@@ -227,6 +235,14 @@
                 overflow: hidden !important;
                 border: none !important;
             }}
+            [data-testid="stToolbar"],
+            [data-testid="stStatusWidget"],
+            [data-testid="stDecoration"] {{
+                display: none !important;
+                visibility: hidden !important;
+                opacity: 0 !important;
+                pointer-events: none !important;
+            }}
             /* Nudge the first controls row flush to top */
             [data-testid="stMainBlockContainer"] [data-testid="stHorizontalBlock"]:has(.stSelectbox):first-child {{
                 margin-top: 10px !important;
@@ -392,6 +408,51 @@
                 font-weight: 700;
                 line-height: 1;
                 white-space: nowrap;
+            }}
+            .st-key-site_nav_action_bridge {{
+                position: absolute !important;
+                width: 1px !important;
+                height: 1px !important;
+                overflow: hidden !important;
+                opacity: 0 !important;
+                pointer-events: none !important;
+            }}
+            .st-key-site_nav_action_bridge [data-testid="stButton"] {{
+                margin: 0 !important;
+                padding: 0 !important;
+            }}
+            .st-key-site_nav_action_bridge button {{
+                width: 1px !important;
+                min-width: 1px !important;
+                height: 1px !important;
+                min-height: 1px !important;
+                padding: 0 !important;
+                border: 0 !important;
+            }}
+            [class*="st-key-nav_action_"] {{
+                position: absolute !important;
+                width: 1px !important;
+                height: 1px !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                overflow: hidden !important;
+                opacity: 0 !important;
+                pointer-events: none !important;
+                clip: rect(0 0 0 0) !important;
+                clip-path: inset(50%) !important;
+                white-space: nowrap !important;
+                border: 0 !important;
+            }}
+            [class*="st-key-nav_action_"] [data-testid="stButton"],
+            [class*="st-key-nav_action_"] button {{
+                margin: 0 !important;
+                padding: 0 !important;
+                min-width: 1px !important;
+                min-height: 1px !important;
+                width: 1px !important;
+                height: 1px !important;
+                border: 0 !important;
+                box-shadow: none !important;
             }}
             .theme-toggle-gap {{
                 height: 4px;
@@ -674,6 +735,17 @@
             .stNumberInput input::placeholder {{
                 color: var(--placeholder-color) !important;
                 opacity: 1 !important;
+            }}
+            /* Hide Streamlit helper hint like "Press Enter to apply" globally. */
+            [data-testid="InputInstructions"],
+            [data-testid="stTextInputInstructions"] {{
+                display: none !important;
+                visibility: hidden !important;
+                opacity: 0 !important;
+                height: 0 !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                pointer-events: none !important;
             }}
 
             /* Radio controls readable in both themes */
@@ -1516,8 +1588,21 @@
             }}
             .site-footer-grid {{
                 display: grid;
-                grid-template-columns: minmax(260px, 1.5fr) repeat(3, minmax(140px, 1fr));
-                gap: 22px 34px;
+                grid-template-columns: minmax(300px, 1.25fr) minmax(620px, 1.75fr);
+                justify-content: space-between;
+                column-gap: 26px;
+                row-gap: 25px;
+                align-items: start;
+            }}
+            .site-footer-links-grid {{
+                width: min(100%, 760px);
+                margin-left: auto;
+                margin-right: 0;
+                display: grid;
+                grid-template-columns: repeat(4, minmax(120px, 1fr));
+                justify-content: space-between;
+                column-gap: 24px;
+                row-gap: 16px;
                 align-items: start;
             }}
             .site-footer-brand-title {{
@@ -1613,14 +1698,36 @@
             body {{
                 overflow-x: hidden !important;
             }}
-            body {{
+            html {{
                 overflow-y: scroll !important;
                 scrollbar-gutter: stable !important;
-                /* scrollbar-width:thin forces Chrome out of overlay mode
-                   into the permanent always-visible thin variant — same
-                   approach LinkedIn / Udemy use. Colors are still picked
-                   by the browser based on color-scheme above. */
-                scrollbar-width: thin !important;
+            }}
+            body {{
+                overflow-y: visible !important;
+            }}
+            html,
+            [data-testid="stAppViewContainer"] {{
+                scrollbar-width: auto !important;
+                scrollbar-color: var(--excelcv-scrollbar-thumb) var(--excelcv-scrollbar-track) !important;
+            }}
+            html::-webkit-scrollbar,
+            [data-testid="stAppViewContainer"]::-webkit-scrollbar {{
+                width: 12px !important;
+                height: 12px !important;
+            }}
+            html::-webkit-scrollbar-track,
+            [data-testid="stAppViewContainer"]::-webkit-scrollbar-track {{
+                background: var(--excelcv-scrollbar-track) !important;
+            }}
+            html::-webkit-scrollbar-thumb,
+            [data-testid="stAppViewContainer"]::-webkit-scrollbar-thumb {{
+                background: var(--excelcv-scrollbar-thumb) !important;
+                border-radius: 999px !important;
+                border: 2px solid var(--excelcv-scrollbar-track) !important;
+            }}
+            html::-webkit-scrollbar-thumb:hover,
+            [data-testid="stAppViewContainer"]::-webkit-scrollbar-thumb:hover {{
+                background: var(--excelcv-scrollbar-thumb-hover) !important;
             }}
             [data-testid="stAppViewContainer"],
             [data-testid="stAppViewContainer"] > section.main,
@@ -1639,11 +1746,15 @@
                     width: calc(100% - 34px);
                 }}
                 .site-footer-grid {{
-                    grid-template-columns: 1fr 1fr;
+                    grid-template-columns: 1fr;
                     gap: 18px 24px;
                 }}
-                .site-footer-brand-col {{
-                    grid-column: 1 / -1;
+                .site-footer-links-grid {{
+                    max-width: none;
+                    margin-left: 0;
+                    grid-template-columns: repeat(2, minmax(160px, 1fr));
+                    column-gap: 24px;
+                    row-gap: 16px;
                 }}
             }}
             @media (max-width: 680px) {{
@@ -1658,6 +1769,11 @@
                 .site-footer-grid {{
                     grid-template-columns: 1fr;
                     gap: 14px;
+                }}
+                .site-footer-links-grid {{
+                    grid-template-columns: 1fr;
+                    column-gap: 0;
+                    row-gap: 14px;
                 }}
                 .site-footer-brand-title {{
                     font-size: 1.6rem;

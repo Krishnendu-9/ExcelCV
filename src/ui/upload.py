@@ -2,6 +2,10 @@
 Upload-page preview card rendering.
 """
 
+import csv
+import hashlib
+import html
+from io import BytesIO, StringIO
 from textwrap import dedent
 
 import streamlit as st
@@ -250,6 +254,301 @@ from src.ui.analysis_runner import (
 from src.ui.app_utils import _build_page_href, _sanitize_cv_filename, _save_report_snapshot
 from src.ui.common import issue_count
 
+
+def _comparison_input_signature(job_description: str, uploaded_cvs: list[object]) -> tuple[str, tuple[tuple[str, int], ...]]:
+    """Build a stable signature for comparison inputs to detect stale results."""
+    normalized_jd = (job_description or "").strip().lower()
+    file_tokens: list[tuple[str, int]] = []
+    for uploaded_cv in uploaded_cvs or []:
+        safe_name = _sanitize_cv_filename(getattr(uploaded_cv, "name", "resume")).lower()
+        file_size = int(getattr(uploaded_cv, "size", 0) or 0)
+        file_tokens.append((safe_name, file_size))
+    return normalized_jd, tuple(sorted(file_tokens))
+
+
+class _InMemoryUploadedFile:
+    """Minimal uploaded-file compatible wrapper backed by bytes."""
+
+    def __init__(self, name: str, raw_bytes: bytes) -> None:
+        self.name = name
+        self.size = len(raw_bytes)
+        self._raw_bytes = raw_bytes
+        self._buffer = BytesIO(raw_bytes)
+
+    def read(self, *args, **kwargs):
+        return self._buffer.read(*args, **kwargs)
+
+    def seek(self, *args, **kwargs):
+        return self._buffer.seek(*args, **kwargs)
+
+    def getvalue(self) -> bytes:
+        return self._raw_bytes
+
+
+def _format_file_size(file_size_bytes: int) -> str:
+    """Return display-friendly file size text."""
+    if file_size_bytes >= 1024 * 1024:
+        return f"{file_size_bytes / (1024 * 1024):.1f}MB"
+    return f"{file_size_bytes / 1024:.1f}KB"
+
+
+def _build_staged_compare_uploads(staged_files: list[dict[str, object]]) -> list[object]:
+    """Convert staged file records into uploaded-file compatible wrappers."""
+    uploads: list[object] = []
+    for item in staged_files:
+        file_name = str(item.get("name", "resume.pdf"))
+        raw_bytes = item.get("bytes")
+        if isinstance(raw_bytes, bytes):
+            uploads.append(_InMemoryUploadedFile(file_name, raw_bytes))
+    return uploads
+
+
+def _render_selected_compare_files(staged_files: list[dict[str, object]]) -> int | None:
+    """Render compact selected-file rows with inline delete actions."""
+    if not staged_files:
+        return None
+
+    st.markdown(
+        """
+        <style>
+        .st-key-compare_selected_list_box [data-testid="stVerticalBlock"] > div {
+            margin-bottom: 8px !important;
+        }
+        .st-key-compare_selected_list_box [class*="st-key-compare_file_row_"] {
+            border: 1px solid rgba(148, 163, 184, 0.32);
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.66);
+            padding: 0 10px;
+            min-height: 54px;
+            display: flex !important;
+            align-items: center !important;
+        }
+        .st-key-compare_selected_list_box [class*="st-key-compare_file_row_"] > [data-testid="stVerticalBlock"] {
+            width: 100%;
+            min-height: 54px !important;
+        }
+        .st-key-compare_selected_list_box [class*="st-key-compare_file_row_"] > [data-testid="stVerticalBlock"] > div {
+            margin: 0 !important;
+            width: 100%;
+        }
+        .st-key-compare_selected_list_box [class*="st-key-compare_file_row_"] [data-testid="stHorizontalBlock"] {
+            display: flex !important;
+            align-items: center !important;
+            min-height: 54px !important;
+            height: 54px !important;
+            margin: 0 !important;
+        }
+        .st-key-compare_selected_list_box [class*="st-key-compare_file_row_"] [data-testid="stHorizontalBlock"] > [data-testid="column"] {
+            align-self: stretch !important;
+        }
+        .st-key-compare_selected_list_box [class*="st-key-compare_file_row_"] [data-testid="stElementContainer"] {
+            margin: 0 !important;
+            padding: 0 !important;
+        }
+        .st-key-compare_selected_list_box [class*="st-key-compare_file_row_"] [data-testid="column"] {
+            display: flex !important;
+            align-items: center !important;
+        }
+        .st-key-compare_selected_list_box [class*="st-key-compare_file_row_"] [data-testid="column"] > div {
+            width: 100%;
+            height: 100%;
+            display: flex !important;
+            align-items: center !important;
+        }
+        .st-key-compare_selected_list_box [class*="st-key-compare_file_row_"] [data-testid="column"] [data-testid="stVerticalBlock"] {
+            width: 100%;
+            height: 100%;
+            display: flex !important;
+            justify-content: center !important;
+            gap: 0 !important;
+        }
+        .st-key-compare_selected_list_box [class*="st-key-compare_file_row_"] [data-testid="column"] [data-testid="stVerticalBlock"] > div {
+            margin: 0 !important;
+        }
+        body.theme-dark .st-key-compare_selected_list_box [class*="st-key-compare_file_row_"] {
+            border-color: rgba(100, 116, 139, 0.5);
+            background: rgba(15, 23, 42, 0.5);
+        }
+        .st-key-compare_selected_list_box .compare-file-icon {
+            font-size: 1.25rem;
+            line-height: 1;
+            opacity: 0.9;
+        }
+        .st-key-compare_selected_list_box .compare-file-meta {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-width: 0;
+            width: 100%;
+            line-height: 1;
+            min-height: 30px;
+        }
+        .st-key-compare_selected_list_box [class*="st-key-compare_file_row_"] [data-testid="stMarkdownContainer"] {
+            margin: 0 !important;
+            line-height: 1 !important;
+        }
+        .st-key-compare_selected_list_box [class*="st-key-compare_file_row_"] [data-testid="stMarkdownContainer"] p {
+            margin: 0 !important;
+            line-height: 1 !important;
+        }
+        .st-key-compare_selected_list_box .compare-file-meta > span {
+            display: inline-flex;
+            align-items: center;
+        }
+        .st-key-compare_selected_list_box .compare-file-name {
+            font-weight: 600;
+            color: #1f2937;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            line-height: 1.15;
+        }
+        body.theme-dark .st-key-compare_selected_list_box .compare-file-name {
+            color: #e2e8f0;
+        }
+        .st-key-compare_selected_list_box .compare-file-size {
+            color: #64748b;
+            font-size: 0.92rem;
+            white-space: nowrap;
+            line-height: 1.15;
+        }
+        [data-testid="stAppViewContainer"] .st-key-compare_selected_list_box [class*="st-key-compare_file_delete_btn_"] button,
+        [data-testid="stAppViewContainer"] .st-key-compare_selected_list_box [class*="st-key-compare_file_delete_btn_"] button[data-testid="baseButton-secondary"],
+        [data-testid="stAppViewContainer"] .st-key-compare_selected_list_box [class*="st-key-compare_file_delete_btn_"] [data-baseweb="button"] {
+            min-height: 30px !important;
+            min-width: 30px !important;
+            width: 30px !important;
+            padding: 0 !important;
+            border-radius: 7px !important;
+            border: 1px solid rgba(148, 163, 184, 0.5) !important;
+            background: transparent !important;
+            background-color: transparent !important;
+            background-image: none !important;
+            box-shadow: none !important;
+            filter: none !important;
+            color: #334155 !important;
+            transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease !important;
+        }
+        [data-testid="stAppViewContainer"] .st-key-compare_selected_list_box [class*="st-key-compare_file_delete_btn_"] [data-baseweb="button"] > div,
+        [data-testid="stAppViewContainer"] .st-key-compare_selected_list_box [class*="st-key-compare_file_delete_btn_"] [data-baseweb="button"] > div > div,
+        [data-testid="stAppViewContainer"] .st-key-compare_selected_list_box [class*="st-key-compare_file_delete_btn_"] button > div,
+        [data-testid="stAppViewContainer"] .st-key-compare_selected_list_box [class*="st-key-compare_file_delete_btn_"] button > div > div,
+        [data-testid="stAppViewContainer"] .st-key-compare_selected_list_box [class*="st-key-compare_file_delete_btn_"] button *,
+        [data-testid="stAppViewContainer"] .st-key-compare_selected_list_box [class*="st-key-compare_file_delete_btn_"] [data-baseweb="button"] * {
+            background: transparent !important;
+            background-color: transparent !important;
+            background-image: none !important;
+            box-shadow: none !important;
+            color: inherit !important;
+        }
+        [data-testid="stAppViewContainer"] .st-key-compare_selected_list_box [class*="st-key-compare_file_delete_btn_"] button:hover,
+        [data-testid="stAppViewContainer"] .st-key-compare_selected_list_box [class*="st-key-compare_file_delete_btn_"] button:focus-visible,
+        [data-testid="stAppViewContainer"] .st-key-compare_selected_list_box [class*="st-key-compare_file_delete_btn_"] [data-baseweb="button"]:hover,
+        [data-testid="stAppViewContainer"] .st-key-compare_selected_list_box [class*="st-key-compare_file_delete_btn_"] [data-baseweb="button"]:focus-visible {
+            background: rgba(239, 68, 68, 0.12) !important;
+            border-color: rgba(239, 68, 68, 0.75) !important;
+            color: #dc2626 !important;
+        }
+        body.theme-dark [data-testid="stAppViewContainer"] .st-key-compare_selected_list_box [class*="st-key-compare_file_delete_btn_"] button,
+        body.theme-dark [data-testid="stAppViewContainer"] .st-key-compare_selected_list_box [class*="st-key-compare_file_delete_btn_"] [data-baseweb="button"] {
+            color: #cbd5e1 !important;
+        }
+        body.theme-dark [data-testid="stAppViewContainer"] .st-key-compare_selected_list_box [class*="st-key-compare_file_delete_btn_"] button:hover,
+        body.theme-dark [data-testid="stAppViewContainer"] .st-key-compare_selected_list_box [class*="st-key-compare_file_delete_btn_"] button:focus-visible,
+        body.theme-dark [data-testid="stAppViewContainer"] .st-key-compare_selected_list_box [class*="st-key-compare_file_delete_btn_"] [data-baseweb="button"]:hover,
+        body.theme-dark [data-testid="stAppViewContainer"] .st-key-compare_selected_list_box [class*="st-key-compare_file_delete_btn_"] [data-baseweb="button"]:focus-visible {
+            background: rgba(239, 68, 68, 0.18) !important;
+            border-color: rgba(248, 113, 113, 0.8) !important;
+            color: #fca5a5 !important;
+        }
+        .st-key-compare_selected_list_box [class*="st-key-compare_file_delete_btn_"],
+        .st-key-compare_selected_list_box [class*="st-key-compare_file_delete_btn_"] > [data-testid="stVerticalBlock"],
+        .st-key-compare_selected_list_box [class*="st-key-compare_file_delete_btn_"] > [data-testid="stVerticalBlock"] > div {
+            height: 100% !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: flex-end !important;
+        }
+        .st-key-compare_selected_list_box [class*="st-key-compare_file_delete_btn_"] [data-testid="stButton"] {
+            width: 100%;
+            height: 100% !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: flex-end !important;
+            margin: 0 !important;
+        }
+        .st-key-compare_selected_list_box [class*="st-key-compare_file_delete_btn_"] [data-testid="stButton"] > button {
+            margin: 0 !important;
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    deleted_index: int | None = None
+    with st.container(key="compare_selected_list_box"):
+        for row_start in range(0, len(staged_files), 2):
+            row_cols = st.columns(2, gap="small")
+            for col_offset, col in enumerate(row_cols):
+                idx = row_start + col_offset
+                if idx >= len(staged_files):
+                    continue
+                item = staged_files[idx]
+                file_name = str(item.get("name", "resume.pdf"))
+                file_size = int(item.get("size", 0) or 0)
+                with col:
+                    with st.container(key=f"compare_file_row_{idx}"):
+                        row_col, action_col = st.columns([14, 1], gap="small")
+                        with row_col:
+                            st.markdown(
+                                f"""
+                                <div class="compare-file-meta">
+                                    <span class="compare-file-icon">CV</span>
+                                    <span class="compare-file-name">{html.escape(file_name)}</span>
+                                    <span class="compare-file-size">{_format_file_size(file_size)}</span>
+                                </div>
+                                """,
+                                unsafe_allow_html=True,
+                            )
+                        with action_col:
+                            with st.container(key=f"compare_file_delete_btn_{idx}"):
+                                if st.button(":material/delete:", key=f"compare_delete_{idx}", type="tertiary"):
+                                    deleted_index = idx
+    return deleted_index
+
+
+def _clear_comparison_session_state() -> None:
+    """Clear comparison-related session state keys."""
+    _clear_comparison_run_artifacts()
+    st.session_state.pop("compare_jd", None)
+    st.session_state.pop("compare_selected_files", None)
+    st.session_state.pop("compare_cvs_rev", None)
+    for key in list(st.session_state.keys()):
+        if str(key).startswith("compare_cvs_input_"):
+            st.session_state.pop(key, None)
+
+
+def _clear_comparison_run_artifacts() -> None:
+    """Clear only computed comparison outputs and signatures."""
+    st.session_state.pop("comparison_results", None)
+    st.session_state.pop("comparison_errors", None)
+    st.session_state.pop("comparison_warnings", None)
+    st.session_state.pop("comparison_signature", None)
+
+
+def _comparison_rows_to_csv(rows: list[dict[str, object]], ordered_columns: list[str]) -> str:
+    """Serialize comparison rows into a CSV string with stable column order."""
+    buffer = StringIO()
+    writer = csv.DictWriter(buffer, fieldnames=ordered_columns, extrasaction="ignore")
+    writer.writeheader()
+    for row in rows:
+        writer.writerow({column: row.get(column, "") for column in ordered_columns})
+    return buffer.getvalue()
+
+
 def render_upload_page(compare_mode: bool = False) -> None:
     """Landing page: upload CV + JD."""
     _current_user = get_session_user()
@@ -295,7 +594,7 @@ def render_upload_page(compare_mode: bool = False) -> None:
                         accept_multiple_files=False,
                         help="PDF or DOCX supported. Maximum file size: 2MB.",
                     )
-                    submitted = st.form_submit_button("Upload & analyze", use_container_width=True)
+                    submitted = st.form_submit_button("Upload & analyze", width="stretch")
 
                 if submitted:
                     pending_analysis = (jd, uploaded_cv)
@@ -329,25 +628,34 @@ def render_upload_page(compare_mode: bool = False) -> None:
                         unsafe_allow_html=True,
                     )
 
-    # Full-width comparison section (not one-sided).
-    if compare_mode:
+    # Smooth landing for compare section (top-nav action or first dedicated compare-page load).
+    should_anchor_compare = st.session_state.pop("scroll_to_compare_anchor", False)
+    if compare_mode and not st.session_state.get("_compare_mode_anchor_scrolled", False):
+        should_anchor_compare = True
+    if should_anchor_compare:
         components.html(
             """
             <script>
             (function() {
                 var target = window.parent && window.parent !== window ? window.parent : window;
                 var doc = target.document;
-                setTimeout(function() {
+                var tryScroll = function() {
                     var anchor = doc.getElementById("compare-section-anchor");
                     if (anchor) {
-                        anchor.scrollIntoView({ behavior: "smooth", block: "start" });
+                        try { anchor.scrollIntoView({ behavior: "smooth", block: "start" }); }
+                        catch (_e) { anchor.scrollIntoView(true); }
                     }
-                }, 120);
+                };
+                [80, 260, 700].forEach(function(ms) { setTimeout(tryScroll, ms); });
             })();
             </script>
             """,
             height=0,
         )
+    if compare_mode:
+        st.session_state["_compare_mode_anchor_scrolled"] = True
+    else:
+        st.session_state["_compare_mode_anchor_scrolled"] = False
 
     st.markdown('<div id="compare-section-anchor"></div>', unsafe_allow_html=True)
     with st.container(key="compare_section_shell"):
@@ -370,23 +678,83 @@ def render_upload_page(compare_mode: bool = False) -> None:
             unsafe_allow_html=True,
         )
         with st.container(key="compare_form_box"):
-            if get_session_user():
-                with st.form("comparison_form"):
-                    compare_jd = st.text_area(
-                        "Job description for comparison",
-                        key="compare_jd",
-                        value=st.session_state.get("jd", ""),
-                        height=130,
-                        placeholder="Paste the role description once and compare multiple resumes.",
-                    )
-                    compare_files = st.file_uploader(
-                        "Upload 2-5 resumes (PDF or DOCX)",
-                        type=["pdf", "docx"],
-                        key="compare_cvs",
-                        accept_multiple_files=True,
-                        help="Maximum 2MB per file. We will rank resumes by final score.",
-                    )
-                    run_compare = st.form_submit_button("Run comparison", use_container_width=True)
+            if _current_user:
+                if "compare_jd" not in st.session_state and st.session_state.get("jd"):
+                    st.session_state["compare_jd"] = st.session_state.get("jd", "")
+                if "compare_selected_files" not in st.session_state:
+                    st.session_state["compare_selected_files"] = []
+                if "compare_cvs_rev" not in st.session_state:
+                    st.session_state["compare_cvs_rev"] = 0
+
+                compare_jd = st.text_area(
+                    "Job description for comparison",
+                    key="compare_jd",
+                    height=50,
+                    placeholder="Paste the role description once and compare multiple resumes.",
+                )
+                compare_uploader_key = f"compare_cvs_input_{int(st.session_state.get('compare_cvs_rev', 0))}"
+                newly_uploaded = st.file_uploader(
+                    "Upload 2-5 resumes (PDF or DOCX)",
+                    type=["pdf", "docx"],
+                    key=compare_uploader_key,
+                    accept_multiple_files=True,
+                    help="Maximum 2MB per file. We will rank resumes by final score.",
+                )
+
+                staged_files: list[dict[str, object]] = list(st.session_state.get("compare_selected_files", []))
+                if newly_uploaded:
+                    seen_signatures = {str(item.get("signature", "")) for item in staged_files}
+                    duplicate_names: list[str] = []
+                    skipped_over_limit = 0
+                    for uploaded_cv in newly_uploaded:
+                        raw_bytes = uploaded_cv.getvalue()
+                        if not isinstance(raw_bytes, bytes):
+                            continue
+                        safe_name = _sanitize_cv_filename(getattr(uploaded_cv, "name", "resume.pdf"))
+                        file_size = len(raw_bytes)
+                        file_hash = hashlib.sha256(raw_bytes).hexdigest()
+                        signature = f"{safe_name.lower()}|{file_size}|{file_hash}"
+                        if signature in seen_signatures:
+                            duplicate_names.append(safe_name)
+                            continue
+                        if len(staged_files) >= 5:
+                            skipped_over_limit += 1
+                            continue
+                        staged_files.append(
+                            {
+                                "name": safe_name,
+                                "size": file_size,
+                                "bytes": raw_bytes,
+                                "signature": signature,
+                            }
+                        )
+                        seen_signatures.add(signature)
+
+                    warnings_for_ui = list(st.session_state.get("comparison_warnings", []))
+                    if duplicate_names:
+                        warnings_for_ui.append(
+                            "Already selected and skipped: " + ", ".join(duplicate_names)
+                        )
+                    if skipped_over_limit > 0:
+                        warnings_for_ui.append(
+                            f"Only 5 resumes are allowed. Skipped {skipped_over_limit} extra file(s)."
+                        )
+                    st.session_state["comparison_warnings"] = warnings_for_ui
+                    st.session_state["compare_selected_files"] = staged_files
+                    st.session_state["compare_cvs_rev"] = int(st.session_state.get("compare_cvs_rev", 0)) + 1
+                    st.rerun()
+
+                staged_files = list(st.session_state.get("compare_selected_files", []))
+                if staged_files:
+                    st.markdown("**Selected resumes**")
+                    deleted_index = _render_selected_compare_files(staged_files)
+                    if deleted_index is not None:
+                        del staged_files[deleted_index]
+                        st.session_state["compare_selected_files"] = staged_files
+                        st.rerun()
+
+                compare_files = _build_staged_compare_uploads(staged_files)
+                run_compare = st.button("Run comparison", key="run_compare_btn", width="stretch")
             else:
                 run_compare = False
                 compare_jd = ""
@@ -410,26 +778,69 @@ def render_upload_page(compare_mode: bool = False) -> None:
                     unsafe_allow_html=True,
                 )
 
+        comparison_signature = _comparison_input_signature(compare_jd, compare_files or [])
+        last_signature = st.session_state.get("comparison_signature")
+        if _current_user and last_signature and last_signature != comparison_signature and not run_compare:
+            _clear_comparison_run_artifacts()
+            st.info("Comparison inputs changed. Run comparison again to refresh results.")
+
         if run_compare:
             try:
                 with st.spinner("Comparing resumes..."):
                     comparison = run_multi_resume_comparison(compare_jd, compare_files or [])
                 st.session_state["comparison_results"] = comparison.get("rows", [])
                 st.session_state["comparison_errors"] = comparison.get("errors", [])
+                st.session_state["comparison_warnings"] = comparison.get("warnings", [])
+                st.session_state["comparison_signature"] = comparison_signature
             except ValueError as exc:
+                _clear_comparison_run_artifacts()
                 st.error(str(exc))
 
         comparison_rows = st.session_state.get("comparison_results", [])
         comparison_errors = st.session_state.get("comparison_errors", [])
+        comparison_warnings = st.session_state.get("comparison_warnings", [])
         if comparison_rows:
+            summary_cols = st.columns(3, gap="small")
+            avg_score = round(
+                sum(int(row.get("Final Score", 0)) for row in comparison_rows) / len(comparison_rows),
+                1,
+            )
+            summary_cols[0].metric("Resumes Compared", len(comparison_rows))
+            summary_cols[1].metric("Top Score", f"{comparison_rows[0].get('Final Score', 0)}")
+            summary_cols[2].metric("Average Score", f"{avg_score}")
             st.markdown('<div class="compare-results-title">Comparison Results</div>', unsafe_allow_html=True)
-            st.dataframe(comparison_rows, use_container_width=True, hide_index=True)
+            ordered_columns = [
+                "Rank",
+                "Resume",
+                "Final Score",
+                "JD Alignment",
+                "ATS Parse",
+                "Sections",
+                "Issues",
+                "Top Missing Skills",
+            ]
+            st.dataframe(comparison_rows, width="stretch", hide_index=True, column_order=ordered_columns)
+            comparison_csv = _comparison_rows_to_csv(comparison_rows, ordered_columns)
+            st.download_button(
+                "Download comparison CSV",
+                data=comparison_csv,
+                file_name="resume-comparison.csv",
+                mime="text/csv",
+                key="download_compare_csv",
+            )
             best = comparison_rows[0]
             st.success(
-                f"Top match: {best.get('Resume')} with final score {best.get('Final Score')}."
+                f"Top match: {best.get('Resume')} with final score {best.get('Final Score')}/100."
             )
+            if st.button("Clear comparison results", key="clear_compare_results", width="content"):
+                _clear_comparison_session_state()
+                st.rerun()
+        elif run_compare:
+            st.warning("No comparison rows were generated. Please retry with different files.")
         if comparison_errors:
             st.warning("Some files could not be analyzed:\n- " + "\n- ".join(comparison_errors))
+        if comparison_warnings:
+            st.info("\n".join(comparison_warnings))
 
         st.markdown(
             """

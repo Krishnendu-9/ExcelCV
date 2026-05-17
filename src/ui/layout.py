@@ -8,20 +8,20 @@ import streamlit as st
 from src.auth_utils import get_session_user
 from src.ui.app_utils import _build_page_href, _load_logo_data_uri
 
-PROTECTED_HEADER_PAGES = {"cv-builder", "resume-builder", "my-cvs", "my-analyses", "compare-cv"}
+PROTECTED_HEADER_PAGES = {"resume-builder", "my-cvs", "my-analyses", "compare-cv"}
 NAV_LABEL_TO_PAGE = {
     "Analyze CV": "upload-cv",
     "Compare Resumes": "compare-cv",
-    "Cover Letter": "motivation-letter",
-    "Resume Builder": "cv-builder",
+    "Cover Letter": "cover-letter",
+    "Resume Builder": "resume-builder",
     "My CVs": "my-cvs",
     "My Analyses": "my-analyses",
 }
 NAV_ITEMS = [
     ("Analyze CV", "upload-cv"),
     ("Compare Resumes", "compare-anchor"),
-    ("Cover Letter", "motivation-letter"),
-    ("Resume Builder", "cv-builder"),
+    ("Cover Letter", "cover-letter"),
+    ("Resume Builder", "resume-builder"),
     ("My CVs", "my-cvs"),
     ("My Analyses", "my-analyses"),
 ]
@@ -81,6 +81,16 @@ def render_site_header(show_theme_toggle: bool = True, current_page: str = "uplo
         col_brand, col_nav, col_user = st.columns([1.1, 3.2, 1.75], gap="small")
         col_theme = None
 
+    # Render the theme toggle FIRST so its button click handler runs before we
+    # read st.session_state["theme"] to build nav-link / logo / user-menu URLs.
+    # Otherwise a same-render toggle (light→dark) would leave every URL on the
+    # page baked with the OLD ?_t value, which the fallback navigation path
+    # would carry through to the next session — flipping the theme back.
+    if show_theme_toggle and col_theme is not None:
+        with col_theme:
+            _render_html_block('<div class="theme-toggle-gap" aria-hidden="true"></div>')
+            render_theme_toggle(standalone=False, key="theme_toggle_header")
+
     logo_src = _load_logo_data_uri(st.session_state.get("theme", "light"))
     logo_content_html = (
         f'<img src="{logo_src}" alt="ExcelCV logo" class="site-logo-wordmark" />'
@@ -103,8 +113,6 @@ def render_site_header(show_theme_toggle: bool = True, current_page: str = "uplo
         active_page = "upload-cv"
     elif current_page == "report":
         active_page = "upload-cv"
-    elif current_page == "resume-builder":
-        active_page = "cv-builder"
     else:
         active_page = current_page
     if pending_action == "compare-anchor":
@@ -185,7 +193,7 @@ def render_site_header(show_theme_toggle: bool = True, current_page: str = "uplo
             "</details>"
         )
     else:
-        next_after_auth = current_page if current_page in ("home", "upload", "upload-cv", "compare-cv", "cv-builder", "my-cvs", "my-analyses") else "home"
+        next_after_auth = current_page if current_page in ("home", "upload", "upload-cv", "compare-cv", "resume-builder", "my-cvs", "my-analyses") else "home"
         user_section_html = (
             f'<a href="{_build_page_href("auth", next_page=next_after_auth)}" target="_self" '
             f'class="site-nav-item site-nav-item-signin" style="text-decoration:none;white-space:nowrap;">Sign In</a>'
@@ -193,11 +201,6 @@ def render_site_header(show_theme_toggle: bool = True, current_page: str = "uplo
 
     with col_user:
         _render_html_block(f'<div class="site-user-section">{user_section_html}</div>')
-
-    if show_theme_toggle and col_theme is not None:
-        with col_theme:
-            _render_html_block('<div class="theme-toggle-gap" aria-hidden="true"></div>')
-            render_theme_toggle(standalone=False, key="theme_toggle_header")
 
     nav_action: str | None = None
     with st.container(key="site_nav_action_bridge"):

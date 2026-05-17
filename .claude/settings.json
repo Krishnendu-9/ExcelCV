@@ -62,7 +62,17 @@
       "Bash(sed -i '209,491d' src/ui/report.py)",
       "Bash(sed -n '203,212p' src/ui/report.py)",
       "Bash(timeout 16 py -m streamlit run app.py --server.headless true --server.port 8574)",
-      "Bash(timeout 16 py -m streamlit run app.py --server.headless true --server.port 8573)"
+      "Bash(timeout 16 py -m streamlit run app.py --server.headless true --server.port 8573)",
+      "Bash(e:/Academic/minor-project/cv-review/.venv/Scripts/python.exe -c \"import PyPDF2; print\\('PyPDF2', PyPDF2.__version__\\)\")",
+      "PowerShell(py -3 -c \"import PyPDF2; print\\('PyPDF2', PyPDF2.__version__\\)\")",
+      "PowerShell(py -3 -c \"import pypdf; print\\('pypdf', pypdf.__version__\\)\" 2>&1)",
+      "PowerShell(py -3 -c \"import pdfplumber; print\\('pdfplumber', pdfplumber.__version__\\)\" 2>&1)",
+      "PowerShell(py -3 -c \"import sys; sys.path.insert\\(0, r'e:\\\\Academic\\\\minor-project\\\\cv-review'\\); from src.pdf_utils import extract_pdf_text; from io import BytesIO; data = open\\(r'e:\\\\Academic\\\\minor-project\\\\cv-review\\\\tmp_link_rect.pdf','rb'\\).read\\(\\); print\\('bytes:', len\\(data\\)\\); txt = extract_pdf_text\\(BytesIO\\(data\\)\\); print\\('chars:', len\\(txt\\)\\); print\\('preview:', txt[:200]\\)\")",
+      "PowerShell(py -3 -c \"import sys; sys.path.insert\\(0, r'e:\\\\Academic\\\\minor-project\\\\cv-review'\\); from src.ui.upload import render_compare_page, render_compare_preview_card, render_upload_page; from src.ui.compare_report import render_compare_report_page; print\\('imports OK'\\)\")",
+      "PowerShell(py -3 -c \"import sys; sys.path.insert\\(0, r'e:\\\\Academic\\\\minor-project\\\\cv-review'\\); import app; print\\('app.py imports OK'\\)\")",
+      "PowerShell(py -3 -c \"import sys; sys.path.insert\\(0, r'e:\\\\Academic\\\\minor-project\\\\cv-review'\\); import app; print\\('app.py compiles cleanly'\\)\")",
+      "PowerShell(py -3 -c \"import sys; sys.path.insert\\(0, r'e:\\\\Academic\\\\minor-project\\\\cv-review'\\); import app; from src.ui.upload import render_compare_form_page; from src.ui.compare_report import render_compare_report_page; print\\('OK'\\)\")",
+      "PowerShell(py -3 -c \"import sys; sys.path.insert\\(0, r'e:\\\\Academic\\\\minor-project\\\\cv-review'\\); import app; from src.ui.upload import render_upload_page; from src.ui.compare_report import render_compare_report_page; print\\('OK'\\)\")"
     ]
   }
 }

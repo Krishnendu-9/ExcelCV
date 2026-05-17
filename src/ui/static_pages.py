@@ -44,14 +44,10 @@ def render_static_page(page: str) -> None:
         )
         return
 
-    if page_key == "motivation-letter":
+    if page_key == "cover-letter":
         render_cover_letter_page()
         return
 
-    if page_key == "resume-builder":
-        st.session_state["page"] = "cv-builder"
-        st.rerun()
-        return
 
     if page_key == "ats-insights":
         _render_info_page_header(

@@ -6,6 +6,7 @@ All rendering logic lives in src/ui/*.
 """
 
 import json
+from uuid import uuid4
 
 import streamlit as st
 import streamlit.components.v1 as components
@@ -37,6 +38,7 @@ except ImportError:
         return None
 from src.ui.layout import render_top_nav, render_site_footer
 from src.ui.upload import render_upload_page
+from src.ui.compare_report import render_compare_report_page
 from src.ui.report import render_report_view
 from src.ui.static_pages import render_static_page
 from src.ui.cv_builder_page import render_cv_builder_page
@@ -45,24 +47,23 @@ from src.ui.my_analyses_page import render_my_analyses_page
 from src.ui.settings_page import render_settings_page
 from src.ui.ui_components import inject_back_button_sync, inject_base_css
 
-PROTECTED_PAGES = {"cv-builder", "resume-builder", "my-cvs", "my-analyses", "compare-cv", "settings"}
+PROTECTED_PAGES = {"resume-builder", "my-cvs", "my-analyses", "compare-report", "settings"}
 NAV_ACTIVE_LABELS = {
     "home": "Analyze CV",
     "upload": "Analyze CV",
     "upload-cv": "Analyze CV",
     "report": "Analyze CV",
-    "motivation-letter": "Cover Letter",
-    "cv-builder": "Resume Builder",
+    "cover-letter": "Cover Letter",
     "resume-builder": "Resume Builder",
     "my-cvs": "My CVs",
     "my-analyses": "My Analyses",
-    "compare-cv": "Compare Resumes",
+    "compare-report": "Compare Resumes",
 }
 NAV_ACTION_TO_PAGE = {
     "upload-cv": "upload-cv",
     "compare-anchor": "home",
-    "motivation-letter": "motivation-letter",
-    "cv-builder": "cv-builder",
+    "cover-letter": "cover-letter",
+    "resume-builder": "resume-builder",
     "my-cvs": "my-cvs",
     "my-analyses": "my-analyses",
 }
@@ -102,21 +103,89 @@ def _render_auth_gate(intended_page: str) -> None:
 
 
 def _inject_theme_persistence(theme: str) -> None:
-    """Sync theme to localStorage and install a click interceptor that carries it across navigations.
+    """Sync theme to localStorage, install a permanent theme watcher, and
+    install a one-time click interceptor that carries the current theme across
+    navigations.
 
-    On every page load this:
-      1. Writes the current theme to localStorage so it survives session resets.
-      2. Adds a one-time click listener on the parent window that appends ?_t=<theme>
-         to every internal link click \u2014 Python reads _t on the next fresh session and
-         cleans it immediately, so URLs stay tidy at rest.
-      3. Strips any stale ?_t param from the current URL via history.replaceState.
+    Theme persistence is split into three layers, each guarding the previous:
+
+      1. Write the current theme to localStorage every render \u2014 durable mirror
+         of ``st.session_state["theme"]`` for cross-session reseeding.
+
+      2. Install (once per browser window) a permanent ``setInterval`` watcher
+         that polls localStorage and re-applies ``theme-light`` / ``theme-dark``
+         to body / html / .stApp / [data-testid="stAppViewContainer"] if any of
+         them is missing the correct class. THIS is what survives Streamlit
+         re-mounting inner shells across page navigations \u2014 and it works even
+         if our render-time iframe is cached by Streamlit and doesn't
+         re-execute (a real concern: ``components.html`` with identical content
+         across reruns reuses the same iframe and the inline script never
+         re-runs, which is why the previous "apply on every render" fix
+         silently broke on same-theme navigation).
+
+      3. Apply the class immediately on every render too (defensive belt with
+         the watcher's suspenders) \u2014 and embed a per-render nonce in the
+         script content so Streamlit is forced to re-mount the iframe and
+         re-execute the script every render, not just when the theme changes.
+
+    Also installs (once) a click interceptor that:
+      - routes nav-link clicks through the hidden Streamlit bridge button
+        (preserves Streamlit session_state \u2014 including theme \u2014 across navs)
+      - for the fallback path, appends ?_t=<theme> from localStorage to any
+        internal link so the next fresh Streamlit session can re-seed
+        session_state["theme"]. Reads from localStorage (NOT the embedded
+        Python theme value) so the link gets the *currently active* theme,
+        not a stale value baked at render time.
     """
     safe_theme = "dark" if theme == "dark" else "light"
+    # Per-render nonce forces Streamlit to treat each call as a fresh iframe
+    # (otherwise identical content across reruns would reuse the same iframe
+    # and the script would never re-execute). Cheap insurance even though the
+    # permanent watcher below is the real fix.
+    nonce = uuid4().hex
     components.html(
         f"""<script>
+/* nonce: {nonce} */
 (function() {{
     var w = window.parent && window.parent !== window ? window.parent : window;
+    var doc = w.document;
     w.localStorage.setItem('excelcv_theme', '{safe_theme}');
+
+    function _shellTargets() {{
+        return [
+            doc.body,
+            doc.documentElement,
+            doc.querySelector('.stApp'),
+            doc.querySelector('[data-testid="stAppViewContainer"]'),
+        ];
+    }}
+    function _syncThemeClass(themeClass) {{
+        var targets = _shellTargets();
+        for (var i = 0; i < targets.length; i++) {{
+            var el = targets[i];
+            if (!el || !el.classList) continue;
+            if (el.classList.contains(themeClass)) continue;
+            el.classList.remove('theme-light', 'theme-dark');
+            el.classList.add(themeClass);
+        }}
+    }}
+    // Immediate apply with this render's value (in case the watcher hasn't
+    // ticked yet between this render and the user's next interaction).
+    _syncThemeClass('{safe_theme}' === 'dark' ? 'theme-dark' : 'theme-light');
+
+    // Permanent watcher: install once per browser window. Polls localStorage
+    // every 250ms and re-applies the correct class to any re-mounted shell.
+    // This is the layer that makes navigation rock-solid \u2014 even if Streamlit
+    // reuses our iframe or re-mounts inner shells, the watcher keeps the
+    // theme class glued to the DOM.
+    if (!w._ecvThemeWatcherInstalled) {{
+        w._ecvThemeWatcherInstalled = true;
+        w._ecvThemeWatcherId = setInterval(function() {{
+            var stored = w.localStorage.getItem('excelcv_theme');
+            _syncThemeClass(stored === 'dark' ? 'theme-dark' : 'theme-light');
+        }}, 250);
+    }}
+
     var url = new URL(w.location.href);
     if (url.searchParams.has('_t')) {{
         url.searchParams.delete('_t');
@@ -128,7 +197,7 @@ def _inject_theme_persistence(theme: str) -> None:
         var normalized = String(action || "").toLowerCase().replace(/[^a-z0-9]/g, "_");
         return ".st-key-nav_action_" + normalized + " button";
     }}
-    w.document.addEventListener('click', function(e) {{
+    doc.addEventListener('click', function(e) {{
         if (e.defaultPrevented) return;
         if (typeof e.button === "number" && e.button !== 0) return;
         if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
@@ -137,7 +206,7 @@ def _inject_theme_persistence(theme: str) -> None:
         try {{
             var navAction = a.getAttribute("data-nav-action");
             if (navAction) {{
-                var btn = w.document.querySelector(_navButtonClass(navAction));
+                var btn = doc.querySelector(_navButtonClass(navAction));
                 if (btn) {{
                     e.preventDefault();
                     e.stopPropagation();
@@ -147,6 +216,9 @@ def _inject_theme_persistence(theme: str) -> None:
             }}
             var u = new URL(a.href, w.location.origin);
             if (u.hostname !== w.location.hostname) return;
+            // Always read theme from localStorage (the live mirror) \u2014 the
+            // link's existing ?_t (baked at navbar-render-time) may be stale
+            // if the user toggled theme after the navbar was built.
             var t = w.localStorage.getItem('excelcv_theme');
             if (t) {{ u.searchParams.set('_t', t); a.href = u.toString(); }}
         }} catch(ex) {{}}
@@ -387,34 +459,43 @@ def _init_database() -> None:
 def _handle_oauth_callback() -> None:
     """Process a Google OAuth authorization-code callback.
 
-    Google redirects to our redirect_uri with ?code=...  We detect this early
-    in main() before any page routing so the login completes transparently.
+    Google redirects to our redirect_uri with ?code=... plus assorted callback
+    noise (iss, scope, authuser, prompt, …). We detect this early in main()
+    before any page routing so the login completes transparently AND the URL
+    bar is rewritten to the canonical post-login route in the same script
+    run — otherwise unknown callback params (e.g. `iss`, which Google sends
+    per OIDC) would linger until the user clicks something.
     """
     code = st.query_params.get("code")
     if not code or st.session_state.get("user"):
         return
-
-    # Consume all OAuth-related query params immediately so they don't linger.
-    for _p in ["code", "state", "scope", "authuser", "prompt"]:
-        if _p in st.query_params:
-            del st.query_params[_p]
 
     from src.oauth_utils import exchange_code_for_userinfo
     user_info = exchange_code_for_userinfo(code)
     if not user_info:
         st.session_state["oauth_error"] = "Google sign-in failed. Please try again."
         st.session_state["page"] = "auth"
+        _set_query_params_atomic({"page": "auth"})
         return
 
     user = get_or_create_google_user(user_info)
     if not user:
         st.session_state["oauth_error"] = "Could not create your account. Please try again."
         st.session_state["page"] = "auth"
+        _set_query_params_atomic({"page": "auth"})
         return
 
     login_user(user)
     set_session_cookie(user)
-    st.session_state["page"] = st.session_state.pop("auth_redirect", "home")
+    target_page = st.session_state.pop("auth_redirect", "home")
+    if target_page not in APP_PAGES:
+        target_page = "home"
+    st.session_state["page"] = target_page
+    # Atomically replace EVERY query param so OAuth callback noise (iss,
+    # code, state, scope, authuser, prompt, anything Google adds later)
+    # drops out in one shot. The end-of-render JS cleanup further trims
+    # `?page=home` to a bare path for the home route.
+    _set_query_params_atomic({"page": target_page})
 
 
 def _handle_reset_token() -> None:
@@ -490,7 +571,7 @@ def main() -> None:
     url_rid = st.query_params.get("rid")
     is_unauth_protected = url_page in PROTECTED_PAGES and not get_session_user()
     if is_unauth_protected:
-        intended = "cv-builder" if str(url_page) in ("cv-builder", "resume-builder") else str(url_page)
+        intended = str(url_page)
         _render_auth_gate(intended)
     if url_page in APP_PAGES and not is_unauth_protected:
         st.session_state["page"] = str(url_page)
@@ -538,9 +619,14 @@ def main() -> None:
         _set_query_params_atomic({"page": "home"})
 
     if st.session_state.get('cvb_load_id'):
-        st.session_state['page'] = 'cv-builder'
+        st.session_state['page'] = 'resume-builder'
 
     current_page = str(st.session_state.get('page', 'upload'))
+    if current_page == 'compare-cv':
+        st.session_state['page'] = 'home'
+        st.session_state['scroll_to_compare_anchor'] = True
+        st.session_state[HOME_COMPARE_FOCUS_KEY] = True
+        current_page = 'home'
     active_nav_label = NAV_ACTIVE_LABELS.get(current_page, "Analyze CV")
     if current_page in ("home", "upload", "upload-cv") and st.session_state.get(HOME_COMPARE_FOCUS_KEY):
         active_nav_label = "Compare Resumes"
@@ -568,13 +654,13 @@ def main() -> None:
 
     if current_page in ('home', 'upload', 'upload-cv'):
         render_upload_page(compare_mode=False)
-    elif current_page == 'compare-cv':
-        _require_auth('compare-cv')
-        render_upload_page(compare_mode=True)
+    elif current_page == 'compare-report':
+        _require_auth('compare-report')
+        render_compare_report_page()
     elif current_page == 'report':
         render_report_view()
-    elif current_page in ('cv-builder', 'resume-builder'):
-        _require_auth('cv-builder')
+    elif current_page == 'resume-builder':
+        _require_auth('resume-builder')
         render_cv_builder_page()
     elif current_page == 'my-cvs':
         _require_auth('my-cvs')
@@ -606,7 +692,7 @@ def main() -> None:
         ),
     )
 
-    if current_page not in ("cv-builder", "resume-builder"):
+    if current_page != "resume-builder":
         render_site_footer()
 
 

@@ -17,10 +17,10 @@ APP_PAGES: Dict[str, str] = {
     "auth": "Sign In",
     "upload-cv": "Upload CV",
     "compare-cv": "Compare Multiple CV",
+    "compare-report": "Comparison Results",
     "career-blog": "Career Blog",
-    "motivation-letter": "Motivation Letter",
+    "cover-letter": "Cover Letter",
     "resume-builder": "Resume Builder",
-    "cv-builder": "Resume Builder",
     "my-cvs": "My CVs",
     "my-analyses": "My Analyses",
     "settings": "Settings",
@@ -89,6 +89,24 @@ def _normalize_missing_skills(value: Any, limit: int = 3) -> List[str]:
     return normalized
 
 
+def _clear_comparison_run_artifacts() -> None:
+    """Clear computed comparison outputs and run signatures.
+
+    Run artifacts are everything produced by a `Run comparison` click:
+    ranked rows, per-file errors, run-stage warnings, the input signature,
+    and the attempted flag. The form's own staged-files / JD state is left
+    untouched so the user can re-run after edits without re-selecting files.
+    """
+    for key in (
+        "comparison_results",
+        "comparison_errors",
+        "comparison_warnings",
+        "comparison_signature",
+        "comparison_attempted",
+    ):
+        st.session_state.pop(key, None)
+
+
 def _clear_analysis_state(clear_comparison: bool = True) -> None:
     """Clear analysis/report-related session state keys."""
     for key in (
@@ -104,10 +122,9 @@ def _clear_analysis_state(clear_comparison: bool = True) -> None:
     ):
         st.session_state.pop(key, None)
     if clear_comparison:
-        st.session_state.pop("comparison_results", None)
-        st.session_state.pop("comparison_errors", None)
-        st.session_state.pop("comparison_warnings", None)
-        st.session_state.pop("comparison_signature", None)
+        _clear_comparison_run_artifacts()
+        st.session_state.pop("compare_upload_warnings", None)
+        st.session_state.pop("compare_upload_hydration_retries", None)
         st.session_state.pop("compare_jd", None)
         st.session_state.pop("compare_selected_files", None)
         st.session_state.pop("compare_cvs_rev", None)
@@ -170,6 +187,37 @@ def _save_report_snapshot(snapshot_id: Optional[str] = None) -> str:
     store[sid] = _build_report_snapshot()
 
     # Keep memory bounded.
+    while len(store) > 200:
+        oldest_key = next(iter(store))
+        del store[oldest_key]
+    return sid
+
+
+def _save_report_snapshot_from_data(
+    analysis: Dict[str, Any],
+    cv_name: str,
+    job_description: str,
+    cv_file_size: int = 0,
+    cv_text: str = "",
+) -> str:
+    """Save a report snapshot from an arbitrary analysis dict (not session state).
+
+    Used by the compare-report drill-down to let users open any compared
+    resume's full single-CV report — the analysis dict is stashed on each
+    comparison row, but ``_save_report_snapshot`` only knows how to read the
+    *current* session state. This helper takes the data directly so we can
+    spin up a report-page snapshot without clobbering the user's main session.
+    """
+    store = _report_snapshot_store()
+    sid = uuid4().hex
+    store[sid] = {
+        "analysis": analysis,
+        "cv_text": cv_text,
+        "job_description": job_description or "",
+        "cv_name": cv_name or "CV",
+        "cv_file_size": int(cv_file_size or 0),
+        "issues": issue_count(analysis) if isinstance(analysis, dict) else 0,
+    }
     while len(store) > 200:
         oldest_key = next(iter(store))
         del store[oldest_key]

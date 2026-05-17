@@ -2,7 +2,7 @@
 
 import hashlib
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import streamlit as st
 
@@ -12,6 +12,17 @@ from src.pdf_utils import extract_cv_text, parse_confidence_chip
 from src.auth_utils import get_session_user
 from src.ui.app_utils import _coerce_score, _normalize_missing_skills, _sanitize_cv_filename
 from src.ui.common import issue_count
+
+
+def _is_quota_message(message: str) -> bool:
+    """Detect Gemini rate-limit / quota signatures in an error string."""
+    text = (message or "").lower()
+    return (
+        "429" in text
+        or "rate limit" in text
+        or "quota" in text
+        or "resource exhausted" in text
+    )
 
 
 def _uploaded_file_sha256(uploaded_cv: Any) -> str:
@@ -117,8 +128,34 @@ def _analyze_cv_payload(job_description: str, uploaded_cv) -> Tuple[Dict[str, An
     return analysis, cv_text
 
 
-def run_multi_resume_comparison(job_description: str, uploaded_cvs: List[Any]) -> Dict[str, Any]:
-    """Run analysis for multiple resumes and return comparison rows + errors."""
+def _short_error_message(exc: Exception, max_len: int = 220) -> str:
+    """Trim noisy tracebacks/JSON-blob errors down to one human-readable line."""
+    text = str(exc).strip()
+    if not text:
+        text = type(exc).__name__
+    # Collapse newlines so the warning list doesn't break formatting.
+    text = " ".join(text.split())
+    if len(text) > max_len:
+        text = text[: max_len - 1].rstrip() + "…"
+    return text
+
+
+# Callback signature: (file_name, idx_1_based, total, status)
+# status ∈ {"running", "done", "error", "skipped"}
+ProgressCallback = Callable[[str, int, int, str], None]
+
+
+def run_multi_resume_comparison(
+    job_description: str,
+    uploaded_cvs: List[Any],
+    progress_callback: Optional[ProgressCallback] = None,
+) -> Dict[str, Any]:
+    """Run analysis for multiple resumes and return comparison rows + errors.
+
+    ``progress_callback`` (optional) receives ``(file_name, idx, total, status)``
+    before/after each file so the caller can render per-file progress. Errors
+    inside the callback are swallowed so a broken UI hook never breaks the run.
+    """
     normalized_jd = (job_description or "").strip()
     if not normalized_jd:
         raise ValueError("Please provide a job description for comparison.")
@@ -127,6 +164,14 @@ def run_multi_resume_comparison(job_description: str, uploaded_cvs: List[Any]) -
         raise ValueError("Please upload at least 2 resumes for comparison.")
     if len(files) > 5:
         raise ValueError("Please upload no more than 5 resumes at a time.")
+
+    def _emit(file_name: str, idx: int, total: int, status: str) -> None:
+        if progress_callback is None:
+            return
+        try:
+            progress_callback(file_name, idx, total, status)
+        except Exception:
+            pass
 
     deduped_files: List[Any] = []
     seen_signatures: set[str] = set()
@@ -148,7 +193,19 @@ def run_multi_resume_comparison(job_description: str, uploaded_cvs: List[Any]) -
     rows: List[Dict[str, Any]] = []
     errors: List[str] = []
     warnings: List[str] = []
-    for uploaded_cv in deduped_files:
+    quota_block_message: Optional[str] = None
+    total = len(deduped_files)
+    for idx, uploaded_cv in enumerate(deduped_files):
+        file_name = _sanitize_cv_filename(getattr(uploaded_cv, "name", "resume"))
+        # If a previous file in this run already hit the Gemini quota, every
+        # further call would burn more of the same per-minute quota and fail
+        # the same way. Short-circuit the remaining files so they all appear in
+        # the user-visible error list with a clear, consistent reason.
+        if quota_block_message is not None:
+            errors.append(f"{file_name}: {quota_block_message}")
+            _emit(file_name, idx + 1, total, "skipped")
+            continue
+        _emit(file_name, idx + 1, total, "running")
         try:
             analysis, _ = _analyze_cv_payload(normalized_jd, uploaded_cv)
             analysis = analysis if isinstance(analysis, dict) else {}
@@ -169,18 +226,29 @@ def run_multi_resume_comparison(job_description: str, uploaded_cvs: List[Any]) -
                 issues_total = 0
             rows.append(
                 {
-                    "Resume": _sanitize_cv_filename(getattr(uploaded_cv, "name", "resume")),
+                    "Resume": file_name,
                     "Final Score": _coerce_score(analysis.get("match_score", 0)),
                     "JD Alignment": _coerce_score(tailoring_metrics.get("score", 0)),
                     "ATS Parse": _coerce_score(content_metrics.get("ats_parse_rate", 0)),
                     "Sections": _coerce_score(sections_metrics.get("score", 0)),
                     "Issues": max(0, issues_total),
                     "Top Missing Skills": ", ".join(missing_skills) if missing_skills else "None",
+                    # Stash the full analysis dict so the report page can render
+                    # per-resume drill-down details without re-running Gemini.
+                    # Prefixed with `_` so DataFrame/CSV consumers skip it.
+                    "_analysis": analysis,
                 }
             )
+            _emit(file_name, idx + 1, total, "done")
         except Exception as exc:  # pragma: no cover - UI path
-            file_name = _sanitize_cv_filename(getattr(uploaded_cv, "name", "resume"))
-            errors.append(f"{file_name}: {exc}")
+            short = _short_error_message(exc)
+            errors.append(f"{file_name}: {short}")
+            _emit(file_name, idx + 1, total, "error")
+            if _is_quota_message(str(exc)) and idx < len(deduped_files) - 1:
+                quota_block_message = short
+                warnings.append(
+                    "Gemini API rate limit hit during comparison. Remaining resumes were skipped to avoid burning more quota."
+                )
 
     rows = sorted(
         rows,

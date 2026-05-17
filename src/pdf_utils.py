@@ -6,27 +6,60 @@ from io import BytesIO
 import zipfile
 import xml.etree.ElementTree as ET
 
-from PyPDF2 import PdfReader
+try:
+    from pypdf import PdfReader
+    from pypdf.errors import PdfReadError
+except ImportError:  # pragma: no cover - fallback for environments without pypdf
+    from PyPDF2 import PdfReader  # type: ignore[no-redef]
+    from PyPDF2.errors import PdfReadError  # type: ignore[no-redef]
 
 _MIN_PARSE_TEXT_CHARS = 800
+
+
+def _read_uploaded_bytes(uploaded_file) -> bytes:
+    """Read all bytes from an upload-like object without leaving its cursor mid-stream."""
+    if hasattr(uploaded_file, "getvalue"):
+        data = uploaded_file.getvalue()
+        if isinstance(data, (bytes, bytearray)):
+            return bytes(data)
+    if hasattr(uploaded_file, "seek"):
+        uploaded_file.seek(0)
+    if hasattr(uploaded_file, "read"):
+        data = uploaded_file.read()
+        if isinstance(data, (bytes, bytearray)):
+            return bytes(data)
+    raise ValueError("Upload could not be read as bytes.")
 
 
 def extract_pdf_text(uploaded_file) -> str:
     """Return concatenated text from all PDF pages or raise on failure."""
     try:
-        if hasattr(uploaded_file, "seek"):
-            uploaded_file.seek(0)
-        reader = PdfReader(uploaded_file)
+        raw_bytes = _read_uploaded_bytes(uploaded_file)
+        if not raw_bytes:
+            raise ValueError("PDF was empty.")
+        reader = PdfReader(BytesIO(raw_bytes))
+        if getattr(reader, "is_encrypted", False):
+            try:
+                reader.decrypt("")
+            except Exception:
+                raise ValueError("PDF is password-protected.")
         text_chunks = []
         for page in reader.pages:
-            text = page.extract_text() or ""
+            try:
+                text = page.extract_text() or ""
+            except Exception:
+                text = ""
             text_chunks.append(text)
         combined = "\n".join(text_chunks).strip()
         if not combined:
-            raise ValueError("PDF contained no extractable text.")
+            raise ValueError("PDF contained no extractable text (it may be a scanned image).")
         return combined
+    except ValueError:
+        raise
+    except PdfReadError as exc:  # pragma: no cover - Streamlit UI path
+        raise ValueError(f"Could not read this PDF ({exc}).") from exc
     except Exception as exc:  # pragma: no cover - Streamlit UI path
-        raise ValueError("Could not read this PDF.") from exc
+        raise ValueError(f"Could not read this PDF ({type(exc).__name__}: {exc}).") from exc
 
 
 def extract_docx_text(uploaded_file) -> str:

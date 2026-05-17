@@ -232,7 +232,7 @@ def render_cover_letter_page() -> None:
                         <div class="cover-letter-inline-copy">
                             <h2 class="landing-clean-title">AI Cover Letter Generator</h2>
                             <p class="landing-clean-subtitle">
-                                 Generate a professional motivation/cover letter from your CV and target role details.
+                                 Generate a professional cover letter from your CV and target role details.
                             </p>
                         </div>
                     </div>
@@ -315,7 +315,7 @@ def render_cover_letter_page() -> None:
                         application_source=application_source,
                     )
                 st.session_state[_STATE_RESULT] = result
-                st.session_state[_STATE_SUCCESS] = "Motivation letter generated successfully! Download is ready."
+                st.session_state[_STATE_SUCCESS] = "Cover letter generated successfully! Download is ready."
             except (RuntimeError, ValueError) as exc:
                 st.session_state[_STATE_ERROR] = str(exc)
             except Exception:

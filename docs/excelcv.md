@@ -36,7 +36,7 @@ ExcelCV is a Streamlit application for:
 ### Main user flows
 - `home` / `upload` / `upload-cv` -> Analyze CV landing/upload page.
 - `report` -> analysis result page.
-- `cv-builder` (alias `resume-builder`) -> resume builder.
+- `resume-builder` -> resume builder.
 - `my-cvs` -> saved resumes.
 - `my-analyses` -> saved analysis history.
 - `compare-cv` -> comparison mode (auth-gated).
@@ -45,7 +45,7 @@ ExcelCV is a Streamlit application for:
 
 ### Static/informational pages (rendered via `src/ui/static_pages.py`)
 - `career-blog`
-- `motivation-letter`
+- `cover-letter`
 - `ats-insights`
 - `instant-report`
 - `evaluation-toolkit`
@@ -58,7 +58,7 @@ ExcelCV is a Streamlit application for:
 - `contact`
 
 Protected pages in current code:
-- `cv-builder`, `resume-builder`, `my-cvs`, `my-analyses`, `compare-cv`, `settings`
+- `resume-builder`, `my-cvs`, `my-analyses`, `compare-cv`, `settings`
 
 ---
 
@@ -214,7 +214,6 @@ cv-review/
     assets/
       ui/
         base_theme.css.tpl
-        base_theme.js.tpl
     services/
       __init__.py
       career_tools.py

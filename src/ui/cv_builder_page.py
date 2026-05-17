@@ -9,29 +9,11 @@ import sys
 import tempfile
 import uuid
 from datetime import date, datetime
-
 import streamlit as st
 import streamlit.components.v1 as components
-try:
-    from streamlit_sortables import sort_items as sortable_items
-except Exception:
-    sortable_items = None
 
 from src.auth_utils import get_session_user
 from src.database import CV, get_db
-from src.gemini_client import suggest_cv_bullets
-
-
-def _get_sortable_items():
-    """Lazy-load sortables so a runtime pip install works without full process restart."""
-    global sortable_items
-    if sortable_items is None:
-        try:
-            from streamlit_sortables import sort_items as _sortable_items
-            sortable_items = _sortable_items
-        except Exception:
-            sortable_items = None
-    return sortable_items
 
 # ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -47,7 +29,6 @@ SECTION_SCHEMA: list[tuple[str, str]] = [
     ("interests", "Interests"),
 ]
 
-SECTIONS = [label for _, label in SECTION_SCHEMA]
 SECTION_IDS = [sid for sid, _ in SECTION_SCHEMA]
 SECTION_ID_TO_LABEL = dict(SECTION_SCHEMA)
 SECTION_LABEL_TO_ID = {label: sid for sid, label in SECTION_SCHEMA}
@@ -173,17 +154,24 @@ def _normalize_section_visibility(visibility: dict | None) -> dict[str, bool]:
     return normalized
 
 
-def _section_expander(label: str, section_id: str, expanded: bool = True):
-    """Render an expander where the section icon is embedded in the label text.
+def _query_param_str(name: str) -> str | None:
+    """Return a query param as a trimmed string, or None if not present."""
+    try:
+        params = st.query_params
+    except Exception:
+        return None
+    try:
+        raw = params.get(name, None)
+    except Exception:
+        return None
+    if raw is None:
+        return None
+    if isinstance(raw, list):
+        raw = raw[-1] if raw else None
+    if raw is None:
+        return None
+    return str(raw).strip()
 
-    Passing icon= as a separate parameter makes Streamlit reuse that slot for the
-    hover-state chevron, causing the icon to disappear on hover. Embedding the
-    icon inside the label keeps it permanently visible on the left and frees the
-    native toggle to live on the right.
-    """
-    icon = SECTION_ICON_BY_ID.get(section_id, "")
-    full_label = f"{icon} {label}".strip() if icon else label
-    return st.expander(full_label, expanded=expanded)
 
 # ─── Session-state initialisation ────────────────────────────────────────────
 
@@ -201,13 +189,10 @@ def _init_builder() -> None:
         "cvb_line_height":    1.4,
         "cvb_entry_spacing":  8,
         "cvb_show_icons":     True,
-        "cvb_show_photo":     False,
         "cvb_zoom":           100,
         "cvb_section_order":      list(SECTION_IDS),
         "cvb_section_visibility": {sid: True for sid in SECTION_IDS},
         "cvb_active_section":     "personal",
-
-        "cvb_preview_fullscreen": False,
         "cvb_full_name":   "",
         "cvb_prof_title":  "",
         "cvb_email":       "",
@@ -216,6 +201,9 @@ def _init_builder() -> None:
         "cvb_website":     "",
         "cvb_linkedin":    "",
         "cvb_github":      "",
+        "cvb_website_url":  "",
+        "cvb_linkedin_url": "",
+        "cvb_github_url":   "",
         "cvb_summary":     "",
         "cvb_exp_ids":       [],
         "cvb_edu_ids":       [],
@@ -285,6 +273,7 @@ def _init_builder() -> None:
             st.session_state[f"cvb_proj_desc_{pid}"] = ""
             st.session_state[f"cvb_proj_tech_{pid}"] = ""
             st.session_state[f"cvb_proj_link_{pid}"] = ""
+            st.session_state[f"cvb_proj_link_url_{pid}"] = ""
             st.session_state[f"cvb_proj_start_{pid}"] = ""
             st.session_state[f"cvb_proj_end_{pid}"] = ""
             st.session_state[f"cvb_proj_visible_{pid}"] = True
@@ -305,6 +294,7 @@ def _init_builder() -> None:
             st.session_state[f"cvb_cert_issuer_{cid}"] = ""
             st.session_state[f"cvb_cert_date_{cid}"] = ""
             st.session_state[f"cvb_cert_link_{cid}"] = ""
+            st.session_state[f"cvb_cert_link_url_{cid}"] = ""
             st.session_state[f"cvb_cert_visible_{cid}"] = True
         st.session_state["cvb_cert_default_seed_v1"] = True
     if "cvb_skills_flat_v1_migrated" not in st.session_state:
@@ -337,6 +327,20 @@ def _init_builder() -> None:
         for cid in st.session_state.get("cvb_cert_ids", []):
             st.session_state.setdefault(f"cvb_cert_visible_{cid}", True)
         st.session_state["cvb_item_visibility_defaults_v1"] = True
+    if "cvb_link_url_defaults_v1" not in st.session_state:
+        for pid in st.session_state.get("cvb_proj_ids", []):
+            st.session_state.setdefault(f"cvb_proj_link_url_{pid}", "")
+        for cid in st.session_state.get("cvb_cert_ids", []):
+            st.session_state.setdefault(f"cvb_cert_link_url_{cid}", "")
+        st.session_state["cvb_link_url_defaults_v1"] = True
+    if "cvb_edu_desc_migration_v1" not in st.session_state:
+        # Older sessions used `cvb_edu_gpa_<id>` for freeform details.
+        for eid in st.session_state.get("cvb_edu_ids", []):
+            legacy_key = f"cvb_edu_gpa_{eid}"
+            desc_key = f"cvb_edu_desc_{eid}"
+            if not str(st.session_state.get(desc_key, "")).strip():
+                st.session_state[desc_key] = st.session_state.get(legacy_key, "")
+        st.session_state["cvb_edu_desc_migration_v1"] = True
     st.session_state["cvb_section_visibility"] = _normalize_section_visibility(st.session_state.get("cvb_section_visibility"))
     if st.session_state.get("cvb_active_section") not in SECTION_IDS:
         st.session_state["cvb_active_section"] = SECTION_IDS[0]
@@ -346,6 +350,11 @@ def _init_builder() -> None:
 
 def collect_cv_data() -> dict:
     ss = st.session_state
+    # JS link popover persists explicit URLs into query params as a reliable
+    # export-time source when Streamlit widget state lags behind live preview.
+    q_linkedin = _query_param_str("cvb_lurl_linkedin")
+    q_website = _query_param_str("cvb_lurl_website")
+    q_github = _query_param_str("cvb_lurl_github")
     personal = {
         "full_name":  ss.get("cvb_full_name", ""),
         "prof_title": ss.get("cvb_prof_title", ""),
@@ -355,6 +364,9 @@ def collect_cv_data() -> dict:
         "website":    ss.get("cvb_website", ""),
         "linkedin":   ss.get("cvb_linkedin", ""),
         "github":     ss.get("cvb_github", ""),
+        "website_url":  q_website if q_website is not None else ss.get("cvb_website_url", ""),
+        "linkedin_url": q_linkedin if q_linkedin is not None else ss.get("cvb_linkedin_url", ""),
+        "github_url":   q_github if q_github is not None else ss.get("cvb_github_url", ""),
         "summary":    ss.get("cvb_summary", ""),
     }
     experience = []
@@ -378,6 +390,9 @@ def collect_cv_data() -> dict:
     for eid in ss.get("cvb_edu_ids", []):
         if not bool(ss.get(f"cvb_edu_visible_{eid}", True)):
             continue
+        edu_description = str(
+            ss.get(f"cvb_edu_desc_{eid}", ss.get(f"cvb_edu_gpa_{eid}", ""))
+        )
         education.append({
             "id":          eid,
             "institution": ss.get(f"cvb_edu_inst_{eid}", ""),
@@ -387,7 +402,8 @@ def collect_cv_data() -> dict:
             "start_date":  ss.get(f"cvb_edu_start_{eid}", ""),
             "end_date":    ss.get(f"cvb_edu_end_{eid}", ""),
             "current":     ss.get(f"cvb_edu_curr_{eid}", False),
-            "gpa":         ss.get(f"cvb_edu_gpa_{eid}", ""),
+            "description": edu_description,
+            "gpa":         edu_description,
         })
     skill_items = []
     for sid in ss.get("cvb_skill_ids", []):
@@ -401,6 +417,7 @@ def collect_cv_data() -> dict:
     for pid in ss.get("cvb_proj_ids", []):
         if not bool(ss.get(f"cvb_proj_visible_{pid}", True)):
             continue
+        q_proj_link = _query_param_str(f"cvb_lurl_proj_{pid}")
         projects.append({
             "id":          pid,
             "name":        ss.get(f"cvb_proj_name_{pid}", ""),
@@ -408,6 +425,7 @@ def collect_cv_data() -> dict:
             "description": ss.get(f"cvb_proj_desc_{pid}", ""),
             "tech_stack":  [t.strip() for t in ss.get(f"cvb_proj_tech_{pid}", "").split(",") if t.strip()],
             "link":        ss.get(f"cvb_proj_link_{pid}", ""),
+            "link_url":    q_proj_link if q_proj_link is not None else ss.get(f"cvb_proj_link_url_{pid}", ""),
             "start_date":  ss.get(f"cvb_proj_start_{pid}", ""),
             "end_date":    ss.get(f"cvb_proj_end_{pid}", ""),
         })
@@ -415,12 +433,14 @@ def collect_cv_data() -> dict:
     for cid in ss.get("cvb_cert_ids", []):
         if not bool(ss.get(f"cvb_cert_visible_{cid}", True)):
             continue
+        q_cert_link = _query_param_str(f"cvb_lurl_cert_{cid}")
         certifications.append({
             "id":     cid,
             "name":   ss.get(f"cvb_cert_name_{cid}", ""),
             "issuer": ss.get(f"cvb_cert_issuer_{cid}", ""),
             "date":   ss.get(f"cvb_cert_date_{cid}", ""),
             "link":   ss.get(f"cvb_cert_link_{cid}", ""),
+            "link_url": q_cert_link if q_cert_link is not None else ss.get(f"cvb_cert_link_url_{cid}", ""),
         })
     languages = []
     for lid in ss.get("cvb_lang_ids", []):
@@ -462,7 +482,20 @@ def load_cv_into_builder(cv_record: CV) -> None:
     ss["cvb_template"]     = _normalize_template(cv_record.template)
     ss["cvb_loaded_cv_id"] = cv_record.id
     p = d.get("personal", {})
-    for field in ["full_name", "prof_title", "email", "phone", "location", "website", "linkedin", "github", "summary"]:
+    for field in [
+        "full_name",
+        "prof_title",
+        "email",
+        "phone",
+        "location",
+        "website",
+        "linkedin",
+        "github",
+        "website_url",
+        "linkedin_url",
+        "github_url",
+        "summary",
+    ]:
         ss[f"cvb_{field}"] = p.get(field, "")
     exp_ids = []
     for exp in d.get("experience", []):
@@ -492,7 +525,9 @@ def load_cv_into_builder(cv_record: CV) -> None:
         ss[f"cvb_edu_start_{eid}"]  = edu.get("start_date", "")
         ss[f"cvb_edu_end_{eid}"]    = edu.get("end_date", "")
         ss[f"cvb_edu_curr_{eid}"]   = edu.get("current", False)
-        ss[f"cvb_edu_gpa_{eid}"]    = edu.get("gpa", "")
+        edu_description = edu.get("description", edu.get("gpa", ""))
+        ss[f"cvb_edu_desc_{eid}"]   = edu_description
+        ss[f"cvb_edu_gpa_{eid}"]    = edu_description
         ss[f"cvb_edu_visible_{eid}"] = True
     ss["cvb_edu_ids"] = edu_ids
     parsed_skill_items = d.get("skills", {}).get("items", [])
@@ -518,6 +553,7 @@ def load_cv_into_builder(cv_record: CV) -> None:
         ss[f"cvb_proj_desc_{pid}"]  = proj.get("description", "")
         ss[f"cvb_proj_tech_{pid}"]  = ", ".join(proj.get("tech_stack", []))
         ss[f"cvb_proj_link_{pid}"]  = proj.get("link", "")
+        ss[f"cvb_proj_link_url_{pid}"] = proj.get("link_url", "")
         ss[f"cvb_proj_start_{pid}"] = proj.get("start_date", "")
         ss[f"cvb_proj_end_{pid}"]   = proj.get("end_date", "")
         ss[f"cvb_proj_visible_{pid}"] = True
@@ -530,6 +566,7 @@ def load_cv_into_builder(cv_record: CV) -> None:
         ss[f"cvb_cert_issuer_{cid}"] = cert.get("issuer", "")
         ss[f"cvb_cert_date_{cid}"]   = cert.get("date", "")
         ss[f"cvb_cert_link_{cid}"]   = cert.get("link", "")
+        ss[f"cvb_cert_link_url_{cid}"] = cert.get("link_url", "")
         ss[f"cvb_cert_visible_{cid}"] = True
     ss["cvb_cert_ids"] = cert_ids
     lang_ids = []
@@ -574,6 +611,46 @@ def _html_escape(s: str) -> str:
     return (s or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
+def _html_attr_escape(s: str) -> str:
+    return _html_escape(s).replace('"', "&quot;").replace("'", "&#x27;")
+
+
+def _coerce_href(raw: str) -> str:
+    value = str(raw or "").strip()
+    if not value:
+        return ""
+    low = value.lower()
+    if low.startswith(("http://", "https://", "mailto:", "tel:")):
+        return value
+    return f"https://{value.lstrip('/')}"
+
+
+def _normalize_contact_link(field: str, value: str, explicit_url: str = "") -> tuple[str, str]:
+    raw_text = str(value or "").strip()
+    raw_url = str(explicit_url or "").strip()
+    if not raw_text and not raw_url:
+        return "", ""
+
+    def _trim_scheme(v: str) -> str:
+        out = v.strip()
+        low = out.lower()
+        if low.startswith("https://"):
+            return out[8:]
+        if low.startswith("http://"):
+            return out[7:]
+        return out
+
+    display = raw_text
+    href = ""
+
+    if raw_url:
+        href = _coerce_href(raw_url)
+        if not display:
+            display = _trim_scheme(raw_url).replace("www.", "")
+
+    return display, href
+
+
 def _date_range(start: str, end: str, current: bool = False) -> str:
     end_label = "Present" if current else end
     if start and end_label:
@@ -605,12 +682,6 @@ def _parse_date_for_input(value: str | date | None) -> date | None:
         except ValueError:
             continue
     return None
-
-
-def _format_date_for_storage(value: date | None) -> str:
-    if not value:
-        return ""
-    return value.strftime("%b %Y")
 
 
 _MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
@@ -727,215 +798,6 @@ def _date_field(
                 ss[year_key] = None
                 _set_month_year_storage(storage_key, None, None)
 
-
-def generate_cv_html(
-    data: dict,
-    template: str = "classic",
-    accent_color: str | None = None,
-    font_family: str | None = None,
-    font_size: int = 11,
-    line_height: float = 1.4,
-    entry_spacing: int = 8,
-    show_icons: bool = True,
-    preview_dark: bool = False,
-    section_visibility: dict | None = None,
-    section_order: list | None = None,
-) -> str:
-    cfg = dict(TEMPLATE_CONFIGS.get(template, TEMPLATE_CONFIGS["classic"]))
-    if accent_color:
-        cfg["primary"] = accent_color
-        cfg["rule"] = accent_color
-        cfg["link"] = accent_color
-    if font_family:
-        cfg["font"] = font_family
-
-    vis = _normalize_section_visibility(section_visibility)
-    order = _normalize_section_order(section_order)
-
-    p        = data.get("personal", {})
-    contacts = [p.get(f, "") for f in ["email", "phone", "location", "website", "linkedin", "github"] if p.get(f)]
-
-    fs           = font_size
-    fs_sm        = max(fs - 1, 7)
-    lh           = line_height
-    es           = entry_spacing
-    sec_mb       = es + 6
-    page_bg      = "#0b1220" if preview_dark else "#ffffff"
-    text_color   = "#e2e8f0" if preview_dark else "#222222"
-    muted_color  = "#94a3b8" if preview_dark else "#666666"
-    subtle_color = "#cbd5e1" if preview_dark else "#444444"
-    soft_muted   = "#a3b3c7" if preview_dark else "#555555"
-    heading_color = "#e2e8f0" if preview_dark else cfg["primary"]
-    rule_color    = "#334155" if preview_dark else cfg["rule"]
-
-    def _sec(section_id: str, title: str, content: str) -> str:
-        if not vis.get(section_id, True):
-            return ""
-        if not content.strip():
-            return ""
-        return (
-            f'<div style="margin-bottom:{sec_mb}px">'
-            f'<h2 style="font-size:{fs_sm}px;font-weight:700;letter-spacing:2px;text-transform:uppercase;'
-            f'color:{heading_color};margin:0 0 3px;border-bottom:1.5px solid {rule_color};padding-bottom:3px;">{title}</h2>'
-            f'{content}</div>'
-        )
-
-    def _exp_block(exp: dict) -> str:
-        bhtml = "".join(
-            f'<p style="margin:1px 0 0 10px;font-size:{fs_sm}px;line-height:{lh}">• {_html_escape(b)}</p>'
-            for b in exp.get("bullets", []) if b.strip()
-        )
-        dr = _html_escape(_date_range(exp.get("start_date", ""), exp.get("end_date", ""), exp.get("current", False)))
-        loc = f', {_html_escape(exp.get("location",""))}' if exp.get("location") else ""
-        return (
-            f'<div style="margin-bottom:{es}px">'
-            f'<div style="display:flex;justify-content:space-between;align-items:baseline">'
-            f'<span style="font-size:{fs}px;font-weight:700">{_html_escape(exp.get("role",""))}</span>'
-            f'<span style="font-size:{fs_sm}px;color:{muted_color}">{dr}</span></div>'
-            f'<p style="margin:1px 0;font-size:{fs_sm}px;color:{subtle_color};line-height:{lh}">'
-            f'{_html_escape(exp.get("company",""))}{loc}</p>'
-            f'{bhtml}</div>'
-        )
-
-    def _edu_block(edu: dict) -> str:
-        deg   = _html_escape(edu.get("degree", ""))
-        field = _html_escape(edu.get("field", ""))
-        gpa   = edu.get("gpa", "")
-        dl    = f"{deg}{', ' + field if field else ''}{' | GPA: ' + gpa if gpa else ''}"
-        dr    = _html_escape(_date_range(edu.get("start_date", ""), edu.get("end_date", "")))
-        return (
-            f'<div style="margin-bottom:{es}px">'
-            f'<div style="display:flex;justify-content:space-between;align-items:baseline">'
-            f'<span style="font-size:{fs}px;font-weight:700">{_html_escape(edu.get("institution",""))}</span>'
-            f'<span style="font-size:{fs_sm}px;color:{muted_color}">{dr}</span></div>'
-            f'<p style="margin:1px 0;font-size:{fs_sm}px;color:{subtle_color};line-height:{lh}">{dl}</p></div>'
-        )
-
-    experience_html = "".join(_exp_block(e) for e in data.get("experience", []))
-    education_html  = "".join(_edu_block(e) for e in data.get("education", []))
-
-    skill_values = [s.get("name", "").strip() for s in data.get("skills", {}).get("items", []) if s.get("name", "").strip()]
-    if not skill_values:
-        for cat in data.get("skills", {}).get("categories", []):
-            skill_values.extend([x for x in cat.get("items", []) if x])
-    skills_html = (
-        f'<p style="font-size:{fs}px;margin:2px 0;line-height:{lh}">{_html_escape(", ".join(skill_values))}</p>'
-        if skill_values else ""
-    )
-
-    projects_html = ""
-    for proj in data.get("projects", []):
-        tech = proj.get("tech_stack", [])
-        dr   = _html_escape(_date_range(proj.get("start_date",""), proj.get("end_date","")))
-        projects_html += (
-            f'<div style="margin-bottom:{es}px">'
-            f'<div style="display:flex;justify-content:space-between;align-items:baseline">'
-            f'<span style="font-size:{fs}px;font-weight:700">{_html_escape(proj.get("name",""))}</span>'
-            f'<span style="font-size:{fs_sm}px;color:{muted_color}">{dr}</span></div>'
-            + (f'<p style="margin:1px 0;font-size:{fs_sm}px;font-style:italic;color:{soft_muted};line-height:{lh}">Tech: {_html_escape(", ".join(tech))}</p>' if tech else "")
-            + (f'<p style="margin:2px 0;font-size:{fs_sm}px;line-height:{lh}">{_html_escape(proj.get("description",""))}</p>' if proj.get("description") else "")
-            + (f'<p style="margin:1px 0;font-size:{max(fs_sm-1,7)}px;color:{cfg["link"]}">{_html_escape(proj.get("link",""))}</p>' if proj.get("link") else "")
-            + f'</div>'
-        )
-
-    certs_html = "".join(
-        f'<p style="font-size:{fs}px;margin:2px 0;line-height:{lh}">• <b>{_html_escape(c.get("name",""))}</b>'
-        f'{" — " + _html_escape(c.get("issuer","")) if c.get("issuer") else ""}'
-        f'{" (" + _html_escape(c.get("date","")) + ")" if c.get("date") else ""}</p>'
-        for c in data.get("certifications", [])
-    )
-
-    languages_html = "".join(
-        f'<p style="font-size:{fs}px;margin:2px 0;line-height:{lh}">'
-        f'<b>{_html_escape(lang.get("language",""))}</b>'
-        f'{" — " + _html_escape(lang.get("proficiency","")) if lang.get("proficiency") else ""}</p>'
-        for lang in data.get("languages", []) if lang.get("language")
-    )
-
-    interests = data.get("interests", [])
-    interests_html = (
-        f'<p style="font-size:{fs}px;margin:2px 0;line-height:{lh}">{_html_escape(", ".join(interests))}</p>'
-        if interests else ""
-    )
-
-    name    = _html_escape(p.get("full_name") or "Your Name")
-    title   = _html_escape(p.get("prof_title", ""))
-    contact = _html_escape(" · ".join(contacts))
-    summary = _html_escape(p.get("summary", ""))
-    _cd     = "" if contact else ";display:none"
-
-    if template == "modern":
-        header_html = (
-            f'<div style="background:{cfg["primary"]};color:#fff;padding:18px 24px;margin:-20px -20px 14px;">'
-            f'<h1 id="cv-name" style="font-size:22px;font-weight:800;margin:0">{name}</h1>'
-            + (f'<p style="font-size:10px;color:#bfdbfe;margin:3px 0 0">{title}</p>' if title else "")
-            + f'<p id="cv-contact" style="font-size:9px;color:#bfdbfe;margin:4px 0 0{_cd}">{contact}</p>'
-            + (f'<p style="font-size:10px;color:#dbeafe;margin:8px 0 0;line-height:1.5">{summary}</p>' if summary and vis.get("summary", True) else "")
-            + f'</div>'
-        )
-        summary_html = ""
-    else:
-        header_html = (
-            f'<h1 id="cv-name" style="font-size:22px;font-weight:700;text-align:center;margin:0;color:{heading_color}">{name}</h1>'
-            + (f'<p style="text-align:center;font-size:10px;color:{muted_color};margin:2px 0 4px">{title}</p>' if title else "")
-            + f'<p id="cv-contact" style="text-align:center;font-size:9.5px;color:{muted_color};margin:4px 0 10px{_cd}">{contact}</p>'
-        )
-        summary_html = (
-            _sec("summary", "Professional Summary",
-                 f'<p style="font-size:10.5px;line-height:1.5;margin:4px 0">{summary}</p>')
-            if summary else ""
-        )
-
-    section_content_map = {
-        "summary":        summary_html,
-        "experience":     _sec("experience", "Work Experience", experience_html),
-        "education":      _sec("education", "Education", education_html),
-        "skills":         _sec("skills", "Skills", skills_html),
-        "projects":       _sec("projects", "Projects", projects_html),
-        "languages":      _sec("languages", "Languages", languages_html),
-        "certifications": _sec("certifications", "Certifications", certs_html),
-        "interests":      _sec("interests", "Interests", interests_html),
-    }
-
-    body = ""
-    for section_id in order:
-        if section_id == "personal":
-            continue
-        body += section_content_map.get(section_id, "")
-
-    hr_tag = "<hr>" if template == "classic" else ""
-
-    return f"""<!DOCTYPE html>
-<html><head><meta charset="UTF-8">
-<style>
-* {{ box-sizing:border-box; margin:0; padding:0; }}
-body {{
-  font-family:{cfg["font"]}; font-size:{fs}px;
-  color:{text_color}; background:{page_bg}; padding:20px; line-height:{lh};
-}}
-hr {{ border:none; border-top:1.5px solid {cfg["rule"]}; margin:6px 0 10px; }}
-</style></head><body>
-{header_html}
-{hr_tag}
-{body}
-<script>
-window.addEventListener('message', function(ev) {{
-  var d = ev.data;
-  if (!d || d.type !== 'cv-rt-update') return;
-  var el;
-  if (d.field === 'cvb_full_name') {{
-    el = document.getElementById('cv-name');
-    if (el) el.textContent = d.value || 'Your Name';
-  }} else if (d.field === 'cvb_contact') {{
-    el = document.getElementById('cv-contact');
-    if (el) {{ el.textContent = d.value; el.style.display = d.value ? '' : 'none'; }}
-  }}
-}});
-</script>
-</body></html>"""
-
-
-# ─── Save to DB ───────────────────────────────────────────────────────────────
 
 def _save_cv(cv_data: dict, title: str, template: str) -> bool:
     user = get_session_user()
@@ -1136,553 +998,29 @@ def _reset_all() -> None:
     keys = [k for k in st.session_state if k.startswith("cvb_")]
     for k in keys:
         del st.session_state[k]
+    try:
+        for qk in list(st.query_params.keys()):
+            if str(qk).startswith("cvb_lurl_"):
+                del st.query_params[qk]
+    except Exception:
+        pass
     st.rerun()
 
 
 # ─── Form section renderers ───────────────────────────────────────────────────
 
-def _personal_section() -> None:
-    st.text_input("Full Name", key="cvb_full_name", placeholder="Enter full name")
-    st.text_input("Professional Title", key="cvb_prof_title", placeholder="Enter professional title")
-    c1, c2 = st.columns(2)
-    with c1:
-        st.text_input("Email", key="cvb_email", placeholder="you@email.com")
-    with c2:
-        st.text_input("Phone", key="cvb_phone", placeholder="Enter phone number")
-    c3, c4 = st.columns(2)
-    with c3:
-        st.text_input("Location", key="cvb_location", placeholder="Enter location")
-    with c4:
-        st.text_input("Website", key="cvb_website", placeholder="Enter website URL")
-    st.text_input("LinkedIn", key="cvb_linkedin", placeholder="Enter LinkedIn profile URL")
-
-
-def _summary_section() -> None:
-    summary = st.session_state.get("cvb_summary", "")
-    char_count = len(summary)
-    st.text_area(
-        "Professional Summary",
-        key="cvb_summary",
-        height=130,
-        max_chars=500,
-        placeholder="Write a short summary of your experience and strengths.",
-    )
-    st.markdown(f"<div class='cvb-summary-counter'>{char_count}/500</div>", unsafe_allow_html=True)
-
-
-def _experience_section() -> None:
-    _exp_spacer, _exp_action = st.columns([5, 2])
-    with _exp_action:
-        add_position = st.button("+ Add Position", key="btn_add_exp", type="secondary")
-    if add_position:
-        eid = str(uuid.uuid4())
-        st.session_state["cvb_exp_ids"].append(eid)
-        st.session_state[f"cvb_exp_bcount_{eid}"] = 1
-        st.session_state[f"cvb_exp_b_{eid}_0"] = ""
-        st.rerun()
-
-    for idx, eid in enumerate(list(st.session_state.get("cvb_exp_ids", []))):
-        role = st.session_state.get(f"cvb_exp_role_{eid}", "")
-        label = role or f"Position {idx + 1}"
-        with st.expander(label, expanded=True):
-            c1, c2, c3 = st.columns(3)
-            with c1:
-                st.text_input("Job Title", key=f"cvb_exp_role_{eid}", placeholder="Enter job title")
-            with c2:
-                st.text_input("Company", key=f"cvb_exp_company_{eid}", placeholder="Enter company name")
-            with c3:
-                st.text_input("Location", key=f"cvb_exp_loc_{eid}", placeholder="Enter location")
-
-            c4, c5, c6 = st.columns(3)
-            with c4:
-                st.text_input("Start Date", key=f"cvb_exp_start_{eid}", placeholder="Enter start date")
-            with c5:
-                curr = st.session_state.get(f"cvb_exp_curr_{eid}", False)
-                if not curr:
-                    st.text_input("End Date", key=f"cvb_exp_end_{eid}", placeholder="Enter end date")
-                else:
-                    st.text_input("End Date", value="Present", disabled=True, key=f"cvb_exp_end_dis_{eid}")
-            with c6:
-                st.checkbox("Currently working here", key=f"cvb_exp_curr_{eid}")
-
-            st.markdown("**Key Achievements**")
-            bcount = st.session_state.get(f"cvb_exp_bcount_{eid}", 1)
-            for i in range(bcount):
-                st.text_input(
-                    f"• Bullet {i + 1}",
-                    key=f"cvb_exp_b_{eid}_{i}",
-                    placeholder="Describe a measurable impact or responsibility",
-                )
-
-            ba, bb, bc, bd = st.columns([1, 1, 1.6, 1.6])
-            with ba:
-                if st.button("+ Bullet", key=f"add_b_{eid}"):
-                    st.session_state[f"cvb_exp_bcount_{eid}"] = bcount + 1
-                    st.rerun()
-            with bb:
-                if bcount > 1 and st.button("− Bullet", key=f"rem_b_{eid}"):
-                    st.session_state.pop(f"cvb_exp_b_{eid}_{bcount - 1}", None)
-                    st.session_state[f"cvb_exp_bcount_{eid}"] = bcount - 1
-                    st.rerun()
-            with bc:
-                if st.button("✨ AI Suggest", key=f"ai_suggest_{eid}"):
-                    role_val    = st.session_state.get(f"cvb_exp_role_{eid}", "").strip()
-                    company_val = st.session_state.get(f"cvb_exp_company_{eid}", "").strip()
-                    if not role_val:
-                        st.warning("Enter a job title first.")
-                    else:
-                        with st.spinner("Generating…"):
-                            try:
-                                existing = [
-                                    st.session_state.get(f"cvb_exp_b_{eid}_{i}", "")
-                                    for i in range(bcount)
-                                    if st.session_state.get(f"cvb_exp_b_{eid}_{i}", "").strip()
-                                ]
-                                context = ("Existing: " + " | ".join(existing)) if existing else ""
-                                st.session_state[f"cvb_ai_sug_{eid}"] = suggest_cv_bullets(role_val, company_val, context)
-                            except Exception as exc:
-                                st.error(str(exc))
-            with bd:
-                if st.button("🗑 Delete Position", key=f"rem_exp_{eid}"):
-                    st.session_state["cvb_exp_ids"].remove(eid)
-                    st.session_state.pop(f"cvb_ai_sug_{eid}", None)
-                    st.rerun()
-
-            suggestions = st.session_state.get(f"cvb_ai_sug_{eid}", [])
-            if suggestions:
-                st.markdown("**AI Suggestions** — click Use to insert:")
-                for si, sug in enumerate(suggestions):
-                    sc1, sc2 = st.columns([6, 1])
-                    with sc1:
-                        st.caption(f"- {sug}")
-                    with sc2:
-                        if st.button("Use", key=f"use_s_{eid}_{si}"):
-                            new_idx = st.session_state.get(f"cvb_exp_bcount_{eid}", 1)
-                            st.session_state[f"cvb_exp_b_{eid}_{new_idx}"] = sug
-                            st.session_state[f"cvb_exp_bcount_{eid}"] = new_idx + 1
-                            st.rerun()
-
-
-def _education_section() -> None:
-    _edu_spacer, _edu_action = st.columns([5, 2])
-    with _edu_action:
-        add_education = st.button("+ Add Education", key="btn_add_edu", type="secondary")
-    if add_education:
-        eid = str(uuid.uuid4())
-        st.session_state["cvb_edu_ids"].append(eid)
-        st.rerun()
-
-    for idx, eid in enumerate(list(st.session_state.get("cvb_edu_ids", []))):
-        inst = st.session_state.get(f"cvb_edu_inst_{eid}", "")
-        with st.expander(inst or f"Education {idx + 1}", expanded=True):
-            c1, c2, c3 = st.columns(3)
-            with c1:
-                st.text_input("Institution", key=f"cvb_edu_inst_{eid}", placeholder="Enter institution name")
-            with c2:
-                st.text_input("Degree", key=f"cvb_edu_degree_{eid}", placeholder="Enter degree")
-            with c3:
-                st.text_input("Field of Study", key=f"cvb_edu_field_{eid}", placeholder="Enter field of study")
-            c4, c5, c6 = st.columns(3)
-            with c4:
-                st.text_input("Location", key=f"cvb_edu_loc_{eid}", placeholder="Enter location")
-            with c5:
-                st.text_input("Start Year", key=f"cvb_edu_start_{eid}", placeholder="Enter start year")
-            with c6:
-                st.text_input("End Year", key=f"cvb_edu_end_{eid}", placeholder="Enter end year")
-            st.text_input("GPA / Percentage", key=f"cvb_edu_gpa_{eid}", placeholder="Enter GPA or percentage")
-            if st.button("🗑 Delete", key=f"rem_edu_{eid}"):
-                st.session_state["cvb_edu_ids"].remove(eid)
-                st.rerun()
-
-
-def _skills_section() -> None:
-    st.caption("Add skill categories (e.g. Languages, Frameworks, Tools). Items separated by commas.")
-    if st.button("+ Add Category", key="btn_add_skill", type="secondary"):
-        sid = str(uuid.uuid4())
-        st.session_state["cvb_skill_cat_ids"].append(sid)
-        st.rerun()
-    for idx, sid in enumerate(list(st.session_state.get("cvb_skill_cat_ids", []))):
-        name = st.session_state.get(f"cvb_skill_name_{sid}", "")
-        with st.expander(name or f"Category {idx + 1}", expanded=True):
-            st.text_input("Category Name", key=f"cvb_skill_name_{sid}", placeholder="Enter category name")
-            st.text_area(
-                "Skills (comma-separated)",
-                key=f"cvb_skill_items_{sid}",
-                height=70,
-                placeholder="Enter skills separated by commas",
-            )
-            if st.button("🗑 Delete Category", key=f"rem_skill_{sid}"):
-                st.session_state["cvb_skill_cat_ids"].remove(sid)
-                st.rerun()
-
-
-def _projects_section() -> None:
-    if st.button("+ Add Project", key="btn_add_proj", type="secondary"):
-        pid = str(uuid.uuid4())
-        st.session_state["cvb_proj_ids"].append(pid)
-        st.rerun()
-    for idx, pid in enumerate(list(st.session_state.get("cvb_proj_ids", []))):
-        name = st.session_state.get(f"cvb_proj_name_{pid}", "")
-        with st.expander(name or f"Project {idx + 1}", expanded=True):
-            c1, c2, c3 = st.columns(3)
-            with c1:
-                st.text_input("Project Name", key=f"cvb_proj_name_{pid}", placeholder="Enter project name")
-            with c2:
-                st.text_input("Your Role", key=f"cvb_proj_role_{pid}", placeholder="Enter your role")
-            with c3:
-                st.text_input("Date / Duration", key=f"cvb_proj_start_{pid}", placeholder="Enter date or duration")
-            st.text_area("Description", key=f"cvb_proj_desc_{pid}", height=80,
-                         placeholder="Describe what the project does and your impact")
-            st.text_input("Technologies (comma-separated)", key=f"cvb_proj_tech_{pid}",
-                          placeholder="Enter technologies separated by commas")
-            st.text_input("Link (GitHub / Live)", key=f"cvb_proj_link_{pid}",
-                          placeholder="Enter project link")
-            if st.button("🗑 Delete", key=f"rem_proj_{pid}"):
-                st.session_state["cvb_proj_ids"].remove(pid)
-                st.rerun()
-
-
-def _languages_section() -> None:
-    _lang_spacer, _lang_action = st.columns([5, 2])
-    with _lang_action:
-        add_lang = st.button("+ Add Language", key="btn_add_lang", type="secondary")
-    if add_lang:
-        lid = str(uuid.uuid4())
-        st.session_state["cvb_lang_ids"].append(lid)
-        st.rerun()
-    lang_ids = list(st.session_state.get("cvb_lang_ids", []))
-    if lang_ids:
-        h1, h2, _ = st.columns([4, 4, 1])
-        with h1:
-            st.caption("Language")
-        with h2:
-            st.caption("Proficiency")
-    for idx, lid in enumerate(lang_ids):
-        c1, c2, c3 = st.columns([4, 4, 1])
-        with c1:
-            st.text_input("Language", key=f"cvb_lang_name_{lid}", placeholder="e.g. English",
-                          label_visibility="collapsed")
-        with c2:
-            st.selectbox("Proficiency", PROFICIENCY_OPTIONS, key=f"cvb_lang_prof_{lid}",
-                         label_visibility="collapsed")
-        with c3:
-            if st.button("Delete", key=f"rem_lang_{lid}", help="Delete"):
-                st.session_state["cvb_lang_ids"].remove(lid)
-                st.rerun()
-
-
-def _certifications_section() -> None:
-    if st.button("+ Add Certification", key="btn_add_cert", type="secondary"):
-        cid = str(uuid.uuid4())
-        st.session_state["cvb_cert_ids"].append(cid)
-        st.rerun()
-    for idx, cid in enumerate(list(st.session_state.get("cvb_cert_ids", []))):
-        name = st.session_state.get(f"cvb_cert_name_{cid}", "")
-        with st.expander(name or f"Certification {idx + 1}", expanded=True):
-            c1, c2, c3 = st.columns(3)
-            with c1:
-                st.text_input("Title", key=f"cvb_cert_name_{cid}", placeholder="Enter certification title")
-            with c2:
-                st.text_input("Issuer", key=f"cvb_cert_issuer_{cid}", placeholder="Enter issuer")
-            with c3:
-                st.text_input("Date", key=f"cvb_cert_date_{cid}", placeholder="Enter date")
-            st.text_input("Credential URL", key=f"cvb_cert_link_{cid}", placeholder="Enter credential URL")
-            if st.button("🗑 Delete", key=f"rem_cert_{cid}"):
-                st.session_state["cvb_cert_ids"].remove(cid)
-                st.rerun()
-
-
-def _interests_section() -> None:
-    interests = list(st.session_state.get("cvb_interests", []))
-    if interests:
-        tags_html = "<div style='display:flex;flex-wrap:wrap;gap:0.3rem;margin-bottom:0.6rem'>" + "".join(
-            f"<span style='display:inline-flex;align-items:center;gap:0.2rem;padding:0.2rem 0.6rem;"
-            f"border-radius:6px;background:#1e293b;color:#f1f5f9;font-size:0.82rem;font-weight:500'>"
-            f"{_html_escape(t)}</span>"
-            for t in interests
-        ) + "</div>"
-        st.markdown(tags_html, unsafe_allow_html=True)
-        remove_cols = st.columns(min(len(interests), 5))
-        for i, interest in enumerate(interests):
-            with remove_cols[i % 5]:
-                if st.button("Remove", key=f"rm_int_{i}", help=f"Remove {interest}"):
-                    interests.pop(i)
-                    st.session_state["cvb_interests"] = interests
-                    st.rerun()
-
-    ctr   = st.session_state.get("cvb_interest_ctr", 0)
-    ia, ib = st.columns([4, 1])
-    with ia:
-        new_tag = st.text_input(
-            "Add interest",
-            key=f"cvb_new_interest_{ctr}",
-            label_visibility="collapsed",
-            placeholder="Enter an interest",
-        )
-    with ib:
-        if st.button("Add", key=f"btn_add_int_{ctr}"):
-            tag = new_tag.strip()
-            if tag and tag not in interests:
-                interests.append(tag)
-                st.session_state["cvb_interests"] = interests
-                st.session_state["cvb_interest_ctr"] = ctr + 1
-                st.rerun()
-
-
-# ─── Left panel ───────────────────────────────────────────────────────────────
-
 def _render_left_panel() -> None:
     """Deprecated legacy renderer."""
     return
-    ss = st.session_state
-    section_order = _normalize_section_order(ss.get("cvb_section_order"))
-    visibility    = ss.get("cvb_section_visibility", {sid: True for sid in SECTION_IDS})
-
-    st.markdown("<p class='cvb-rail-heading'>Sections</p>", unsafe_allow_html=True)
-    sort_fn = _get_sortable_items()
-    sortable_rendered = False
-    if sort_fn is not None:
-        display_items: list[str] = []
-        display_to_id: dict[str, str] = {}
-        for sec_id in section_order:
-            label = SECTION_ID_TO_LABEL.get(sec_id, sec_id.title())
-            vis_icon = "\U0001F441" if visibility.get(sec_id, True) else "\U0001F6AB"
-            item_text = f"{label}   {vis_icon}"
-            display_items.append(item_text)
-            display_to_id[item_text] = sec_id
-
-        sortable_style = """
-        .sortable-component { background: transparent; padding: 0; margin: 0; border: 0; }
-        .sortable-container { background: transparent; border: 0; padding: 0; margin: 0; overflow-x: hidden; }
-        .sortable-container-header { display: none; }
-        .sortable-container-body { background: transparent; overflow-x: hidden; }
-        .sortable-item {
-          position: relative;
-          height: 54px;
-          margin: 0 0 10px 0;
-          width: 100%;
-          box-sizing: border-box;
-          border: 1px solid #cfd7e5;
-          border-radius: 12px;
-          background: #ffffff;
-          display: flex;
-          align-items: center;
-          box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
-          color: #1f2937;
-          font-size: 14px;
-          font-weight: 500;
-          line-height: 1.2;
-          padding: 0 14px 0 46px;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          transform: none !important;
-          transition: border-color .12s ease, box-shadow .12s ease !important;
-        }
-        .sortable-item::before {
-          content: "⋮⋮";
-          position: absolute;
-          left: 14px;
-          top: 50%;
-          transform: translateY(-50%);
-          color: #1f2937;
-          font-size: 18px;
-          line-height: 1;
-          opacity: 0.9;
-        }
-        .sortable-item:focus,
-        .sortable-item:active {
-          transform: none !important;
-        }
-        .sortable-item:hover {
-          box-shadow: 0 2px 6px rgba(2, 132, 199, 0.10);
-          border-color: #93c5fd;
-        }
-        .sortable-chosen,
-        .sortable-drag {
-          transform: none !important;
-          box-shadow: 0 2px 6px rgba(2, 132, 199, 0.10) !important;
-          border-color: #93c5fd !important;
-        }
-        """
-        try:
-            sorted_items = sort_fn(display_items, key="cvb_sections_sortable_native", custom_style=sortable_style)
-        except TypeError:
-            sorted_items = sort_fn(display_items, custom_style=sortable_style)
-        next_order = [display_to_id[item] for item in (sorted_items or []) if item in display_to_id]
-        next_order = _normalize_section_order(next_order)
-        if next_order != section_order:
-            ss["cvb_section_order"] = next_order
-            section_order = next_order
-        sortable_rendered = True
-    else:
-        st.caption("Install `streamlit-sortables` to enable drag-and-drop section reordering.")
-    for sec_name in section_order:
-        is_vis = visibility.get(sec_name, True)
-        label = SECTION_ID_TO_LABEL.get(sec_name, str(sec_name).title())
-        col_name, col_eye = st.columns([5, 1], gap="small")
-        with col_name:
-            st.markdown(
-                f"<div class='cvb-section-item'>⠿ {sec_name}</div>",
-                unsafe_allow_html=True,
-            )
-        with col_eye:
-            if st.button("👁" if is_vis else "🚫", key=f"vis_{sec_name.replace(' ','_')}", help="Toggle visibility"):
-                visibility[sec_name] = not is_vis
-                ss["cvb_section_visibility"] = visibility
-                st.rerun()
-
-    st.markdown("<div class='cvb-rail-divider'></div>", unsafe_allow_html=True)
-    st.markdown("<p class='cvb-rail-heading'>Templates</p>", unsafe_allow_html=True)
-    current_tpl = _normalize_template(ss.get("cvb_template", "classic"))
-    ss["cvb_template"] = current_tpl
-    for tpl_key, tpl_label, tpl_desc in TEMPLATE_CHOICES:
-        ("classic", "Classic", "Single column · ATS-friendly"),
-        ("modern",  "Modern",  "Colored header banner"),
-        ("minimal", "Minimal", "Clean neutral style"),
-        active = (current_tpl == tpl_key)
-        active_cls = " active" if active else ""
-        check_mark = "✓ " if active else ""
-        st.markdown(
-            f"<div class='cvb-template-card{active_cls}'>"
-            f"<p class='cvb-template-title'>{tpl_label}</p>"
-            f"<p class='cvb-template-desc'>{tpl_desc}</p></div>",
-            unsafe_allow_html=True,
-        )
-        if not active:
-            if st.button(f"Select", key=f"tpl_{tpl_key}", width="stretch"):
-                ss["cvb_template"] = tpl_key
-                ss["cvb_zoom"] = _default_zoom_for_template(tpl_key)
-                st.rerun()
-
-    st.markdown("<div class='cvb-rail-divider'></div>", unsafe_allow_html=True)
-    st.markdown("<p class='cvb-rail-heading'>Style</p>", unsafe_allow_html=True)
-
-    st.markdown("<div class='cvb-label'>Accent Color</div>", unsafe_allow_html=True)
-    with st.container(key="cvb-color-dots"):
-        acc_cols = st.columns(len(ACCENT_COLORS))
-        for i, (col, color) in enumerate(zip(acc_cols, ACCENT_COLORS)):
-            with col:
-                if st.button(" ", key=f"acc_{i}", help=color):
-                    ss["cvb_accent_color"] = color
-                    st.rerun()
-
-    font_scale = round(float(ss.get("cvb_font_size", 11)) / 11.0, 2)
-    st.markdown(f"<div class='cvb-label'>Font Scale <strong>{font_scale:.1f}x</strong></div>", unsafe_allow_html=True)
-    st.slider("Font Scale", min_value=8, max_value=16, step=1, key="cvb_font_size", label_visibility="collapsed")
-
-    spacing_scale = round(float(ss.get("cvb_entry_spacing", 8)) / 8.0, 2)
-    st.markdown(f"<div class='cvb-label'>Spacing <strong>{spacing_scale:.1f}x</strong></div>", unsafe_allow_html=True)
-    st.slider("Spacing", min_value=4, max_value=24, step=2, key="cvb_entry_spacing", label_visibility="collapsed")
-
-    line_height = float(ss.get("cvb_line_height", 1.4))
-    st.markdown(f"<div class='cvb-label'>Line Height <strong>{line_height:.1f}</strong></div>", unsafe_allow_html=True)
-    st.slider("Line Height", min_value=1.0, max_value=2.0, step=0.1, key="cvb_line_height", label_visibility="collapsed")
-
-    st.toggle("Show icons", key="cvb_show_icons")
-    st.toggle("Show photo", key="cvb_show_photo")
-
-
-# ─── Right panel (preview) ────────────────────────────────────────────────────
-
 def _render_right_panel(cv_data: dict, is_dark: bool) -> None:
     """Deprecated legacy renderer."""
     return
-    ss = st.session_state
-    zoom = ss.get("cvb_zoom", 95)
-
-    z1, z2, z3, z4 = st.columns([0.6, 1.7, 0.6, 0.6], gap="small", vertical_alignment="center")
-    with z1:
-        if st.button("−", key="btn_zoom_out", help="Zoom out"):
-            levels = [60, 70, 75, 80, 85, 90, 95, 100, 110, 115]
-            idx = levels.index(zoom) if zoom in levels else levels.index(45)
-            ss["cvb_zoom"] = levels[max(0, idx - 1)]
-            st.rerun()
-    with z2:
-        st.markdown(f"<div class='cvb-zoom-display'>{zoom}%</div>", unsafe_allow_html=True)
-    with z3:
-        if st.button("+", key="btn_zoom_in", help="Zoom in"):
-            levels = [60, 70, 75, 80, 85, 90, 95, 100, 110, 115]
-            idx = levels.index(zoom) if zoom in levels else levels.index(45)
-            ss["cvb_zoom"] = levels[min(len(levels) - 1, idx + 1)]
-            st.rerun()
-    with z4:
-        if st.button("⤢", key="btn_zoom_reset", help="Reset zoom"):
-            ss["cvb_zoom"] = 45
-            st.rerun()
-
-    template      = ss.get("cvb_template", "classic")
-    accent        = ss.get("cvb_accent_color") or None
-    font          = FONT_OPTIONS.get(ss.get("cvb_font", "System Sans"))
-    font_size     = int(ss.get("cvb_font_size", 11))
-    line_height   = float(ss.get("cvb_line_height", 1.4))
-    entry_spacing = int(ss.get("cvb_entry_spacing", 8))
-    sec_vis       = ss.get("cvb_section_visibility")
-    sec_order     = ss.get("cvb_section_order")
-
-    preview_html = generate_cv_html(
-        cv_data, template,
-        accent_color=accent,
-        font_family=font,
-        font_size=font_size,
-        line_height=line_height,
-        entry_spacing=entry_spacing,
-        show_icons=bool(ss.get("cvb_show_icons", True)),
-        preview_dark=is_dark,
-        section_visibility=sec_vis,
-        section_order=sec_order,
-    )
-
-    scale = zoom / 100.0
-    # Wrap preview_html in a zoom shell so the CV paper scales without clipping
-    zoomed_html = f"""<!DOCTYPE html><html><head><meta charset="UTF-8">
-<style>
-* {{ box-sizing: border-box; margin: 0; padding: 0; }}
-html, body {{ height: 100%; background: {'#060d1c' if is_dark else '#e2e8f0'}; }}
-body {{ padding: 8px; }}
-.cv-paper {{
-  background: #ffffff;
-  transform-origin: top center;
-  transform: scale({scale});
-  box-shadow: 0 4px 24px rgba(0,0,0,0.20);
-  border-radius: 3px;
-  width: {round(100 / scale)}%;
-  margin: 0 auto;
-  min-height: 1000px;
-}}
-</style></head><body>
-<div class="cv-paper">{preview_html.split('<body>',1)[-1].split('</body>')[0] if '<body>' in preview_html else preview_html}</div>
-<script>
-// Forward postMessages from parent to this nested context
-window.addEventListener('message', function(ev) {{
-  var d = ev.data;
-  if (!d || d.type !== 'cv-rt-update') return;
-  var el;
-  if (d.field === 'cvb_full_name') {{
-    el = document.getElementById('cv-name');
-    if (el) el.textContent = d.value || 'Your Name';
-  }} else if (d.field === 'cvb_contact') {{
-    el = document.getElementById('cv-contact');
-    if (el) {{ el.textContent = d.value; el.style.display = d.value ? '' : 'none'; }}
-  }}
-}});
-</script>
-</body></html>"""
-
-    frame_height = max(980, int(1123 * scale) + 120)
-    with st.container(key="cvb-preview-frame"):
-        components.html(zoomed_html, height=frame_height, scrolling=False)
-
-
-# ─── Real-time JS bridge ──────────────────────────────────────────────────────
-
 def _inject_realtime_js() -> None:
     components.html(
         """<script>
 (function() {
   var w = window.parent && window.parent !== window ? window.parent : window;
   var doc = w.document;
-  var CONTACT_LABELS = ['Email', 'Phone', 'Location', 'Website', 'LinkedIn', 'GitHub'];
   var FIELD_BY_LABEL = {
     'Full Name': 'cvb_full_name',
     'Professional Title': 'cvb_prof_title',
@@ -1695,18 +1033,34 @@ def _inject_realtime_js() -> None:
     'Summary': 'cvb_summary',
     'Professional Summary': 'cvb_summary'
   };
+  var LINK_URL_KEYS = {
+    linkedin: 'cvb_linkedin_url',
+    website: 'cvb_website_url',
+    github: 'cvb_github_url'
+  };
+  var LINK_URL_QUERY_KEYS = {
+    linkedin: 'cvb_lurl_linkedin',
+    website: 'cvb_lurl_website',
+    github: 'cvb_lurl_github'
+  };
+  var FIELD_BY_KEY = {
+    cvb_linkedin_url: 'cvb_linkedin_url',
+    cvb_website_url: 'cvb_website_url',
+    cvb_github_url: 'cvb_github_url'
+  };
 
-  function getInput(labelText, cardSel) {
-    var card = doc.querySelector(cardSel);
-    if (!card) return null;
-    var labels = card.querySelectorAll('label');
-    for (var i = 0; i < labels.length; i++) {
-      if (labels[i].textContent.trim() === labelText) {
-        var c = labels[i].closest('[data-testid="stTextInput"]');
-        if (c) return c.querySelector('input');
-      }
-    }
-    return null;
+  function linkStateKeyForCf(cf) {
+    if (LINK_URL_KEYS[cf]) return LINK_URL_KEYS[cf];
+    if (String(cf || '').indexOf('proj-') === 0) return 'cvb_proj_link_url_' + String(cf).slice(5);
+    if (String(cf || '').indexOf('cert-') === 0) return 'cvb_cert_link_url_' + String(cf).slice(5);
+    return '';
+  }
+
+  function linkQueryKeyForCf(cf) {
+    if (LINK_URL_QUERY_KEYS[cf]) return LINK_URL_QUERY_KEYS[cf];
+    if (String(cf || '').indexOf('proj-') === 0) return 'cvb_lurl_proj_' + String(cf).slice(5);
+    if (String(cf || '').indexOf('cert-') === 0) return 'cvb_lurl_cert_' + String(cf).slice(5);
+    return '';
   }
 
   function getFieldValue(labelText, cardSel) {
@@ -1729,11 +1083,36 @@ def _inject_realtime_js() -> None:
     return '';
   }
 
-function computeContact(cardSel) {
-    return CONTACT_LABELS
-      .map(function(lbl) { var inp = getInput(lbl, cardSel); return inp ? inp.value.trim() : ''; })
-      .filter(function(v) { return v.length > 0; })
-      .join(' · ');
+  function getWidgetKey(node) {
+    var el = node;
+    for (var depth = 0; el && depth < 50; depth++, el = el.parentElement) {
+      if (!el) break;
+      var classes = String(el.className || '').split(/\\s+/);
+      for (var i = 0; i < classes.length; i++) {
+        var cls = classes[i];
+        if (!cls || cls.indexOf('st-key-') !== 0) continue;
+        var key = cls.slice(7);
+        if (!key) continue;
+        if (key.indexOf('cvb_') === 0) return key;
+        if (key.indexOf('cvb-') === 0) return key.replace(/-/g, '_');
+      }
+    }
+    return '';
+  }
+
+  function getLabelText(container, input) {
+    if (container) {
+      var lbl = container.querySelector('label');
+      if (lbl && lbl.textContent) {
+        var txt = String(lbl.textContent || '').trim();
+        if (txt) return txt;
+      }
+    }
+    var aria = input && input.getAttribute ? String(input.getAttribute('aria-label') || '').trim() : '';
+    if (aria) return aria;
+    var ph = input && input.getAttribute ? String(input.getAttribute('placeholder') || '').trim() : '';
+    if (ph) return ph;
+    return '';
   }
 
   function broadcast(msg) {
@@ -1746,7 +1125,7 @@ function computeContact(cardSel) {
   function syncAllPersonalFields(cardSel) {
     var labels = [
       'Full Name', 'Professional Title', 'Email', 'Phone',
-      'Location', 'Website', 'LinkedIn', 'GitHub', 'Professional Summary'
+      'Location', 'LinkedIn', 'Website', 'GitHub', 'Professional Summary'
     ];
     for (var i = 0; i < labels.length; i++) {
       var l = labels[i];
@@ -1754,41 +1133,415 @@ function computeContact(cardSel) {
       if (!f) continue;
       broadcast({ type: 'cv-rt-update', field: f, value: getFieldValue(l, cardSel) });
     }
-    broadcast({ type: 'cv-rt-update', field: 'cvb_contact', value: computeContact(cardSel) });
+    ['linkedin', 'website', 'github'].forEach(function(cf) {
+      var urlInput = getUrlInputFromField(cf);
+      if (!urlInput) return;
+      var key = LINK_URL_KEYS[cf];
+      if (!key) return;
+      broadcast({ type: 'cv-rt-update', field: key, value: String(urlInput.value || '') });
+    });
+  }
+
+  function hasAnyPersonalInput(cardSel) {
+    var labels = [
+      'Full Name', 'Professional Title', 'Email', 'Phone',
+      'Location', 'LinkedIn', 'Website', 'GitHub', 'Professional Summary'
+    ];
+    for (var i = 0; i < labels.length; i++) {
+      if (getFieldValue(labels[i], cardSel).trim().length > 0) return true;
+    }
+    var linkKinds = ['linkedin', 'website', 'github'];
+    for (var j = 0; j < linkKinds.length; j++) {
+      var urlInput = getUrlInputFromField(linkKinds[j]);
+      if (urlInput && String(urlInput.value || '').trim().length > 0) return true;
+    }
+    return false;
+  }
+
+  function looksLikeExplicitUrl(cf, raw) {
+    var v = String(raw || '').trim();
+    if (!v) return false;
+    var lower = v.toLowerCase();
+    if (lower.indexOf('http://') === 0 || lower.indexOf('https://') === 0 || lower.indexOf('www.') === 0) return true;
+    if (cf === 'linkedin') return lower.indexOf('linkedin.com/') >= 0;
+    if (cf === 'github') return lower.indexOf('github.com/') >= 0;
+    if (cf === 'website') return v.indexOf('.') >= 0;
+    if (String(cf || '').indexOf('proj-') === 0 || String(cf || '').indexOf('cert-') === 0) return v.indexOf('.') >= 0;
+    return false;
+  }
+
+  function getUrlInputFromField(cf) {
+    var host = doc.querySelector('.st-key-cvb-link-url-' + cf);
+    if (!host) return null;
+    return host.querySelector('input');
+  }
+
+  function persistLinkUrlQuery(cf, nextUrl) {
+    try {
+      var key = linkQueryKeyForCf(cf);
+      if (!key) return;
+      var url = new URL(w.location.href);
+      if (String(nextUrl || '').trim()) {
+        url.searchParams.set(key, String(nextUrl || '').trim());
+      } else {
+        url.searchParams.delete(key);
+      }
+      w.history.replaceState({}, '', url.toString());
+    } catch (_) {}
+  }
+
+  function setInputValue(input, value) {
+    if (!input) return;
+    var ownerWin = (input.ownerDocument && input.ownerDocument.defaultView) || w;
+    try {
+      var proto = ownerWin.HTMLInputElement && ownerWin.HTMLInputElement.prototype;
+      var setter = proto ? Object.getOwnPropertyDescriptor(proto, 'value') : null;
+      if (setter && setter.set) setter.set.call(input, value);
+      else input.value = value;
+    } catch (_) {
+      input.value = value;
+    }
+    var InputEventCtor = ownerWin.Event || Event;
+    input.dispatchEvent(new InputEventCtor('input', { bubbles: true }));
+    input.dispatchEvent(new InputEventCtor('change', { bubbles: true }));
+    try {
+      input.focus();
+    } catch (_) {}
+    try {
+      var KeyboardCtor = ownerWin.KeyboardEvent || KeyboardEvent;
+      input.dispatchEvent(new KeyboardCtor('keydown', { key: 'Enter', code: 'Enter', bubbles: true }));
+      input.dispatchEvent(new KeyboardCtor('keyup', { key: 'Enter', code: 'Enter', bubbles: true }));
+    } catch (_) {}
+    try {
+      input.blur();
+    } catch (_) {}
+  }
+
+  var __linkPopover = null;
+  var __linkEditorState = null;
+
+  function ensureLinkPopover() {
+    if (__linkPopover && __linkPopover.parentElement) return __linkPopover;
+
+    var stale = doc.querySelectorAll('.cvb-link-popover:not([data-cvb-link-popover="1"])');
+    for (var si = 0; si < stale.length; si++) stale[si].remove();
+
+    var existing = doc.querySelector('.cvb-link-popover[data-cvb-link-popover="1"]');
+    if (existing) {
+      var dups = doc.querySelectorAll('.cvb-link-popover[data-cvb-link-popover="1"]');
+      for (var di = 1; di < dups.length; di++) dups[di].remove();
+      __linkPopover = existing;
+    } else {
+      var root = doc.createElement('div');
+      root.className = 'cvb-link-popover';
+      root.setAttribute('data-cvb-link-popover', '1');
+      root.style.display = 'none';
+      root.innerHTML = ''
+        + '<div class="cvb-link-popover-title">Link URL</div>'
+        + '<div class="cvb-link-popover-row">'
+        +   '<input class="cvb-link-popover-input" type="text" placeholder="https://example.com" />'
+        +   '<button type="button" class="cvb-link-popover-save" title="Save link">&#10003;</button>'
+        + '</div>';
+      doc.body.appendChild(root);
+      __linkPopover = root;
+    }
+
+    if (__linkPopover && !__linkPopover.__cvbBound) {
+      __linkPopover.__cvbBound = true;
+      __linkPopover.addEventListener('mousedown', function(ev) { ev.stopPropagation(); }, true);
+      __linkPopover.addEventListener('click', function(ev) { ev.stopPropagation(); }, true);
+
+      var inputEl = __linkPopover.querySelector('.cvb-link-popover-input');
+      var saveBtn = __linkPopover.querySelector('.cvb-link-popover-save');
+      if (saveBtn) {
+        var commitFromBtn = function(ev) {
+          if (ev) {
+            ev.preventDefault();
+            ev.stopPropagation();
+          }
+          commitLinkPopover();
+        };
+        saveBtn.addEventListener('pointerdown', commitFromBtn, true);
+        saveBtn.addEventListener('mousedown', commitFromBtn, true);
+        saveBtn.addEventListener('click', commitFromBtn, true);
+      }
+      if (inputEl) {
+        inputEl.addEventListener('keydown', function(ev) {
+          if (ev.key === 'Enter') {
+            ev.preventDefault();
+            commitLinkPopover();
+          } else if (ev.key === 'Escape') {
+            ev.preventDefault();
+            closeLinkPopover();
+          }
+        });
+      }
+    }
+
+    return __linkPopover;
+  }
+
+  function closeLinkPopover() {
+    if (!__linkPopover) return;
+    __linkPopover.style.display = 'none';
+    __linkPopover.classList.remove('cvb-link-popover-open');
+    __linkEditorState = null;
+  }
+
+  function commitLinkPopover() {
+    if (!__linkPopover || !__linkEditorState) return;
+    var state = __linkEditorState;
+    var inputEl = __linkPopover.querySelector('.cvb-link-popover-input');
+    var nextUrl = inputEl ? String(inputEl.value || '').trim() : '';
+    persistLinkUrlQuery(state.cf, nextUrl);
+    closeLinkPopover();
+    setInputValue(state.urlInput, nextUrl);
+    w.setTimeout(function() {
+      setInputValue(state.urlInput, nextUrl);
+    }, 120);
+    var linkKey = linkStateKeyForCf(state.cf);
+    if (linkKey) {
+      broadcast({ type: 'cv-rt-update', field: linkKey, value: nextUrl });
+    }
+    syncInlineLinkIcons();
+  }
+
+  function positionLinkPopover(anchorEl) {
+    if (!__linkPopover) return;
+    var anchor = anchorEl;
+    if (!anchor || !anchor.isConnected) {
+      if (__linkEditorState) {
+        if (__linkEditorState.iconEl && __linkEditorState.iconEl.isConnected) anchor = __linkEditorState.iconEl;
+        else if (__linkEditorState.displayInput && __linkEditorState.displayInput.isConnected) anchor = __linkEditorState.displayInput;
+      }
+    }
+    if (!anchor) return;
+    var rect = anchor.getBoundingClientRect();
+    if ((!rect || (!rect.width && !rect.height)) && __linkEditorState && __linkEditorState.displayInput && __linkEditorState.displayInput.isConnected) {
+      rect = __linkEditorState.displayInput.getBoundingClientRect();
+    }
+    if (!rect) return;
+    var margin = 12;
+    var popW = Math.min(360, Math.max(280, Math.floor(w.innerWidth - 24)));
+    __linkPopover.style.width = popW + 'px';
+    var left = Math.max(12, Math.min(rect.left - popW + rect.width, w.innerWidth - popW - 12));
+    var top = rect.bottom + margin;
+    __linkPopover.style.left = Math.round(left) + 'px';
+    __linkPopover.style.top = Math.round(top) + 'px';
+  }
+
+  function openLinkEditor(cf, displayInput, iconEl) {
+    var urlInput = getUrlInputFromField(cf);
+    if (!urlInput) return;
+
+    var currentUrl = String(urlInput.value || '').trim();
+    var fallbackFromDisplay = looksLikeExplicitUrl(cf, displayInput ? displayInput.value : '') ? String(displayInput.value || '').trim() : '';
+    var seed = currentUrl || fallbackFromDisplay;
+
+    var pop = ensureLinkPopover();
+    var inputEl = pop.querySelector('.cvb-link-popover-input');
+    if (!inputEl) return;
+
+    __linkEditorState = { cf: cf, urlInput: urlInput, displayInput: displayInput, iconEl: iconEl };
+    inputEl.value = seed;
+    positionLinkPopover(iconEl || displayInput);
+    pop.style.display = 'block';
+    pop.classList.add('cvb-link-popover-open');
+    w.setTimeout(function() {
+      inputEl.focus();
+      inputEl.select();
+    }, 0);
+  }
+
+  function attachInlineLinkIcon(cf, keySuffix) {
+    var host = doc.querySelector('.st-key-' + keySuffix);
+    if (!host) return;
+    var wrap = host.querySelector('div[data-baseweb="input"]');
+    var input = host.querySelector('input');
+    if (!wrap || !input) return;
+    if (!wrap.style.position) wrap.style.position = 'relative';
+
+    var icon = wrap.querySelector('.cvb-inline-link-js');
+    if (!icon) {
+      icon = doc.createElement('button');
+      icon.type = 'button';
+      icon.className = 'cvb-inline-link cvb-inline-link-js';
+      icon.setAttribute('title', 'Set link URL');
+      wrap.appendChild(icon);
+    }
+    icon.innerHTML = '&#128279;';
+    if (!icon.__cvbBound) {
+      icon.__cvbBound = true;
+      icon.addEventListener('click', function(ev) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        openLinkEditor(cf, input, icon);
+      });
+    }
+
+    var urlInput = getUrlInputFromField(cf);
+    var hasUrl = !!(urlInput && String(urlInput.value || '').trim());
+    icon.classList.toggle('cvb-inline-link-active', hasUrl);
+  }
+
+  function syncInlineLinkIcons() {
+    attachInlineLinkIcon('linkedin', 'cvb-link-field-linkedin');
+    attachInlineLinkIcon('website', 'cvb-link-field-website');
+    attachInlineLinkIcon('github', 'cvb-link-field-github');
+
+    var projectHosts = doc.querySelectorAll('[class*="st-key-cvb-link-field-proj-"]');
+    for (var i = 0; i < projectHosts.length; i++) {
+      var classes = String(projectHosts[i].className || '').split(/\\s+/);
+      for (var ci = 0; ci < classes.length; ci++) {
+        var cls = classes[ci];
+        if (!cls || cls.indexOf('st-key-cvb-link-field-proj-') !== 0) continue;
+        var keySuffix = cls.slice(7);
+        var cf = keySuffix.replace('cvb-link-field-', '');
+        attachInlineLinkIcon(cf, keySuffix);
+      }
+    }
+
+    var certHosts = doc.querySelectorAll('[class*="st-key-cvb-link-field-cert-"]');
+    for (var j = 0; j < certHosts.length; j++) {
+      var classes2 = String(certHosts[j].className || '').split(/\\s+/);
+      for (var cj = 0; cj < classes2.length; cj++) {
+        var cls2 = classes2[cj];
+        if (!cls2 || cls2.indexOf('st-key-cvb-link-field-cert-') !== 0) continue;
+        var keySuffix2 = cls2.slice(7);
+        var cf2 = keySuffix2.replace('cvb-link-field-', '');
+        attachInlineLinkIcon(cf2, keySuffix2);
+      }
+    }
+  }
+
+  function setupLinkPopoverDismiss() {
+    var KEY = '__cvb_link_popover_dismiss__';
+    if (doc[KEY]) return;
+    var handler = function(ev) {
+      if (!__linkPopover || __linkPopover.style.display === 'none') return;
+      var t = ev.target;
+      if (t && (__linkPopover.contains(t) || t.closest('.cvb-inline-link'))) return;
+      closeLinkPopover();
+    };
+    doc.addEventListener('mousedown', handler, true);
+    doc.addEventListener('touchstart', handler, true);
+    doc.addEventListener('keydown', function(ev) {
+      if (ev.key === 'Escape') closeLinkPopover();
+    }, true);
+    w.addEventListener('resize', function() {
+      if (!__linkPopover || __linkPopover.style.display === 'none') return;
+      if (__linkEditorState && (__linkEditorState.iconEl || __linkEditorState.displayInput)) {
+        positionLinkPopover(__linkEditorState.iconEl || __linkEditorState.displayInput);
+      }
+    });
+    doc[KEY] = 1;
+  }
+
+  function hasAnyMiddleInputValue(middleEl) {
+    if (!middleEl) return false;
+    var nodes = middleEl.querySelectorAll('input, textarea, select');
+    for (var i = 0; i < nodes.length; i++) {
+      var n = nodes[i];
+      if (!n) continue;
+      var t = String(n.type || '').toLowerCase();
+      if (t === 'hidden' || t === 'button' || t === 'submit' || t === 'reset') continue;
+      if (String(n.value || '').trim().length > 0) return true;
+    }
+    return false;
+  }
+
+  function broadcastAllMiddleFields() {
+    var middle = doc.querySelector('.st-key-cvb-middle-scroll-native');
+    if (!middle) return;
+    var nodes = middle.querySelectorAll('input, textarea, select');
+    for (var i = 0; i < nodes.length; i++) {
+      var input = nodes[i];
+      if (!input) continue;
+      var t = String(input.type || '').toLowerCase();
+      if (t === 'hidden' || t === 'button' || t === 'submit' || t === 'reset') continue;
+      var c = input.closest('[data-testid="stTextInput"], [data-testid="stTextArea"], [data-testid="stSelectbox"], [data-testid="stNumberInput"]')
+        || input.closest('[class*="st-key-"]');
+      if (!c) continue;
+      var lt = getLabelText(c, input);
+      var widgetKey = getWidgetKey(c) || '';
+      if (!lt && widgetKey) lt = widgetKey;
+
+      if (widgetKey) {
+        broadcast({ type: 'cv-rt-widget', key: widgetKey, label: lt || widgetKey, value: input.value || '' });
+      }
+
+      var field = FIELD_BY_LABEL[lt] || FIELD_BY_KEY[widgetKey];
+      if (field) {
+        broadcast({ type: 'cv-rt-update', field: field, value: input.value || '' });
+      }
+    }
   }
 
   function handleInput(e) {
     var input = e.target;
     if (!input) return;
+    syncInlineLinkIcons();
     var tag = input.tagName;
-    if (tag !== 'INPUT' && tag !== 'TEXTAREA') return;
-    var CARD = '.st-key-cvb-middle-scroll-native, .st-key-cvb-personal-card, .st-key-cvb-center-panel';
-    if (!input.closest(CARD)) return;
-    var c = input.closest('[data-testid="stTextInput"], [data-testid="stTextArea"]');
+    if (tag !== 'INPUT' && tag !== 'TEXTAREA' && tag !== 'SELECT') return;
+    var middle = doc.querySelector('.st-key-cvb-middle-scroll-native');
+    if (!middle || !middle.contains(input)) return;
+    broadcast({ type: 'cv-rt-user-mode' });
+    var CARD = '.st-key-cvb-middle-scroll-native';
+    var c = input.closest('[data-testid="stTextInput"], [data-testid="stTextArea"], [data-testid="stSelectbox"], [data-testid="stNumberInput"]')
+      || input.closest('[class*="st-key-"]');
     if (!c) return;
-    var lbl = c.querySelector('label');
-    if (!lbl) return;
-    var lt = lbl.textContent.trim();
-    var field = FIELD_BY_LABEL[lt];
-    var isContact = CONTACT_LABELS.indexOf(lt) !== -1;
-    if (!field && !isContact) return;
+    var lt = getLabelText(c, input);
+    var widgetKey = getWidgetKey(c) || '';
+    if (!lt && widgetKey) lt = widgetKey;
+    if (!lt && !widgetKey) return;
+    if (widgetKey) {
+      broadcast({ type: 'cv-rt-widget', key: widgetKey, label: lt, value: input.value || '' });
+    }
+    var field = FIELD_BY_LABEL[lt] || FIELD_BY_KEY[widgetKey];
+    if (!field) return;
     if (field) {
       broadcast({ type: 'cv-rt-update', field: field, value: input.value });
-    }
-    if (isContact) {
-      broadcast({ type: 'cv-rt-update', field: 'cvb_contact', value: computeContact(CARD) });
     }
     syncAllPersonalFields(CARD);
   }
 
-  var KEY = '__excalcv_rt__';
-  if (doc[KEY]) doc.removeEventListener('input', doc[KEY], true);
-  doc[KEY] = handleInput;
+  function handleClick(e) {
+    var t = e.target;
+    if (!t) return;
+    var middle = doc.querySelector('.st-key-cvb-middle-scroll-native');
+    if (!middle || !middle.contains(t)) return;
+    if (!t.closest('button, [role="button"]')) return;
+    broadcast({ type: 'cv-rt-user-mode' });
+  }
+
+  var KEY_INPUT = '__excalcv_rt_input__';
+  var KEY_CLICK = '__excalcv_rt_click__';
+  if (doc[KEY_INPUT]) {
+    doc.removeEventListener('input', doc[KEY_INPUT], true);
+    doc.removeEventListener('change', doc[KEY_INPUT], true);
+  }
+  if (doc[KEY_CLICK]) doc.removeEventListener('click', doc[KEY_CLICK], true);
+  doc[KEY_INPUT] = handleInput;
+  doc[KEY_CLICK] = handleClick;
   doc.addEventListener('input', handleInput, true);
-  setTimeout(function() {
-    var CARD = '.st-key-cvb-middle-scroll-native, .st-key-cvb-personal-card, .st-key-cvb-center-panel';
+  doc.addEventListener('change', handleInput, true);
+  doc.addEventListener('click', handleClick, true);
+
+  function bootstrapSync() {
+    var CARD = '.st-key-cvb-middle-scroll-native';
+    var middle = doc.querySelector(CARD);
+    if (!middle) return;
+    if (!hasAnyMiddleInputValue(middle) && !hasAnyPersonalInput(CARD)) return;
+    broadcast({ type: 'cv-rt-user-mode' });
     syncAllPersonalFields(CARD);
-  }, 0);
+    broadcastAllMiddleFields();
+  }
+
+  [60, 180, 420, 900, 1500].forEach(function(ms) {
+    setTimeout(bootstrapSync, ms);
+    setTimeout(syncInlineLinkIcons, ms);
+  });
+  setupLinkPopoverDismiss();
 })();
 </script>""",
         height=0,
@@ -1925,7 +1678,7 @@ def _inject_sections_relay_js() -> None:
 </script>""", height=0)
 
 
-def _inject_middle_section_exact_css() -> None:
+def _inject_middle_section_exact_css(is_dark: bool = False) -> None:
     """Final high-specificity middle-panel card overrides for CVReviewer parity."""
     st.markdown(
         """
@@ -2064,20 +1817,20 @@ def _inject_middle_section_exact_css() -> None:
   max-height: 24px !important;
   padding: 4px !important;
   border-radius: 8px !important;
-  border: 1px solid #e7ecf3 !important;
-  background: #f8fafc !important;
-  background-color: #f8fafc !important;
+  border: 0 !important;
+  background: transparent !important;
+  background-color: transparent !important;
   box-shadow: none !important;
-  color: #64748b !important;
+  color: #94a3b8 !important;
   cursor: pointer !important;
 }
 .st-key-cvb-middle-scroll-native [class*="st-key-cvb-section-chevron-"] [data-testid="stButton"] > button:hover,
 .st-key-cvb-middle-scroll-native [class*="st-key-cvb_section_toggle_"] [data-testid="stButton"] > button:hover,
 .st-key-cvb-middle-scroll-native [class*="st-key-cvb-section-chevron-"] button:hover,
 .st-key-cvb-middle-scroll-native [class*="st-key-cvb_section_toggle_"] button:hover {
-  background: #eef3f9 !important;
-  border-color: #dbe4f0 !important;
-  color: #0f172a !important;
+  background: rgba(37, 99, 235, 0.14) !important;
+  border: 0 !important;
+  color: #bfdbfe !important;
 }
 .st-key-cvb-middle-scroll-native [class*="st-key-cvb-section-chevron-"] [data-testid="stButton"] > button [data-testid="stIconMaterial"],
 .st-key-cvb-middle-scroll-native [class*="st-key-cvb_section_toggle_"] [data-testid="stButton"] > button [data-testid="stIconMaterial"],
@@ -2144,26 +1897,6 @@ def _inject_middle_section_exact_css() -> None:
 .st-key-cvb-middle-scroll-native [class*="st-key-cvb-section-content-"] {
   background: #ffffff !important;
   padding: 14px 18px 18px !important;
-}
-.st-key-cvb-middle-scroll-native .st-key-cvb-section-personal,
-.st-key-cvb-middle-scroll-native .st-key-cvb-section-summary {
-  border-color: #d8e1ec !important;
-  box-shadow: 0 2px 5px rgba(15, 23, 42, 0.05) !important;
-}
-.st-key-cvb-middle-scroll-native .st-key-cvb-section-header-personal,
-.st-key-cvb-middle-scroll-native .st-key-cvb-section-header-summary {
-  background: #f8fafd !important;
-}
-.st-key-cvb-middle-scroll-native .st-key-cvb-section-content-personal div[data-baseweb="input"],
-.st-key-cvb-middle-scroll-native .st-key-cvb-section-content-summary div[data-baseweb="textarea"] {
-  border: 1px solid #dbe4ee !important;
-  background: #fbfcfe !important;
-  border-radius: 10px !important;
-}
-.st-key-cvb-middle-scroll-native .st-key-cvb-section-content-personal div[data-baseweb="input"]:focus-within,
-.st-key-cvb-middle-scroll-native .st-key-cvb-section-content-summary div[data-baseweb="textarea"]:focus-within {
-  border-color: #0b63ce !important;
-  background: #ffffff !important;
 }
 .st-key-cvb-middle-scroll-native .st-key-cvb-section-content-summary textarea {
   min-height: 94px !important;
@@ -2592,9 +2325,48 @@ def _inject_middle_section_exact_css() -> None:
 .st-key-cvb-middle-scroll-native [class*="st-key-vis_skill_"] [data-testid="stButton"] > button:hover,
 .st-key-cvb-middle-scroll-native [class*="st-key-vis_proj_"] [data-testid="stButton"] > button:hover,
 .st-key-cvb-middle-scroll-native [class*="st-key-vis_lang_"] [data-testid="stButton"] > button:hover,
-.st-key-cvb-middle-scroll-native [class*="st-key-vis_cert_"] [data-testid="stButton"] > button:hover {
-  background: rgba(15, 23, 42, 0.08) !important;
-  color: #334155 !important;
+.st-key-cvb-middle-scroll-native [class*="st-key-vis_cert_"] [data-testid="stButton"] > button:hover,
+.st-key-cvb-middle-scroll-native [class*="st-key-vis_exp_"] button:focus-visible,
+.st-key-cvb-middle-scroll-native [class*="st-key-vis_edu_"] button:focus-visible,
+.st-key-cvb-middle-scroll-native [class*="st-key-vis_skill_"] button:focus-visible,
+.st-key-cvb-middle-scroll-native [class*="st-key-vis_proj_"] button:focus-visible,
+.st-key-cvb-middle-scroll-native [class*="st-key-vis_lang_"] button:focus-visible,
+.st-key-cvb-middle-scroll-native [class*="st-key-vis_cert_"] button:focus-visible,
+.st-key-cvb-middle-scroll-native [class*="st-key-vis_exp_"] [data-testid="stButton"] > button:focus-visible,
+.st-key-cvb-middle-scroll-native [class*="st-key-vis_edu_"] [data-testid="stButton"] > button:focus-visible,
+.st-key-cvb-middle-scroll-native [class*="st-key-vis_skill_"] [data-testid="stButton"] > button:focus-visible,
+.st-key-cvb-middle-scroll-native [class*="st-key-vis_proj_"] [data-testid="stButton"] > button:focus-visible,
+.st-key-cvb-middle-scroll-native [class*="st-key-vis_lang_"] [data-testid="stButton"] > button:focus-visible,
+.st-key-cvb-middle-scroll-native [class*="st-key-vis_cert_"] [data-testid="stButton"] > button:focus-visible {
+  background: rgba(250, 204, 21, 0.18) !important;
+  border: 0 !important;
+  color: #fde047 !important;
+}
+.st-key-cvb-middle-scroll-native [class*="st-key-vis_exp_"] button:hover *,
+.st-key-cvb-middle-scroll-native [class*="st-key-vis_edu_"] button:hover *,
+.st-key-cvb-middle-scroll-native [class*="st-key-vis_skill_"] button:hover *,
+.st-key-cvb-middle-scroll-native [class*="st-key-vis_proj_"] button:hover *,
+.st-key-cvb-middle-scroll-native [class*="st-key-vis_lang_"] button:hover *,
+.st-key-cvb-middle-scroll-native [class*="st-key-vis_cert_"] button:hover *,
+.st-key-cvb-middle-scroll-native [class*="st-key-vis_exp_"] [data-testid="stButton"] > button:hover *,
+.st-key-cvb-middle-scroll-native [class*="st-key-vis_edu_"] [data-testid="stButton"] > button:hover *,
+.st-key-cvb-middle-scroll-native [class*="st-key-vis_skill_"] [data-testid="stButton"] > button:hover *,
+.st-key-cvb-middle-scroll-native [class*="st-key-vis_proj_"] [data-testid="stButton"] > button:hover *,
+.st-key-cvb-middle-scroll-native [class*="st-key-vis_lang_"] [data-testid="stButton"] > button:hover *,
+.st-key-cvb-middle-scroll-native [class*="st-key-vis_cert_"] [data-testid="stButton"] > button:hover *,
+.st-key-cvb-middle-scroll-native [class*="st-key-vis_exp_"] button:focus-visible *,
+.st-key-cvb-middle-scroll-native [class*="st-key-vis_edu_"] button:focus-visible *,
+.st-key-cvb-middle-scroll-native [class*="st-key-vis_skill_"] button:focus-visible *,
+.st-key-cvb-middle-scroll-native [class*="st-key-vis_proj_"] button:focus-visible *,
+.st-key-cvb-middle-scroll-native [class*="st-key-vis_lang_"] button:focus-visible *,
+.st-key-cvb-middle-scroll-native [class*="st-key-vis_cert_"] button:focus-visible *,
+.st-key-cvb-middle-scroll-native [class*="st-key-vis_exp_"] [data-testid="stButton"] > button:focus-visible *,
+.st-key-cvb-middle-scroll-native [class*="st-key-vis_edu_"] [data-testid="stButton"] > button:focus-visible *,
+.st-key-cvb-middle-scroll-native [class*="st-key-vis_skill_"] [data-testid="stButton"] > button:focus-visible *,
+.st-key-cvb-middle-scroll-native [class*="st-key-vis_proj_"] [data-testid="stButton"] > button:focus-visible *,
+.st-key-cvb-middle-scroll-native [class*="st-key-vis_lang_"] [data-testid="stButton"] > button:focus-visible *,
+.st-key-cvb-middle-scroll-native [class*="st-key-vis_cert_"] [data-testid="stButton"] > button:focus-visible * {
+  color: #fde047 !important;
 }
 .st-key-cvb-middle-scroll-native [class*="st-key-rem_bullet_"] button,
 .st-key-cvb-middle-scroll-native [class*="st-key-rem-bullet-"] button,
@@ -2799,6 +2571,157 @@ def _inject_middle_section_exact_css() -> None:
         """,
         unsafe_allow_html=True,
     )
+    if is_dark:
+        st.markdown(
+            """
+<style>
+.st-key-cvb-middle-scroll-native .st-key-cvb-section-personal,
+.st-key-cvb-middle-scroll-native .st-key-cvb-section-summary,
+.st-key-cvb-middle-scroll-native .st-key-cvb-section-experience,
+.st-key-cvb-middle-scroll-native .st-key-cvb-section-education,
+.st-key-cvb-middle-scroll-native .st-key-cvb-section-skills,
+.st-key-cvb-middle-scroll-native .st-key-cvb-section-projects,
+.st-key-cvb-middle-scroll-native .st-key-cvb-section-languages,
+.st-key-cvb-middle-scroll-native .st-key-cvb-section-certifications,
+.st-key-cvb-middle-scroll-native .st-key-cvb-section-interests {
+  background: #0f172a !important;
+  border-color: #334155 !important;
+  box-shadow: 0 1px 2px rgba(2, 6, 23, 0.45) !important;
+}
+.st-key-cvb-middle-scroll-native .st-key-cvb-section-header-personal,
+.st-key-cvb-middle-scroll-native .st-key-cvb-section-header-summary,
+.st-key-cvb-middle-scroll-native .st-key-cvb-section-header-experience,
+.st-key-cvb-middle-scroll-native .st-key-cvb-section-header-education,
+.st-key-cvb-middle-scroll-native .st-key-cvb-section-header-skills,
+.st-key-cvb-middle-scroll-native .st-key-cvb-section-header-projects,
+.st-key-cvb-middle-scroll-native .st-key-cvb-section-header-languages,
+.st-key-cvb-middle-scroll-native .st-key-cvb-section-header-certifications,
+.st-key-cvb-middle-scroll-native .st-key-cvb-section-header-interests {
+  background: #111827 !important;
+  border-bottom-color: #334155 !important;
+}
+.st-key-cvb-middle-scroll-native [class*="st-key-cvb-section-header-"] .stMarkdown p {
+  color: #e2e8f0 !important;
+}
+.st-key-cvb-middle-scroll-native [class*="st-key-cvb-section-header-"] .stMarkdown [data-testid="stIconMaterial"] {
+  color: #60a5fa !important;
+}
+.st-key-cvb-middle-scroll-native [class*="st-key-cvb-section-content-"] {
+  background: #0f172a !important;
+}
+.st-key-cvb-middle-scroll-native [class*="st-key-cvb-personal-inner-card"],
+.st-key-cvb-middle-scroll-native [class*="st-key-cvb-summary-inner-card"],
+.st-key-cvb-middle-scroll-native [class*="st-key-cvb-exp-item-"],
+.st-key-cvb-middle-scroll-native [class*="st-key-cvb-edu-item-"],
+.st-key-cvb-middle-scroll-native [class*="st-key-cvb-proj-item-"],
+.st-key-cvb-middle-scroll-native [class*="st-key-cvb-lang-item-"],
+.st-key-cvb-middle-scroll-native [class*="st-key-cvb-cert-item-"],
+.st-key-cvb-middle-scroll-native [class*="st-key-cvb-int-item-"] {
+  background: #111827 !important;
+  border-color: #334155 !important;
+}
+.st-key-cvb-middle-scroll-native .cvb-summary-counter,
+.st-key-cvb-middle-scroll-native .cvb-date-field-label {
+  color: #94a3b8 !important;
+}
+.st-key-cvb-middle-scroll-native div[data-baseweb="input"],
+.st-key-cvb-middle-scroll-native div[data-baseweb="textarea"],
+.st-key-cvb-middle-scroll-native div[data-baseweb="select"] > div,
+.st-key-cvb-middle-scroll-native [data-testid="stPopover"] > button {
+  background: #111827 !important;
+  border-color: #475569 !important;
+  color: #e2e8f0 !important;
+}
+.st-key-cvb-middle-scroll-native div[data-baseweb="input"] input,
+.st-key-cvb-middle-scroll-native div[data-baseweb="textarea"] textarea,
+.st-key-cvb-middle-scroll-native div[data-baseweb="select"] span {
+  color: #e2e8f0 !important;
+}
+.st-key-cvb-middle-scroll-native div[data-baseweb="input"] > div,
+.st-key-cvb-middle-scroll-native div[data-baseweb="textarea"] > div {
+  background: transparent !important;
+}
+.st-key-cvb-middle-scroll-native div[data-baseweb="input"] input::placeholder,
+.st-key-cvb-middle-scroll-native div[data-baseweb="textarea"] textarea::placeholder {
+  color: #94a3b8 !important;
+}
+.st-key-cvb-middle-scroll-native div[data-baseweb="input"]:hover,
+.st-key-cvb-middle-scroll-native div[data-baseweb="textarea"]:hover,
+.st-key-cvb-middle-scroll-native div[data-baseweb="select"] > div:hover {
+  background: #111827 !important;
+  border-color: #475569 !important;
+  box-shadow: none !important;
+}
+.st-key-cvb-middle-scroll-native div[data-baseweb="input"]:focus-within,
+.st-key-cvb-middle-scroll-native div[data-baseweb="textarea"]:focus-within,
+.st-key-cvb-middle-scroll-native [data-testid="stPopover"] > button:hover {
+  background: #0b1220 !important;
+  border-color: #60a5fa !important;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.22) !important;
+}
+.st-key-cvb-middle-scroll-native .stTextInput label,
+.st-key-cvb-middle-scroll-native .stTextArea label,
+.st-key-cvb-middle-scroll-native .stSelectbox label,
+.st-key-cvb-middle-scroll-native .stDateInput label {
+  color: #cbd5e1 !important;
+}
+[data-baseweb="popover"] [class*="st-key-cvb-date-popover-"] {
+  background: #0f172a !important;
+  border: 1px solid #334155 !important;
+  box-shadow: 0 14px 30px rgba(2, 6, 23, 0.55) !important;
+}
+[data-baseweb="popover"] [class*="st-key-cvb-date-popover-"] .stCaption,
+[data-baseweb="popover"] [class*="st-key-cvb-date-popover-"] .stCaption span {
+  color: #cbd5e1 !important;
+}
+[data-baseweb="popover"] [class*="st-key-cvb-date-popover-"] [data-testid="stButton"] > button {
+  background: #111827 !important;
+  border: 1px solid #475569 !important;
+  color: #e2e8f0 !important;
+}
+[data-baseweb="popover"] [class*="st-key-cvb-date-popover-"] [data-testid="stButton"] > button:hover {
+  background: #1e293b !important;
+  border-color: #60a5fa !important;
+}
+[data-baseweb="popover"] [class*="st-key-cvb-date-popover-"] [class*="st-key-cvb-date-year-scroll-"]::-webkit-scrollbar-thumb,
+[data-baseweb="popover"] [class*="st-key-cvb-date-popover-"] [class*="st-key-cvb-date-year-scroll-"] [data-testid="stVerticalBlock"]::-webkit-scrollbar-thumb {
+  background: #475569 !important;
+}
+.st-key-cvb-middle-scroll-native [class*="st-key-cvb_section_add_"] button,
+.st-key-cvb-middle-scroll-native [class*="st-key-cvb_section_add_"] [data-testid="stButton"] > button {
+  background: rgba(37, 99, 235, 0.18) !important;
+  box-shadow: inset 0 0 0 1px rgba(96, 165, 250, 0.45) !important;
+  color: #93c5fd !important;
+}
+.st-key-cvb-middle-scroll-native [class*="st-key-cvb-section-chevron-"] [data-testid="stButton"] > button,
+.st-key-cvb-middle-scroll-native [class*="st-key-cvb_section_toggle_"] [data-testid="stButton"] > button {
+  background: transparent !important;
+  border: 0 !important;
+  color: #94a3b8 !important;
+}
+.st-key-cvb-middle-scroll-native [class*="st-key-cvb-section-chevron-"] [data-testid="stButton"] > button:hover,
+.st-key-cvb-middle-scroll-native [class*="st-key-cvb_section_toggle_"] [data-testid="stButton"] > button:hover {
+  background: rgba(37, 99, 235, 0.16) !important;
+  border: 0 !important;
+  color: #bfdbfe !important;
+}
+.st-key-cvb-middle-scroll-native [class*="st-key-add_b_"] [data-testid="stButton"] > button,
+.st-key-cvb-page-native .st-key-cvb-middle-scroll-native [class*="st-key-add_b_"] [data-testid="stButton"] > button {
+  color: #93c5fd !important;
+}
+.st-key-cvb-middle-scroll-native [class*="st-key-rem_exp_"] button,
+.st-key-cvb-middle-scroll-native [class*="st-key-rem_edu_"] button,
+.st-key-cvb-middle-scroll-native [class*="st-key-rem_skill_"] button,
+.st-key-cvb-middle-scroll-native [class*="st-key-rem_proj_"] button,
+.st-key-cvb-middle-scroll-native [class*="st-key-rem_lang_"] button,
+.st-key-cvb-middle-scroll-native [class*="st-key-rem_cert_"] button {
+  color: #94a3b8 !important;
+}
+
+</style>
+            """,
+            unsafe_allow_html=True,
+        )
 
 
 def _inject_chevron_hider_js() -> None:
@@ -2865,569 +2788,6 @@ def _inject_builder_css(is_dark: bool) -> None:
     """Compatibility wrapper for older call-sites."""
     _inject_builder_css_native(is_dark)
     return
-
-    card_bg        = "#0f172a"  if is_dark else "#ffffff"
-    page_bg        = "#060d1c"  if is_dark else "#f1f5f9"
-    border_soft    = "rgba(148,163,184,0.18)" if is_dark else "rgba(15,23,42,0.10)"
-    text_primary   = "#e2e8f0"  if is_dark else "#0f172a"
-    text_muted     = "#94a3b8"  if is_dark else "#64748b"
-    input_bg       = "#1e293b"  if is_dark else "#ffffff"
-    input_text     = "#e2e8f0"  if is_dark else "#111827"
-    input_border   = "rgba(148,163,184,0.28)" if is_dark else "rgba(15,23,42,0.16)"
-    placeholder    = "#475569"  if is_dark else "#9ca3af"
-    label_color    = "#94a3b8"  if is_dark else "#374151"
-    accent_2       = "#60a5fa"  if is_dark else "#2563eb"
-    expander_body  = "#1a2744"  if is_dark else "#f8fafc"
-    shadow         = "0 2px 8px rgba(2,6,23,0.3)"  if is_dark else "0 2px 8px rgba(15,23,42,0.08)"
-    scroll_thumb   = "#334155"  if is_dark else "#cbd5e1"
-    scroll_track   = "#0f172a"  if is_dark else "#f1f5f9"
-    toolbar_bg     = "#0a1628"  if is_dark else "#ffffff"
-
-    # Build per-color dot CSS (must be before st.markdown so _dot_css is in scope)
-    _cur_accent = st.session_state.get("cvb_accent_color", ACCENT_COLORS[0])
-    _dot_parts: list[str] = []
-    for _i, _c in enumerate(ACCENT_COLORS):
-        _ring = (
-            f"box-shadow:0 0 0 2px {card_bg},0 0 0 4px {_c} !important;"
-            if _c == _cur_accent else ""
-        )
-        _dot_parts.append(
-            f'.st-key-cvb-color-dots [data-testid="column"]:nth-child({_i + 1})'
-            f" .stButton button {{ background:{_c} !important; {_ring} }}"
-        )
-    _dot_css = "\n".join(_dot_parts)
-
-    st.markdown(f"""<style>
-/* ── Hide footer & Streamlit chrome ────────────────────────────────── */
-.site-footer-band {{ display: none !important; }}
-[data-testid="stToolbar"] {{ display: none !important; }}
-[data-testid="stDecoration"] {{ display: none !important; }}
-[data-testid="stStatusWidget"] {{ display: none !important; }}
-[data-testid="InputInstructions"] {{ display: none !important; }}
-
-/* ── Block-container: full width, no padding ─────────────────────── */
-[data-testid="stMainBlockContainer"],
-section[data-testid="stMain"] .block-container {{
-  max-width: 100% !important;
-  padding-left: 0 !important;
-  padding-right: 0 !important;
-  padding-top: 0 !important;
-  padding-bottom: 0 !important;
-}}
-
-/* ── Workspace: fixed overlay below site header ──────────────────── */
-/* Start invisible at top:0 (behind header); JS measures header and   */
-/* sets the correct top + makes it visible — no blank-space flash.    */
-.st-key-cvb-workspace {{
-  position: fixed !important;
-  top: 0 !important;
-  left: 0 !important;
-  right: 0 !important;
-  bottom: 0 !important;
-  overflow: hidden !important;
-  z-index: 50 !important;
-  visibility: hidden !important;
-  background: {page_bg} !important;
-}}
-.st-key-cvb-workspace > [data-testid="stVerticalBlock"] {{
-  background: {page_bg} !important;
-}}
-
-/* ── Toolbar ─────────────────────────────────────────────────────── */
-.st-key-cvb-toolbar,
-.st-key-cvb-toolbar > [data-testid="stVerticalBlock"] {{
-  background: {toolbar_bg} !important;
-  border-bottom: 1px solid {border_soft} !important;
-  padding: 0.3rem 0.75rem !important;
-}}
-.cvb-saved-ts {{
-  font-size: 0.78rem;
-  color: {text_muted};
-  line-height: 2.4;
-  white-space: nowrap;
-}}
-.st-key-cvb-toolbar [data-testid="stTextInput"] {{
-  margin-bottom: 0 !important;
-}}
-
-/* ── Panel height CSS variable — fallback keeps panels visible before JS runs */
-:root {{ --cvb-panel-h: calc(100vh - 210px); }}
-
-.st-key-cvb-main-grid [data-testid="stHorizontalBlock"] {{
-  align-items: stretch !important;
-  gap: 0 !important;
-  padding: 0 !important;
-}}
-.st-key-cvb-main-grid [data-testid="column"] {{
-  overflow: hidden !important;
-  min-width: 0 !important;
-}}
-
-/* ── Left panel ──────────────────────────────────────────────────── */
-/* Outer element-container: clips overflow so only the inner scrolls  */
-.st-key-cvb-left-panel {{
-  height: var(--cvb-panel-h) !important;
-  min-height: 320px !important;
-  overflow: hidden !important;
-  box-sizing: border-box !important;
-  background: {card_bg} !important;
-  border-right: 1px solid {border_soft} !important;
-}}
-/* Inner stVerticalBlock: the actual scrollable surface.
-   Two selectors cover: direct child (Pattern A) and one wrapper deep (Pattern C). */
-.st-key-cvb-left-panel > [data-testid="stVerticalBlock"],
-.st-key-cvb-left-panel > div > [data-testid="stVerticalBlock"] {{
-  height: var(--cvb-panel-h) !important;
-  min-height: 320px !important;
-  overflow-y: scroll !important;
-  overflow-x: hidden !important;
-  scrollbar-width: thin;
-  scrollbar-color: {scroll_thumb} {scroll_track};
-  box-sizing: border-box !important;
-  padding: 0.65rem 0.6rem !important;
-}}
-.st-key-cvb-left-panel > [data-testid="stVerticalBlock"]::-webkit-scrollbar,
-.st-key-cvb-left-panel > div > [data-testid="stVerticalBlock"]::-webkit-scrollbar {{ width: 7px; }}
-.st-key-cvb-left-panel > [data-testid="stVerticalBlock"]::-webkit-scrollbar-track,
-.st-key-cvb-left-panel > div > [data-testid="stVerticalBlock"]::-webkit-scrollbar-track {{ background: {scroll_track}; }}
-.st-key-cvb-left-panel > [data-testid="stVerticalBlock"]::-webkit-scrollbar-thumb,
-.st-key-cvb-left-panel > div > [data-testid="stVerticalBlock"]::-webkit-scrollbar-thumb {{ background: {scroll_thumb}; border-radius: 4px; }}
-.st-key-cvb-left-panel > [data-testid="stVerticalBlock"]::-webkit-scrollbar-thumb:hover,
-.st-key-cvb-left-panel > div > [data-testid="stVerticalBlock"]::-webkit-scrollbar-thumb:hover {{ background: {"#64748b" if is_dark else "#94a3b8"}; }}
-
-/* ── Center panel ────────────────────────────────────────────────── */
-.st-key-cvb-center-panel {{
-  height: var(--cvb-panel-h) !important;
-  min-height: 320px !important;
-  overflow: hidden !important;
-  box-sizing: border-box !important;
-  background: {page_bg} !important;
-}}
-.st-key-cvb-center-panel > [data-testid="stVerticalBlock"],
-.st-key-cvb-center-panel > div > [data-testid="stVerticalBlock"] {{
-  height: var(--cvb-panel-h) !important;
-  min-height: 320px !important;
-  overflow-y: scroll !important;
-  overflow-x: hidden !important;
-  scrollbar-width: thin;
-  scrollbar-color: {scroll_thumb} {scroll_track};
-  box-sizing: border-box !important;
-  padding: 0.65rem 0.85rem !important;
-}}
-.st-key-cvb-center-panel > [data-testid="stVerticalBlock"]::-webkit-scrollbar,
-.st-key-cvb-center-panel > div > [data-testid="stVerticalBlock"]::-webkit-scrollbar {{ width: 7px; }}
-.st-key-cvb-center-panel > [data-testid="stVerticalBlock"]::-webkit-scrollbar-track,
-.st-key-cvb-center-panel > div > [data-testid="stVerticalBlock"]::-webkit-scrollbar-track {{ background: {scroll_track}; }}
-.st-key-cvb-center-panel > [data-testid="stVerticalBlock"]::-webkit-scrollbar-thumb,
-.st-key-cvb-center-panel > div > [data-testid="stVerticalBlock"]::-webkit-scrollbar-thumb {{ background: {scroll_thumb}; border-radius: 4px; }}
-.st-key-cvb-center-panel > [data-testid="stVerticalBlock"]::-webkit-scrollbar-thumb:hover,
-.st-key-cvb-center-panel > div > [data-testid="stVerticalBlock"]::-webkit-scrollbar-thumb:hover {{ background: {"#64748b" if is_dark else "#94a3b8"}; }}
-
-/* ── Right panel: no CSS scroll (iframe handles its own scroll) ──── */
-.st-key-cvb-right-panel {{
-  height: var(--cvb-panel-h) !important;
-  min-height: 320px !important;
-  overflow: hidden !important;
-  box-sizing: border-box !important;
-  background: {page_bg} !important;
-  border-left: 1px solid {border_soft} !important;
-  padding: 0.65rem 0.7rem !important;
-}}
-.st-key-cvb-right-panel > [data-testid="stVerticalBlock"],
-.st-key-cvb-right-panel > div > [data-testid="stVerticalBlock"] {{
-  height: var(--cvb-panel-h) !important;
-  min-height: 320px !important;
-  overflow-y: scroll !important;
-  overflow-x: hidden !important;
-  scrollbar-width: thin;
-  scrollbar-color: {scroll_thumb} {scroll_track};
-  box-sizing: border-box !important;
-}}
-.st-key-cvb-right-panel > [data-testid="stVerticalBlock"]::-webkit-scrollbar,
-.st-key-cvb-right-panel > div > [data-testid="stVerticalBlock"]::-webkit-scrollbar {{ width: 7px; }}
-.st-key-cvb-right-panel > [data-testid="stVerticalBlock"]::-webkit-scrollbar-track,
-.st-key-cvb-right-panel > div > [data-testid="stVerticalBlock"]::-webkit-scrollbar-track {{ background: {scroll_track}; }}
-.st-key-cvb-right-panel > [data-testid="stVerticalBlock"]::-webkit-scrollbar-thumb,
-.st-key-cvb-right-panel > div > [data-testid="stVerticalBlock"]::-webkit-scrollbar-thumb {{ background: {scroll_thumb}; border-radius: 4px; }}
-.st-key-cvb-right-panel > [data-testid="stVerticalBlock"]::-webkit-scrollbar-thumb:hover,
-.st-key-cvb-right-panel > div > [data-testid="stVerticalBlock"]::-webkit-scrollbar-thumb:hover {{ background: {"#64748b" if is_dark else "#94a3b8"}; }}
-
-/* ── Labels ─────────────────────────────────────────────────────── */
-.st-key-cvb-workspace .stTextInput label,
-.st-key-cvb-workspace .stTextArea label,
-.st-key-cvb-workspace .stSelectbox label,
-.st-key-cvb-workspace .stNumberInput label,
-.st-key-cvb-workspace .stCheckbox label,
-.st-key-cvb-workspace .stColorPicker label,
-.st-key-cvb-workspace .stSlider label {{
-  font-size: 0.82rem !important;
-  color: {label_color} !important;
-  font-weight: 600 !important;
-}}
-
-/* ── Inputs ──────────────────────────────────────────────────────── */
-.st-key-cvb-workspace div[data-baseweb="input"],
-.st-key-cvb-workspace div[data-baseweb="input"] > div,
-.st-key-cvb-workspace div[data-baseweb="input"] > div > div {{
-  background: {input_bg} !important;
-  border-color: {input_border} !important;
-}}
-.st-key-cvb-workspace .stTextInput input,
-.st-key-cvb-workspace div[data-baseweb="input"] input {{
-  background: {input_bg} !important;
-  color: {input_text} !important;
-  border-color: {input_border} !important;
-  border-radius: 8px !important;
-  font-size: 0.87rem !important;
-}}
-.st-key-cvb-workspace .stTextInput input::placeholder,
-.st-key-cvb-workspace div[data-baseweb="input"] input::placeholder {{
-  color: {placeholder} !important; opacity: 1 !important;
-}}
-
-/* ── Textarea ────────────────────────────────────────────────────── */
-.st-key-cvb-workspace div[data-baseweb="textarea"],
-.st-key-cvb-workspace div[data-baseweb="textarea"] > div {{
-  background: {input_bg} !important;
-  border-color: {input_border} !important;
-}}
-.st-key-cvb-workspace .stTextArea textarea {{
-  background: {input_bg} !important;
-  color: {input_text} !important;
-  border-color: {input_border} !important;
-  border-radius: 8px !important;
-  font-size: 0.87rem !important;
-}}
-.st-key-cvb-workspace .stTextArea textarea::placeholder {{
-  color: {placeholder} !important; opacity: 1 !important;
-}}
-
-/* ── Selectbox ───────────────────────────────────────────────────── */
-.st-key-cvb-workspace div[data-baseweb="select"] > div {{
-  background: {input_bg} !important;
-  border-color: {input_border} !important;
-  border-radius: 8px !important;
-}}
-.st-key-cvb-workspace div[data-baseweb="select"] span {{
-  color: {input_text} !important; font-size: 0.87rem !important;
-}}
-
-/* ── Expanders ───────────────────────────────────────────────────── */
-.st-key-cvb-center-panel [data-testid="stExpander"] {{ margin: 0 0 0.45rem !important; }}
-.st-key-cvb-center-panel [data-testid="stExpander"] details {{
-  background: {card_bg};
-  border: 1px solid {border_soft};
-  border-radius: 12px;
-  overflow: hidden;
-  box-shadow: {shadow};
-}}
-.st-key-cvb-center-panel [data-testid="stExpander"] summary {{
-  padding: 0.65rem 0.9rem !important;
-  background: {card_bg} !important;
-}}
-.st-key-cvb-center-panel [data-testid="stExpander"] summary p,
-.st-key-cvb-center-panel [data-testid="stExpander"] summary span {{
-  font-size: 0.93rem !important;
-  font-weight: 700 !important;
-  color: {text_primary} !important;
-}}
-.st-key-cvb-center-panel [data-testid="stExpander"] details > div {{
-  background: {expander_body} !important;
-  padding: 0 0.9rem 0.75rem !important;
-}}
-
-/* ── Left rail items ─────────────────────────────────────────────── */
-.cvb-rail-heading {{
-  font-size: 11px; font-weight: 600;
-  letter-spacing: 0.07em; text-transform: uppercase;
-  color: {text_muted};
-  margin: 14px 0 10px;
-  padding: 0;
-  display: block;
-  line-height: 1.25;
-  position: relative;
-  z-index: 2;
-  clear: both;
-}}
-.cvb-section-item {{
-  padding: 0.35rem 0.55rem;
-  border: 1px solid {border_soft};
-  border-radius: 8px;
-  margin-bottom: 0.28rem;
-  background: {page_bg};
-  color: {text_primary};
-  font-size: 0.86rem; font-weight: 500;
-}}
-.st-key-cvb-left-panel [data-testid="column"]:last-child .stButton button {{
-  padding: 0.1rem 0.2rem !important;
-  min-height: unset !important;
-  height: 28px !important;
-  font-size: 0.75rem !important;
-  background: transparent !important;
-  border: none !important;
-  color: {text_muted} !important;
-}}
-.cvb-rail-divider {{
-  margin: 0.95rem 0 0.7rem;
-  border-top: 1px solid {border_soft};
-}}
-.cvb-template-card {{
-  border: 1px solid {border_soft};
-  border-radius: 9px;
-  padding: 0.48rem 0.65rem;
-  margin-bottom: 0.28rem;
-  background: {page_bg};
-}}
-.cvb-template-card.active {{
-  border-color: {accent_2};
-  background: {"#1e3a5f" if is_dark else "#eff6ff"};
-  box-shadow: 0 0 0 1px rgba(37,99,235,0.18);
-}}
-.cvb-template-title {{
-  margin: 0; color: {text_primary};
-  font-weight: 700; font-size: 0.88rem;
-}}
-.cvb-template-desc {{
-  margin: 0.12rem 0 0; color: {text_muted}; font-size: 0.78rem;
-}}
-.cvb-style-label {{
-  font-size: 0.82rem; color: {text_muted}; margin: 0.3rem 0 0.15rem;
-}}
-
-/* ── Zoom bar ────────────────────────────────────────────────────── */
-.cvb-zoom-display {{
-  text-align: center;
-  font-size: 0.8rem; color: {text_muted};
-  border: 1px solid {border_soft};
-  border-radius: 999px;
-  padding: 0.1rem 0.4rem;
-  background: {card_bg};
-}}
-
-/* ── Preview iframe ──────────────────────────────────────────────── */
-.st-key-cvb-preview-frame iframe {{
-  width: 100% !important;
-  border: 1px solid {border_soft} !important;
-  border-radius: 8px !important;
-  background: #ffffff !important;
-}}
-
-/* ── Buttons ─────────────────────────────────────────────────────── */
-.st-key-cvb-workspace .stButton button,
-.st-key-cvb-workspace .stDownloadButton button {{
-  font-size: 0.82rem !important;
-  border-radius: 7px !important;
-}}
-.st-key-cvb-toolbar .stButton button,
-.st-key-cvb-toolbar .stDownloadButton button {{
-  font-size: 0.82rem !important;
-  border-radius: 7px !important;
-  padding: 0.3rem 0.65rem !important;
-}}
-
-/* ── Markdown text ───────────────────────────────────────────────── */
-.st-key-cvb-workspace .stMarkdown p,
-.st-key-cvb-workspace .stMarkdown span,
-.st-key-cvb-workspace .stCaption span {{
-  color: {text_muted} !important;
-}}
-.st-key-cvb-workspace .stMarkdown strong,
-.st-key-cvb-workspace .stMarkdown b {{
-  color: {text_primary} !important;
-}}
-
-/* ── Section item rows: name + eye as one seamless flex row ──────── */
-.st-key-cvb-left-panel [data-testid="stHorizontalBlock"]:has(.cvb-section-item) {{
-  gap: 0 !important;
-  margin-bottom: 0.25rem;
-  align-items: stretch !important;
-}}
-.st-key-cvb-left-panel [data-testid="stHorizontalBlock"]:has(.cvb-section-item) .cvb-section-item {{
-  border-radius: 8px 0 0 8px !important;
-  border-right: none !important;
-  margin-bottom: 0 !important;
-  min-height: 34px;
-  height: 34px;
-  display: flex !important;
-  align-items: center !important;
-}}
-.st-key-cvb-left-panel [data-testid="stHorizontalBlock"]:has(.cvb-section-item) [data-testid="column"]:last-child {{
-  display: flex !important;
-  align-items: stretch !important;
-  min-width: 0 !important;
-}}
-.st-key-cvb-left-panel [data-testid="stHorizontalBlock"]:has(.cvb-section-item) [data-testid="column"]:last-child .stButton,
-.st-key-cvb-left-panel [data-testid="stHorizontalBlock"]:has(.cvb-section-item) [data-testid="column"]:last-child .stButton > div {{
-  width: 100% !important;
-  height: 100% !important;
-  display: flex !important;
-}}
-.st-key-cvb-left-panel [data-testid="stHorizontalBlock"]:has(.cvb-section-item) [data-testid="column"]:last-child .stButton button {{
-  border-radius: 0 8px 8px 0 !important;
-  border: 1px solid {border_soft} !important;
-  border-left: none !important;
-  min-height: 34px !important;
-  height: 100% !important;
-  width: 100% !important;
-  background: {page_bg} !important;
-  color: {text_muted} !important;
-  padding: 0 !important;
-  font-size: 0.82rem !important;
-}}
-
-/* ── Accent color dot buttons: filled circles ────────────────────── */
-.st-key-cvb-color-dots [data-testid="stHorizontalBlock"] {{
-  gap: 4px !important;
-  flex-wrap: wrap !important;
-  padding: 2px 0 !important;
-}}
-.st-key-cvb-color-dots .stButton button {{
-  border-radius: 50% !important;
-  width: 22px !important;
-  height: 22px !important;
-  min-width: 22px !important;
-  min-height: 22px !important;
-  max-width: 22px !important;
-  max-height: 22px !important;
-  padding: 0 !important;
-  color: transparent !important;
-  font-size: 0 !important;
-  line-height: 0 !important;
-  border: 2px solid transparent !important;
-  margin: 0 auto !important;
-  display: block !important;
-}}
-/* Per-color backgrounds injected dynamically */
-{_dot_css}
-
-/* ── Download PDF button: always blue ────────────────────────────── */
-.st-key-cvb-toolbar [data-testid="stDownloadButton"] button[kind="primary"],
-.st-key-cvb-toolbar [data-testid="stDownloadButton"] button[data-testid="baseButton-primary"] {{
-  background: #2563eb !important;
-  color: #ffffff !important;
-  border-color: #2563eb !important;
-}}
-</style>""", unsafe_allow_html=True)
-
-    # JS: update --cvb-panel-h CSS variable with real measurements.
-    # Using a CSS variable (not direct element.style) means the panels are
-    # ALWAYS visible via the calc() fallback, and JS only refines the height.
-    components.html(f"""<script>
-(function() {{
-  var w = window.parent && window.parent !== window ? window.parent : window;
-  var doc = w.document;
-  var PAGE_BG = '{page_bg}';
-
-  function findInner(outerEl) {{
-    // Handles all Streamlit DOM patterns for st.container(key=...):
-    //   Pattern A: .st-key-xyz.element-container > [data-testid="stVerticalBlock"]
-    //   Pattern B: .st-key-xyz IS the stVerticalBlock itself
-    //   Pattern C: .st-key-xyz > stVerticalBlockBorderWrapper > stVerticalBlock
-    if (!outerEl) return null;
-    if (outerEl.getAttribute('data-testid') === 'stVerticalBlock') return outerEl;
-    var direct = outerEl.querySelector(':scope > [data-testid="stVerticalBlock"]');
-    if (direct) return direct;
-    return outerEl.querySelector('[data-testid="stVerticalBlock"]') || null;
-  }}
-
-  function applyLayout() {{
-    // 1. Measure where the fixed site header ends (robust fallback chain).
-    function getTopOffset() {{
-      var spacer = doc.getElementById('excelcv-fixed-header-spacer');
-      if (spacer) {{
-        var spacerRect = spacer.getBoundingClientRect();
-        if (spacerRect && spacerRect.height > 40) {{
-          return Math.ceil(spacerRect.bottom);
-        }}
-      }}
-      var rule = doc.querySelector('.site-header-rule');
-      if (rule) {{
-        var ruleRect = rule.getBoundingClientRect();
-        if (ruleRect && ruleRect.bottom > 20) {{
-          return Math.ceil(ruleRect.bottom);
-        }}
-      }}
-      var header = doc.querySelector('[data-testid="stHorizontalBlock"]:has(.site-brand)');
-      if (header) {{
-        var headerRect = header.getBoundingClientRect();
-        if (headerRect && headerRect.bottom > 20) {{
-          return Math.ceil(headerRect.bottom + 8);
-        }}
-      }}
-      return 96;
-    }}
-    var headerBottom = Math.max(86, getTopOffset());
-
-    // 2. Position the workspace as a fixed overlay starting just below the header.
-    //    visibility: hidden → visible prevents any blank-space flash before measurement.
-    var workspace = doc.querySelector('.st-key-cvb-workspace');
-    if (workspace) {{
-      workspace.style.setProperty('position',   'fixed',             'important');
-      workspace.style.setProperty('top',        headerBottom + 'px', 'important');
-      workspace.style.setProperty('left',       '0',                 'important');
-      workspace.style.setProperty('right',      '0',                 'important');
-      workspace.style.setProperty('bottom',     '0',                 'important');
-      workspace.style.setProperty('overflow',   'hidden',            'important');
-      workspace.style.setProperty('z-index',    '50',                'important');
-      workspace.style.setProperty('visibility', 'visible',           'important');
-      workspace.style.setProperty('background', PAGE_BG,             'important');
-    }}
-
-    // 3. Compute panel height = available space below header minus toolbar
-    var toolbar  = doc.querySelector('.st-key-cvb-toolbar');
-    var toolbarH = toolbar ? Math.ceil(toolbar.getBoundingClientRect().height) : 52;
-    var panelH   = Math.max(320, w.innerHeight - headerBottom - toolbarH - 4);
-
-    doc.documentElement.style.setProperty('--cvb-panel-h', panelH + 'px');
-
-    // 4. For each panel: outer element-container clips (overflow:hidden),
-    //    inner stVerticalBlock scrolls (overflow-y:scroll or hidden for right).
-    //    This gives each panel exactly ONE scrollbar track.
-    var panels = [
-      {{ sel: '.st-key-cvb-left-panel',   innerScroll: 'scroll' }},
-      {{ sel: '.st-key-cvb-center-panel', innerScroll: 'scroll' }},
-      {{ sel: '.st-key-cvb-right-panel',  innerScroll: 'scroll' }}
-    ];
-    for (var i = 0; i < panels.length; i++) {{
-      var outerEl = doc.querySelector(panels[i].sel);
-      if (!outerEl) continue;
-
-      outerEl.style.setProperty('height',     panelH + 'px', 'important');
-      outerEl.style.setProperty('min-height', '320px',       'important');
-      outerEl.style.setProperty('overflow',   'hidden',      'important');
-      outerEl.style.setProperty('box-sizing', 'border-box',  'important');
-
-      var innerEl = findInner(outerEl);
-      if (!innerEl) continue;
-
-      innerEl.style.setProperty('height',     panelH + 'px', 'important');
-      innerEl.style.setProperty('min-height', '320px',       'important');
-      innerEl.style.setProperty('overflow-y', panels[i].innerScroll, 'important');
-      innerEl.style.setProperty('overflow-x', 'hidden',      'important');
-      innerEl.style.setProperty('box-sizing', 'border-box',  'important');
-    }}
-  }}
-
-  applyLayout();
-  w.addEventListener('resize', applyLayout);
-  [80, 250, 600, 1400].forEach(function(ms) {{ setTimeout(applyLayout, ms); }});
-
-  var debounce;
-  new MutationObserver(function(muts) {{
-    for (var i = 0; i < muts.length; i++) {{
-      if (muts[i].addedNodes.length || muts[i].removedNodes.length) {{
-        clearTimeout(debounce);
-        debounce = setTimeout(applyLayout, 100);
-        break;
-      }}
-    }}
-  }}).observe(doc.body, {{ childList: true, subtree: true }});
-}})();
-</script>""", height=0)
-
-
-# ─── Main page renderer ───────────────────────────────────────────────────────
-
 def _inject_builder_css_native(is_dark: bool) -> None:
     page_bg = "#0b1220" if is_dark else "#f3f5f8"
     panel_bg = "#0f172a" if is_dark else "#ffffff"
@@ -3443,10 +2803,46 @@ def _inject_builder_css_native(is_dark: bool) -> None:
     saved_color = "#93c5fd" if is_dark else "#0059B3"
     saved_brd = "rgba(37,99,235,0.30)" if is_dark else "rgba(0, 89, 179, 0.22)"
     toolbar_btn_color = "#94a3b8" if is_dark else "#65758B"
+    rail_heading_color = "#94a3b8" if is_dark else "#65758b"
+    rail_body_text = "#cbd5e1" if is_dark else "#334155"
+    rail_divider = "#334155" if is_dark else "#dbe3ef"
+    scroll_thumb = "#475569" if is_dark else "#c1c7cd"
+    scroll_thumb_hover = "#64748b" if is_dark else "#aeb6bf"
+    left_slider_border = "#0f172a" if is_dark else "#ffffff"
+    preview_tools_bg = "#0f172a" if is_dark else "#f6f7f9"
+    style_label = "#94a3b8" if is_dark else "#475569"
+    style_value = "#93c5fd" if is_dark else "#0b5cb8"
+    toolbar_hover_bg = "rgba(148,163,184,0.14)" if is_dark else "#eff4fa"
+    toolbar_hover_color = "#bfdbfe" if is_dark else "#0d5ec0"
+    toolbar_save_hover_bg = "rgba(16,185,129,0.18)" if is_dark else "#ebf8f1"
+    toolbar_save_hover_color = "#6ee7b7" if is_dark else "#0f8a4c"
+    toolbar_reset_hover_bg = "rgba(239,68,68,0.18)" if is_dark else "#fcebec"
+    toolbar_reset_hover_color = "#fca5a5" if is_dark else "#e53935"
+    middle_panel_bg = "#0f172a" if is_dark else "#f3f5f8"
+    right_panel_bg = "#0b1220" if is_dark else "#f6f7f9"
+    left_panel_bg = "#0f172a" if is_dark else "#f7f9fc"
+    scroll_track = "#111827" if is_dark else "#e6ebf2"
+    expander_card_bg = "#0f172a" if is_dark else "#ffffff"
+    expander_header_bg = "#111827" if is_dark else "rgba(243,245,247,0.90)"
+    expander_content_bg = "#0f172a" if is_dark else "#ffffff"
+    expander_border = "#334155" if is_dark else "#d3dce8"
+    expander_divider = "#334155" if is_dark else "#e2e8f0"
+    section_header_text = "#e2e8f0" if is_dark else "#0f172a"
+    section_icon = "#60a5fa" if is_dark else "#0b63ce"
+    card_shadow = "0 1px 2px rgba(2, 6, 23, 0.45)" if is_dark else "0 1px 2px rgba(15, 23, 42, 0.05)"
+    field_bg = "#111827" if is_dark else "rgba(243,245,247,0.75)"
+    field_border = "#475569" if is_dark else "#d1dae6"
+    field_text = "#e2e8f0" if is_dark else "#0f172a"
+    field_focus_bg = "#0b1220" if is_dark else "#ffffff"
+    field_focus_border = "#60a5fa" if is_dark else "#0b63ce"
+    field_focus_ring = "0 0 0 3px rgba(59,130,246,0.22)" if is_dark else "0 0 0 3px rgba(11,99,206,0.14)"
+    label_color = "#cbd5e1" if is_dark else "#64748b"
+    chevron_stroke = "94a3b8" if is_dark else "64748b"
+    accent_ring_inner = "#0f172a" if is_dark else "#ffffff"
     cur_accent = st.session_state.get("cvb_accent_color", ACCENT_COLORS[0])
     native_dot_parts: list[str] = []
     for i, color in enumerate(ACCENT_COLORS):
-        ring = f"box-shadow:0 0 0 2px #ffffff,0 0 0 4px {color} !important;" if color == cur_accent else ""
+        ring = f"box-shadow:0 0 0 2px {accent_ring_inner},0 0 0 4px {color} !important;" if color == cur_accent else ""
         native_dot_parts.append(
             f'.st-key-cvb-color-dots-native [class*="st-key-acc_native_{i}"] button '
             f'{{ background:{color} !important; {ring} }}'
@@ -3455,13 +2851,71 @@ def _inject_builder_css_native(is_dark: bool) -> None:
     st.markdown(
         f"""<style>
 .site-footer-band {{ display:none !important; }}
+html:has(.st-key-cvb-page-native),
+body:has(.st-key-cvb-page-native) {{
+  height: 100vh !important;
+  height: 100dvh !important;
+  overflow: hidden !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}}
+[data-testid="stAppViewContainer"]:has(.st-key-cvb-page-native),
+[data-testid="stAppViewContainer"]:has(.st-key-cvb-page-native) > .main,
+[data-testid="stApp"]:has(.st-key-cvb-page-native),
+section[data-testid="stMain"]:has(.st-key-cvb-page-native) {{
+  height: 100vh !important;
+  height: 100dvh !important;
+  max-height: 100vh !important;
+  max-height: 100dvh !important;
+  overflow: hidden !important;
+}}
 .st-key-cvb-page-native {{
   height: calc(100vh - 92px) !important;
+  height: calc(100dvh - 92px) !important;
   min-height: 0 !important;
   display: flex !important;
   flex-direction: column !important;
+  gap: 0 !important;
+  row-gap: 0 !important;
+  column-gap: 0 !important;
   overflow: hidden !important;
   background: {page_bg} !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}}
+.st-key-cvb-page-native > [data-testid="stLayoutWrapper"] {{
+  margin: 0 !important;
+  padding: 0 !important;
+}}
+.st-key-cvb-page-native > [data-testid="stLayoutWrapper"] > [data-testid="stVerticalBlock"] {{
+  margin: 0 !important;
+  padding: 0 !important;
+  gap: 0 !important;
+  row-gap: 0 !important;
+}}
+.st-key-cvb-page-native > [data-testid="stVerticalBlock"] {{
+  margin: 0 !important;
+  padding: 0 !important;
+  gap: 0 !important;
+  row-gap: 0 !important;
+}}
+.st-key-cvb-page-native > [data-testid="stVerticalBlock"] > [data-testid="stElementContainer"],
+.st-key-cvb-page-native > [data-testid="stVerticalBlock"] > div,
+.st-key-cvb-page-native > [data-testid="stVerticalBlock"] > div > [data-testid="stElementContainer"] {{
+  margin: 0 !important;
+  padding: 0 !important;
+  min-height: 0 !important;
+}}
+.st-key-cvb-page-native > [data-testid="stVerticalBlock"] > [data-testid="stElementContainer"]:empty,
+.st-key-cvb-page-native > [data-testid="stVerticalBlock"] > div:empty,
+.st-key-cvb-page-native > [data-testid="stVerticalBlock"] > div > [data-testid="stElementContainer"]:empty {{
+  display: none !important;
+}}
+.st-key-cvb-page-native [data-testid="stElementContainer"]:has(.st-key-cvb-toolbar-native) {{
+  margin: 0 !important;
+  padding: 0 !important;
+}}
+.st-key-cvb-page-native [data-testid="stElementContainer"]:has(.st-key-cvb-main-native) {{
   margin: 0 !important;
   padding: 0 !important;
 }}
@@ -3484,12 +2938,16 @@ def _inject_builder_css_native(is_dark: bool) -> None:
 [data-testid="stAppViewContainer"]:has(.st-key-cvb-page-native),
 [data-testid="stMain"]:has(.st-key-cvb-page-native) {{
   height: 100vh !important;
+  height: 100dvh !important;
   overflow: hidden !important;
 }}
 [data-testid="stMainBlockContainer"]:has(.st-key-cvb-page-native),
 [data-testid="stMainBlockContainer"]:has(.st-key-cvb-page-native) .block-container,
 section[data-testid="stMain"]:has(.st-key-cvb-page-native) .block-container {{
   height: 100vh !important;
+  height: 100dvh !important;
+  max-height: 100vh !important;
+  max-height: 100dvh !important;
   min-height: 0 !important;
   overflow: hidden !important;
   max-width: 100% !important;
@@ -3509,6 +2967,11 @@ section[data-testid="stMain"]:has(.st-key-cvb-page-native) .block-container {{
   border-radius:0;
   padding:0 20px !important;
   margin:0 !important;
+}}
+.st-key-cvb-toolbar-native > [data-testid="stLayoutWrapper"],
+.st-key-cvb-toolbar-native > [data-testid="stElementContainer"] {{
+  margin: 0 !important;
+  padding: 0 !important;
 }}
 .st-key-cvb-toolbar-native > div,
 .st-key-cvb-toolbar-native [data-testid="stVerticalBlock"] {{
@@ -3657,18 +3120,18 @@ section[data-testid="stMain"]:has(.st-key-cvb-page-native) .block-container {{
 .st-key-cvb-toolbar-actions-native .st-key-cvb_toolbar_import button:focus-visible,
 .st-key-cvb-toolbar-actions-native .st-key-cvb_toolbar_backup button:hover,
 .st-key-cvb-toolbar-actions-native .st-key-cvb_toolbar_backup button:focus-visible {{
-  background: #eff4fa !important;
-  color: #0d5ec0 !important;
+  background: {toolbar_hover_bg} !important;
+  color: {toolbar_hover_color} !important;
 }}
 .st-key-cvb-toolbar-actions-native .st-key-cvb_toolbar_save button:hover,
 .st-key-cvb-toolbar-actions-native .st-key-cvb_toolbar_save button:focus-visible {{
-  background: #ebf8f1 !important;
-  color: #0f8a4c !important;
+  background: {toolbar_save_hover_bg} !important;
+  color: {toolbar_save_hover_color} !important;
 }}
 .st-key-cvb-toolbar-actions-native .st-key-cvb_toolbar_reset button:hover,
 .st-key-cvb-toolbar-actions-native .st-key-cvb_toolbar_reset button:focus-visible {{
-  background: #fcebec !important;
-  color: #e53935 !important;
+  background: {toolbar_reset_hover_bg} !important;
+  color: {toolbar_reset_hover_color} !important;
 }}
 .st-key-cvb-toolbar-actions-native .st-key-cvb_toolbar_download button[kind="primary"],
 .st-key-cvb-toolbar-actions-native .st-key-cvb_toolbar_download button[data-testid="baseButton-primary"] {{
@@ -3732,6 +3195,7 @@ section[data-testid="stMain"]:has(.st-key-cvb-page-native) .block-container {{
 }}
 .st-key-cvb-main-native {{
   --cvb-native-panel-h: calc(100vh - 145px);
+  --cvb-native-panel-h: calc(100dvh - 145px);
   height: var(--cvb-native-panel-h) !important;
   max-height: var(--cvb-native-panel-h) !important;
   flex: 1 !important;
@@ -3742,8 +3206,22 @@ section[data-testid="stMain"]:has(.st-key-cvb-page-native) .block-container {{
   margin-top: 0 !important;
   padding-top: 0 !important;
 }}
-.st-key-cvb-main-row-native > [data-testid="stHorizontalBlock"],
-.st-key-cvb-main-row-native > div > [data-testid="stHorizontalBlock"] {{
+.st-key-cvb-main-native > div,
+.st-key-cvb-main-native > [data-testid="stVerticalBlock"],
+.st-key-cvb-main-native > [data-testid="stVerticalBlock"] > div,
+.st-key-cvb-main-native > [data-testid="stVerticalBlock"] > [data-testid="stElementContainer"] {{
+  margin: 0 !important;
+  padding: 0 !important;
+  gap: 0 !important;
+  row-gap: 0 !important;
+}}
+.st-key-cvb-main-native [data-testid="stElementContainer"]:has(> [data-testid="stHorizontalBlock"]) {{
+  margin: 0 !important;
+  padding: 0 !important;
+}}
+.st-key-cvb-main-native > [data-testid="stHorizontalBlock"],
+.st-key-cvb-main-native > div > [data-testid="stHorizontalBlock"],
+.st-key-cvb-main-native [data-testid="stElementContainer"]:has(> [data-testid="stHorizontalBlock"]) > [data-testid="stHorizontalBlock"] {{
   height: var(--cvb-native-panel-h) !important;
   max-height: var(--cvb-native-panel-h) !important;
   min-height: 0 !important;
@@ -3752,42 +3230,50 @@ section[data-testid="stMain"]:has(.st-key-cvb-page-native) .block-container {{
   column-gap: 0 !important;
   row-gap: 0 !important;
 }}
-.st-key-cvb-main-row-native > [data-testid="stHorizontalBlock"] > [data-testid="column"],
-.st-key-cvb-main-row-native > div > [data-testid="stHorizontalBlock"] > [data-testid="column"] {{
+.st-key-cvb-main-native > [data-testid="stHorizontalBlock"] > [data-testid="column"],
+.st-key-cvb-main-native > div > [data-testid="stHorizontalBlock"] > [data-testid="column"],
+.st-key-cvb-main-native [data-testid="stElementContainer"]:has(> [data-testid="stHorizontalBlock"]) > [data-testid="stHorizontalBlock"] > [data-testid="column"] {{
   height: 100% !important;
   min-height: 0 !important;
   padding: 0 !important;
   margin: 0 !important;
 }}
-.st-key-cvb-main-row-native > [data-testid="stHorizontalBlock"] > [data-testid="column"]:nth-child(1),
-.st-key-cvb-main-row-native > div > [data-testid="stHorizontalBlock"] > [data-testid="column"]:nth-child(1) {{
+.st-key-cvb-main-native > [data-testid="stHorizontalBlock"] > [data-testid="column"]:nth-child(1),
+.st-key-cvb-main-native > div > [data-testid="stHorizontalBlock"] > [data-testid="column"]:nth-child(1),
+.st-key-cvb-main-native [data-testid="stElementContainer"]:has(> [data-testid="stHorizontalBlock"]) > [data-testid="stHorizontalBlock"] > [data-testid="column"]:nth-child(1) {{
   flex: 0 0 256px !important;
   width: 256px !important;
   min-width: 256px !important;
   max-width: 256px !important;
 }}
-.st-key-cvb-main-row-native > [data-testid="stHorizontalBlock"] > [data-testid="column"]:nth-child(2),
-.st-key-cvb-main-row-native > div > [data-testid="stHorizontalBlock"] > [data-testid="column"]:nth-child(2) {{
+.st-key-cvb-main-native > [data-testid="stHorizontalBlock"] > [data-testid="column"]:nth-child(2),
+.st-key-cvb-main-native > div > [data-testid="stHorizontalBlock"] > [data-testid="column"]:nth-child(2),
+.st-key-cvb-main-native [data-testid="stElementContainer"]:has(> [data-testid="stHorizontalBlock"]) > [data-testid="stHorizontalBlock"] > [data-testid="column"]:nth-child(2) {{
   flex: 9 1 0 !important;
   width: auto !important;
   max-width: none !important;
   min-width: 0 !important;
 }}
-.st-key-cvb-main-row-native > [data-testid="stHorizontalBlock"] > [data-testid="column"]:nth-child(3),
-.st-key-cvb-main-row-native > div > [data-testid="stHorizontalBlock"] > [data-testid="column"]:nth-child(3) {{
+.st-key-cvb-main-native > [data-testid="stHorizontalBlock"] > [data-testid="column"]:nth-child(3),
+.st-key-cvb-main-native > div > [data-testid="stHorizontalBlock"] > [data-testid="column"]:nth-child(3),
+.st-key-cvb-main-native [data-testid="stElementContainer"]:has(> [data-testid="stHorizontalBlock"]) > [data-testid="stHorizontalBlock"] > [data-testid="column"]:nth-child(3) {{
   flex: 7 1 0 !important;
   width: auto !important;
   max-width: none !important;
   min-width: 0 !important;
 }}
-.st-key-cvb-main-row-native > [data-testid="stHorizontalBlock"] > [data-testid="column"] > div,
-.st-key-cvb-main-row-native > [data-testid="stHorizontalBlock"] > [data-testid="column"] [data-testid="stElementContainer"],
-.st-key-cvb-main-row-native > [data-testid="stHorizontalBlock"] > [data-testid="column"] [data-testid="stVerticalBlockBorderWrapper"],
-.st-key-cvb-main-row-native > [data-testid="stHorizontalBlock"] > [data-testid="column"] [data-testid="stVerticalBlock"],
-.st-key-cvb-main-row-native > div > [data-testid="stHorizontalBlock"] > [data-testid="column"] > div,
-.st-key-cvb-main-row-native > div > [data-testid="stHorizontalBlock"] > [data-testid="column"] [data-testid="stElementContainer"],
-.st-key-cvb-main-row-native > div > [data-testid="stHorizontalBlock"] > [data-testid="column"] [data-testid="stVerticalBlockBorderWrapper"],
-.st-key-cvb-main-row-native > div > [data-testid="stHorizontalBlock"] > [data-testid="column"] [data-testid="stVerticalBlock"] {{
+.st-key-cvb-main-native > [data-testid="stHorizontalBlock"] > [data-testid="column"] > div,
+.st-key-cvb-main-native > [data-testid="stHorizontalBlock"] > [data-testid="column"] [data-testid="stElementContainer"],
+.st-key-cvb-main-native > [data-testid="stHorizontalBlock"] > [data-testid="column"] [data-testid="stVerticalBlockBorderWrapper"],
+.st-key-cvb-main-native > [data-testid="stHorizontalBlock"] > [data-testid="column"] [data-testid="stVerticalBlock"],
+.st-key-cvb-main-native > div > [data-testid="stHorizontalBlock"] > [data-testid="column"] > div,
+.st-key-cvb-main-native > div > [data-testid="stHorizontalBlock"] > [data-testid="column"] [data-testid="stElementContainer"],
+.st-key-cvb-main-native > div > [data-testid="stHorizontalBlock"] > [data-testid="column"] [data-testid="stVerticalBlockBorderWrapper"],
+.st-key-cvb-main-native > div > [data-testid="stHorizontalBlock"] > [data-testid="column"] [data-testid="stVerticalBlock"],
+.st-key-cvb-main-native [data-testid="stElementContainer"]:has(> [data-testid="stHorizontalBlock"]) > [data-testid="stHorizontalBlock"] > [data-testid="column"] > div,
+.st-key-cvb-main-native [data-testid="stElementContainer"]:has(> [data-testid="stHorizontalBlock"]) > [data-testid="stHorizontalBlock"] > [data-testid="column"] [data-testid="stElementContainer"],
+.st-key-cvb-main-native [data-testid="stElementContainer"]:has(> [data-testid="stHorizontalBlock"]) > [data-testid="stHorizontalBlock"] > [data-testid="column"] [data-testid="stVerticalBlockBorderWrapper"],
+.st-key-cvb-main-native [data-testid="stElementContainer"]:has(> [data-testid="stHorizontalBlock"]) > [data-testid="stHorizontalBlock"] > [data-testid="column"] [data-testid="stVerticalBlock"] {{
   padding: 0 !important;
   margin: 0 !important;
   border: 0 !important;
@@ -3795,10 +3281,10 @@ section[data-testid="stMain"]:has(.st-key-cvb-page-native) .block-container {{
   max-width: 100% !important;
 }}
 .st-key-cvb-middle-scroll-native {{
-  background:#f3f5f8;
+  background:{middle_panel_bg};
   border:none;
   border-radius:0;
-  padding:8px 0 8px 8px !important;
+  padding:0 0 8px 8px !important;
   margin:0 !important;
   height: var(--cvb-native-panel-h) !important;
   max-height: var(--cvb-native-panel-h) !important;
@@ -3807,34 +3293,36 @@ section[data-testid="stMain"]:has(.st-key-cvb-page-native) .block-container {{
   overflow-x: hidden !important;
   scrollbar-gutter: auto !important;
   scrollbar-width: thin !important;
-  scrollbar-color: #c1c7cd #e6ebf2 !important;
+  scrollbar-color: {scroll_thumb} {scroll_track} !important;
 }}
 .st-key-cvb-right-scroll-native {{
-  background:#f6f7f9;
-  border-left:1px solid #d3dce8;
+  background:{right_panel_bg};
+  border-left:1px solid {border};
   border-top:none;
   border-right:none;
   border-bottom:none;
   border-radius:0;
-  padding:8px 8px 8px 0 !important;
+  padding:0 0 8px 0 !important;
   margin:0 !important;
-  height: calc(var(--cvb-native-panel-h) - 56px) !important;
-  max-height: calc(var(--cvb-native-panel-h) - 56px) !important;
+  height: var(--cvb-native-panel-h) !important;
+  max-height: var(--cvb-native-panel-h) !important;
   min-height: 0 !important;
   overflow-y: scroll !important;
   overflow-x: hidden !important;
-  scrollbar-gutter: auto !important;
+  position: relative !important;
+  scrollbar-gutter: unset !important;
   scrollbar-width: thin !important;
-  scrollbar-color: #c1c7cd #e6ebf2 !important;
+  scrollbar-color: {scroll_thumb} {scroll_track} !important;
+  box-sizing: border-box !important;
 }}
 .st-key-cvb-left-scroll-native {{
-  background:#f7f9fc;
-  border-right:1px solid #d3dce8;
+  background:{left_panel_bg};
+  border-right:1px solid {border};
   border-left:none;
   border-top:none;
   border-bottom:none;
   border-radius:0;
-  padding:16px 0 16px 16px !important;
+  padding:0 0 16px 16px !important;
   margin:0 !important;
   height: var(--cvb-native-panel-h) !important;
   max-height: var(--cvb-native-panel-h) !important;
@@ -3843,7 +3331,7 @@ section[data-testid="stMain"]:has(.st-key-cvb-page-native) .block-container {{
   overflow-x: hidden !important;
   scrollbar-gutter: auto !important;
   scrollbar-width: thin !important;
-  scrollbar-color: #c1c7cd #e6ebf2 !important;
+  scrollbar-color: {scroll_thumb} {scroll_track} !important;
 }}
 .st-key-cvb-left-scroll-native .cvb-rail-heading {{
   font-size: 12px !important;
@@ -3851,7 +3339,7 @@ section[data-testid="stMain"]:has(.st-key-cvb-page-native) .block-container {{
   font-family: Poppins, Montserrat, system-ui, sans-serif !important;
   letter-spacing: 0.08em !important;
   text-transform: uppercase !important;
-  color: #65758b !important;
+  color: {rail_heading_color} !important;
   margin: 6px 0 16px 0 !important;
   padding: 0 !important;
   line-height: 1.45 !important;
@@ -3872,7 +3360,7 @@ section[data-testid="stMain"]:has(.st-key-cvb-page-native) .block-container {{
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
-  color: #65758b !important;
+  color: {rail_heading_color} !important;
 }}
 .st-key-cvb-left-scroll-native .cvb-rail-heading-icon svg {{
   width: 14px !important;
@@ -3883,6 +3371,19 @@ section[data-testid="stMain"]:has(.st-key-cvb-page-native) .block-container {{
 .st-key-cvb-right-scroll-native > [data-testid="stVerticalBlock"] {{
   min-height: 0 !important;
   overflow: visible !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  gap: 0 !important;
+  row-gap: 0 !important;
+}}
+.st-key-cvb-left-scroll-native > [data-testid="stLayoutWrapper"],
+.st-key-cvb-middle-scroll-native > [data-testid="stLayoutWrapper"],
+.st-key-cvb-right-scroll-native > [data-testid="stLayoutWrapper"],
+.st-key-cvb-left-scroll-native > [data-testid="stElementContainer"],
+.st-key-cvb-middle-scroll-native > [data-testid="stElementContainer"],
+.st-key-cvb-right-scroll-native > [data-testid="stElementContainer"] {{
+  margin: 0 !important;
+  padding: 0 !important;
 }}
 .st-key-cvb-left-scroll-native > [data-testid="stVerticalBlock"] {{
   padding-right: 8px !important;
@@ -3892,6 +3393,7 @@ section[data-testid="stMain"]:has(.st-key-cvb-page-native) .block-container {{
 }}
 .st-key-cvb-right-scroll-native > [data-testid="stVerticalBlock"] {{
   padding-left: 8px !important;
+  padding-right: 0 !important;
 }}
 .st-key-cvb-left-scroll-native::-webkit-scrollbar,
 .st-key-cvb-middle-scroll-native::-webkit-scrollbar,
@@ -3902,19 +3404,19 @@ section[data-testid="stMain"]:has(.st-key-cvb-page-native) .block-container {{
 .st-key-cvb-left-scroll-native::-webkit-scrollbar-track,
 .st-key-cvb-middle-scroll-native::-webkit-scrollbar-track,
 .st-key-cvb-right-scroll-native::-webkit-scrollbar-track {{
-  background: transparent !important;
+  background: {scroll_track} !important;
   border-radius: 8px !important;
 }}
 .st-key-cvb-left-scroll-native::-webkit-scrollbar-thumb,
 .st-key-cvb-middle-scroll-native::-webkit-scrollbar-thumb,
 .st-key-cvb-right-scroll-native::-webkit-scrollbar-thumb {{
-  background: #c1c7cd !important;
+  background: {scroll_thumb} !important;
   border-radius: 8px !important;
 }}
 .st-key-cvb-left-scroll-native::-webkit-scrollbar-thumb:hover,
 .st-key-cvb-middle-scroll-native::-webkit-scrollbar-thumb:hover,
 .st-key-cvb-right-scroll-native::-webkit-scrollbar-thumb:hover {{
-  background: #aeb6bf !important;
+  background: {scroll_thumb_hover} !important;
 }}
 .st-key-cvb-left-scroll-native > [data-testid="stVerticalBlock"]::-webkit-scrollbar,
 .st-key-cvb-middle-scroll-native > [data-testid="stVerticalBlock"]::-webkit-scrollbar,
@@ -3922,20 +3424,37 @@ section[data-testid="stMain"]:has(.st-key-cvb-page-native) .block-container {{
   width: 6px !important;
   height: 6px !important;
 }}
+.st-key-cvb-left-scroll-native > [data-testid="stVerticalBlock"]::-webkit-scrollbar-track,
+.st-key-cvb-middle-scroll-native > [data-testid="stVerticalBlock"]::-webkit-scrollbar-track,
+.st-key-cvb-right-scroll-native > [data-testid="stVerticalBlock"]::-webkit-scrollbar-track {{
+  background: {scroll_track} !important;
+  border-radius: 8px !important;
+}}
+.st-key-cvb-left-scroll-native > [data-testid="stVerticalBlock"]::-webkit-scrollbar-thumb,
+.st-key-cvb-middle-scroll-native > [data-testid="stVerticalBlock"]::-webkit-scrollbar-thumb,
+.st-key-cvb-right-scroll-native > [data-testid="stVerticalBlock"]::-webkit-scrollbar-thumb {{
+  background: {scroll_thumb} !important;
+  border-radius: 8px !important;
+}}
+.st-key-cvb-left-scroll-native > [data-testid="stVerticalBlock"]::-webkit-scrollbar-thumb:hover,
+.st-key-cvb-middle-scroll-native > [data-testid="stVerticalBlock"]::-webkit-scrollbar-thumb:hover,
+.st-key-cvb-right-scroll-native > [data-testid="stVerticalBlock"]::-webkit-scrollbar-thumb:hover {{
+  background: {scroll_thumb_hover} !important;
+}}
 .st-key-cvb-middle-scroll-native [data-testid="stExpander"] {{
   margin: 0 0 12px !important;
 }}
 .st-key-cvb-middle-scroll-native [data-testid="stExpander"] details {{
-  background: #ffffff !important;
-  border: 1px solid #d3dce8 !important;
+  background: {expander_card_bg} !important;
+  border: 1px solid {expander_border} !important;
   border-radius: 14px !important;
   overflow: hidden !important;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05) !important;
+  box-shadow: {card_shadow} !important;
 }}
 .st-key-cvb-middle-scroll-native [data-testid="stExpander"] summary {{
   min-height: 52px !important;
   padding: 0 48px 0 18px !important;
-  background: rgba(243,245,247,0.90) !important;
+  background: {expander_header_bg} !important;
   display: flex !important;
   align-items: center !important;
   gap: 8px !important;
@@ -3963,7 +3482,7 @@ section[data-testid="stMain"]:has(.st-key-cvb-page-native) .block-container {{
   width: 14px !important;
   height: 14px !important;
   margin-top: -7px !important;
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>") !important;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23{chevron_stroke}' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>") !important;
   background-size: contain !important;
   background-repeat: no-repeat !important;
   background-position: center !important;
@@ -3977,14 +3496,14 @@ section[data-testid="stMain"]:has(.st-key-cvb-page-native) .block-container {{
 /* Embedded section icon inside the label — blue, vertically centered */
 .st-key-cvb-middle-scroll-native [data-testid="stExpander"] summary p svg,
 .st-key-cvb-middle-scroll-native [data-testid="stExpander"] summary [data-testid="stMarkdownContainer"] svg {{
-  color: #0b63ce !important;
-  fill: #0b63ce !important;
+  color: {section_icon} !important;
+  fill: {section_icon} !important;
   vertical-align: middle !important;
   margin-right: 6px !important;
   flex-shrink: 0 !important;
 }}
 .st-key-cvb-middle-scroll-native [data-testid="stExpander"] summary p {{
-  color: #0f172a !important;
+  color: {section_header_text} !important;
   font-size: 15px !important;
   font-weight: 700 !important;
   margin: 0 !important;
@@ -3992,8 +3511,8 @@ section[data-testid="stMain"]:has(.st-key-cvb-page-native) .block-container {{
   align-items: center !important;
 }}
 .st-key-cvb-middle-scroll-native [data-testid="stExpander"] details > div {{
-  background: #ffffff !important;
-  border-top: 1px solid #e2e8f0 !important;
+  background: {expander_content_bg} !important;
+  border-top: 1px solid {expander_divider} !important;
   padding: 14px 18px 20px !important;
 }}
 
@@ -4008,18 +3527,18 @@ section[data-testid="stMain"]:has(.st-key-cvb-page-native) .block-container {{
 .st-key-cvb-section-languages,
 .st-key-cvb-section-certifications,
 .st-key-cvb-section-interests {{
-  background: #ffffff !important;
-  border: 1px solid #d3dce8 !important;
+  background: {expander_card_bg} !important;
+  border: 1px solid {expander_border} !important;
   border-radius: 14px !important;
   margin: 0 0 12px !important;
   overflow: hidden !important;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05) !important;
+  box-shadow: {card_shadow} !important;
 }}
 /* Header/add/chevron styling is centralized in _inject_middle_section_exact_css().
    Keeping only one source of truth prevents size drift and cross-rule conflicts. */
 /* Content area — white, with consistent padding */
 [class*="st-key-cvb-section-content-"] {{
-  background: #ffffff !important;
+  background: {expander_content_bg} !important;
   padding: 14px 18px 18px !important;
   margin: 0 !important;
 }}
@@ -4033,8 +3552,8 @@ section[data-testid="stMain"]:has(.st-key-cvb-page-native) .block-container {{
 .st-key-cvb-middle-scroll-native div[data-baseweb="input"],
 .st-key-cvb-middle-scroll-native div[data-baseweb="textarea"],
 .st-key-cvb-middle-scroll-native div[data-baseweb="select"] > div {{
-  border: 1.5px solid #d1dae6 !important;
-  background: rgba(243,245,247,0.75) !important;
+  border: 1.5px solid {field_border} !important;
+  background: {field_bg} !important;
   border-radius: 8px !important;
   min-height: 42px !important;
   transition: border-color .15s ease, box-shadow .15s ease, background .15s ease !important;
@@ -4046,7 +3565,9 @@ section[data-testid="stMain"]:has(.st-key-cvb-page-native) .block-container {{
   background: transparent !important;
   border: none !important;
   outline: none !important;
-  color: #0f172a !important;
+  color: {field_text} !important;
+  caret-color: {field_focus_border} !important;
+  -webkit-text-fill-color: {field_text} !important;
   font-size: 14px !important;
   padding: 8px 12px !important;
 }}
@@ -4056,9 +3577,9 @@ section[data-testid="stMain"]:has(.st-key-cvb-page-native) .block-container {{
 /* Focus: blue border + soft glow on wrapper, white background */
 .st-key-cvb-middle-scroll-native div[data-baseweb="input"]:focus-within,
 .st-key-cvb-middle-scroll-native div[data-baseweb="textarea"]:focus-within {{
-  border-color: #0b63ce !important;
-  box-shadow: 0 0 0 3px rgba(11,99,206,0.14) !important;
-  background: #ffffff !important;
+  border-color: {field_focus_border} !important;
+  box-shadow: {field_focus_ring} !important;
+  background: {field_focus_bg} !important;
 }}
 /* Placeholder */
 .st-key-cvb-middle-scroll-native div[data-baseweb="input"] input::placeholder,
@@ -4073,8 +3594,105 @@ section[data-testid="stMain"]:has(.st-key-cvb-page-native) .block-container {{
 .st-key-cvb-middle-scroll-native .stDateInput label {{
   font-size: 13px !important;
   font-weight: 500 !important;
-  color: #64748b !important;
+  color: {label_color} !important;
   margin-bottom: 3px !important;
+}}
+.st-key-cvb-middle-scroll-native [class*="st-key-cvb-link-field-"] {{
+  position: relative;
+}}
+.st-key-cvb-middle-scroll-native [class*="st-key-cvb-link-field-"] input {{
+  padding-right: 42px !important;
+}}
+.st-key-cvb-middle-scroll-native [class*="st-key-cvb-link-url-"] {{
+  position: absolute !important;
+  left: -10000px !important;
+  top: auto !important;
+  width: 1px !important;
+  height: 1px !important;
+  overflow: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}}
+.st-key-cvb-middle-scroll-native .cvb-inline-link {{
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  border: 1px solid {field_border};
+  background: {field_bg};
+  color: {field_text} !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none !important;
+  font-size: 14px;
+  line-height: 1;
+  z-index: 3;
+  cursor: pointer;
+}}
+.st-key-cvb-middle-scroll-native .cvb-inline-link:hover {{
+  border-color: {field_focus_border};
+  background: {field_focus_bg};
+  box-shadow: {field_focus_ring};
+}}
+.st-key-cvb-middle-scroll-native .cvb-inline-link.cvb-inline-link-active {{
+  border-color: {field_focus_border};
+  color: {field_focus_border} !important;
+}}
+.cvb-link-popover {{
+  position: fixed;
+  z-index: 10020;
+  width: min(360px, calc(100vw - 24px));
+  max-width: calc(100vw - 24px);
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px solid {field_border};
+  background: {expander_card_bg};
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.34);
+}}
+.cvb-link-popover-title {{
+  font-size: 13px;
+  font-weight: 700;
+  color: {label_color};
+  margin-bottom: 9px;
+}}
+.cvb-link-popover-row {{
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}}
+.cvb-link-popover-input {{
+  flex: 1;
+  height: 42px;
+  border-radius: 10px;
+  border: 1px solid {field_border};
+  background: {field_bg};
+  color: {field_text};
+  font-size: 14px;
+  padding: 0 12px;
+  outline: none;
+}}
+.cvb-link-popover-input:focus {{
+  border-color: {field_focus_border};
+  box-shadow: {field_focus_ring};
+}}
+.cvb-link-popover-save {{
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  border: 1px solid {field_focus_border};
+  background: {field_focus_bg};
+  color: {field_focus_border};
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+}}
+.cvb-link-popover-save:hover {{
+  filter: brightness(1.03);
 }}
 .st-key-cvb-middle-scroll-native .stButton button,
 .st-key-cvb-middle-scroll-native .stDownloadButton button {{
@@ -4090,7 +3708,7 @@ section[data-testid="stMain"]:has(.st-key-cvb-page-native) .block-container {{
   font-weight:600;
   font-family:Poppins,Montserrat,system-ui,sans-serif;
   letter-spacing:0.08em;
-  color:#65758b;
+  color:{rail_heading_color};
   text-transform:uppercase;
   margin:6px 0 16px;
   padding:0;
@@ -4103,7 +3721,7 @@ section[data-testid="stMain"]:has(.st-key-cvb-page-native) .block-container {{
   clear:both;
 }}
 .cvb-rail-divider {{
-  border-top:1px solid #dbe3ef;
+  border-top:1px solid {rail_divider};
   margin:16px 0 16px;
 }}
 .cvb-rail-heading-icon {{
@@ -4140,7 +3758,7 @@ section[data-testid="stMain"]:has(.st-key-cvb-page-native) .block-container {{
   z-index: 1 !important;
 }}
 
-.cvb-style-label, .cvb-label {{ font-size:14px; color:#334155; margin:10px 0 4px; font-weight:500; }}
+.cvb-style-label, .cvb-label {{ font-size:14px; color:{rail_body_text}; margin:10px 0 4px; font-weight:500; }}
 .st-key-cvb-style-section-native {{
   display: flex !important;
   flex-direction: column !important;
@@ -4168,7 +3786,7 @@ section[data-testid="stMain"]:has(.st-key-cvb-page-native) .block-container {{
   z-index: 5 !important;
   margin: 12px 0 8px !important;
   padding: 0 !important;
-  color: #475569 !important;
+  color: {style_label} !important;
   font-size: 14px !important;
   font-weight: 500 !important;
   line-height: 1.3 !important;
@@ -4181,14 +3799,14 @@ section[data-testid="stMain"]:has(.st-key-cvb-page-native) .block-container {{
   margin-top: 12px !important;
   margin-bottom: 6px !important;
   padding: 0 !important;
-  color: #475569 !important;
+  color: {style_label} !important;
   font-size: 13px !important;
   font-weight: 500 !important;
   line-height: 1.4 !important;
   clear: both !important;
 }}
 .st-key-cvb-style-native .cvb-label strong {{
-  color: #0b5cb8 !important;
+  color: {style_value} !important;
   font-weight: 700 !important;
 }}
 .st-key-cvb-style-native .cvb-style-label-accent {{
@@ -4275,7 +3893,7 @@ section[data-testid="stMain"]:has(.st-key-cvb-page-native) .block-container {{
   width: 14px !important;
   height: 14px !important;
   background: #0b6fd6 !important;
-  border: 2px solid #ffffff !important;
+  border: 2px solid {left_slider_border} !important;
   box-shadow: 0 1px 4px rgba(14, 116, 214, 0.25) !important;
 }}
 .st-key-cvb-left-scroll-native .stSlider [data-baseweb="slider"] > div:nth-child(1) {{
@@ -4287,7 +3905,7 @@ section[data-testid="stMain"]:has(.st-key-cvb-page-native) .block-container {{
 }}
 .st-key-cvb-left-scroll-native .stCheckbox label,
 .st-key-cvb-left-scroll-native .stToggle label {{
-  color: #334155 !important;
+  color: {rail_body_text} !important;
   font-size: 14px !important;
 }}
 .st-key-cvb-left-scroll-native .stToggle {{
@@ -4306,11 +3924,12 @@ section[data-testid="stMain"]:has(.st-key-cvb-page-native) .block-container {{
   height: 8px;
 }}
 .st-key-cvb-preview-tools-native {{
-  margin: 0 0 8px !important;
+  margin: 0 !important;
   padding: 0 !important;
-  position: relative !important;
-  z-index: 2 !important;
-  background: #f6f7f9 !important;
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 8 !important;
+  background: {preview_tools_bg} !important;
 }}
 .st-key-cvb-preview-tools-native > div,
 .st-key-cvb-preview-tools-native [data-testid="stVerticalBlock"],
@@ -4392,9 +4011,9 @@ html,body{{background:{pg_bg};overflow:hidden;font-family:system-ui,-apple-syste
 .eye-btn{{
   border:none;background:none;padding:2px;cursor:pointer;
   color:{muted};display:flex;align-items:center;flex-shrink:0;
-  border-radius:4px;transition:color .12s;
+  border-radius:4px;transition:color .12s,background-color .12s;
 }}
-.eye-btn:hover{{color:{hov}}}
+.eye-btn:hover{{color:#fde047;background:rgba(250,204,21,.18);}}
 .eye-btn.sec-off{{color:#cbd5e1}}
 </style>
 </head>
@@ -4446,507 +4065,17 @@ document.querySelectorAll('.eye-btn').forEach(function(btn){{
     components.html(html, height=comp_h, scrolling=False)
 
 
-def _render_template_component(current_tpl: str, is_dark: bool) -> None:
-    """Render template-selection cards as a custom HTML component (like the sections list).
-
-    Clicking a card sends postMessage → relay clicks hidden cvb_tpl_{key} button → Python reruns.
-    Design matches CVReviewer: compact cards with blue ring on selected, muted subtitle text.
-    """
-    bg        = "#1e293b" if is_dark else "#ffffff"
-    bg_hover  = "#334155" if is_dark else "#f8fbff"
-    bg_active = "#1e3a5f" if is_dark else "rgba(59,130,246,0.12)"
-    border    = "#334155" if is_dark else "#d3dce8"
-    border_act= "rgba(96,165,250,0.6)" if is_dark else "rgba(59,130,246,0.55)"
-    text_main = "#f1f5f9"  if is_dark else "#0f172a"
-    text_act  = "#bfdbfe"  if is_dark else "#2563eb"
-    text_sub  = "#94a3b8"  if is_dark else "#64748b"
-    text_sub_act="#93c5fd" if is_dark else "#2563eb"
-
-    cards_html = ""
-    for tpl_key, tpl_label, tpl_desc in TEMPLATE_CHOICES:
-        active = current_tpl == tpl_key
-        act_cls = " tpl-active" if active else ""
-        cards_html += (
-            f"<div class='tpl-card{act_cls}' data-tpl='{tpl_key}'>"
-            f"<div class='tpl-name'>{tpl_label}</div>"
-            f"<div class='tpl-desc'>{tpl_desc}</div>"
-            f"</div>"
-        )
-
-    html = f"""
-<style>
-*{{box-sizing:border-box;margin:0;padding:0;}}
-body{{background:transparent;padding:2px 0 0;margin:0;font-family:system-ui,sans-serif;}}
-.tpl-card{{
-  display:block;width:100%;text-align:left;cursor:pointer;
-  background:{bg};border:1px solid {border};border-radius:8px;
-  padding:12px 14px;margin-bottom:8px;transition:all 0.15s;
-  position:relative;
-}}
-.tpl-card:last-child{{margin-bottom:0;}}
-.tpl-card:hover{{background:{bg_hover};border-color:rgba(37,99,235,0.25);}}
-.tpl-card.tpl-active{{
-  background:{bg_active};
-  border-color:{border_act};
-  box-shadow:inset 0 0 0 1px {border_act};
-}}
-.tpl-name{{
-  font-size:13px;font-weight:600;color:{text_main};
-  line-height:1.2;margin-bottom:4px;letter-spacing:-0.01em;
-}}
-.tpl-active .tpl-name{{color:{text_act};}}
-.tpl-desc{{font-size:11px;color:{text_sub};line-height:1.35;}}
-.tpl-active .tpl-desc{{color:{text_sub_act};}}
-</style>
-<div id='tpl-wrap'>{cards_html}</div>
-<script>
-document.querySelectorAll('.tpl-card').forEach(function(card){{
-  card.addEventListener('click',function(){{
-    try{{window.parent.postMessage({{type:'cvb-tpl-select',tpl:this.dataset.tpl}},'*');}}catch(e){{}}
-  }});
-}});
-</script>
-"""
-    # 3 cards: ~54px each + 7px gap × 2 + 2px top padding = 182px; use 188 for safety
-    card_count = max(1, len(TEMPLATE_CHOICES))
-    comp_h = 10 + (card_count * 58) + ((card_count - 1) * 8)
-    components.html(html, height=comp_h, scrolling=False)
-
-
-# --- Modern template fidelity overrides (preview-first placeholders) ---
-def _build_preview_data_with_demo_defaults(user_data: dict) -> dict:
-    """Merge demo placeholders with user data for live preview.
-
-    Personal fields merge field-by-field.
-    Repeating sections use user rows when meaningful, with per-field fallback to demo rows.
-    """
-    demo = _get_demo_cv_data()
-    user = user_data if isinstance(user_data, dict) else {}
-
-    def _merge_personal() -> dict:
-        up = user.get("personal", {}) if isinstance(user.get("personal", {}), dict) else {}
-        dp = demo.get("personal", {}) if isinstance(demo.get("personal", {}), dict) else {}
-        out = {}
-        for k in set(dp.keys()) | set(up.keys()):
-            uv = up.get(k, "")
-            out[k] = uv if _has_meaningful_text(uv) else dp.get(k, "")
-        return out
-
-    def _meaningful_rows(rows: list) -> list[dict]:
-        return [r for r in rows if _row_has_meaningful_data(r)]
-
-    def _merge_rows(section_key: str) -> list[dict]:
-        urows = user.get(section_key, []) if isinstance(user.get(section_key, []), list) else []
-        drows = demo.get(section_key, []) if isinstance(demo.get(section_key, []), list) else []
-        urows = _meaningful_rows(urows)
-        if not urows:
-            return drows
-        merged: list[dict] = []
-        for i, urow in enumerate(urows):
-            drow = drows[i] if i < len(drows) and isinstance(drows[i], dict) else {}
-            keys = set(drow.keys()) | set(urow.keys())
-            row_out: dict = {}
-            for k in keys:
-                uv = urow.get(k)
-                dv = drow.get(k)
-                if isinstance(uv, bool):
-                    row_out[k] = uv
-                elif isinstance(uv, list):
-                    row_out[k] = uv if any(_has_meaningful_text(x) for x in uv) else (dv if isinstance(dv, list) else [])
-                elif isinstance(uv, dict):
-                    row_out[k] = uv if _row_has_meaningful_data(uv) else (dv if isinstance(dv, dict) else {})
-                else:
-                    row_out[k] = uv if _has_meaningful_text(uv) else (dv if dv is not None else "")
-            merged.append(row_out)
-        return merged
-
-    out = {
-        "personal": _merge_personal(),
-        "experience": _merge_rows("experience"),
-        "education": _merge_rows("education"),
-        "projects": _merge_rows("projects"),
-        "certifications": _merge_rows("certifications"),
-        "languages": _merge_rows("languages"),
-        "interests": [],
-        "skills": {"items": [], "categories": []},
-        "customization": user.get("customization", {}),
-    }
-
-    # Skills: preserve one-by-one entry behavior with demo fallback.
-    uskills = user.get("skills", {}) if isinstance(user.get("skills", {}), dict) else {}
-    uitems = uskills.get("items", []) if isinstance(uskills.get("items", []), list) else []
-    cleaned = []
-    for it in uitems:
-        if isinstance(it, dict) and _has_meaningful_text(it.get("name", "")):
-            cleaned.append({"name": str(it.get("name", "")).strip()})
-    if cleaned:
-        out["skills"]["items"] = cleaned
-        out["skills"]["categories"] = [{"id": "primary", "name": "Skills", "items": [x["name"] for x in cleaned]}]
-    else:
-        out["skills"] = demo.get("skills", {"items": [], "categories": []})
-
-    uinterests = user.get("interests", []) if isinstance(user.get("interests", []), list) else []
-    ints = [str(x).strip() for x in uinterests if _has_meaningful_text(x)]
-    out["interests"] = ints if ints else demo.get("interests", [])
-    return out
-
-
 def _build_preview_source(cv_data: dict) -> dict:
     """Return preview data source.
 
-    - Empty builder state: show demo content so template structure is visible.
-    - Once user enters any real content: show only user data (no demo fallback).
+    - Empty builder state: show demo preview.
+    - Once user has meaningful data: show only user data.
     """
     if _is_cv_data_effectively_empty(cv_data):
         return _build_preview_data_with_demo_defaults(cv_data)
-    return cv_data if isinstance(cv_data, dict) else {}
-
-
-def generate_cv_html(
-    data: dict,
-    template: str = "classic",
-    accent_color: str | None = None,
-    font_family: str | None = None,
-    font_size: int = 11,
-    line_height: float = 1.4,
-    entry_spacing: int = 8,
-    show_icons: bool = True,
-    preview_dark: bool = False,
-    section_visibility: dict | None = None,
-    section_order: list | None = None,
-) -> str:
-    """Final preview renderer with CVReviewer-style Modern structure."""
-    tpl = _normalize_template(template)
-    cfg = dict(TEMPLATE_CONFIGS.get(tpl, TEMPLATE_CONFIGS["classic"]))
-    if accent_color:
-        cfg["primary"] = accent_color
-        cfg["rule"] = accent_color
-        cfg["link"] = accent_color
-    if font_family:
-        cfg["font"] = font_family
-
-    vis = _normalize_section_visibility(section_visibility)
-    order = _normalize_section_order(section_order)
-    fs = max(9, int(font_size))
-    fs_sm = max(8, fs - 1)
-    fs_xs = max(7, fs - 2)
-    lh = max(1.15, float(line_height))
-    es = max(4, int(entry_spacing))
-
-    p = data.get("personal", {}) or {}
-    name = _html_escape((p.get("full_name") or "Your Name").strip() or "Your Name")
-    title = _html_escape((p.get("prof_title") or "Professional Title").strip() or "Professional Title")
-    summary = _html_escape((p.get("summary") or "").strip())
-
-    def _skill_values() -> list[str]:
-        out: list[str] = []
-        for item in data.get("skills", {}).get("items", []):
-            nm = str(item.get("name", "")).strip()
-            if nm:
-                out.append(nm)
-        if not out:
-            for cat in data.get("skills", {}).get("categories", []):
-                out.extend([str(x).strip() for x in cat.get("items", []) if str(x).strip()])
-        return out
-
-    skills = _skill_values()
-
-    def _sec_label(sid: str) -> str:
-        return SECTION_ID_TO_LABEL.get(sid, sid.replace("_", " ").title()).upper()
-
-    def _date_text(start: str, end: str, current: bool = False) -> str:
-        return _html_escape(_date_range(start, end, current))
-
-    def _summary_block() -> str:
-        if not summary:
-            return ""
-        return f"<p class='p'>{summary}</p>"
-
-    def _experience_block() -> str:
-        parts = []
-        for exp in data.get("experience", []) or []:
-            role = _html_escape(exp.get("role", ""))
-            company = _html_escape(exp.get("company", ""))
-            loc = _html_escape(exp.get("location", ""))
-            dr = _date_text(exp.get("start_date", ""), exp.get("end_date", ""), bool(exp.get("current", False)))
-            bullets = [str(x).strip() for x in exp.get("bullets", []) if str(x).strip()]
-            bhtml = "".join(f"<li>{_html_escape(b)}</li>" for b in bullets)
-            parts.append(
-                "<div class='entry'>"
-                "<div class='top'><span class='role'>%s</span><span class='date'>%s</span></div>"
-                "<div class='sub'>%s%s</div>"
-                "%s"
-                "</div>"
-                % (role, dr, company, (", " + loc) if loc else "", f"<ul class='ul'>{bhtml}</ul>" if bhtml else "")
-            )
-        return "".join(parts)
-
-    def _education_block() -> str:
-        parts = []
-        for edu in data.get("education", []) or []:
-            inst = _html_escape(edu.get("institution", ""))
-            degree = _html_escape(edu.get("degree", ""))
-            field = _html_escape(edu.get("field", ""))
-            loc = _html_escape(edu.get("location", ""))
-            gpa = _html_escape(edu.get("gpa", ""))
-            dr = _date_text(edu.get("start_date", ""), edu.get("end_date", ""))
-            desc = " | ".join([x for x in [degree, field] if x])
-            if gpa:
-                desc = f"{desc}{' | ' if desc else ''}GPA: {gpa}"
-            parts.append(
-                "<div class='entry'>"
-                "<div class='top'><span class='role'>%s</span><span class='date'>%s</span></div>"
-                "<div class='sub'>%s%s</div>"
-                "</div>"
-                % (inst, dr, desc, (", " + loc) if loc else "")
-            )
-        return "".join(parts)
-
-    def _projects_block() -> str:
-        parts = []
-        for proj in data.get("projects", []) or []:
-            namev = _html_escape(proj.get("name", ""))
-            rolev = _html_escape(proj.get("role", ""))
-            desc = _html_escape(proj.get("description", ""))
-            dr = _date_text(proj.get("start_date", ""), proj.get("end_date", ""))
-            tech = [str(x).strip() for x in proj.get("tech_stack", []) if str(x).strip()]
-            chips = "".join(f"<span class='chip'>{_html_escape(t)}</span>" for t in tech)
-            parts.append(
-                "<div class='entry'>"
-                "<div class='top'><span class='role'>%s</span><span class='date'>%s</span></div>"
-                "%s%s%s"
-                "</div>"
-                % (
-                    namev,
-                    dr,
-                    f"<div class='sub'>{rolev}</div>" if rolev else "",
-                    f"<p class='p'>{desc}</p>" if desc else "",
-                    f"<div class='chips'>{chips}</div>" if chips else "",
-                )
-            )
-        return "".join(parts)
-
-    def _langs_block() -> str:
-        rows = []
-        for lang in data.get("languages", []) or []:
-            lv = _html_escape(lang.get("language", ""))
-            pv = _html_escape(lang.get("proficiency", ""))
-            if lv:
-                rows.append(f"<div class='kv'><span>{lv}</span><span>{pv}</span></div>")
-        return "".join(rows)
-
-    def _certs_block() -> str:
-        rows = []
-        for cert in data.get("certifications", []) or []:
-            nm = _html_escape(cert.get("name", ""))
-            iss = _html_escape(cert.get("issuer", ""))
-            dt = _html_escape(cert.get("date", ""))
-            if nm:
-                tail = " - ".join([x for x in [iss, dt] if x])
-                rows.append(f"<p class='p'><strong>{nm}</strong>{(' - ' + tail) if tail else ''}</p>")
-        return "".join(rows)
-
-    def _interests_block() -> str:
-        vals = [str(x).strip() for x in data.get("interests", []) if str(x).strip()]
-        return "".join(f"<span class='chip'>{_html_escape(v)}</span>" for v in vals)
-
-    # shared map for classic/creative and right side modern
-    sec_map = {
-        "summary": _summary_block(),
-        "experience": _experience_block(),
-        "education": _education_block(),
-        "projects": _projects_block(),
-        "languages": _langs_block(),
-        "certifications": _certs_block(),
-        "interests": f"<div class='chips'>{_interests_block()}</div>" if _interests_block() else "",
-        "skills": "".join(f"<p class='p'>{_html_escape(s)}</p>" for s in skills),
-    }
-
-    def _sec(title: str, inner: str, compact: bool = False) -> str:
-        if not inner.strip():
-            return ""
-        cls = "sec compact" if compact else "sec"
-        return f"<section class='{cls}'><h2>{_html_escape(title)}</h2>{inner}</section>"
-
-    # modern layout
-    icon_map = {"email": "✉", "phone": "☎", "location": "⌖", "website": "◉", "linkedin": "in", "github": "⌂"}
-    contact_rows = []
-    for key in ["email", "phone", "location", "website", "linkedin", "github"]:
-        val = str(p.get(key, "")).strip()
-        if val:
-            contact_rows.append(
-                f"<div class='contact-row'><span class='ico'>{icon_map.get(key,'•')}</span><span>{_html_escape(val)}</span></div>"
-            )
-    contact_html = "".join(contact_rows)
-
-    # skills with dot-rating look (deterministic)
-    modern_skill_rows = []
-    for i, sk in enumerate(skills):
-        fill = 3 + ((len(sk) + i) % 3)
-        dots = "".join("<i class='dot on'></i>" if d < fill else "<i class='dot'></i>" for d in range(5))
-        modern_skill_rows.append(
-            f"<div class='skill-row'><span>{_html_escape(sk)}</span><span class='dots'>{dots}</span></div>"
-        )
-    modern_skills = "".join(modern_skill_rows)
-
-    left_pref = {"skills", "languages", "certifications", "interests"}
-    left_ids = [sid for sid in order if sid in left_pref and vis.get(sid, True)]
-    right_ids = [sid for sid in order if sid not in left_pref and sid != "personal" and vis.get(sid, True)]
-
-    left_blocks: list[str] = []
-    for sid in left_ids:
-        if sid == "skills":
-            left_blocks.append(_sec("Skills", modern_skills, compact=True))
-        elif sid == "interests":
-            chips = _interests_block()
-            if chips:
-                left_blocks.append(_sec("Interests", f"<div class='chips'>{chips}</div>", compact=True))
-        else:
-            inner = sec_map.get(sid, "")
-            if inner:
-                left_blocks.append(_sec(_sec_label(sid), inner, compact=True))
-
-    right_blocks: list[str] = []
-    for sid in right_ids:
-        if sid == "summary":
-            ttl = "Professional Summary"
-        else:
-            ttl = _sec_label(sid).title()
-        inner = sec_map.get(sid, "")
-        if inner:
-            right_blocks.append(_sec(ttl, inner, compact=False))
-
-    modern_body = (
-        "<div class='paper modern'>"
-        "<div class='m-grid'>"
-        "<aside class='m-left'>"
-        f"<h1 id='cv-name'>{name}</h1>"
-        f"<p class='title'>{title}</p>"
-        + (_sec("Contact", contact_html, compact=True) if contact_html else "")
-        + "".join(left_blocks)
-        + "</aside>"
-        "<main class='m-right'>"
-        + "".join(right_blocks)
-        + "</main>"
-        + "</div></div>"
-    )
-
-    # keep current non-modern rendering simple/stable
-    contact_line = " · ".join(_html_escape(str(p.get(k, "")).strip()) for k in ["email", "phone", "location", "website", "linkedin", "github"] if str(p.get(k, "")).strip())
-    classic_sections = "".join(
-        _sec(_sec_label(sid).title(), sec_map.get(sid, ""), compact=False)
-        for sid in order if sid != "personal" and vis.get(sid, True)
-    )
-    classic_body = (
-        "<div class='paper classic'>"
-        f"<h1 id='cv-name'>{name}</h1>"
-        f"<p class='title'>{title}</p>"
-        + (f"<p class='contact-line'>{contact_line}</p>" if contact_line else "")
-        + classic_sections
-        + "</div>"
-    )
-
-    creative_left = []
-    for sid in ["skills", "languages", "interests"]:
-        if vis.get(sid, True):
-            inner = sec_map.get(sid, "")
-            if inner:
-                creative_left.append(_sec(_sec_label(sid).title(), inner, compact=True))
-    creative_right = "".join(
-        _sec(("About Me" if sid == "summary" else _sec_label(sid).title()), sec_map.get(sid, ""), compact=False)
-        for sid in order if sid not in {"skills", "languages", "interests", "personal"} and vis.get(sid, True)
-    )
-    creative_body = (
-        "<div class='paper creative'><div class='c-grid'>"
-        "<aside class='c-left'>"
-        f"<h1 id='cv-name'>{name}</h1><p class='title'>{title}</p>"
-        + (_sec("Contact", contact_html, compact=True) if contact_html else "")
-        + "".join(creative_left)
-        + "</aside><main class='c-right'>"
-        + creative_right
-        + "</main></div></div>"
-    )
-
-    body_html = {"modern": modern_body, "creative": creative_body}.get(tpl, classic_body)
-    primary = cfg["primary"]
-    primary_soft = f"{primary}26"
-    text = "#e2e8f0" if preview_dark else "#0f172a"
-    muted = "#94a3b8" if preview_dark else "#64748b"
-    paper_bg = "#111827" if preview_dark else "#ffffff"
-    page_bg = "#0b1220" if preview_dark else "#f8fafc"
-    border = "#334155" if preview_dark else "#dbe4f0"
-
-    return f"""<!DOCTYPE html>
-<html><head><meta charset="UTF-8">
-<style>
-* {{ box-sizing:border-box; }}
-html, body {{ margin:0; padding:0; }}
-body {{ background:{page_bg}; font-family:{cfg["font"]}; color:{text}; }}
-.paper {{ width:100%; background:{paper_bg}; border:1px solid {border}; }}
-h1 {{ margin:0; font-size:{max(20, fs + 7)}px; line-height:1.12; font-weight:800; }}
-.title {{ margin:3px 0 0; color:{muted}; font-size:{fs}px; }}
-.sec {{ margin-top:{max(6, es)}px; }}
-.sec h2 {{
-  margin:0 0 5px; font-size:{fs_xs}px; letter-spacing:.9px;
-  text-transform:uppercase; font-weight:800; color:{primary};
-  border-bottom:1.5px solid {primary}; padding-bottom:3px;
-}}
-.sec.compact h2 {{ font-size:{max(7, fs_xs - 1)}px; border-bottom:1px solid currentColor; }}
-.p {{ margin:0 0 3px; font-size:{fs_xs}px; line-height:{lh}; }}
-.entry {{ margin:0 0 {max(5, es - 1)}px; }}
-.top {{ display:flex; justify-content:space-between; gap:8px; align-items:flex-end; }}
-.role {{ font-size:{fs}px; font-weight:700; }}
-.date {{ font-size:{fs_xs}px; color:{muted}; white-space:nowrap; }}
-.sub {{ font-size:{fs_xs}px; color:{muted}; margin-top:1px; font-style:italic; line-height:{lh}; }}
-.ul {{ margin:4px 0 0 14px; padding:0; }}
-.ul li {{ margin:1px 0; font-size:{fs_xs}px; line-height:{lh}; }}
-.kv {{ display:flex; justify-content:space-between; gap:8px; font-size:{fs_xs}px; line-height:{lh}; margin-bottom:3px; }}
-.chips {{ display:flex; flex-wrap:wrap; gap:4px; }}
-.chip {{ font-size:{max(7, fs_xs - 1)}px; line-height:1.1; padding:2px 6px; border-radius:999px; background:{primary_soft}; color:{primary}; border:1px solid {primary_soft}; }}
-.contact-line {{ margin:4px 0 0; font-size:{fs_xs}px; color:{muted}; text-align:center; }}
-
-/* modern exact-ish */
-.modern .m-grid {{ display:grid; grid-template-columns:31% 69%; min-height:1122px; }}
-.m-left {{
-  background:{primary}; color:#f8fbff; padding:16px 14px;
-}}
-.m-left h1 {{ color:#fff; font-size:{max(20, fs + 8)}px; }}
-.m-left .title {{ color:#dbeafe; font-size:{fs_sm}px; }}
-.m-left .sec h2 {{ color:#fff; border-bottom-color:rgba(255,255,255,.32); }}
-.contact-row {{ display:flex; gap:6px; align-items:flex-start; margin:0 0 4px; font-size:{fs_xs}px; line-height:{lh}; }}
-.contact-row .ico {{
-  display:inline-flex; align-items:center; justify-content:center;
-  width:12px; min-width:12px; margin-top:1px; color:#e2e8f0; font-size:{max(8, fs_xs - 1)}px;
-}}
-.skill-row {{ display:flex; justify-content:space-between; align-items:center; gap:6px; margin:0 0 4px; font-size:{fs_xs}px; }}
-.dots {{ display:inline-flex; gap:3px; }}
-.dot {{ width:7px; height:7px; border-radius:50%; background:rgba(255,255,255,.30); }}
-.dot.on {{ background:#fff; }}
-.m-left .chip {{ background:rgba(255,255,255,.15); border-color:rgba(255,255,255,.18); color:#fff; }}
-
-.m-right {{ padding:14px 16px; background:#fff; color:#1e293b; }}
-.m-right .sec h2 {{ color:{primary}; border-bottom-color:{primary}; }}
-.m-right .p, .m-right .sub, .m-right .date, .m-right .kv {{ color:#64748b; }}
-.m-right .role {{ color:#0f172a; }}
-
-/* classic */
-.classic {{ min-height:1122px; padding:16px; }}
-.classic h1 {{ color:{primary}; text-align:center; }}
-.classic .title {{ text-align:center; }}
-
-/* creative */
-.creative .c-grid {{ display:grid; grid-template-columns:30% 70%; min-height:1122px; }}
-.c-left {{ background:{primary_soft}; border-right:2px solid {primary}; padding:14px 12px; }}
-.c-left h1 {{ color:{primary}; font-size:{max(19, fs + 7)}px; }}
-.c-right {{ padding:14px 16px; background:#fff; color:#1e293b; }}
-.c-right .entry {{ border-left:2px solid {primary_soft}; padding-left:10px; }}
-</style>
-</head><body>
-{body_html}
-</body></html>"""
-
-
-_SCALE_VALUES = [80, 85, 90, 95, 100, 105, 110, 115, 120, 125, 130]
+    src = dict(cv_data) if isinstance(cv_data, dict) else {}
+    src["_user_only_preview"] = True
+    return src
 
 
 def _render_style_component(
@@ -4965,6 +4094,8 @@ def _render_style_component(
     track_bg  = "#334155" if is_dark else "#e2e8f0"
     tog_off   = "#475569" if is_dark else "#e2e8f0"
     ring_bg   = "#1e293b" if is_dark else "#ffffff"
+    value_color = "#93c5fd" if is_dark else "#0b5cb8"
+    sw_border = "#475569" if is_dark else "#cbd5e1"
 
     # Font scale: clamp to 0.80-1.30 snapped to nearest 0.05
     raw_scale = font_size / 11.0
@@ -4997,7 +4128,7 @@ html,body{{background:transparent;font-family:Poppins,Montserrat,system-ui,-appl
 .swatches{{display:flex;flex-wrap:wrap;gap:8px;width:220px;max-width:100%;padding:4px 6px 2px;box-sizing:border-box;}}
 .sw{{
   width:28px;height:28px;border-radius:999px;border:none;cursor:pointer;
-  box-shadow:0 0 0 1px #cbd5e1;outline:none;border:2px solid transparent;
+  box-shadow:0 0 0 1px {sw_border};outline:none;border:2px solid transparent;
   transition:transform 0.12s,box-shadow 0.12s;
 }}
 .sw:hover{{transform:scale(1.05);}}
@@ -5005,7 +4136,7 @@ html,body{{background:transparent;font-family:Poppins,Montserrat,system-ui,-appl
 .section{{margin-top:14px;padding-right:14px;}}
 .row-lbl{{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px;padding-right:4px;}}
 .row-lbl span{{font-size:13px;font-weight:500;color:{lbl_color};}}
-.row-lbl strong{{font-size:13px;font-weight:700;color:#0b5cb8;padding-right:6px;}}
+.row-lbl strong{{font-size:13px;font-weight:700;color:{value_color};padding-right:6px;}}
 input[type=range]{{
   -webkit-appearance:none;width:100%;height:6px;border-radius:9999px;
   background:{track_bg};cursor:pointer;outline:none;border:none;
@@ -5104,7 +4235,15 @@ document.getElementById('icons-lbl').addEventListener('click',function(e){{e.pre
     components.html(html, height=340, scrolling=False)
 
 
-def _render_zoom_toolbar_component(zoom: int) -> None:
+def _render_zoom_toolbar_component(zoom: int, is_dark: bool = False) -> None:
+    bar_bg = "#0f172a" if is_dark else "#ffffff"
+    bar_border = "#334155" if is_dark else "#dbe3ef"
+    icon_color = "#94a3b8" if is_dark else "#65758B"
+    icon_hover_bg = "rgba(148,163,184,0.14)" if is_dark else "#f3f5f7"
+    icon_hover_color = "#bfdbfe" if is_dark else "#0059B3"
+    pill_bg = "rgba(37,99,235,.22)" if is_dark else "rgba(0,89,179,.10)"
+    pill_border = "rgba(96,165,250,.45)" if is_dark else "rgba(0,89,179,.20)"
+    pill_color = "#bfdbfe" if is_dark else "#0059B3"
     html = f"""<!DOCTYPE html>
 <html><head><meta charset='UTF-8'>
 <style>
@@ -5117,20 +4256,20 @@ html,body{{background:transparent;overflow:hidden;font-family:Poppins,Montserrat
   justify-content:center;
   gap:8px;
   padding:8px 16px;
-  background:#ffffff;
-  border-bottom:1px solid #dbe3ef;
+  background:{bar_bg};
+  border-bottom:1px solid {bar_border};
 }}
 .icon-btn{{
   width:28px;height:28px;border:0;border-radius:8px;background:transparent;
-  color:#65758B;display:inline-flex;align-items:center;justify-content:center;
+  color:{icon_color};display:inline-flex;align-items:center;justify-content:center;
   padding:6px;cursor:pointer;transition:background .15s,color .15s;
 }}
-.icon-btn:hover{{background:#f3f5f7;color:#0059B3}}
+.icon-btn:hover{{background:{icon_hover_bg};color:{icon_hover_color}}}
 .icon-btn svg{{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}}
 .zoom-pill{{
   width:56px;min-width:56px;height:19px;border-radius:999px;
-  background:rgba(0,89,179,.10);border:1px solid rgba(0,89,179,.20);
-  color:#0059B3;font-size:10px;font-weight:500;line-height:1;
+  background:{pill_bg};border:1px solid {pill_border};
+  color:{pill_color};font-size:10px;font-weight:500;line-height:1;
   display:inline-flex;align-items:center;justify-content:center;
 }}
 </style></head>
@@ -5269,6 +4408,8 @@ def _render_middle_panel_native() -> None:
         if section_id == "education":
             eid = str(uuid.uuid4())
             st.session_state["cvb_edu_ids"].append(eid)
+            st.session_state[f"cvb_edu_desc_{eid}"] = ""
+            st.session_state[f"cvb_edu_gpa_{eid}"] = ""
             st.session_state[f"cvb_edu_visible_{eid}"] = True
             return True
         if section_id == "skills":
@@ -5286,6 +4427,7 @@ def _render_middle_panel_native() -> None:
             st.session_state[f"cvb_proj_desc_{pid}"] = ""
             st.session_state[f"cvb_proj_tech_{pid}"] = ""
             st.session_state[f"cvb_proj_link_{pid}"] = ""
+            st.session_state[f"cvb_proj_link_url_{pid}"] = ""
             st.session_state[f"cvb_proj_start_{pid}"] = ""
             st.session_state[f"cvb_proj_end_{pid}"] = ""
             st.session_state[f"cvb_proj_visible_{pid}"] = True
@@ -5304,6 +4446,7 @@ def _render_middle_panel_native() -> None:
             st.session_state[f"cvb_cert_issuer_{cid}"] = ""
             st.session_state[f"cvb_cert_date_{cid}"] = ""
             st.session_state[f"cvb_cert_link_{cid}"] = ""
+            st.session_state[f"cvb_cert_link_url_{cid}"] = ""
             st.session_state[f"cvb_cert_visible_{cid}"] = True
             return True
         return False
@@ -5432,6 +4575,7 @@ def _render_right_panel_native(cv_data: dict, is_dark: bool) -> None:
             preview_styles = preview_html[style_start + 7:style_end]
     scale = zoom / 100.0
     bg = "#0b1220" if is_dark else "#f4f7fb"
+    paper_bg = "#0f172a" if is_dark else "#ffffff"
     preview_doc = f"""<!DOCTYPE html>
 <html>
 <head>
@@ -5444,13 +4588,14 @@ body {{ padding:0; }}
 .resume-shell {{
   width: {A4_WIDTH_PX}px;
   min-height: {A4_HEIGHT_PX}px;
-  background: #fff;
+  background: {paper_bg};
   box-shadow: none;
   zoom: {scale};
 }}
 .resume-shell > .paper {{
   width: {A4_WIDTH_PX}px;
   min-height: {A4_HEIGHT_PX}px;
+  background: {paper_bg};
 }}
 {preview_styles}
 </style>
@@ -5470,7 +4615,7 @@ def render_cv_builder_page() -> None:
 
     is_dark = st.session_state.get("theme", "light") == "dark"
     _inject_builder_css_native(is_dark)
-    _inject_middle_section_exact_css()
+    _inject_middle_section_exact_css(is_dark)
 
     ss        = st.session_state
     cv_data   = collect_cv_data()
@@ -5555,7 +4700,7 @@ def render_cv_builder_page() -> None:
                                 mime="application/pdf",
                                 key="cvb_toolbar_download",
                                 type="primary",
-                                on_click="ignore",
+                                on_click="rerun",
                             )
                         else:
                             st.button("Download PDF", key="cvb_toolbar_download_disabled", disabled=True)
@@ -5583,392 +4728,33 @@ def render_cv_builder_page() -> None:
             st.warning(f"PDF export unavailable: {pdf_error}")
 
         with st.container(key="cvb-main-native"):
-            with st.container(key="cvb-main-row-native"):
-                col_sidebar, col_editor, col_preview = st.columns(
-                    [1.2, 3.2, 2.5],
-                    gap="small",
-                )
-                with col_sidebar:
-                    with st.container(key="cvb-left-scroll-native"):
-                        _render_left_panel_native()
-                with col_editor:
-                    with st.container(key="cvb-middle-scroll-native"):
-                        _render_middle_panel_native()
-                with col_preview:
-                    # Re-collect after editor render so button-driven mutations
-                    # (date picker month/year, bullet add/remove, etc.) appear
-                    # in preview within the same rerun.
-                    cv_data_live = collect_cv_data()
+            col_sidebar, col_editor, col_preview = st.columns(
+                [1.2, 3.2, 2.5],
+                gap="small",
+            )
+            with col_sidebar:
+                with st.container(key="cvb-left-scroll-native"):
+                    _render_left_panel_native()
+            with col_editor:
+                with st.container(key="cvb-middle-scroll-native"):
+                    _render_middle_panel_native()
+            with col_preview:
+                # Re-collect after editor render so button-driven mutations
+                # (date picker month/year, bullet add/remove, etc.) appear
+                # in preview within the same rerun.
+                cv_data_live = collect_cv_data()
+                with st.container(key="cvb-right-scroll-native"):
                     with st.container(key="cvb-preview-tools-native"):
                         _render_zoom_toolbar_component(
-                            int(ss.get("cvb_zoom", _default_zoom_for_template(ss.get("cvb_template", "classic"))))
+                            int(ss.get("cvb_zoom", _default_zoom_for_template(ss.get("cvb_template", "classic")))),
+                            is_dark=is_dark,
                         )
-                    with st.container(key="cvb-right-scroll-native"):
-                        _render_right_panel_native(cv_data_live, is_dark)
+                    _render_right_panel_native(cv_data_live, is_dark)
 
     _inject_realtime_js()
     _inject_sections_relay_js()
     _inject_chevron_hider_js()
     return
-
-
-        # ── TOOLBAR ──────────────────────────────────────────────────────
-    # Legacy non-native renderer block removed.
-    """
-            # removed legacy block
-                if st.button("↑ Import", key="btn_import", width="stretch", help="Import JSON backup"):
-                    ss["cvb_show_import"] = not ss.get("cvb_show_import", False)
-                    st.rerun()
-            with tc_bak:
-                st.download_button(
-                    "Backup", data=_get_backup_json(),
-                    file_name="cv_backup.json", mime="application/json",
-                    width="stretch", key="btn_backup", help="Download JSON backup",
-                )
-            with tc_pdf:
-                if pdf_bytes:
-                    st.download_button(
-                        "⬇ Download PDF", data=pdf_bytes,
-                        file_name=f"{cv_title.replace(' ', '_')}.pdf",
-                        mime="application/pdf",
-                        width="stretch", key="btn_pdf", type="primary",
-                    )
-                else:
-                    st.button("⬇ Download PDF", disabled=True, width="stretch", key="btn_pdf_dis")
-            with tc_save:
-                if st.button("Save", key="btn_save", width="stretch"):
-                    title = ss.get("cvb_cv_title", "My Resume") or "My Resume"
-                    if _save_cv(cv_data, title, template):
-                        ss["cvb_last_saved"] = datetime.now().strftime("%I:%M %p")
-                        st.rerun()
-                    else:
-                        st.error("Save failed.")
-            with tc_rst:
-                if st.button("↺ Reset", key="btn_reset", width="stretch"):
-                    ss["cvb_confirm_reset"] = True
-                    st.rerun()
-
-        # ── RESET CONFIRMATION ────────────────────────────────────────────
-        if ss.get("cvb_confirm_reset"):
-            st.warning("This will clear all your CV data. This cannot be undone.")
-            rc1, rc2, rc3 = st.columns([1, 1, 4])
-            with rc1:
-                if st.button("Yes, Reset", key="btn_confirm_reset", type="primary"):
-                    _reset_all()
-            with rc2:
-                if st.button("Cancel", key="btn_cancel_reset"):
-                    ss["cvb_confirm_reset"] = False
-                    st.rerun()
-
-        # ── IMPORT PANEL ─────────────────────────────────────────────────
-        if ss.get("cvb_show_import"):
-            uploaded = st.file_uploader(
-                "Upload JSON backup", type=["json"],
-                key="cvb_import_file", label_visibility="collapsed",
-            )
-            if uploaded:
-                _import_from_json(uploaded)
-
-        # ── MAIN 3-PANEL GRID ─────────────────────────────────────────────
-        with st.container(key="cvb-main-grid"):
-            col_left, col_mid, col_right = st.columns([0.75, 1.5, 1.75], gap="small")
-
-            with col_left:
-                with st.container(key="cvb-left-panel"):
-                    _render_left_panel()
-
-            with col_mid:
-                with st.container(key="cvb-center-panel"):
-                    with st.container(key="cvb-personal-card"):
-                        with st.expander("👤 Personal Information", expanded=True):
-                            _personal_section()
-                    with st.expander("📄 Professional Summary", expanded=False):
-                        _summary_section()
-                    with st.expander("💼 Work Experience", expanded=False):
-                        _experience_section()
-                    with st.expander("🎓 Education", expanded=False):
-                        _education_section()
-                    with st.expander("⚙ Skills", expanded=False):
-                        _skills_section()
-                    with st.expander("📁 Projects", expanded=False):
-                        _projects_section()
-                    with st.expander("🌐 Languages", expanded=False):
-                        _languages_section()
-                    with st.expander("🏆 Certifications", expanded=False):
-                        _certifications_section()
-                    with st.expander("⭐ Interests", expanded=False):
-                        _interests_section()
-
-            with col_right:
-                with st.container(key="cvb-right-panel"):
-                    _render_right_panel(cv_data, is_dark)
-
-
-    """
-
-# --- CVReviewer middle-panel overrides (latest) ---
-def _experience_section() -> None:
-    exp_ids = list(st.session_state.get("cvb_exp_ids", []))
-    if not exp_ids:
-        st.markdown(
-            "<div style='border:1px dashed #cbd5e1;border-radius:12px;padding:0.8rem 0.95rem;"
-            "color:#64748b;background:#f8fafc;'>Click <strong>Add Position</strong> to add your work history.</div>",
-            unsafe_allow_html=True,
-        )
-        return
-
-    def _clone_position(source_id: str) -> None:
-        new_id = str(uuid.uuid4())
-        ids = list(st.session_state.get("cvb_exp_ids", []))
-        try:
-            at = ids.index(source_id) + 1
-        except ValueError:
-            at = len(ids)
-        ids.insert(at, new_id)
-        st.session_state["cvb_exp_ids"] = ids
-
-        fields = [
-            "role",
-            "company",
-            "loc",
-            "start",
-            "end",
-            "curr",
-            "desc",
-        ]
-        for f in fields:
-            st.session_state[f"cvb_exp_{f}_{new_id}"] = st.session_state.get(f"cvb_exp_{f}_{source_id}", "")
-        bcount = int(st.session_state.get(f"cvb_exp_bcount_{source_id}", 1))
-        st.session_state[f"cvb_exp_bcount_{new_id}"] = max(1, bcount)
-        for i in range(max(1, bcount)):
-            st.session_state[f"cvb_exp_b_{new_id}_{i}"] = st.session_state.get(f"cvb_exp_b_{source_id}_{i}", "")
-
-    for idx, eid in enumerate(exp_ids):
-        with st.container(key=f"cvb-exp-item-{eid}"):
-            ah1, ah2, ah3 = st.columns([6.5, 1.6, 0.8])
-            with ah1:
-                st.markdown(f"<div style='height:0.15rem'></div>", unsafe_allow_html=True)
-            with ah2:
-                if st.button("Duplicate", key=f"dup_exp_{eid}", type="tertiary"):
-                    _clone_position(eid)
-                    st.rerun()
-            with ah3:
-                if st.button(":material/delete:", key=f"rem_exp_{eid}", type="tertiary"):
-                    st.session_state["cvb_exp_ids"].remove(eid)
-                    st.session_state.pop(f"cvb_ai_sug_{eid}", None)
-                    st.rerun()
-
-            c1, c2 = st.columns(2)
-            with c1:
-                st.text_input("Job Title", key=f"cvb_exp_role_{eid}", placeholder="Enter job title")
-            with c2:
-                st.text_input("Company", key=f"cvb_exp_company_{eid}", placeholder="Enter company name")
-
-            c3, c4 = st.columns(2)
-            with c3:
-                st.text_input("Location", key=f"cvb_exp_loc_{eid}", placeholder="Enter location")
-            with c4:
-                _date_field("Start Date", f"cvb_exp_start_{eid}")
-
-            if not st.session_state.get(f"cvb_exp_curr_{eid}", False):
-                _date_field("End Date", f"cvb_exp_end_{eid}")
-            else:
-                st.text_input("End Date", value="Present", disabled=True, key=f"cvb_exp_end_dis_{eid}")
-                st.session_state[f"cvb_exp_end_{eid}"] = ""
-
-            st.toggle("Currently working here", key=f"cvb_exp_curr_{eid}")
-
-            st.text_area(
-                "Description",
-                key=f"cvb_exp_desc_{eid}",
-                height=78,
-                placeholder="Briefly describe your core responsibilities in this role",
-            )
-
-            st.markdown("**Key Achievements**")
-            bcount = int(st.session_state.get(f"cvb_exp_bcount_{eid}", 1))
-            for i in range(max(1, bcount)):
-                bc1, bc2, bc3 = st.columns([0.3, 8, 0.5])
-                with bc1:
-                    st.markdown("<div style='color:#0b63ce;font-size:1.0rem;line-height:2.1;'>•</div>", unsafe_allow_html=True)
-                with bc2:
-                    st.text_input(
-                        f"Bullet {i + 1}",
-                        key=f"cvb_exp_b_{eid}_{i}",
-                        placeholder="Describe a measurable impact or responsibility",
-                        label_visibility="collapsed",
-                    )
-                with bc3:
-                    if st.button("×", key=f"rem_bullet_{eid}_{i}", type="tertiary", help="Remove bullet"):
-                        if bcount > 1:
-                            for j in range(i, bcount - 1):
-                                st.session_state[f"cvb_exp_b_{eid}_{j}"] = st.session_state.get(
-                                    f"cvb_exp_b_{eid}_{j + 1}", ""
-                                )
-                            st.session_state.pop(f"cvb_exp_b_{eid}_{bcount - 1}", None)
-                            st.session_state[f"cvb_exp_bcount_{eid}"] = bcount - 1
-                            st.rerun()
-
-            if st.button("Add bullet point", key=f"add_b_{eid}", type="tertiary"):
-                st.session_state[f"cvb_exp_bcount_{eid}"] = max(1, bcount) + 1
-                st.rerun()
-
-
-def _education_section() -> None:
-    for idx, eid in enumerate(list(st.session_state.get("cvb_edu_ids", []))):
-        inst = st.session_state.get(f"cvb_edu_inst_{eid}", "")
-        with st.expander(inst or f"Education {idx + 1}", expanded=True):
-            st.text_input("Degree", key=f"cvb_edu_degree_{eid}", placeholder="e.g. B.S. Computer Science")
-
-            c1, c2 = st.columns(2)
-            with c1:
-                st.text_input("Institution", key=f"cvb_edu_inst_{eid}", placeholder="Enter institution name")
-            with c2:
-                st.text_input("Location", key=f"cvb_edu_loc_{eid}", placeholder="City, Country")
-
-            c3, c4 = st.columns(2)
-            with c3:
-                _date_field("Start Date", f"cvb_edu_start_{eid}")
-            with c4:
-                _date_field("End Date", f"cvb_edu_end_{eid}")
-
-            st.text_area("Additional details", key=f"cvb_edu_gpa_{eid}", height=70,
-                         placeholder="GPA, honours, relevant coursework…")
-            if st.button("Delete Education", key=f"rem_edu_{eid}"):
-                st.session_state["cvb_edu_ids"].remove(eid)
-                st.rerun()
-
-
-def _skills_section() -> None:
-    skill_ids = list(st.session_state.get("cvb_skill_ids", []))
-    if not skill_ids:
-        st.info("Add skills one by one, for example: React, Python, SQL.")
-        return
-
-    for idx, sid in enumerate(skill_ids):
-        c1, c2 = st.columns([8, 1])
-        with c1:
-            st.text_input(
-                f"Skill {idx + 1}",
-                key=f"cvb_skill_item_{sid}",
-                placeholder="Enter skill",
-                label_visibility="collapsed",
-            )
-        with c2:
-            st.markdown("<div style='height:1.55rem'></div>", unsafe_allow_html=True)
-            if st.button("Delete", key=f"rem_skill_{sid}", help="Remove skill"):
-                st.session_state["cvb_skill_ids"].remove(sid)
-                st.session_state.pop(f"cvb_skill_item_{sid}", None)
-                st.rerun()
-
-
-def _projects_section() -> None:
-    for idx, pid in enumerate(list(st.session_state.get("cvb_proj_ids", []))):
-        name = st.session_state.get(f"cvb_proj_name_{pid}", "")
-        with st.expander(name or f"Project {idx + 1}", expanded=True):
-            c1, c2 = st.columns(2)
-            with c1:
-                st.text_input("Project Name", key=f"cvb_proj_name_{pid}", placeholder="Enter project name")
-            with c2:
-                st.text_input("Your Role", key=f"cvb_proj_role_{pid}", placeholder="Enter your role")
-
-            _date_field("Date", f"cvb_proj_start_{pid}")
-
-            st.text_area(
-                "Description",
-                key=f"cvb_proj_desc_{pid}",
-                height=80,
-                placeholder="Describe what the project does and your impact",
-            )
-
-            st.caption("Technologies")
-            tech_str = st.session_state.get(f"cvb_proj_tech_{pid}", "")
-            tech_tags = [t.strip() for t in tech_str.split(",") if t.strip()]
-            if tech_tags:
-                chips_html = (
-                    "<div style='display:flex;flex-wrap:wrap;gap:0.3rem;margin-bottom:0.4rem'>"
-                    + "".join(
-                        f"<span style='display:inline-flex;align-items:center;padding:0.2rem 0.6rem;"
-                        f"border-radius:6px;background:#1e293b;color:#f1f5f9;"
-                        f"font-size:0.8rem;font-weight:500'>{_html_escape(t)}</span>"
-                        for t in tech_tags
-                    )
-                    + "</div>"
-                )
-                st.markdown(chips_html, unsafe_allow_html=True)
-                rem_cols = st.columns(min(len(tech_tags), 6))
-                for i, tag in enumerate(tech_tags):
-                    with rem_cols[i % 6]:
-                        if st.button("Remove", key=f"rm_tech_{pid}_{i}", help=f"Remove {tag}"):
-                            tech_tags.pop(i)
-                            st.session_state[f"cvb_proj_tech_{pid}"] = ", ".join(tech_tags)
-                            st.rerun()
-            tech_ctr = st.session_state.get(f"cvb_proj_tech_ctr_{pid}", 0)
-            ta, tb = st.columns([4, 1])
-            with ta:
-                new_tech = st.text_input(
-                    "Add technology",
-                    key=f"cvb_proj_tech_new_{pid}_{tech_ctr}",
-                    label_visibility="collapsed",
-                    placeholder="Add technology…",
-                )
-            with tb:
-                if st.button("+ Add", key=f"btn_add_tech_{pid}_{tech_ctr}"):
-                    tag = new_tech.strip()
-                    if tag and tag not in tech_tags:
-                        tech_tags.append(tag)
-                        st.session_state[f"cvb_proj_tech_{pid}"] = ", ".join(tech_tags)
-                        st.session_state[f"cvb_proj_tech_ctr_{pid}"] = tech_ctr + 1
-                        st.rerun()
-
-            st.text_input("Link (GitHub / Live)", key=f"cvb_proj_link_{pid}", placeholder="Enter project link")
-            if st.button("Delete Project", key=f"rem_proj_{pid}"):
-                st.session_state["cvb_proj_ids"].remove(pid)
-                st.rerun()
-
-
-def _certifications_section() -> None:
-    _cert_spacer, _cert_action = st.columns([5, 2])
-    with _cert_action:
-        add_cert = st.button("+ Add Certification", key="btn_add_cert", type="secondary")
-    if add_cert:
-        cid = str(uuid.uuid4())
-        st.session_state["cvb_cert_ids"].append(cid)
-        st.rerun()
-    for idx, cid in enumerate(list(st.session_state.get("cvb_cert_ids", []))):
-        name = st.session_state.get(f"cvb_cert_name_{cid}", "")
-        with st.expander(name or f"Certification {idx + 1}", expanded=True):
-            st.text_input("Title", key=f"cvb_cert_name_{cid}", placeholder="Enter certification title")
-            c1, c2 = st.columns(2)
-            with c1:
-                st.text_input("Issuer", key=f"cvb_cert_issuer_{cid}", placeholder="Enter issuer")
-            with c2:
-                _date_field("Date", f"cvb_cert_date_{cid}")
-            st.text_input("Credential URL", key=f"cvb_cert_link_{cid}", placeholder="Enter credential URL")
-            if st.button("Delete Certification", key=f"rem_cert_{cid}"):
-                st.session_state["cvb_cert_ids"].remove(cid)
-                st.rerun()
-
-
-# --- CVReviewer middle-panel runtime overrides (final) ---
-def _personal_section() -> None:
-    st.text_input("Full Name", key="cvb_full_name", placeholder="Enter full name")
-    st.text_input("Professional Title", key="cvb_prof_title", placeholder="Enter professional title")
-
-    c1, c2 = st.columns(2)
-    with c1:
-        st.text_input("Email", key="cvb_email", placeholder="you@email.com")
-    with c2:
-        st.text_input("Phone", key="cvb_phone", placeholder="Enter phone number")
-
-    c3, c4 = st.columns(2)
-    with c3:
-        st.text_input("Location", key="cvb_location", placeholder="Enter location")
-    with c4:
-        st.text_input("Website", key="cvb_website", placeholder="Enter website URL")
-
-    st.text_input("LinkedIn", key="cvb_linkedin", placeholder="Enter LinkedIn profile URL")
-
 
 def _summary_section() -> None:
     with st.container(key="cvb-summary-inner-card"):
@@ -5983,69 +4769,6 @@ def _summary_section() -> None:
         st.markdown(f"<div class='cvb-summary-counter'>{char_count}/500</div>", unsafe_allow_html=True)
 
 
-def _experience_section() -> None:
-    exp_ids = list(st.session_state.get("cvb_exp_ids", []))
-    for idx, eid in enumerate(exp_ids):
-        st.markdown(f"**Position {idx + 1}**")
-        c1, c2 = st.columns(2)
-        with c1:
-            st.text_input("Job Title", key=f"cvb_exp_role_{eid}", placeholder="Enter job title")
-        with c2:
-            st.text_input("Company", key=f"cvb_exp_company_{eid}", placeholder="Enter company")
-
-        c3, c4, c5 = st.columns([1.05, 1.05, 1.3])
-        with c3:
-            _date_field("Start Date", f"cvb_exp_start_{eid}")
-        with c4:
-            if st.session_state.get(f"cvb_exp_curr_{eid}", False):
-                st.text_input("End Date", value="Present", disabled=True, key=f"cvb_exp_end_dis_{eid}")
-                st.session_state[f"cvb_exp_end_{eid}"] = ""
-            else:
-                _date_field("End Date", f"cvb_exp_end_{eid}")
-        with c5:
-            st.text_input("Location", key=f"cvb_exp_loc_{eid}", placeholder="City, Country")
-
-        st.text_area(
-            "Description",
-            key=f"cvb_exp_desc_{eid}",
-            height=78,
-            placeholder="Briefly describe your core responsibilities in this role",
-        )
-
-        st.markdown("**Key Achievements**")
-        bcount = max(1, int(st.session_state.get(f"cvb_exp_bcount_{eid}", 1)))
-        for i in range(bcount):
-            bc1, bc2, bc3 = st.columns([0.25, 8.2, 0.55])
-            with bc1:
-                st.markdown("<div style='color:#0b63ce;font-size:1rem;line-height:2.1;'>•</div>", unsafe_allow_html=True)
-            with bc2:
-                st.text_input(
-                    f"bullet_{eid}_{i}",
-                    key=f"cvb_exp_b_{eid}_{i}",
-                    placeholder="Describe an achievement...",
-                    label_visibility="collapsed",
-                )
-            with bc3:
-                if st.button("×", key=f"rem_bullet_{eid}_{i}", type="tertiary", help="Remove bullet"):
-                    if bcount > 1:
-                        for j in range(i, bcount - 1):
-                            st.session_state[f"cvb_exp_b_{eid}_{j}"] = st.session_state.get(
-                                f"cvb_exp_b_{eid}_{j + 1}", ""
-                            )
-                        st.session_state.pop(f"cvb_exp_b_{eid}_{bcount - 1}", None)
-                        st.session_state[f"cvb_exp_bcount_{eid}"] = bcount - 1
-                    else:
-                        st.session_state[f"cvb_exp_b_{eid}_0"] = ""
-                    st.rerun()
-
-        if st.button("Add bullet point", key=f"add_b_{eid}", type="tertiary"):
-            st.session_state[f"cvb_exp_bcount_{eid}"] = bcount + 1
-            st.rerun()
-
-        if idx < len(exp_ids) - 1:
-            st.markdown("<div style='height:0.5rem'></div><hr style='margin:0.35rem 0 0.5rem;border:none;border-top:1px solid #dbe4f0'>", unsafe_allow_html=True)
-
-
 def _education_section() -> None:
     edu_ids = list(st.session_state.get("cvb_edu_ids", []))
     if not edu_ids:
@@ -6057,7 +4780,14 @@ def _education_section() -> None:
         st.session_state[f"cvb_edu_start_{seeded_id}"] = st.session_state.get(f"cvb_edu_start_{seeded_id}", "")
         st.session_state[f"cvb_edu_end_{seeded_id}"] = st.session_state.get(f"cvb_edu_end_{seeded_id}", "")
         st.session_state[f"cvb_edu_curr_{seeded_id}"] = bool(st.session_state.get(f"cvb_edu_curr_{seeded_id}", False))
-        st.session_state[f"cvb_edu_gpa_{seeded_id}"] = st.session_state.get(f"cvb_edu_gpa_{seeded_id}", "")
+        st.session_state[f"cvb_edu_desc_{seeded_id}"] = st.session_state.get(
+            f"cvb_edu_desc_{seeded_id}",
+            st.session_state.get(f"cvb_edu_gpa_{seeded_id}", ""),
+        )
+        st.session_state[f"cvb_edu_gpa_{seeded_id}"] = st.session_state.get(
+            f"cvb_edu_gpa_{seeded_id}",
+            st.session_state[f"cvb_edu_desc_{seeded_id}"],
+        )
         st.session_state[f"cvb_edu_visible_{seeded_id}"] = True
         edu_ids = [seeded_id]
 
@@ -6066,7 +4796,7 @@ def _education_section() -> None:
         if edu_id in ids:
             ids.remove(edu_id)
             st.session_state["cvb_edu_ids"] = ids
-        for field in ["degree", "inst", "field", "loc", "start", "end", "curr", "gpa"]:
+        for field in ["degree", "inst", "field", "loc", "start", "end", "curr", "desc", "gpa"]:
             st.session_state.pop(f"cvb_edu_{field}_{edu_id}", None)
         st.session_state.pop(f"cvb_edu_visible_{edu_id}", None)
         st.session_state.pop(f"cvb_edu_start_{edu_id}__month", None)
@@ -6107,11 +4837,12 @@ def _education_section() -> None:
                     _date_field("End Date", f"cvb_edu_end_{eid}", allow_present=True, current_key=f"cvb_edu_curr_{eid}")
 
             st.text_area(
-                "Description",
-                key=f"cvb_edu_gpa_{eid}",
+                "Description / Details",
+                key=f"cvb_edu_desc_{eid}",
                 height=74,
                 placeholder="Additional details...",
             )
+            st.session_state[f"cvb_edu_gpa_{eid}"] = st.session_state.get(f"cvb_edu_desc_{eid}", "")
 
 
 def _skills_section() -> None:
@@ -6179,6 +4910,7 @@ def _projects_section() -> None:
         st.session_state[f"cvb_proj_desc_{seeded_id}"] = ""
         st.session_state[f"cvb_proj_tech_{seeded_id}"] = ""
         st.session_state[f"cvb_proj_link_{seeded_id}"] = ""
+        st.session_state[f"cvb_proj_link_url_{seeded_id}"] = ""
         st.session_state[f"cvb_proj_start_{seeded_id}"] = ""
         st.session_state[f"cvb_proj_end_{seeded_id}"] = ""
         st.session_state[f"cvb_proj_visible_{seeded_id}"] = True
@@ -6199,6 +4931,13 @@ def _projects_section() -> None:
                 if st.button(":material/delete:", key=f"rem_proj_{pid}", type="tertiary"):
                     st.session_state["cvb_proj_ids"].remove(pid)
                     st.session_state.pop(f"cvb_proj_visible_{pid}", None)
+                    st.session_state.pop(f"cvb_proj_link_url_{pid}", None)
+                    try:
+                        qk = f"cvb_lurl_proj_{pid}"
+                        if qk in st.query_params:
+                            del st.query_params[qk]
+                    except Exception:
+                        pass
                     st.rerun()
             c1, c2 = st.columns(2)
             with c1:
@@ -6219,7 +4958,15 @@ def _projects_section() -> None:
                 placeholder="React, Node.js, PostgreSQL",
                 help="Comma separated technologies used in this project.",
             )
-            st.text_input("Project Link", key=f"cvb_proj_link_{pid}", placeholder="Enter project link")
+            with st.container(key=f"cvb-link-field-proj-{pid}"):
+                st.text_input("Project Link", key=f"cvb_proj_link_{pid}", placeholder="Enter project link display text")
+            with st.container(key=f"cvb-link-url-proj-{pid}"):
+                st.text_input(
+                    "Project Link URL",
+                    key=f"cvb_proj_link_url_{pid}",
+                    label_visibility="collapsed",
+                    placeholder="https://project-url.com",
+                )
 
 
 def _languages_section() -> None:
@@ -6270,6 +5017,7 @@ def _certifications_section() -> None:
         st.session_state[f"cvb_cert_issuer_{seeded_id}"] = ""
         st.session_state[f"cvb_cert_date_{seeded_id}"] = ""
         st.session_state[f"cvb_cert_link_{seeded_id}"] = ""
+        st.session_state[f"cvb_cert_link_url_{seeded_id}"] = ""
         st.session_state[f"cvb_cert_visible_{seeded_id}"] = True
         cert_ids = [seeded_id]
     for idx, cid in enumerate(cert_ids):
@@ -6287,6 +5035,13 @@ def _certifications_section() -> None:
                 if st.button(":material/delete:", key=f"rem_cert_{cid}", type="tertiary"):
                     st.session_state["cvb_cert_ids"].remove(cid)
                     st.session_state.pop(f"cvb_cert_visible_{cid}", None)
+                    st.session_state.pop(f"cvb_cert_link_url_{cid}", None)
+                    try:
+                        qk = f"cvb_lurl_cert_{cid}"
+                        if qk in st.query_params:
+                            del st.query_params[qk]
+                    except Exception:
+                        pass
                     st.rerun()
             st.text_input("Title", key=f"cvb_cert_name_{cid}", placeholder="Enter certification title")
             c1, c2 = st.columns(2)
@@ -6294,7 +5049,15 @@ def _certifications_section() -> None:
                 st.text_input("Issuer", key=f"cvb_cert_issuer_{cid}", placeholder="Enter issuer")
             with c2:
                 _date_field("Date", f"cvb_cert_date_{cid}")
-            st.text_input("Credential URL", key=f"cvb_cert_link_{cid}", placeholder="Enter credential URL")
+            with st.container(key=f"cvb-link-field-cert-{cid}"):
+                st.text_input("Credential URL", key=f"cvb_cert_link_{cid}", placeholder="Enter credential display text")
+            with st.container(key=f"cvb-link-url-cert-{cid}"):
+                st.text_input(
+                    "Credential URL Link",
+                    key=f"cvb_cert_link_url_{cid}",
+                    label_visibility="collapsed",
+                    placeholder="https://credential-url.com",
+                )
 
 
 def _interests_section() -> None:
@@ -6352,10 +5115,37 @@ def _personal_section() -> None:
         with c3:
             st.text_input("Location", key="cvb_location", placeholder="Enter location")
         with c4:
-            st.text_input("Website", key="cvb_website", placeholder="Enter website URL")
+            with st.container(key="cvb-link-field-linkedin"):
+                st.text_input("LinkedIn", key="cvb_linkedin", placeholder="Enter LinkedIn display text")
+            with st.container(key="cvb-link-url-linkedin"):
+                st.text_input(
+                    "LinkedIn URL",
+                    key="cvb_linkedin_url",
+                    label_visibility="collapsed",
+                    placeholder="https://www.linkedin.com/in/username",
+                )
 
-        st.text_input("LinkedIn", key="cvb_linkedin", placeholder="Enter LinkedIn profile URL")
-        st.text_input("GitHub", key="cvb_github", placeholder="Enter GitHub profile URL")
+        c5, c6 = st.columns(2)
+        with c5:
+            with st.container(key="cvb-link-field-website"):
+                st.text_input("Website", key="cvb_website", placeholder="Enter website display text")
+            with st.container(key="cvb-link-url-website"):
+                st.text_input(
+                    "Website URL",
+                    key="cvb_website_url",
+                    label_visibility="collapsed",
+                    placeholder="https://yourwebsite.com",
+                )
+        with c6:
+            with st.container(key="cvb-link-field-github"):
+                st.text_input("GitHub", key="cvb_github", placeholder="Enter GitHub display text")
+            with st.container(key="cvb-link-url-github"):
+                st.text_input(
+                    "GitHub URL",
+                    key="cvb_github_url",
+                    label_visibility="collapsed",
+                    placeholder="https://github.com/username",
+                )
 
 
 def _experience_section() -> None:
@@ -6537,19 +5327,36 @@ def generate_cv_html(
     muted = "#94a3b8" if preview_dark else "#64748b"
     line = "#334155" if preview_dark else "#dbe4f0"
 
+    strict_user_preview = bool(data.get("_user_only_preview", False))
     p = data.get("personal", {}) or {}
-    name = _html_escape((p.get("full_name") or "Your Name").strip() or "Your Name")
-    title = _html_escape((p.get("prof_title") or "").strip())
-    summary = _html_escape((p.get("summary") or "").strip())
+    name_raw = str(p.get("full_name", "") or "").strip()
+    name_text = name_raw if strict_user_preview else (name_raw or "Your Name")
+    title_text = str(p.get("prof_title", "") or "").strip()
+    summary_text = str(p.get("summary", "") or "").strip()
+    name = _html_escape(name_text)
+    title = _html_escape(title_text)
+    summary = _html_escape(summary_text)
+    name_hidden_attr = "" if name_text else " style='display:none'"
 
     contacts_raw = [
         ("email", "Email", p.get("email", "")),
         ("phone", "Phone", p.get("phone", "")),
         ("location", "Location", p.get("location", "")),
-        ("website", "Website", p.get("website", "")),
         ("linkedin", "LinkedIn", p.get("linkedin", "")),
+        ("website", "Website", p.get("website", "")),
+        ("github", "GitHub", p.get("github", "")),
     ]
-    contacts = [(k, lbl, str(v).strip()) for k, lbl, v in contacts_raw if str(v or "").strip()]
+    contact_urls = {
+        "linkedin": str(p.get("linkedin_url", "") or "").strip(),
+        "website": str(p.get("website_url", "") or "").strip(),
+        "github": str(p.get("github_url", "") or "").strip(),
+    }
+    contacts = []
+    for k, lbl, v in contacts_raw:
+        display_val = str(v or "").strip()
+        href_val = contact_urls.get(k, "")
+        if display_val or (k in {"linkedin", "website", "github"} and href_val):
+            contacts.append((k, lbl, display_val))
     icon_map = {
         "email": "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='currentColor'><path d='M0 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2zm2-1a1 1 0 0 0-1 1v.217l7 4.2 7-4.2V4a1 1 0 0 0-1-1zm13 2.383-4.708 2.825L15 11.105zm-.034 6.876-5.64-3.471L8 9.583l-1.326-.795-5.64 3.47A1 1 0 0 0 2 13h12a1 1 0 0 0 .966-.741M1 11.105l4.708-2.897L1 5.383z'/></svg>",
         "phone": "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='currentColor'><path d='M3.654 1.328a.678.678 0 0 0-1.015-.063L1.605 2.3c-.483.484-.661 1.169-.45 1.77a17.6 17.6 0 0 0 4.168 6.608 17.6 17.6 0 0 0 6.608 4.168c.601.211 1.286.033 1.77-.45l1.034-1.034a.678.678 0 0 0-.063-1.015l-2.307-1.794a.68.68 0 0 0-.58-.122l-2.19.547a1.75 1.75 0 0 1-1.657-.459L5.482 8.062a1.75 1.75 0 0 1-.46-1.657l.548-2.19a.68.68 0 0 0-.122-.58z'/><path d='M1.884.511a1.745 1.745 0 0 1 2.612.163L6.29 2.98c.329.423.445.974.315 1.494l-.547 2.19a.68.68 0 0 0 .178.643l2.457 2.457a.68.68 0 0 0 .644.178l2.189-.547a1.75 1.75 0 0 1 1.494.315l2.306 1.794c.829.645.905 1.87.163 2.611l-1.034 1.034c-.74.74-1.846 1.065-2.877.702a18.6 18.6 0 0 1-7.01-4.42 18.6 18.6 0 0 1-4.42-7.009c-.362-1.03-.037-2.137.703-2.877z'/></svg>",
@@ -6561,32 +5368,70 @@ def generate_cv_html(
     icons_class = "icons-on" if show_icons else "icons-off"
 
     def _classic_contact_row() -> str:
-        parts = []
-        for k, _, v in contacts_raw:
-            val = str(v or "").strip()
-            ico = icon_map.get(k, "")
-            hidden = " style='display:none'" if not val else ""
-            parts.append(
-                f"<span class='ci-wrapper' data-cf='{k}'{hidden}>"
-                f"<span class='ci-sep' style='display:none'>\u00b7</span>"
-                f"<span class='ci-item'><span class='ci-ico'>{ico}</span>"
-                f"<span class='ci-val'>{_html_escape(val)}</span></span>"
-                f"</span>"
-            )
-        any_visible = any(str(v or "").strip() for _, _, v in contacts_raw)
+        link_fields = {"linkedin", "website", "github"}
+
+        def _row(order: list[str], row_class: str) -> str:
+            chunk: list[str] = []
+            for field_key in order:
+                raw_val = ""
+                for k, _, v in contacts_raw:
+                    if k == field_key:
+                        raw_val = str(v or "").strip()
+                        break
+                disp, href = _normalize_contact_link(
+                    field_key,
+                    raw_val,
+                    contact_urls.get(field_key, ""),
+                ) if field_key in link_fields else (raw_val, "")
+                visible = bool(str(disp or "").strip())
+                hidden = " style='display:none'" if not visible else ""
+                ico = icon_map.get(field_key, "")
+                if field_key in link_fields:
+                    if href:
+                        value_html = (
+                            f"<a class='ci-link ci-val' data-cf='{field_key}' href='{_html_attr_escape(href)}' "
+                            f"target='_blank' rel='noopener noreferrer'>{_html_escape(disp)}</a>"
+                        )
+                    else:
+                        value_html = f"<span class='ci-val' data-cf='{field_key}'>{_html_escape(disp)}</span>"
+                else:
+                    value_html = f"<span class='ci-val'>{_html_escape(disp)}</span>"
+                chunk.append(
+                    f"<span class='ci-wrapper' data-cf='{field_key}'{hidden}>"
+                    f"<span class='ci-sep' style='display:none'>\u00b7</span>"
+                    f"<span class='ci-item'><span class='ci-ico'>{ico}</span>{value_html}</span>"
+                    f"</span>"
+                )
+            return f"<div class='cv-contact-row {row_class}'>{''.join(chunk)}</div>"
+
+        row_top = _row(["email", "phone", "location", "linkedin"], "row-top")
+        row_bottom = _row(["website", "github"], "row-bottom")
+        any_visible = bool(contacts)
         hidden_row = "" if any_visible else " style='display:none'"
-        return f"<p id='cv-contact' class='cv-contact'{hidden_row}>{''.join(parts)}</p>"
+        return f"<div id='cv-contact' class='cv-contact'{hidden_row}>{row_top}{row_bottom}</div>"
 
     def _modern_contact_stack() -> str:
+        link_fields = {"linkedin", "website", "github"}
         parts = []
         for k, _, v in contacts_raw:
             val = str(v or "").strip()
+            disp, href = _normalize_contact_link(k, val, contact_urls.get(k, "")) if k in link_fields else (val, "")
             ico = icon_map.get(k, "")
-            hidden_attr = " style='display:none'" if not val else ""
+            hidden_attr = " style='display:none'" if not disp else ""
+            if k in link_fields:
+                if href:
+                    value_html = (
+                        f"<a class='ci-link ci-val' data-cf='{k}' href='{_html_attr_escape(href)}' "
+                        f"target='_blank' rel='noopener noreferrer'>{_html_escape(disp)}</a>"
+                    )
+                else:
+                    value_html = f"<span class='ci-val' data-cf='{k}'>{_html_escape(disp)}</span>"
+            else:
+                value_html = f"<span class='ci-val' data-cf='{k}'>{_html_escape(disp)}</span>"
             parts.append(
                 f"<p class='contact-item' data-cf='{k}'{hidden_attr}>"
                 f"<span class='ci-ico'>{ico}</span>"
-                f"<span class='ci-val' data-cf='{k}'>{_html_escape(val)}</span>"
+                f"{value_html}"
                 f"</p>"
             )
         return f"<div class='contact-stack'>{''.join(parts)}</div>"
@@ -6671,11 +5516,9 @@ def generate_cv_html(
             degree = _html_escape(edu.get("degree", ""))
             field = _html_escape(edu.get("field", ""))
             loc = _html_escape(edu.get("location", ""))
-            gpa = _html_escape(edu.get("gpa", ""))
+            details = _html_escape(edu.get("description", edu.get("gpa", "")))
             dr = _date_range_html(edu.get("start_date", ""), edu.get("end_date", ""), bool(edu.get("current", False)))
             desc_left = " \u00b7 ".join([x for x in [degree, field] if x])
-            if gpa:
-                desc_left = f"{desc_left}{' \u00b7 ' if desc_left else ''}GPA: {gpa}"
 
             parts.append(
                 "<div class='cv-entry'>"
@@ -6684,7 +5527,8 @@ def generate_cv_html(
                 f"<div class='dr'>{dr}</div>"
                 "</div>"
                 f"<div class='row-sub'>{desc_left}{(', ' + loc) if loc else ''}</div>"
-                "</div>"
+                + (f"<p class='cv-p'>{details}</p>" if details else "")
+                + "</div>"
             )
         return "".join(parts)
 
@@ -6696,13 +5540,28 @@ def generate_cv_html(
             name_val = _html_escape(proj.get("name", ""))
             role_val = _html_escape(proj.get("role", ""))
             desc = _html_escape(proj.get("description", ""))
-            link_val = _html_escape(proj.get("link", ""))
+            link_disp, link_href = _normalize_contact_link(
+                "website",
+                str(proj.get("link", "") or ""),
+                str(proj.get("link_url", "") or ""),
+            )
+            link_val = _html_escape(link_disp)
+            link_href_attr = _html_attr_escape(link_href)
             tech = [str(x).strip() for x in proj.get("tech_stack", []) if str(x).strip()]
             dr = _date_range_html(proj.get("start_date", ""), proj.get("end_date", ""), False)
             row_sub = role_val or ""
             if tech:
                 tech_line = _html_escape(", ".join(tech))
                 row_sub = f"{row_sub}{' \u00b7 ' if row_sub else ''}{tech_line}"
+            link_html = ""
+            if link_val:
+                if link_href:
+                    link_html = (
+                        f"<p class='cv-link'><a class='ci-link' href='{link_href_attr}' target='_blank' "
+                        f"rel='noopener noreferrer'>{link_val}</a></p>"
+                    )
+                else:
+                    link_html = f"<p class='cv-link'>{link_val}</p>"
             parts.append(
                 "<div class='cv-entry'>"
                 "<div class='row-top'>"
@@ -6711,7 +5570,7 @@ def generate_cv_html(
                 "</div>"
                 + (f"<div class='row-sub'>{row_sub}</div>" if row_sub else "")
                 + (f"<p class='cv-p'>{desc}</p>" if desc else "")
-                + (f"<p class='cv-link'>{link_val}</p>" if link_val else "")
+                + link_html
                 + "</div>"
             )
         return "".join(parts)
@@ -6734,8 +5593,29 @@ def generate_cv_html(
                 continue
             issuer = _html_escape(cert.get("issuer", ""))
             dt = _html_escape(cert.get("date", ""))
+            link_disp, link_href = _normalize_contact_link(
+                "website",
+                str(cert.get("link", "") or ""),
+                str(cert.get("link_url", "") or ""),
+            )
+            link_val = _html_escape(link_disp)
+            link_href_attr = _html_attr_escape(link_href)
             extra = " \u00b7 ".join([x for x in [issuer, dt] if x])
-            rows.append(f"<p class='cv-p'><strong>{nm}</strong>{(' \u2014 ' + extra) if extra else ''}</p>")
+            link_html = ""
+            if link_val:
+                if link_href:
+                    link_html = (
+                        f"<p class='cv-link'><a class='ci-link' href='{link_href_attr}' target='_blank' "
+                        f"rel='noopener noreferrer'>{link_val}</a></p>"
+                    )
+                else:
+                    link_html = f"<p class='cv-link'>{link_val}</p>"
+            rows.append(
+                "<div class='cv-entry'>"
+                f"<p class='cv-p'><strong>{nm}</strong>{(' \u2014 ' + extra) if extra else ''}</p>"
+                + link_html
+                + "</div>"
+            )
         return "".join(rows)
 
     def _interests_html() -> str:
@@ -6783,7 +5663,7 @@ def generate_cv_html(
     classic_body = (
         f"<div class='cv-paper classic {icons_class}'>"
         "<header class='cv-head center'>"
-        f"<h1 id='cv-name'>{name}</h1>"
+        f"<h1 id='cv-name'{name_hidden_attr}>{name}</h1>"
         + (f"<p class='cv-title' id='cv-title'>{title}</p>" if title else "<p class='cv-title' id='cv-title' style='display:none'></p>")
         + _classic_contact_row()
         + "</header>"
@@ -6808,7 +5688,7 @@ def generate_cv_html(
         f"<div class='cv-paper modern {icons_class}'>"
         "<div class='modern-grid'>"
         "<aside class='modern-left'>"
-        f"<h1 id='cv-name'>{name}</h1>"
+        f"<h1 id='cv-name'{name_hidden_attr}>{name}</h1>"
         + (f"<p class='cv-title' id='cv-title'>{title}</p>" if title else "<p class='cv-title' id='cv-title' style='display:none'></p>")
         + _modern_contact_stack()
         + "".join(modern_left_sections)
@@ -6837,7 +5717,7 @@ def generate_cv_html(
         f"<div class='cv-paper creative {icons_class}'>"
         "<div class='creative-grid'>"
         "<aside class='creative-left'>"
-        f"<h1 id='cv-name'>{name}</h1>"
+        f"<h1 id='cv-name'{name_hidden_attr}>{name}</h1>"
         + (f"<p class='cv-title' id='cv-title'>{title}</p>" if title else "<p class='cv-title' id='cv-title' style='display:none'></p>")
         + _modern_contact_stack()
         + "".join(creative_left_sections)
@@ -6882,12 +5762,16 @@ body {{
 .cv-head.center {{ text-align:center; margin-bottom:8px; }}
 #cv-name {{ margin:0; font-size:{max(20, fs + 8)}px; font-weight:800; color:{primary}; line-height:1.1; }}
 .cv-title {{ margin:3px 0 0; color:{muted}; font-size:{fs}px; }}
-.cv-contact {{ margin:5px 0 0; color:{muted}; font-size:{fs_xs}px; display:flex; flex-wrap:wrap; align-items:center; gap:0 1px; }}
-.ci-wrapper {{ display:inline-flex; align-items:center; }}
+.cv-contact {{ margin:5px 0 0; color:{muted}; font-size:{fs_xs}px; display:flex; flex-direction:column; align-items:center; gap:2px; }}
+.cv-contact-row {{ display:flex; align-items:center; justify-content:center; gap:0 1px; flex-wrap:wrap; }}
+.ci-wrapper {{ display:inline-flex; align-items:center; min-width:0; flex-shrink:1; }}
 .ci-item {{ display:inline-flex; align-items:center; gap:4px; vertical-align:middle; }}
 .ci-sep {{ opacity:.75; margin:0 3px; }}
 .ci-ico {{ width:{max(9, fs_xs + 1)}px; height:{max(9, fs_xs + 1)}px; display:inline-flex; color:currentColor; flex:0 0 auto; }}
 .ci-ico svg {{ width:100%; height:100%; display:block; }}
+.ci-val {{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:170px; }}
+.ci-link {{ color:{link_color}; text-decoration:underline; text-decoration-thickness:1px; text-underline-offset:2px; }}
+.ci-link:hover {{ filter:brightness(1.05); }}
 .icons-off .ci-ico {{ display:none !important; }}
 .cv-sec {{ margin-top:{max(7, es)}px; }}
 .cv-sec-h {{
@@ -6990,38 +5874,227 @@ function setRealtimeIcons(on) {{
 }}
 
 function updateClassicSeps() {{
-  var wrappers = document.querySelectorAll('#cv-contact .ci-wrapper');
-  var firstVisible = true;
-  for (var i = 0; i < wrappers.length; i++) {{
-    if (wrappers[i].style.display === 'none') continue;
-    var sep = wrappers[i].querySelector('.ci-sep');
-    if (sep) sep.style.display = firstVisible ? 'none' : '';
-    firstVisible = false;
+  var rows = document.querySelectorAll('#cv-contact .cv-contact-row');
+  for (var r = 0; r < rows.length; r++) {{
+    var wrappers = rows[r].querySelectorAll('.ci-wrapper');
+    var firstVisible = true;
+    var anyInRow = false;
+    for (var i = 0; i < wrappers.length; i++) {{
+      if (wrappers[i].style.display === 'none') continue;
+      anyInRow = true;
+      var sep = wrappers[i].querySelector('.ci-sep');
+      if (sep) sep.style.display = firstVisible ? 'none' : '';
+      firstVisible = false;
+    }}
+    rows[r].style.display = anyInRow ? '' : 'none';
   }}
   var contact = document.getElementById('cv-contact');
   if (contact) {{
+    var allVisibleWrappers = contact.querySelectorAll('.ci-wrapper');
     var anyVis = false;
-    for (var j = 0; j < wrappers.length; j++) {{
-      if (wrappers[j].style.display !== 'none') {{ anyVis = true; break; }}
+    for (var j = 0; j < allVisibleWrappers.length; j++) {{
+      if (allVisibleWrappers[j].style.display !== 'none') {{ anyVis = true; break; }}
     }}
     contact.style.display = anyVis ? '' : 'none';
   }}
 }}
 
+function coerceContactHref(raw) {{
+  var v = String(raw || '').trim();
+  if (!v) return '';
+  var lower = v.toLowerCase();
+  if (lower.indexOf('http://') === 0 || lower.indexOf('https://') === 0 || lower.indexOf('mailto:') === 0 || lower.indexOf('tel:') === 0) {{
+    return v;
+  }}
+  return 'https://' + v.replace(/^\\/+/, '');
+}}
+
+var __contactTextByField = {{}};
+var __contactLinkByField = {{
+  linkedin: '',
+  website: '',
+  github: ''
+}};
+
+function normalizeContactLink(cf, rawText, rawLink) {{
+  var text = String(rawText || '').trim();
+  var link = String(rawLink || '').trim();
+  var href = '';
+  if (link) {{
+    href = coerceContactHref(link);
+  }}
+  return {{ text: text, href: href }};
+}}
+
 function setContactField(cf, v) {{
+  __contactTextByField[cf] = String(v || '');
   var wrapper = document.querySelector('#cv-contact .ci-wrapper[data-cf="' + cf + '"]');
+  var linkData = normalizeContactLink(cf, v, __contactLinkByField[cf] || '');
+  var isLinkField = (cf === 'linkedin' || cf === 'website' || cf === 'github');
+  var textValue = isLinkField ? linkData.text : String(v || '').trim();
   if (wrapper) {{
     var valEl = wrapper.querySelector('.ci-val');
-    if (valEl) valEl.textContent = v;
-    wrapper.style.display = v ? '' : 'none';
+    if (isLinkField && valEl) {{
+      if (linkData.href && valEl.tagName !== 'A') {{
+        var linkEl = document.createElement('a');
+        linkEl.className = valEl.className;
+        linkEl.setAttribute('data-cf', cf);
+        linkEl.setAttribute('target', '_blank');
+        linkEl.setAttribute('rel', 'noopener noreferrer');
+        valEl.replaceWith(linkEl);
+        valEl = linkEl;
+      }} else if (!linkData.href && valEl.tagName === 'A') {{
+        var spanEl = document.createElement('span');
+        spanEl.className = valEl.className;
+        spanEl.setAttribute('data-cf', cf);
+        valEl.replaceWith(spanEl);
+        valEl = spanEl;
+      }}
+    }}
+    if (valEl) {{
+      valEl.textContent = textValue;
+      if (isLinkField && valEl.tagName === 'A') {{
+        if (linkData.href) valEl.setAttribute('href', linkData.href);
+        else valEl.removeAttribute('href');
+      }}
+    }}
+    wrapper.style.display = textValue ? '' : 'none';
     updateClassicSeps();
   }}
   var item = document.querySelector('.contact-item[data-cf="' + cf + '"]');
   if (item) {{
     var valEl2 = item.querySelector('.ci-val');
-    if (valEl2) valEl2.textContent = v;
-    item.style.display = v ? '' : 'none';
+    if (isLinkField && valEl2) {{
+      if (linkData.href && valEl2.tagName !== 'A') {{
+        var linkEl2 = document.createElement('a');
+        linkEl2.className = valEl2.className;
+        linkEl2.setAttribute('data-cf', cf);
+        linkEl2.setAttribute('target', '_blank');
+        linkEl2.setAttribute('rel', 'noopener noreferrer');
+        valEl2.replaceWith(linkEl2);
+        valEl2 = linkEl2;
+      }} else if (!linkData.href && valEl2.tagName === 'A') {{
+        var spanEl2 = document.createElement('span');
+        spanEl2.className = valEl2.className;
+        spanEl2.setAttribute('data-cf', cf);
+        valEl2.replaceWith(spanEl2);
+        valEl2 = spanEl2;
+      }}
+    }}
+    if (valEl2) {{
+      valEl2.textContent = textValue;
+      if (isLinkField && valEl2.tagName === 'A') {{
+        if (linkData.href) valEl2.setAttribute('href', linkData.href);
+        else valEl2.removeAttribute('href');
+      }}
+    }}
+    item.style.display = textValue ? '' : 'none';
   }}
+}}
+
+function setContactLink(cf, rawLink) {{
+  __contactLinkByField[cf] = String(rawLink || '').trim();
+  setContactField(cf, __contactTextByField[cf] || '');
+}}
+
+function __liveSectionTitle(key, label) {{
+  if (key.indexOf('cvb_exp_') === 0) return 'WORK EXPERIENCE';
+  if (key.indexOf('cvb_edu_') === 0) return 'EDUCATION';
+  if (key.indexOf('cvb_skill_') === 0) return 'SKILLS';
+  if (key.indexOf('cvb_proj_') === 0) return 'PROJECTS';
+  if (key.indexOf('cvb_lang_') === 0) return 'LANGUAGES';
+  if (key.indexOf('cvb_cert_') === 0) return 'CERTIFICATIONS';
+  if (key.indexOf('cvb_interest_') === 0 || key.indexOf('cvb_interests') === 0) return 'INTERESTS';
+  if (key === 'cvb_summary') return 'PROFESSIONAL SUMMARY';
+  return (label || 'DETAILS').toUpperCase();
+}}
+
+function __liveTargetRoot(paper) {{
+  return paper.querySelector('.modern-right, .creative-right') || paper;
+}}
+
+function __liveEnterUserMode() {{
+  var paper = document.querySelector('.cv-paper');
+  if (!paper) return null;
+  if (!paper.dataset.liveUserMode) {{
+    var demoSections = paper.querySelectorAll('.cv-sec, .cv-sec-compact');
+    for (var i = 0; i < demoSections.length; i++) demoSections[i].remove();
+    var nameEl = document.getElementById('cv-name');
+    if (nameEl) {{
+      nameEl.textContent = '';
+      nameEl.style.display = 'none';
+    }}
+    var titleEl = document.getElementById('cv-title');
+    if (titleEl) {{
+      titleEl.textContent = '';
+      titleEl.style.display = 'none';
+    }}
+    setContactField('email', '');
+    setContactField('phone', '');
+    setContactField('location', '');
+    setContactLink('website', '');
+    setContactLink('linkedin', '');
+    setContactLink('github', '');
+    setContactField('website', '');
+    setContactField('linkedin', '');
+    setContactField('github', '');
+    paper.dataset.liveUserMode = '1';
+  }}
+  var target = __liveTargetRoot(paper);
+  var root = target.querySelector('#cv-live-root');
+  if (!root) {{
+    root = document.createElement('div');
+    root.id = 'cv-live-root';
+    target.appendChild(root);
+  }}
+  return root;
+}}
+
+function __liveUpsertField(key, label, value) {{
+  var personalKeys = {{
+    cvb_full_name: 1,
+    cvb_prof_title: 1,
+    cvb_email: 1,
+    cvb_phone: 1,
+    cvb_location: 1,
+    cvb_website: 1,
+    cvb_linkedin: 1,
+    cvb_github: 1,
+    cvb_website_url: 1,
+    cvb_linkedin_url: 1,
+    cvb_github_url: 1
+  }};
+  if (personalKeys[key]) return;
+
+  var root = __liveEnterUserMode();
+  if (!root) return;
+  var secId = __liveSectionTitle(key, label).toLowerCase().replace(/[^a-z0-9]+/g, '-');
+  var sec = root.querySelector('[data-live-sec="' + secId + '"]');
+  if (!sec) {{
+    sec = document.createElement('section');
+    sec.className = 'cv-sec';
+    sec.setAttribute('data-live-sec', secId);
+    sec.innerHTML = "<h2 class='cv-sec-h'>" + __liveSectionTitle(key, label) + "</h2><div class='cv-live-lines'></div>";
+    root.appendChild(sec);
+  }}
+  var lines = sec.querySelector('.cv-live-lines');
+  if (!lines) return;
+
+  var val = (value || '').trim();
+  var line = lines.querySelector('[data-live-key="' + key + '"]');
+  if (!val) {{
+    if (line) line.remove();
+    if (!lines.children.length) sec.remove();
+    return;
+  }}
+  if (!line) {{
+    line = document.createElement('p');
+    line.className = 'cv-p';
+    line.setAttribute('data-live-key', key);
+    lines.appendChild(line);
+  }}
+  var cleanLabel = (label || key).replace(/\\s+/g, ' ').trim();
+  line.textContent = cleanLabel + ': ' + val;
 }}
 
 updateClassicSeps();
@@ -7029,6 +6102,14 @@ updateClassicSeps();
 window.addEventListener('message', function(ev) {{
   var d = ev.data;
   if (!d) return;
+  if (d.type === 'cv-rt-user-mode') {{
+    __liveEnterUserMode();
+    return;
+  }}
+  if (d.type === 'cv-rt-widget') {{
+    __liveUpsertField(String(d.key || ''), String(d.label || ''), String(d.value || ''));
+    return;
+  }}
   if (d.type === 'cv-rt-icons-toggle') {{
     setRealtimeIcons(!!d.on);
     return;
@@ -7038,7 +6119,11 @@ window.addEventListener('message', function(ev) {{
   var el, val;
   if (d.field === 'cvb_full_name') {{
     el = document.getElementById('cv-name');
-    if (el) el.textContent = d.value || 'Your Name';
+    if (el) {{
+      val = (d.value || '').trim();
+      el.textContent = val;
+      el.style.display = val ? '' : 'none';
+    }}
     return;
   }}
   if (d.field === 'cvb_prof_title') {{
@@ -7055,6 +6140,9 @@ window.addEventListener('message', function(ev) {{
     if (el) {{
       val = (d.value || '').trim();
       el.textContent = val;
+      el.style.display = val ? '' : 'none';
+    }} else {{
+      __liveUpsertField('cvb_summary', 'Professional Summary', String(d.value || ''));
     }}
     return;
   }}
@@ -7068,6 +6156,15 @@ window.addEventListener('message', function(ev) {{
   }};
   if (keyMap[d.field]) {{
     setContactField(keyMap[d.field], (d.value || '').trim());
+    return;
+  }}
+  var linkKeyMap = {{
+    cvb_website_url: 'website',
+    cvb_linkedin_url: 'linkedin',
+    cvb_github_url: 'github'
+  }};
+  if (linkKeyMap[d.field]) {{
+    setContactLink(linkKeyMap[d.field], (d.value || '').trim());
   }}
 }});
 </script>
@@ -7086,6 +6183,10 @@ def _get_demo_cv_data() -> dict:
             "location": "Your City, Country",
             "website": "yourwebsite.dev",
             "linkedin": "linkedin.com/in/yourprofile",
+            "github": "github.com/yourprofile",
+            "website_url": "https://yourwebsite.dev",
+            "linkedin_url": "https://www.linkedin.com/in/yourprofile",
+            "github_url": "https://github.com/yourprofile",
             "summary": (
                 "Write a concise professional summary highlighting your years of experience, "
                 "core strengths, and measurable impact."
@@ -7253,7 +6354,20 @@ def _is_cv_data_effectively_empty(cv_data: dict) -> bool:
         return True
 
     personal = cv_data.get("personal", {}) or {}
-    for field in ["full_name", "prof_title", "email", "phone", "location", "website", "linkedin", "github", "summary"]:
+    for field in [
+        "full_name",
+        "prof_title",
+        "email",
+        "phone",
+        "location",
+        "linkedin",
+        "website",
+        "github",
+        "linkedin_url",
+        "website_url",
+        "github_url",
+        "summary",
+    ]:
         if str(personal.get(field, "")).strip():
             return False
 

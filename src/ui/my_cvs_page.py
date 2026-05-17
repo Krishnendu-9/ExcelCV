@@ -77,7 +77,7 @@ def render_my_cvs_page() -> None:
         if not cvs:
             st.info("You haven't saved any CVs yet. Head to the **Resume Builder** to create one!")
             if st.button("Go to Resume Builder", type="primary"):
-                st.session_state["page"] = "cv-builder"
+                st.session_state["page"] = "resume-builder"
                 st.rerun()
             return
 
@@ -107,7 +107,7 @@ def render_my_cvs_page() -> None:
                 with col_load:
                     if st.button("Open in Builder", key=f"load_{cv.id}", width="stretch"):
                         st.session_state["cvb_load_id"] = cv.id
-                        st.session_state["page"] = "cv-builder"
+                        st.session_state["page"] = "resume-builder"
                         st.rerun()
 
                 with col_export:

@@ -53,7 +53,13 @@ def _render_ui_markup_template(name: str, replacements: dict[str, str]) -> str:
 
 
 def inject_back_button_sync() -> None:
-    """Cleanup legacy global listeners/observers that caused forced reloads on Back/Forward."""
+    """Cleanup legacy global listeners/observers that caused forced reloads on Back/Forward.
+
+    Note: the previous ``target.themeInterval`` cleanup was removed. It was a
+    vestigial reference to a poller that no longer exists. Theme-class
+    application is now owned by the permanent watcher installed by
+    ``_inject_theme_persistence`` in ``app.py``.
+    """
     components.html(
         """
 <script>
@@ -79,13 +85,6 @@ def inject_back_button_sync() -> None:
                     target.__excelcvLogoHomeObserver = null;
                 }
             } catch (e) {}
-
-            try {
-                if (target.themeInterval) {
-                    clearInterval(target.themeInterval);
-                    target.themeInterval = null;
-                }
-            } catch (e) {}
         })();
 </script>
         """,
@@ -97,15 +96,24 @@ def inject_back_button_sync() -> None:
 def inject_base_css(theme: str = "light") -> None:
     """
     Inject custom CSS for the refreshed dual-page experience with manual theme support.
-    
+
     Args:
         theme: Theme mode ("light" or "dark")
+
+    Note: the ``body.theme-light`` / ``body.theme-dark`` class on the shell
+    elements (body / html / .stApp / viewContainer) is applied by
+    ``_inject_theme_persistence`` in ``app.py``, which runs on every render
+    unguarded. Doing it here too would silently miss class re-application on
+    same-theme rerenders (e.g. clicking a nav link), because the textContent
+    guard below correctly skips re-injecting an unchanged style block — but
+    inline scripts injected via that guard would also fail to re-execute,
+    which is what caused the cross-navigation theme flip bug.
     """
     is_light = theme == "light"
     # Use constants for theme colors
     bg_color = LIGHT_BG_PRIMARY if is_light else DARK_BG_PRIMARY
     text_color = LIGHT_TEXT_PRIMARY if is_light else DARK_TEXT_PRIMARY
-    
+
     # Generate CSS using helper functions
     theme_base_css = generate_theme_base_css(is_light, bg_color, text_color)
     css_variables = generate_css_variables(is_light, bg_color, text_color)
@@ -115,7 +123,7 @@ def inject_base_css(theme: str = "light") -> None:
     theme_button_css = generate_theme_button_css()
     button_hover_css = generate_button_hover_css()
     label_text_color = "#1f2937" if is_light else "#f9fafb"
-    
+
     replacements = {
         "theme_base_css": theme_base_css,
         "css_variables": css_variables,
@@ -128,14 +136,12 @@ def inject_base_css(theme: str = "light") -> None:
         "bg_color": bg_color,
     }
     css_markup = _render_ui_markup_template("base_theme.css.tpl", replacements)
-    js_markup = _render_ui_markup_template("base_theme.js.tpl", replacements)
 
     # Inject CSS via JS into the parent document's <head>.
     # json.dumps safely escapes the CSS string for use as a JS string literal,
     # avoiding any issues with Streamlit's markdown renderer treating <style>
     # blocks as visible text.
     css_json = json.dumps(css_markup)
-    js_json = json.dumps(js_markup)
     components.html(
         f"""<script>
 (function() {{
@@ -153,23 +159,6 @@ def inject_base_css(theme: str = "light") -> None:
         style.id = styleId;
         style.textContent = {css_json};
         (doc.head || doc.documentElement).appendChild(style);
-    }}
-
-    var scriptId = 'excelcv-base-js';
-    var existingJs = doc.getElementById(scriptId);
-    if (existingJs) {{
-        if (existingJs.textContent !== {js_json}) {{
-            existingJs.remove();
-            var script = doc.createElement('script');
-            script.id = scriptId;
-            script.textContent = {js_json};
-            (doc.head || doc.documentElement).appendChild(script);
-        }}
-    }} else {{
-        var script = doc.createElement('script');
-        script.id = scriptId;
-        script.textContent = {js_json};
-        (doc.head || doc.documentElement).appendChild(script);
     }}
 }})();
 </script>""",

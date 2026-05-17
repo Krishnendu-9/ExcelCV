@@ -246,12 +246,18 @@ def render_upload_landing_sections() -> None:
 import streamlit.components.v1 as components
 
 from src.auth_utils import get_session_user
+from src.config import MAX_FILE_MB
 from src.ui.analysis_runner import (
     _autosave_analysis,
     run_multi_resume_comparison,
     run_single_analysis,
 )
-from src.ui.app_utils import _build_page_href, _sanitize_cv_filename, _save_report_snapshot
+from src.ui.app_utils import (
+    _build_page_href,
+    _clear_comparison_run_artifacts,
+    _sanitize_cv_filename,
+    _save_report_snapshot,
+)
 from src.ui.common import issue_count
 
 
@@ -283,6 +289,39 @@ class _InMemoryUploadedFile:
 
     def getvalue(self) -> bytes:
         return self._raw_bytes
+
+
+def _read_uploaded_cv_bytes(uploaded_cv) -> bytes:
+    """Read an UploadedFile's contents defensively.
+
+    Streamlit's first-interaction-in-a-session edge cases can make ``getvalue()``
+    return a non-``bytes`` buffer (e.g., ``bytearray`` or an empty value before
+    the upload finishes hydrating). Returning ``b""`` here lets the caller treat
+    the file as "unreadable on this attempt" and surface a clear message instead
+    of silently dropping the file.
+    """
+    try:
+        if hasattr(uploaded_cv, "getvalue"):
+            data = uploaded_cv.getvalue()
+            if isinstance(data, (bytes, bytearray)) and len(data) > 0:
+                return bytes(data)
+    except Exception:
+        pass
+    try:
+        if hasattr(uploaded_cv, "seek"):
+            uploaded_cv.seek(0)
+        if hasattr(uploaded_cv, "read"):
+            data = uploaded_cv.read()
+            if isinstance(data, (bytes, bytearray)) and len(data) > 0:
+                if hasattr(uploaded_cv, "seek"):
+                    try:
+                        uploaded_cv.seek(0)
+                    except Exception:
+                        pass
+                return bytes(data)
+    except Exception:
+        pass
+    return b""
 
 
 def _format_file_size(file_size_bytes: int) -> str:
@@ -521,22 +560,21 @@ def _render_selected_compare_files(staged_files: list[dict[str, object]]) -> int
 
 
 def _clear_comparison_session_state() -> None:
-    """Clear comparison-related session state keys."""
+    """Clear all comparison state — run artifacts plus form inputs.
+
+    Used by callers that want a full reset (e.g. "start over" flows). Run-only
+    artifact cleanup goes through ``_clear_comparison_run_artifacts`` in
+    ``app_utils`` so the run-vs-form lifecycle is owned in one place.
+    """
     _clear_comparison_run_artifacts()
+    st.session_state.pop("compare_upload_warnings", None)
+    st.session_state.pop("compare_upload_hydration_retries", None)
     st.session_state.pop("compare_jd", None)
     st.session_state.pop("compare_selected_files", None)
     st.session_state.pop("compare_cvs_rev", None)
     for key in list(st.session_state.keys()):
         if str(key).startswith("compare_cvs_input_"):
             st.session_state.pop(key, None)
-
-
-def _clear_comparison_run_artifacts() -> None:
-    """Clear only computed comparison outputs and signatures."""
-    st.session_state.pop("comparison_results", None)
-    st.session_state.pop("comparison_errors", None)
-    st.session_state.pop("comparison_warnings", None)
-    st.session_state.pop("comparison_signature", None)
 
 
 def _comparison_rows_to_csv(rows: list[dict[str, object]], ordered_columns: list[str]) -> str:
@@ -547,6 +585,267 @@ def _comparison_rows_to_csv(rows: list[dict[str, object]], ordered_columns: list
     for row in rows:
         writer.writerow({column: row.get(column, "") for column in ordered_columns})
     return buffer.getvalue()
+
+
+def _render_compare_form_card(current_user) -> None:
+    """Render the compare form (or guest CTA) and, on submit, navigate to compare-report."""
+    with st.container(key="compare_form_box"):
+        if not current_user:
+            _auth_href2 = _build_page_href("auth", next_page="compare-cv")
+            st.markdown(
+                f"""
+                <div class="guest-auth-shell">
+                    <div class="guest-auth-icon">&#128274;</div>
+                    <p class="guest-auth-title">
+                        Sign in to compare resumes
+                    </p>
+                    <p class="guest-auth-copy">
+                        Upload 2–5 resumes and rank them side-by-side — free forever.
+                    </p>
+                    <a href="{_auth_href2}" target="_self" class="guest-auth-cta">
+                        Sign In / Create Account &rarr;
+                    </a>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+            return
+
+        if "compare_jd" not in st.session_state and st.session_state.get("jd"):
+            st.session_state["compare_jd"] = st.session_state.get("jd", "")
+        if "compare_selected_files" not in st.session_state:
+            st.session_state["compare_selected_files"] = []
+        if "compare_cvs_rev" not in st.session_state:
+            st.session_state["compare_cvs_rev"] = 0
+
+        compare_jd = st.text_area(
+            "Job description for comparison",
+            key="compare_jd",
+            height=50,
+            placeholder="Paste the role description once and compare multiple resumes.",
+        )
+        compare_uploader_key = f"compare_cvs_input_{int(st.session_state.get('compare_cvs_rev', 0))}"
+        newly_uploaded = st.file_uploader(
+            "Upload 2-5 resumes (PDF or DOCX)",
+            type=["pdf", "docx"],
+            key=compare_uploader_key,
+            accept_multiple_files=True,
+            help=f"Maximum {MAX_FILE_MB}MB per file. We will rank resumes by final score.",
+        )
+
+        staged_files: list[dict[str, object]] = list(st.session_state.get("compare_selected_files", []))
+        if newly_uploaded:
+            seen_signatures = {str(item.get("signature", "")) for item in staged_files}
+            duplicate_names: list[str] = []
+            skipped_over_limit = 0
+            unreadable_names: list[str] = []
+            added_count = 0
+            for uploaded_cv in newly_uploaded:
+                safe_name = _sanitize_cv_filename(getattr(uploaded_cv, "name", "resume.pdf"))
+                raw_bytes = _read_uploaded_cv_bytes(uploaded_cv)
+                if not raw_bytes:
+                    unreadable_names.append(safe_name)
+                    continue
+                file_size = len(raw_bytes)
+                file_hash = hashlib.sha256(raw_bytes).hexdigest()
+                signature = f"{safe_name.lower()}|{file_size}|{file_hash}"
+                if signature in seen_signatures:
+                    duplicate_names.append(safe_name)
+                    continue
+                if len(staged_files) >= 5:
+                    skipped_over_limit += 1
+                    continue
+                staged_files.append(
+                    {
+                        "name": safe_name,
+                        "size": file_size,
+                        "bytes": raw_bytes,
+                        "signature": signature,
+                    }
+                )
+                seen_signatures.add(signature)
+                added_count += 1
+
+            # First-interaction hydration race: Streamlit's UploadedFile can
+            # return empty bytes on the very first run of a session, before
+            # the upload finishes hydrating. If every file in this batch came
+            # back unreadable AND nothing else made progress, treat it as a
+            # transient race: silently rerun (up to MAX_HYDRATION_RETRIES) and
+            # try the read again. Only surface the "could not read" warning
+            # after the retries are exhausted — otherwise the user sees a
+            # phantom error on every first upload of a session.
+            MAX_HYDRATION_RETRIES = 2
+            had_progress = bool(added_count or duplicate_names or skipped_over_limit)
+            unreadable_only_batch = bool(unreadable_names) and not had_progress
+            retry_count = int(st.session_state.get("compare_upload_hydration_retries", 0))
+
+            if unreadable_only_batch and retry_count < MAX_HYDRATION_RETRIES:
+                st.session_state["compare_upload_hydration_retries"] = retry_count + 1
+                # Don't bump the uploader rev — the same widget state must
+                # re-deliver the files on the next pass so we can re-read them.
+                st.rerun()
+
+            # Past this point we either made progress or genuinely exhausted
+            # retries, so the hydration counter has done its job.
+            st.session_state["compare_upload_hydration_retries"] = 0
+
+            # Replace warnings each batch instead of appending so stale messages
+            # from a previous batch (e.g. a retried hydration race) don't linger
+            # after a successful upload.
+            upload_warnings_for_ui: list[str] = []
+            if duplicate_names:
+                upload_warnings_for_ui.append(
+                    "Already selected and skipped: " + ", ".join(duplicate_names)
+                )
+            if skipped_over_limit > 0:
+                upload_warnings_for_ui.append(
+                    f"Only 5 resumes are allowed. Skipped {skipped_over_limit} extra file(s)."
+                )
+            if unreadable_names:
+                upload_warnings_for_ui.append(
+                    "Could not read these files (try re-selecting): " + ", ".join(unreadable_names)
+                )
+            st.session_state["compare_upload_warnings"] = upload_warnings_for_ui
+            st.session_state["compare_selected_files"] = staged_files
+            # Only reset the uploader widget (via key change) when at least one
+            # file made it through. If everything failed to read, leave the
+            # widget key untouched so the user's selection isn't silently wiped.
+            if had_progress:
+                st.session_state["compare_cvs_rev"] = int(st.session_state.get("compare_cvs_rev", 0)) + 1
+            st.rerun()
+
+        staged_files = list(st.session_state.get("compare_selected_files", []))
+        if staged_files:
+            st.markdown("**Selected resumes**")
+            deleted_index = _render_selected_compare_files(staged_files)
+            if deleted_index is not None:
+                del staged_files[deleted_index]
+                st.session_state["compare_selected_files"] = staged_files
+                st.rerun()
+
+        # Surface any upload-stage warnings (dedup, size cap, unreadable file)
+        # inside the form so users see them next to the controls that produced
+        # them, not buried on the report page.
+        upload_warnings = list(st.session_state.get("compare_upload_warnings", []))
+        if upload_warnings:
+            st.info("\n".join(f"- {w}" for w in upload_warnings))
+
+        compare_files = _build_staged_compare_uploads(staged_files)
+        run_compare = st.button("Run comparison", key="run_compare_btn", width="stretch")
+        progress_slot = st.empty()
+
+    comparison_signature = _comparison_input_signature(compare_jd, compare_files or [])
+    last_signature = st.session_state.get("comparison_signature")
+    if last_signature and last_signature != comparison_signature and not run_compare:
+        # Inputs changed since the last run; drop stale results AND the
+        # "attempted" flag so the report page's empty state reads as
+        # "no comparison yet" instead of "your last run produced 0 rows".
+        _clear_comparison_run_artifacts()
+        st.info("Comparison inputs changed. Run comparison again to refresh results.")
+
+    if run_compare:
+        try:
+            _run_comparison_with_progress(
+                compare_jd,
+                compare_files or [],
+                comparison_signature,
+                progress_slot,
+            )
+        except ValueError as exc:
+            # Validation errors (missing JD, too few/many files) belong on the
+            # form page itself — no navigation needed.
+            _clear_comparison_run_artifacts()
+            st.error(str(exc))
+
+
+def _run_comparison_with_progress(
+    compare_jd: str,
+    compare_files: list[object],
+    comparison_signature: tuple,
+    progress_slot,
+) -> None:
+    """Run the comparison while streaming per-file status into ``progress_slot``.
+
+    Sequential by design — see [analysis_runner.run_multi_resume_comparison]: a
+    Gemini 429 on file N short-circuits files N+1..end, which only works if the
+    files are processed in order.
+    """
+    total = max(1, len(compare_files))
+    status_lines: list[str] = []
+    icon_by_status = {
+        "running": "&#9203;",  # ⏳
+        "done": "&#9989;",     # ✅
+        "error": "&#10060;",   # ❌
+        "skipped": "&#9888;&#65039;",  # ⚠️
+    }
+
+    def _render_progress(current_idx: int, current_total: int) -> None:
+        header = (
+            f'<div class="compare-progress-header">Analyzing resume '
+            f'<strong>{current_idx}</strong> of <strong>{current_total}</strong>…</div>'
+        )
+        body = "".join(
+            f'<li class="compare-progress-item compare-progress-item--{cls}">'
+            f'<span class="compare-progress-icon">{icon_by_status.get(cls, "")}</span>'
+            f'<span class="compare-progress-name">{html.escape(name)}</span>'
+            f'<span class="compare-progress-status">{label}</span>'
+            f"</li>"
+            for name, cls, label in status_lines
+        )
+        progress_slot.markdown(
+            f'<div class="compare-progress-shell">{header}'
+            f'<ul class="compare-progress-list">{body}</ul></div>',
+            unsafe_allow_html=True,
+        )
+
+    def _on_progress(file_name: str, idx: int, total_files: int, status: str) -> None:
+        label_for_status = {
+            "running": "analyzing…",
+            "done": "done",
+            "error": "failed",
+            "skipped": "skipped (rate limit)",
+        }.get(status, status)
+        # Update existing line if we already started this file, else append.
+        for pos, (existing_name, _existing_cls, _existing_label) in enumerate(status_lines):
+            if existing_name == file_name:
+                status_lines[pos] = (file_name, status, label_for_status)
+                break
+        else:
+            status_lines.append((file_name, status, label_for_status))
+        _render_progress(idx, total_files)
+
+    _render_progress(0, total)
+    comparison = run_multi_resume_comparison(
+        compare_jd,
+        compare_files,
+        progress_callback=_on_progress,
+    )
+    progress_slot.empty()
+
+    rows = comparison.get("rows", [])
+    st.session_state["comparison_results"] = rows
+    st.session_state["comparison_errors"] = comparison.get("errors", [])
+    st.session_state["comparison_warnings"] = comparison.get("warnings", [])
+    st.session_state["comparison_signature"] = comparison_signature
+    st.session_state["comparison_attempted"] = True
+    # Once the run committed, drop transient upload-stage warnings — they
+    # described the now-stale selection state.
+    st.session_state.pop("compare_upload_warnings", None)
+    # Always navigate to the dedicated report page once a comparison was
+    # attempted — even when every file failed. The report page's empty
+    # state then surfaces the per-file errors/warnings so the user can
+    # see WHY it failed (rate limit, unreadable PDF, etc.) instead of a
+    # generic "no rows" message that hides the real cause.
+    # One-shot flag consumed by compare_report.py so the new page lands
+    # at scroll position 0 — without it the browser preserves the scroll
+    # offset from mid-page on the upload form.
+    st.session_state["scroll_compare_report_to_top"] = True
+    st.session_state["page"] = "compare-report"
+    try:
+        st.query_params["page"] = "compare-report"
+    except Exception:
+        pass
+    st.rerun()
 
 
 def render_upload_page(compare_mode: bool = False) -> None:
@@ -628,10 +927,8 @@ def render_upload_page(compare_mode: bool = False) -> None:
                         unsafe_allow_html=True,
                     )
 
-    # Smooth landing for compare section (top-nav action or first dedicated compare-page load).
+    # Instant landing on the compare section when arriving via top-nav action.
     should_anchor_compare = st.session_state.pop("scroll_to_compare_anchor", False)
-    if compare_mode and not st.session_state.get("_compare_mode_anchor_scrolled", False):
-        should_anchor_compare = True
     if should_anchor_compare:
         components.html(
             """
@@ -642,20 +939,16 @@ def render_upload_page(compare_mode: bool = False) -> None:
                 var tryScroll = function() {
                     var anchor = doc.getElementById("compare-section-anchor");
                     if (anchor) {
-                        try { anchor.scrollIntoView({ behavior: "smooth", block: "start" }); }
+                        try { anchor.scrollIntoView({ behavior: "instant", block: "start" }); }
                         catch (_e) { anchor.scrollIntoView(true); }
                     }
                 };
-                [80, 260, 700].forEach(function(ms) { setTimeout(tryScroll, ms); });
+                [0, 50, 150, 400].forEach(function(ms) { setTimeout(tryScroll, ms); });
             })();
             </script>
             """,
             height=0,
         )
-    if compare_mode:
-        st.session_state["_compare_mode_anchor_scrolled"] = True
-    else:
-        st.session_state["_compare_mode_anchor_scrolled"] = False
 
     st.markdown('<div id="compare-section-anchor"></div>', unsafe_allow_html=True)
     with st.container(key="compare_section_shell"):
@@ -677,171 +970,19 @@ def render_upload_page(compare_mode: bool = False) -> None:
             """,
             unsafe_allow_html=True,
         )
-        with st.container(key="compare_form_box"):
-            if _current_user:
-                if "compare_jd" not in st.session_state and st.session_state.get("jd"):
-                    st.session_state["compare_jd"] = st.session_state.get("jd", "")
-                if "compare_selected_files" not in st.session_state:
-                    st.session_state["compare_selected_files"] = []
-                if "compare_cvs_rev" not in st.session_state:
-                    st.session_state["compare_cvs_rev"] = 0
-
-                compare_jd = st.text_area(
-                    "Job description for comparison",
-                    key="compare_jd",
-                    height=50,
-                    placeholder="Paste the role description once and compare multiple resumes.",
-                )
-                compare_uploader_key = f"compare_cvs_input_{int(st.session_state.get('compare_cvs_rev', 0))}"
-                newly_uploaded = st.file_uploader(
-                    "Upload 2-5 resumes (PDF or DOCX)",
-                    type=["pdf", "docx"],
-                    key=compare_uploader_key,
-                    accept_multiple_files=True,
-                    help="Maximum 2MB per file. We will rank resumes by final score.",
-                )
-
-                staged_files: list[dict[str, object]] = list(st.session_state.get("compare_selected_files", []))
-                if newly_uploaded:
-                    seen_signatures = {str(item.get("signature", "")) for item in staged_files}
-                    duplicate_names: list[str] = []
-                    skipped_over_limit = 0
-                    for uploaded_cv in newly_uploaded:
-                        raw_bytes = uploaded_cv.getvalue()
-                        if not isinstance(raw_bytes, bytes):
-                            continue
-                        safe_name = _sanitize_cv_filename(getattr(uploaded_cv, "name", "resume.pdf"))
-                        file_size = len(raw_bytes)
-                        file_hash = hashlib.sha256(raw_bytes).hexdigest()
-                        signature = f"{safe_name.lower()}|{file_size}|{file_hash}"
-                        if signature in seen_signatures:
-                            duplicate_names.append(safe_name)
-                            continue
-                        if len(staged_files) >= 5:
-                            skipped_over_limit += 1
-                            continue
-                        staged_files.append(
-                            {
-                                "name": safe_name,
-                                "size": file_size,
-                                "bytes": raw_bytes,
-                                "signature": signature,
-                            }
-                        )
-                        seen_signatures.add(signature)
-
-                    warnings_for_ui = list(st.session_state.get("comparison_warnings", []))
-                    if duplicate_names:
-                        warnings_for_ui.append(
-                            "Already selected and skipped: " + ", ".join(duplicate_names)
-                        )
-                    if skipped_over_limit > 0:
-                        warnings_for_ui.append(
-                            f"Only 5 resumes are allowed. Skipped {skipped_over_limit} extra file(s)."
-                        )
-                    st.session_state["comparison_warnings"] = warnings_for_ui
-                    st.session_state["compare_selected_files"] = staged_files
-                    st.session_state["compare_cvs_rev"] = int(st.session_state.get("compare_cvs_rev", 0)) + 1
-                    st.rerun()
-
-                staged_files = list(st.session_state.get("compare_selected_files", []))
-                if staged_files:
-                    st.markdown("**Selected resumes**")
-                    deleted_index = _render_selected_compare_files(staged_files)
-                    if deleted_index is not None:
-                        del staged_files[deleted_index]
-                        st.session_state["compare_selected_files"] = staged_files
-                        st.rerun()
-
-                compare_files = _build_staged_compare_uploads(staged_files)
-                run_compare = st.button("Run comparison", key="run_compare_btn", width="stretch")
-            else:
-                run_compare = False
-                compare_jd = ""
-                compare_files = []
-                _auth_href2 = _build_page_href("auth", next_page="compare-cv")
-                st.markdown(
-                    f"""
-                    <div class="guest-auth-shell">
-                        <div class="guest-auth-icon">&#128274;</div>
-                        <p class="guest-auth-title">
-                            Sign in to compare resumes
-                        </p>
-                        <p class="guest-auth-copy">
-                            Upload 2–5 resumes and rank them side-by-side — free forever.
-                        </p>
-                        <a href="{_auth_href2}" target="_self" class="guest-auth-cta">
-                            Sign In / Create Account &rarr;
-                        </a>
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
-
-        comparison_signature = _comparison_input_signature(compare_jd, compare_files or [])
-        last_signature = st.session_state.get("comparison_signature")
-        if _current_user and last_signature and last_signature != comparison_signature and not run_compare:
-            _clear_comparison_run_artifacts()
-            st.info("Comparison inputs changed. Run comparison again to refresh results.")
-
-        if run_compare:
-            try:
-                with st.spinner("Comparing resumes..."):
-                    comparison = run_multi_resume_comparison(compare_jd, compare_files or [])
-                st.session_state["comparison_results"] = comparison.get("rows", [])
-                st.session_state["comparison_errors"] = comparison.get("errors", [])
-                st.session_state["comparison_warnings"] = comparison.get("warnings", [])
-                st.session_state["comparison_signature"] = comparison_signature
-            except ValueError as exc:
-                _clear_comparison_run_artifacts()
-                st.error(str(exc))
-
-        comparison_rows = st.session_state.get("comparison_results", [])
-        comparison_errors = st.session_state.get("comparison_errors", [])
-        comparison_warnings = st.session_state.get("comparison_warnings", [])
-        if comparison_rows:
-            summary_cols = st.columns(3, gap="small")
-            avg_score = round(
-                sum(int(row.get("Final Score", 0)) for row in comparison_rows) / len(comparison_rows),
-                1,
+        _render_compare_form_card(_current_user)
+        if st.session_state.get("comparison_results"):
+            _view_compare_results_href = _build_page_href("compare-report")
+            st.markdown(
+                f"""
+                <div class="compare-view-results-row">
+                    <a href="{_view_compare_results_href}" target="_self" class="compare-view-results-link">
+                        View latest comparison results &rarr;
+                    </a>
+                </div>
+                """,
+                unsafe_allow_html=True,
             )
-            summary_cols[0].metric("Resumes Compared", len(comparison_rows))
-            summary_cols[1].metric("Top Score", f"{comparison_rows[0].get('Final Score', 0)}")
-            summary_cols[2].metric("Average Score", f"{avg_score}")
-            st.markdown('<div class="compare-results-title">Comparison Results</div>', unsafe_allow_html=True)
-            ordered_columns = [
-                "Rank",
-                "Resume",
-                "Final Score",
-                "JD Alignment",
-                "ATS Parse",
-                "Sections",
-                "Issues",
-                "Top Missing Skills",
-            ]
-            st.dataframe(comparison_rows, width="stretch", hide_index=True, column_order=ordered_columns)
-            comparison_csv = _comparison_rows_to_csv(comparison_rows, ordered_columns)
-            st.download_button(
-                "Download comparison CSV",
-                data=comparison_csv,
-                file_name="resume-comparison.csv",
-                mime="text/csv",
-                key="download_compare_csv",
-            )
-            best = comparison_rows[0]
-            st.success(
-                f"Top match: {best.get('Resume')} with final score {best.get('Final Score')}/100."
-            )
-            if st.button("Clear comparison results", key="clear_compare_results", width="content"):
-                _clear_comparison_session_state()
-                st.rerun()
-        elif run_compare:
-            st.warning("No comparison rows were generated. Please retry with different files.")
-        if comparison_errors:
-            st.warning("Some files could not be analyzed:\n- " + "\n- ".join(comparison_errors))
-        if comparison_warnings:
-            st.info("\n".join(comparison_warnings))
-
         st.markdown(
             """
             <div class="compare-next-shell">
@@ -858,6 +999,54 @@ def render_upload_page(compare_mode: bool = False) -> None:
         )
 
     render_upload_landing_sections()
+
+    # Scroll-spy: toggle the top-nav active highlight between Analyze CV and
+    # Compare Resumes based on where the compare section sits in the viewport.
+    components.html(
+        """
+        <script>
+        (function() {
+            var target = window.parent && window.parent !== window ? window.parent : window;
+            var doc = target.document;
+            var attempts = 0;
+            var attach = function() {
+                var anchor = doc.getElementById("compare-section-anchor");
+                var analyzeItem = doc.querySelector('a.site-nav-item[data-nav-action="upload-cv"]');
+                var compareItem = doc.querySelector('a.site-nav-item[data-nav-action="compare-anchor"]');
+                if (!anchor || !analyzeItem || !compareItem) {
+                    if (attempts++ < 30) setTimeout(attach, 200);
+                    return;
+                }
+                if (target.__excelcv_compare_spy_observer__) {
+                    try { target.__excelcv_compare_spy_observer__.disconnect(); } catch (_e) {}
+                }
+                var setActive = function(isPastCompare) {
+                    if (isPastCompare) {
+                        compareItem.classList.add('site-nav-item-active');
+                        analyzeItem.classList.remove('site-nav-item-active');
+                    } else {
+                        analyzeItem.classList.add('site-nav-item-active');
+                        compareItem.classList.remove('site-nav-item-active');
+                    }
+                };
+                var observer = new IntersectionObserver(function(entries) {
+                    entries.forEach(function(entry) {
+                        var mid = (target.innerHeight || 800) / 2;
+                        setActive(entry.boundingClientRect.top <= mid);
+                    });
+                }, { threshold: 0, rootMargin: '-50% 0px 0px 0px' });
+                observer.observe(anchor);
+                target.__excelcv_compare_spy_observer__ = observer;
+                // Initial sync in case the anchor starts outside the observer's root.
+                var rect = anchor.getBoundingClientRect();
+                setActive(rect.top <= (target.innerHeight || 800) / 2);
+            };
+            attach();
+        })();
+        </script>
+        """,
+        height=0,
+    )
 
     # ── Run the submitted analysis last ───────────────────────────────────────
     # Doing it here — after the whole page is rendered and every `with` layout

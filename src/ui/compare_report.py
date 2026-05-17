@@ -15,6 +15,82 @@ from src.ui.app_utils import (
 )
 
 
+def _autosave_comparison(
+    rows: list[dict[str, Any]],
+    job_description: str,
+    errors: list[str],
+    warnings: list[str],
+) -> str | None:
+    """Persist a comparison run to the DB for the logged-in user. Silent on failure.
+
+    Returns the new comparison's id on success, or None if the user is a guest
+    or persistence failed. Called immediately after a successful comparison run
+    so users can revisit the same ranked output without re-uploading files.
+    """
+    from src.auth_utils import get_session_user
+    user = get_session_user()
+    if not user or not rows:
+        return None
+    try:
+        from src.database import Comparison, get_db
+        top_row = rows[0] if rows else {}
+        top_score = float(top_row.get("Final Score", 0) or 0)
+        top_name = str(top_row.get("Resume", "") or "")
+        db = get_db()
+        try:
+            record = Comparison(
+                user_id=user["id"],
+                job_description=job_description or "",
+                rows=rows,
+                errors=list(errors or []),
+                warnings=list(warnings or []),
+                resume_count=len(rows),
+                top_score=top_score,
+                top_resume_name=top_name,
+            )
+            db.add(record)
+            db.commit()
+            db.refresh(record)
+            return str(record.id)
+        finally:
+            db.close()
+    except Exception:
+        return None
+
+
+def _load_saved_comparison_into_session(comparison_id: str) -> bool:
+    """Hydrate session_state from a saved comparison record. Returns True on success."""
+    from src.auth_utils import get_session_user
+    user = get_session_user()
+    if not user:
+        return False
+    try:
+        from src.database import Comparison, get_db
+        db = get_db()
+        try:
+            record = (
+                db.query(Comparison)
+                .filter(Comparison.id == comparison_id, Comparison.user_id == user["id"])
+                .first()
+            )
+            if not record:
+                return False
+            st.session_state["comparison_results"] = list(record.rows or [])
+            st.session_state["comparison_errors"] = list(record.errors or [])
+            st.session_state["comparison_warnings"] = list(record.warnings or [])
+            st.session_state["comparison_attempted"] = True
+            st.session_state["compare_jd"] = record.job_description or ""
+            # No signature stored — treat as "fresh load" so the form's stale-
+            # detection won't immediately wipe it on first nav back to the form.
+            st.session_state.pop("comparison_signature", None)
+            st.session_state["scroll_compare_report_to_top"] = True
+            return True
+        finally:
+            db.close()
+    except Exception:
+        return False
+
+
 def _scroll_to_top_once() -> None:
     """Scroll viewport to (0,0) when arriving fresh on the report page.
 
@@ -256,63 +332,6 @@ def _issue_tier_class(issues: int) -> str:
     return "issue-high"
 
 
-def _build_winner_rationale_html(top_row: dict[str, Any], runner_up_row: dict[str, Any] | None) -> str | None:
-    """Auto-generated one-liner explaining why rank #1 won — driven by row deltas.
-
-    Returns None when there's no runner-up to compare against (single resume).
-    The text is deterministic: we lead with the final-score gap, then call out
-    the biggest sub-metric gap, and flag any "more issues than runner-up"
-    trade-off so the recruiter doesn't trust the rank blindly.
-    """
-    if not isinstance(runner_up_row, dict):
-        return None
-
-    top_final = int(top_row.get("Final Score", 0) or 0)
-    runner_final = int(runner_up_row.get("Final Score", 0) or 0)
-    final_delta = top_final - runner_final
-    if final_delta == 0:
-        lead_phrase = "Ties the runner-up on final score"
-    else:
-        # Sort guarantees top_final >= runner_final, so final_delta is non-negative.
-        lead_phrase = (
-            f"Leads the runner-up by <strong>{final_delta}</strong> "
-            f"point{'s' if final_delta != 1 else ''} on final score"
-        )
-
-    extras: list[str] = []
-    metric_deltas: list[tuple[str, int]] = []
-    for key in ("JD Alignment", "ATS Parse", "Sections"):
-        delta = int(top_row.get(key, 0) or 0) - int(runner_up_row.get(key, 0) or 0)
-        if delta != 0:
-            metric_deltas.append((key, delta))
-    metric_deltas.sort(key=lambda kv: abs(kv[1]), reverse=True)
-
-    if metric_deltas:
-        key, delta = metric_deltas[0]
-        sign = "+" if delta > 0 else "&minus;"
-        extras.append(f"biggest gap on {html.escape(key)} ({sign}{abs(delta)})")
-
-    top_issues = int(top_row.get("Issues", 0) or 0)
-    runner_issues = int(runner_up_row.get("Issues", 0) or 0)
-    issue_delta = top_issues - runner_issues
-    if issue_delta > 0:
-        extras.append(
-            f"but {issue_delta} more issue{'s' if issue_delta != 1 else ''} than the runner-up"
-        )
-    elif issue_delta < 0:
-        extras.append(
-            f"and {abs(issue_delta)} fewer issue{'s' if abs(issue_delta) != 1 else ''}"
-        )
-
-    detail = ("; " + ", ".join(extras)) if extras else ""
-    return (
-        '<div class="compare-rationale">'
-        '<span class="compare-rationale__tag">Why #1?</span>'
-        f'<span class="compare-rationale__text">{lead_phrase}{detail}.</span>'
-        '</div>'
-    )
-
-
 def _render_jd_context_expander() -> None:
     """Collapsed JD reminder so users don't have to navigate back to recall context."""
     jd = str(st.session_state.get("compare_jd", "") or "").strip()
@@ -324,7 +343,92 @@ def _render_jd_context_expander() -> None:
         st.markdown(jd)
 
 
-def _render_comparison_table_html(rows: list[dict[str, Any]]) -> None:
+# (label, sort_key, descending) — descending=True for scores (high is good),
+# False for issues/names (low/A-Z is "first"). Default is "Final Score (high → low)"
+# which matches the ranking the runner originally applied.
+_SORT_OPTIONS: list[tuple[str, str, bool]] = [
+    ("Final Score (high → low)", "Final Score", True),
+    ("Final Score (low → high)", "Final Score", False),
+    ("JD Alignment (high → low)", "JD Alignment", True),
+    ("ATS Parse (high → low)", "ATS Parse", True),
+    ("Sections (high → low)", "Sections", True),
+    ("Issues (low → high)", "Issues", False),
+    ("Issues (high → low)", "Issues", True),
+    ("Resume name (A → Z)", "Resume", False),
+]
+
+
+def _apply_sort(rows: list[dict[str, Any]], sort_label: str) -> list[dict[str, Any]]:
+    """Return a re-ordered copy of ``rows`` based on the selected sort label.
+
+    Rank numbers are re-assigned post-sort so the table's #1 always matches
+    the user's current sort criterion (e.g. sorting by Issues low→high makes
+    the cleanest resume #1 even if its Final Score isn't the highest).
+    """
+    spec = next(
+        ((label, key, desc) for label, key, desc in _SORT_OPTIONS if label == sort_label),
+        _SORT_OPTIONS[0],
+    )
+    _label, key, desc = spec
+    if key == "Resume":
+        sorted_rows = sorted(rows, key=lambda r: str(r.get("Resume", "")).lower(), reverse=desc)
+    else:
+        sorted_rows = sorted(rows, key=lambda r: int(r.get(key, 0) or 0), reverse=desc)
+    out: list[dict[str, Any]] = []
+    for idx, row in enumerate(sorted_rows, start=1):
+        copy = dict(row)
+        copy["Rank"] = idx
+        out.append(copy)
+    return out
+
+
+@st.cache_data(show_spinner=False, max_entries=20)
+def _build_comparison_pdf_bytes(
+    rows: list[dict[str, Any]],
+    job_description: str,
+    avg_score: float,
+    errors: list[str],
+    warnings: list[str],
+) -> bytes:
+    """Cache the rendered PDF so re-runs (sort changes, expander toggles)
+    don't re-invoke ReportLab. Cache key is the full args tuple — different
+    sort = different rows order = fresh PDF, which is what we want."""
+    from src.services.comparison_pdf import generate_comparison_pdf
+    return generate_comparison_pdf(
+        rows=rows,
+        job_description=job_description,
+        avg_score=avg_score,
+        errors=errors,
+        warnings=warnings,
+    )
+
+
+def _render_sort_selector(default_label: str = "Final Score (high → low)") -> str:
+    """Render the sort selector + return the chosen label. Persisted per-session.
+
+    Stacked layout (label above selectbox) so it stays readable inside a
+    half-width column on the two-column primary section. Streamlit forbids
+    nesting columns more than one level deep, so a flat layout here also
+    keeps us safe inside a parent column.
+    """
+    with st.container(key="compare_sort_row"):
+        st.markdown(
+            '<div class="compare-sort-label">Sort by</div>',
+            unsafe_allow_html=True,
+        )
+        return st.selectbox(
+            "Sort the comparison table by",
+            options=[label for label, _k, _d in _SORT_OPTIONS],
+            index=0,
+            key="compare_report_sort_choice",
+            label_visibility="collapsed",
+        )
+
+
+def _render_comparison_table_html(
+    rows: list[dict[str, Any]],
+    top_match_name: str = "",
+) -> None:
     """Custom HTML table with winner-row highlight and color-coded score cells.
 
     Replaces ``st.dataframe`` for two reasons:
@@ -337,6 +441,12 @@ def _render_comparison_table_html(rows: list[dict[str, Any]]) -> None:
     "Top Missing Skills" is intentionally dropped from this table — it was
     truncating mid-word and the same content already lives in the top-match
     card (for #1) and the drill-down expanders (for every row).
+
+    ``top_match_name`` decouples the ★ marker from the user's chosen sort
+    order. The star always belongs to the actual top match (the resume the
+    Top Match card on the right is showing), so if the user re-sorts the
+    table by e.g. "Issues high → low", the true top match keeps its star
+    even if it's no longer at the top row of the table.
     """
     columns = [
         ("Rank", "compare-th compare-th--rank"),
@@ -352,9 +462,12 @@ def _render_comparison_table_html(rows: list[dict[str, Any]]) -> None:
     body_rows: list[str] = []
     for row in rows:
         rank = int(row.get("Rank", 0) or 0)
-        is_winner = rank == 1
+        row_name = str(row.get("Resume", "") or "")
+        # is_winner is now identity-based (matches the true top match), not
+        # position-based (whoever Streamlit's current sort put at row 1).
+        is_winner = bool(top_match_name) and row_name == top_match_name
         row_cls = "compare-row compare-row--winner" if is_winner else "compare-row"
-        name = html.escape(str(row.get("Resume", "")))
+        name = html.escape(row_name)
         if is_winner:
             rank_cell = f'<td class="compare-td compare-td--rank"><span class="compare-winner-pill">&#9733; {rank}</span></td>'
         else:
@@ -364,8 +477,18 @@ def _render_comparison_table_html(rows: list[dict[str, Any]]) -> None:
         for key in ("Final Score", "JD Alignment", "ATS Parse", "Sections"):
             val = int(row.get(key, 0) or 0)
             tier = _score_tier_class(val)
+            # Inline meter: a fixed-width track with a tier-colored fill +
+            # the numeric value to the right. ``currentColor`` on the fill
+            # picks up the tier class color so green/amber/red is automatic.
             score_cells += (
-                f'<td class="compare-td compare-td--num compare-td--{tier}">{val}</td>'
+                f'<td class="compare-td compare-td--num compare-td--{tier}">'
+                f'<div class="compare-meter">'
+                f'<div class="compare-meter__track">'
+                f'<div class="compare-meter__fill" style="width:{val}%;"></div>'
+                f'</div>'
+                f'<span class="compare-meter__val">{val}</span>'
+                f'</div>'
+                f'</td>'
             )
 
         issues = int(row.get("Issues", 0) or 0)
@@ -392,6 +515,13 @@ def _render_comparison_table_html(rows: list[dict[str, Any]]) -> None:
 def render_compare_report_page() -> None:
     """Render the dedicated comparison results page."""
     _scroll_to_top_once()
+    # Set "return-to-compare" hints so any subsequent home render (typically
+    # the user pressing the browser back button) lands on the compare section
+    # with the right nav highlight, instead of dumping the user at the top of
+    # the Analyze CV upload form. Cleared by the Analyze CV nav action in
+    # main() so an explicit nav click still respects the user's intent.
+    st.session_state["scroll_to_compare_anchor"] = True
+    st.session_state["home_nav_focus_compare"] = True
     comparison_rows = list(st.session_state.get("comparison_results", []) or [])
     comparison_errors = list(st.session_state.get("comparison_errors", []) or [])
     comparison_warnings = list(st.session_state.get("comparison_warnings", []) or [])
@@ -414,30 +544,25 @@ def render_compare_report_page() -> None:
     )
     top_score = int(comparison_rows[0].get("Final Score", 0) or 0)
     resumes_compared = len(comparison_rows)
-    back_href = _back_to_form_href()
 
     resume_word = "resume" if resumes_compared == 1 else "resumes"
+    # Hero now carries only the title + subtitle; the chip strip moved INSIDE
+    # the primary section (next to the Sort by selector) for a tighter,
+    # single-card layout matching the home page treatment.
     st.markdown(
-        f"""
+        """
         <div class="compare-report-hero">
-            <a href="{back_href}" target="_self" class="compare-report-back">&larr; Back to Compare</a>
             <h1 class="compare-report-hero__title">Ranked <span>comparison</span></h1>
             <p class="compare-report-hero__subtitle">Resumes ranked by final score, then by issue count. Use this view to shortlist the strongest candidate against the same job description.</p>
-            <div class="compare-report-hero__chips">
-                <span class="hero-chip">&#10003; {resumes_compared} {resume_word} compared</span>
-                <span class="hero-chip">&#10003; Top score {top_score}</span>
-                <span class="hero-chip">&#10003; Average {avg_score}</span>
-            </div>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
-    st.markdown(_build_top_match_card_html(comparison_rows[0]), unsafe_allow_html=True)
-
+    # JD context renders full-width above the primary section so users don't
+    # forget what they're comparing against.
     _render_jd_context_expander()
 
-    st.markdown('<div class="compare-results-title">Comparison Results</div>', unsafe_allow_html=True)
     # CSV export keeps the original column set (including Top Missing Skills)
     # so downstream spreadsheet users get the full picture. The HTML table
     # drops Top Missing Skills to keep the page readable.
@@ -451,14 +576,57 @@ def render_compare_report_page() -> None:
         "Issues",
         "Top Missing Skills",
     ]
-    _render_comparison_table_html(comparison_rows)
 
-    _render_resume_drilldowns(comparison_rows)
+    # Primary section mirrors the Analyze CV homepage layout:
+    #   LEFT  → the working data (ranked Comparison Results table + sort)
+    #   RIGHT → the spotlight visual (Top Match card + Why #1? rationale)
+    # Ratio leans slightly to the left so the table doesn't get cramped at
+    # ~half-width; Streamlit auto-stacks both columns vertically on narrow
+    # viewports (< ~640px) so mobile users still get a sensible layout.
+    with st.container(key="compare_primary_section"):
+        primary_left, primary_right = st.columns([1.4, 1.0], gap="large")
+        with primary_left:
+            st.markdown(
+                '<div class="compare-results-title">Comparison Results</div>',
+                unsafe_allow_html=True,
+            )
+            # Chips on the left, Sort by stack on the right — the SORT BY
+            # label is then nudged up via CSS to sit on the same baseline as
+            # the "Comparison Results" title above, without moving the
+            # selectbox below it.
+            chips_html = (
+                '<div class="compare-results-chips">'
+                f'<span class="hero-chip">&#10003; {resumes_compared} {resume_word} compared</span>'
+                f'<span class="hero-chip">&#10003; Top score {top_score}</span>'
+                f'<span class="hero-chip">&#10003; Average {avg_score}</span>'
+                '</div>'
+            )
+            chip_cols = st.columns([2.4, 1.4], gap="small")
+            with chip_cols[0]:
+                st.markdown(chips_html, unsafe_allow_html=True)
+            with chip_cols[1]:
+                sort_label = _render_sort_selector()
+            sorted_rows = _apply_sort(comparison_rows, sort_label)
+            # Pin the ★ to the true top match (rank-1 row from the original,
+            # unsorted scoring order) so the star stays glued to the resume
+            # the Top Match card on the right is showing — regardless of what
+            # the user picks in the Sort by dropdown.
+            true_top_match_name = str(comparison_rows[0].get("Resume", "") or "")
+            _render_comparison_table_html(sorted_rows, top_match_name=true_top_match_name)
+        with primary_right:
+            st.markdown(
+                _build_top_match_card_html(comparison_rows[0]),
+                unsafe_allow_html=True,
+            )
 
-    # Right-aligned action row: Clear (secondary / outlined) then Download
-    # (primary / filled) reading naturally as "discard ← keep".
+    # Drill-down expanders use the SAME sort order so #1 in the table = first
+    # expander = the candidate the user is currently inspecting at the top.
+    _render_resume_drilldowns(sorted_rows)
+
+    # Right-aligned action row: Clear (secondary) · Download CSV · Download PDF
+    # (primary). Reads naturally as "discard ← keep ← share".
     with st.container(key="compare_report_actions"):
-        action_cols = st.columns([4, 1.2, 1.2], gap="small")
+        action_cols = st.columns([3.4, 1.2, 1.2, 1.2], gap="small")
         with action_cols[1]:
             if st.button("Clear results", key="clear_compare_results_report", width="stretch"):
                 _clear_comparison_run_artifacts()
@@ -469,13 +637,29 @@ def render_compare_report_page() -> None:
                     pass
                 st.rerun()
         with action_cols[2]:
-            comparison_csv = _comparison_rows_to_csv(comparison_rows, csv_columns)
+            comparison_csv = _comparison_rows_to_csv(sorted_rows, csv_columns)
             st.download_button(
                 "Download CSV",
                 data=comparison_csv,
                 file_name="resume-comparison.csv",
                 mime="text/csv",
                 key="download_compare_csv_report",
+                width="stretch",
+            )
+        with action_cols[3]:
+            pdf_bytes = _build_comparison_pdf_bytes(
+                sorted_rows,
+                str(st.session_state.get("compare_jd", "") or ""),
+                avg_score,
+                comparison_errors,
+                comparison_warnings,
+            )
+            st.download_button(
+                "Download PDF",
+                data=pdf_bytes,
+                file_name="resume-comparison.pdf",
+                mime="application/pdf",
+                key="download_compare_pdf_report",
                 width="stretch",
                 type="primary",
             )

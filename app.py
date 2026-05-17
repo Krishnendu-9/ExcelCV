@@ -44,10 +44,11 @@ from src.ui.static_pages import render_static_page
 from src.ui.cv_builder_page import render_cv_builder_page
 from src.ui.my_cvs_page import render_my_cvs_page
 from src.ui.my_analyses_page import render_my_analyses_page
+from src.ui.my_comparisons_page import render_my_comparisons_page
 from src.ui.settings_page import render_settings_page
 from src.ui.ui_components import inject_back_button_sync, inject_base_css
 
-PROTECTED_PAGES = {"resume-builder", "my-cvs", "my-analyses", "compare-report", "settings"}
+PROTECTED_PAGES = {"resume-builder", "my-cvs", "my-analyses", "my-comparisons", "compare-report", "settings"}
 NAV_ACTIVE_LABELS = {
     "home": "Analyze CV",
     "upload": "Analyze CV",
@@ -57,6 +58,7 @@ NAV_ACTIVE_LABELS = {
     "resume-builder": "Resume Builder",
     "my-cvs": "My CVs",
     "my-analyses": "My Analyses",
+    "my-comparisons": "My Comparisons",
     "compare-report": "Compare Resumes",
 }
 NAV_ACTION_TO_PAGE = {
@@ -637,7 +639,12 @@ def main() -> None:
             st.session_state["scroll_to_compare_anchor"] = True
             st.session_state[HOME_COMPARE_FOCUS_KEY] = True
         elif nav_action == "upload-cv":
+            # Explicit "Analyze CV" click — also drop the
+            # return-to-compare scroll hint set by the compare-report page so
+            # a deliberate nav choice isn't silently overridden by a stale
+            # auto-scroll from the previous compare session.
             st.session_state[HOME_COMPARE_FOCUS_KEY] = False
+            st.session_state.pop("scroll_to_compare_anchor", None)
         elif target_page not in ("home", "upload", "upload-cv"):
             st.session_state[HOME_COMPARE_FOCUS_KEY] = False
         if not get_session_user() and target_page in PROTECTED_PAGES:
@@ -668,6 +675,9 @@ def main() -> None:
     elif current_page == 'my-analyses':
         _require_auth('my-analyses')
         render_my_analyses_page()
+    elif current_page == 'my-comparisons':
+        _require_auth('my-comparisons')
+        render_my_comparisons_page()
     elif current_page == 'settings':
         _require_auth('settings')
         render_settings_page()

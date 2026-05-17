@@ -14,7 +14,20 @@
       "Bash(py -c \"import ast; [ast.parse\\(open\\(p, encoding='utf-8'\\).read\\(\\)\\) for p in ['app.py', 'src/ui/theme.py']]; print\\('OK'\\)\")",
       "Bash(py -c \"import ast; [ast.parse\\(open\\(p, encoding='utf-8'\\).read\\(\\)\\) for p in ['app.py', 'src/ui/layout.py', 'src/ui/theme.py']]; print\\('OK'\\)\")",
       "Bash(py -c \"import ast; [ast.parse\\(open\\(p, encoding='utf-8'\\).read\\(\\)\\) for p in ['src/ui/upload.py', 'src/ui/compare_report.py']]; print\\('OK'\\)\")",
-      "Bash(py -c \"import ast; [ast.parse\\(open\\(p, encoding='utf-8'\\).read\\(\\)\\) for p in ['src/ui/compare_report.py', 'src/ui/css_injection.py']]; print\\('OK'\\)\")"
+      "Bash(py -c \"import ast; [ast.parse\\(open\\(p, encoding='utf-8'\\).read\\(\\)\\) for p in ['src/ui/compare_report.py', 'src/ui/css_injection.py']]; print\\('OK'\\)\")",
+      "Bash(py -c \"import ast; [ast.parse\\(open\\(p, encoding='utf-8'\\).read\\(\\)\\) for p in ['src/ui/compare_report.py', 'src/ui/app_utils.py', 'src/ui/css_injection.py']]; print\\('OK'\\)\")",
+      "Bash(py -c \"import ast; [ast.parse\\(open\\(p, encoding='utf-8'\\).read\\(\\)\\) for p in ['src/database.py', 'src/ui/compare_report.py', 'src/ui/upload.py', 'src/ui/my_comparisons_page.py', 'src/ui/app_utils.py', 'src/ui/layout.py', 'src/ui/css_injection.py', 'src/services/comparison_pdf.py', 'app.py']]; print\\('OK'\\)\")",
+      "Bash(py -c \"import ast; [ast.parse\\(open\\(p, encoding='utf-8'\\).read\\(\\)\\) for p in ['src/ui/compare_report.py', 'src/ui/css_injection.py', 'app.py']]; print\\('OK'\\)\")",
+      "Bash(py -c \"import ast; ast.parse\\(open\\('src/ui/css_injection.py', encoding='utf-8'\\).read\\(\\)\\); print\\('OK'\\)\")",
+      "Bash(py -c \"import ast; ast.parse\\(open\\('src/ui/compare_report.py', encoding='utf-8'\\).read\\(\\)\\); print\\('OK'\\)\")",
+      "Bash(echo \"---exit $?---\")",
+      "Bash(py -c ' *)",
+      "Bash(awk '{print $5, $6, $7, $8}')",
+      "Bash(xargs -I{} ls -la \"{}\")",
+      "Bash(sort -k5 -n -r)",
+      "Bash(awk '{print $5, $NF}')",
+      "Bash(git rm *)",
+      "Bash(git commit -m ' *)"
     ]
   }
 }

@@ -176,6 +176,13 @@ def render_site_header(show_theme_toggle: bool = True, current_page: str = "uplo
         '<polyline points="16 17 21 12 16 7"/>'
         '<line x1="21" y1="12" x2="9" y2="12"/></svg>'
     )
+    _ICON_COMPARISONS = (
+        '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24"'
+        ' fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"'
+        ' stroke-linejoin="round" class="site-user-item-icon" aria-hidden="true">'
+        '<rect x="3" y="3" width="7" height="18" rx="1"/>'
+        '<rect x="14" y="3" width="7" height="11" rx="1"/></svg>'
+    )
 
     if _user:
         raw_full_name = str(_user.get("full_name", "")).strip()
@@ -185,6 +192,7 @@ def render_site_header(show_theme_toggle: bool = True, current_page: str = "uplo
             '<details class="site-user-dropdown">'
             f'<summary class="site-user-trigger">Hi, {first_name}<span class="site-user-caret">&#9662;</span></summary>'
             '<div class="site-user-panel">'
+            f'<a href="{_build_page_href("my-comparisons")}" target="_self" class="site-user-item">{_ICON_COMPARISONS}My Comparisons</a>'
             f'<a href="{_build_page_href("contact")}" target="_self" class="site-user-item">{_ICON_FEEDBACK}Give Feedback</a>'
             f'<a href="{_build_page_href("contact")}" target="_self" class="site-user-item">{_ICON_SUPPORT}Support</a>'
             f'<a href="{_build_page_href("settings")}" target="_self" class="site-user-item">{_ICON_SETTINGS}Settings</a>'

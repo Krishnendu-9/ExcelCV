@@ -23,6 +23,7 @@ APP_PAGES: Dict[str, str] = {
     "resume-builder": "Resume Builder",
     "my-cvs": "My CVs",
     "my-analyses": "My Analyses",
+    "my-comparisons": "My Comparisons",
     "settings": "Settings",
     "upload": "Resume Checker",
     "report": "Report",

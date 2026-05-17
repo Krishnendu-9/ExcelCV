@@ -736,6 +736,52 @@ def inject_compact_header_css() -> None:
             background: rgba(245, 158, 11, 0.22) !important;
             color: #fcd34d !important;
         }
+        /* Inline mini-bar inside each score cell. ``currentColor`` on the
+           fill inherits the tier color (.compare-td--score-good etc.) so
+           the bar tints to match the number. */
+        .compare-meter {
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: flex-end !important;
+            gap: 10px !important;
+            width: 100% !important;
+        }
+        .compare-meter__track {
+            flex: 0 1 64px !important;
+            min-width: 36px !important;
+            height: 5px !important;
+            border-radius: 999px !important;
+            background: rgba(148, 163, 184, 0.22) !important;
+            overflow: hidden !important;
+        }
+        body.theme-dark .compare-meter__track {
+            background: rgba(148, 163, 184, 0.18) !important;
+        }
+        .compare-meter__fill {
+            height: 100% !important;
+            border-radius: 999px !important;
+            background: currentColor !important;
+            transition: width 0.4s ease !important;
+        }
+        .compare-meter__val {
+            min-width: 24px !important;
+            text-align: right !important;
+            font-variant-numeric: tabular-nums !important;
+            font-weight: 600 !important;
+        }
+        /* "Open as full report" button inside each drill-down expander —
+           keep it visually distinct as a secondary "deep-dive" action. */
+        [class*="st-key-compare_open_report_box_"] {
+            margin-top: 10px !important;
+            display: flex !important;
+            justify-content: flex-end !important;
+        }
+        [class*="st-key-compare_open_report_box_"] [data-testid="stButton"] button {
+            min-height: 38px !important;
+            border-radius: 10px !important;
+            font-weight: 600 !important;
+            white-space: nowrap !important;
+        }
         /* Action row: tighten Streamlit's default vertical spacing so the
            Clear / Download buttons read as a single row beside the table. */
         .st-key-compare_report_actions {
@@ -749,6 +795,135 @@ def inject_compact_header_css() -> None:
             min-height: 40px !important;
             border-radius: 10px !important;
             font-weight: 600 !important;
+        }
+        /* Sort selector — stacked label-above-select layout (works inside a
+           half-width parent column, where nested columns would be both ugly
+           and forbidden by Streamlit's max-1-level nesting rule). */
+        .st-key-compare_sort_row {
+            margin: 6px 0 8px 0 !important;
+        }
+        .st-key-compare_sort_row .compare-sort-label {
+            font-size: 0.78rem !important;
+            font-weight: 700 !important;
+            color: var(--text-secondary) !important;
+            text-transform: uppercase !important;
+            letter-spacing: 0.05em !important;
+            margin-bottom: 4px !important;
+            line-height: 1.2 !important;
+        }
+        .st-key-compare_sort_row [data-baseweb="select"] {
+            min-height: 38px !important;
+        }
+        /* Primary section: tighten gaps so the LEFT/RIGHT columns read as one
+           paired unit, and tame the top-match card's outer margin inside the
+           right column (it was sized for full-width historically).
+           Outer-card treatment mirrors the .st-key-hero_wrapper card on the
+           Analyze CV home page so the two pages feel like siblings. */
+        .st-key-compare_primary_section {
+            position: relative !important;
+            overflow: hidden !important;
+            margin: 14px 0 18px 0 !important;
+            padding: 26px 40px 24px !important;
+            background:
+                radial-gradient(120% 70% at 100% 0%, rgba(20, 184, 166, 0.08), transparent 55%),
+                linear-gradient(135deg, var(--bg-hero), var(--bg-secondary)) !important;
+            border: 1px solid var(--border-light) !important;
+            border-radius: 22px !important;
+            box-shadow: 0 8px 40px var(--shadow-lg) !important;
+        }
+        @media (max-width: 900px) {
+            .st-key-compare_primary_section {
+                padding: 18px 18px 16px !important;
+                border-radius: 16px !important;
+            }
+        }
+        .st-key-compare_primary_section .compare-top-card {
+            margin-top: 0 !important;
+        }
+        .st-key-compare_primary_section .compare-results-title {
+            margin: 0 0 6px 0 !important;
+        }
+        /* Chip strip (left half of the chips/sort sub-row, beside the
+           selectbox). Aligned vertically with the selectbox below the
+           "SORT BY" label that gets pulled up above it. */
+        .st-key-compare_primary_section .compare-results-chips {
+            display: flex !important;
+            flex-wrap: wrap !important;
+            gap: 8px !important;
+            align-items: center !important;
+            margin: 0 !important;
+            padding-top: 20px !important;
+        }
+        .st-key-compare_primary_section .compare-results-chips .hero-chip {
+            padding: 5px 11px !important;
+            font-size: 0.84rem !important;
+            white-space: nowrap !important;
+        }
+        /* Lift only the SORT BY label up so it sits on the same baseline as
+           the "Comparison Results" title in the row above. The selectbox
+           stays in its current position — only the label moves. The
+           negative margin equals roughly (title-height + title-margin-bottom
+           + Streamlit vertical gap) so the label visually replaces what
+           would otherwise be empty space to the right of the title. */
+        .st-key-compare_primary_section .st-key-compare_sort_row .compare-sort-label {
+            margin-top: -34px !important;
+        }
+        /* Sort row inside the primary section: drop its own outer margin
+           so it doesn't compound with the chip-row padding. */
+        .st-key-compare_primary_section .st-key-compare_sort_row {
+            margin: 0 !important;
+        }
+        /* Pull the comparison table flush against the chips/sort row above
+           it. The table-wrap defaults to 8px margin-top; inside the primary
+           card we want it tighter so the section reads as one block. */
+        .st-key-compare_primary_section .compare-table-wrap {
+            margin-top: 4px !important;
+        }
+        /* Tame Streamlit's default vertical-block gap inside the left column
+           so the title → (chips/sort) → table stack doesn't get extra dead
+           space at every element boundary. */
+        .st-key-compare_primary_section [data-testid="stVerticalBlock"] {
+            gap: 0.4rem !important;
+        }
+        /* Narrower columns: relax the table's per-cell min-widths so the
+           meters don't push the table beyond the column boundary. */
+        .st-key-compare_primary_section .compare-table .compare-td--num {
+            min-width: 64px !important;
+        }
+        .st-key-compare_primary_section .compare-table .compare-meter__track {
+            flex: 0 1 48px !important;
+            min-width: 28px !important;
+        }
+        .st-key-compare_primary_section .compare-table .compare-td--name {
+            max-width: 220px !important;
+        }
+        .st-key-compare_primary_section .compare-table .compare-th,
+        .st-key-compare_primary_section .compare-table .compare-td {
+            padding-left: 12px !important;
+            padding-right: 12px !important;
+        }
+        /* Hide the text caret inside the sort selectbox. BaseWeb's Select
+           renders a real <input> for keyboard accessibility (visible blinking
+           caret next to the selected option text on focus). Streamlit ships
+           several CSS-in-JS rules with !important that can set caret-color
+           on inner elements, so the safe play is to hide the caret on EVERY
+           descendant of the sort row — there are no real text inputs in this
+           sub-tree, so the blanket rule has no false positives. The first
+           rule is the broad catch-all; the explicit selectors below it raise
+           specificity for any element that gets a higher-specificity rule
+           from Streamlit's stylesheet. */
+        .st-key-compare_sort_row,
+        .st-key-compare_sort_row * {
+            caret-color: transparent !important;
+        }
+        body .st-key-compare_sort_row [data-testid="stSelectbox"] input,
+        body .st-key-compare_sort_row [data-baseweb="select"] input,
+        body .st-key-compare_sort_row [data-baseweb="select-control"] input,
+        body .st-key-compare_sort_row [role="combobox"],
+        body .st-key-compare_sort_row [role="combobox"] input,
+        body .st-key-compare_sort_row [contenteditable] {
+            caret-color: transparent !important;
+            cursor: pointer !important;
         }
         .compare-progress-shell {
             margin: 12px 0 4px 0 !important;
@@ -900,8 +1075,16 @@ def inject_compact_header_css() -> None:
             color: #bfdbfe !important;
         }
         .compare-report-hero {
-            margin: 6px 0 14px 0 !important;
+            /* Match the negative top margin trick used by my_analyses_page and
+               my_comparisons_page so the hero sits flush under the fixed
+               header instead of leaving a blank band above it. */
+            margin: -72px 0 14px 0 !important;
             padding: 0 !important;
+        }
+        @media (max-width: 900px) {
+            .compare-report-hero {
+                margin-top: -38px !important;
+            }
         }
         .compare-report-hero__title {
             margin: 8px 0 6px 0 !important;
@@ -919,7 +1102,8 @@ def inject_compact_header_css() -> None:
         }
         .compare-report-hero__subtitle {
             margin: 0 0 12px 0 !important;
-            max-width: 820px !important;
+            /* No max-width: subtitle is a single sentence and should sit on
+               one line on desktop. Browser wraps naturally at narrow widths. */
             font-size: 1rem !important;
             line-height: 1.5 !important;
             color: var(--text-secondary) !important;

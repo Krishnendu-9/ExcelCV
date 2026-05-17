@@ -5,7 +5,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
-from sqlalchemy import DateTime, Float, ForeignKey, JSON, String, Text, create_engine, text
+from sqlalchemy import DateTime, Float, ForeignKey, Integer, JSON, String, Text, create_engine, text
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
 
 _DB_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
@@ -66,6 +66,30 @@ class Analysis(Base):
     job_description: Mapped[str] = mapped_column(Text, nullable=False)
     result: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
     match_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class Comparison(Base):
+    """A persisted multi-resume comparison run.
+
+    ``rows`` stores the full ranked-row list (including each row's stashed
+    ``_analysis`` dict) so the report page can be fully reconstructed from
+    just this record — no re-running the model, no losing drill-down detail.
+    ``errors`` / ``warnings`` are also persisted so partial-failure context
+    is preserved when the user revisits a saved comparison.
+    """
+
+    __tablename__ = "comparisons"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    job_description: Mapped[str] = mapped_column(Text, nullable=False)
+    rows: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    errors: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    warnings: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    resume_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    top_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    top_resume_name: Mapped[str] = mapped_column(String(255), nullable=False, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 

@@ -823,14 +823,22 @@ def _run_comparison_with_progress(
     progress_slot.empty()
 
     rows = comparison.get("rows", [])
+    run_errors = comparison.get("errors", [])
+    run_warnings = comparison.get("warnings", [])
     st.session_state["comparison_results"] = rows
-    st.session_state["comparison_errors"] = comparison.get("errors", [])
-    st.session_state["comparison_warnings"] = comparison.get("warnings", [])
+    st.session_state["comparison_errors"] = run_errors
+    st.session_state["comparison_warnings"] = run_warnings
     st.session_state["comparison_signature"] = comparison_signature
     st.session_state["comparison_attempted"] = True
     # Once the run committed, drop transient upload-stage warnings — they
     # described the now-stale selection state.
     st.session_state.pop("compare_upload_warnings", None)
+    # Persist successful runs (>= 1 ranked row) to the DB so signed-in users
+    # can revisit them from the My Comparisons page without re-uploading.
+    # Failure is silent — autosave is a convenience, not a critical path.
+    if rows:
+        from src.ui.compare_report import _autosave_comparison
+        _autosave_comparison(rows, compare_jd, run_errors, run_warnings)
     # Always navigate to the dedicated report page once a comparison was
     # attempted — even when every file failed. The report page's empty
     # state then surfaces the per-file errors/warnings so the user can

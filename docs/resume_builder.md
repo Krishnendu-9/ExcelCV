@@ -19,6 +19,14 @@ This document tracks the current behavior of the Resume Builder page implemented
 - `_inject_realtime_js()`
 - `_inject_sections_relay_js()`
 - `_inject_chevron_hider_js()`
+9. Apply final alignment overrides with `_inject_builder_final_alignment_overrides()`.
+
+## State Persistence Guard
+To prevent content loss during reruns caused by sidebar actions (reorder, visibility, template/style changes), `_init_builder()` now applies `_protect_builder_widget_state()`:
+- Mirrors key `cvb_*` values into `cvb_state_mirror_v1`.
+- Restores missing keys when widgets are temporarily unmounted.
+- Covers both fixed keys and dynamic row keys (`exp/edu/skill/project/lang/cert`).
+- Preserves user-entered middle-panel data while allowing normal delete behavior.
 
 ## Page Layout
 Three columns:
@@ -239,6 +247,14 @@ Pipeline:
 3. Wrap print CSS (`_build_pdf_ready_html(...)`).
 4. Render with Playwright (`_render_html_to_pdf_bytes(...)`).
 
+Sizing behavior:
+- Preview uses default HTML sizing (`typography_scale=1.0`) for stable in-app composition.
+- PDF export uses mapped sizing via `CVB_PDF_TYPOGRAPHY_SCALE` (passed into `generate_cv_html(...)`) to improve readability.
+- This keeps preview visually stable while producing larger FlowCV-like text density in downloaded PDF.
+
+Inner whitespace behavior:
+- Classic template now uses wider side padding (`.classic { padding: 18px 38px; }`) so preview and PDF both show larger left/right blank space similar to FlowCV.
+
 Link behavior in exported PDF:
 - Exported link target uses explicit URL fields (`*_url`).
 - Display text remains independent and can be different from underlying URL.
@@ -247,6 +263,7 @@ Link behavior in exported PDF:
 - Dark mode caret color is explicitly styled for visibility.
 - Eye button hover/focus styling is aligned across light and dark contexts.
 - Middle controls and preview container are styled for dark compatibility.
+- Modern sidebar links are explicitly styled for contrast (`.modern-left .ci-val/.ci-link`) so LinkedIn/GitHub/Website text remains visible in both preview and PDF.
 
 ## QA Checklist
 1. Personal layout is `Email/Phone`, `Location/LinkedIn`, `Website/GitHub`.
@@ -259,3 +276,6 @@ Link behavior in exported PDF:
 8. Theme switch during editing preserves preview content.
 9. Empty builder shows demo preview; first user edit switches to user-only preview.
 10. Save/Load/Backup/Import/Reset continue to work.
+11. Reordering sections does not clear previously entered personal/summary/content data.
+12. Preview and PDF sizing behavior matches intended split: stable preview + larger PDF typography.
+13. Modern template sidebar shows visible LinkedIn/GitHub/Website text (not icons-only).

@@ -210,7 +210,6 @@ cv-review/
     gemini_client.py
     oauth_utils.py
     pdf_utils.py
-    tmp_write_test_agent2.txt
     assets/
       ui/
         base_theme.css.tpl
@@ -247,7 +246,6 @@ cv-review/
       p000_001.jpg
       p000_002.jpg
       p000_003.jpg
-  tmp_write_check.txt
 ```
 
 ---
@@ -256,11 +254,8 @@ cv-review/
 
 1. No `tests/` directory is present right now, while some docs still mention test commands.
 2. `README.md` and some docs still reference older structure/behavior not fully aligned with current files.
-3. Temporary artifacts currently exist in repo/workspace:
-   - `tmp_write_check.txt`
-   - `src/tmp_write_test_agent2.txt`
-4. `src/ui/cv_builder_page.py` is monolithic and contains legacy duplicate definitions.
-5. Some static-page text (for example privacy wording) is not fully aligned with the actual persisted account/data model.
+3. `src/ui/cv_builder_page.py` is monolithic and contains legacy duplicate definitions.
+4. Some static-page text (for example privacy wording) is not fully aligned with the actual persisted account/data model.
 
 ---
 

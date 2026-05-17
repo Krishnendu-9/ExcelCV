@@ -98,6 +98,7 @@ Form layout:
 - Clicking the icon opens a custom link URL popover.
 - User enters the real URL in the popover.
 - Clicking the checkmark saves URL, closes popover, updates preview link target, and commits URL back to Streamlit state.
+- Stale `cvb_lurl_*` URL query params are cleared during builder bootstrap, CV load, import, and reset, so links from a previous CV/session do not leak into the current one.
 
 Important behavior:
 - Display text field is plain text only.
@@ -214,6 +215,16 @@ Returns:
 - `languages`
 - `interests`
 - `customization`
+
+`customization` currently includes:
+- `accent_color`
+- `font`
+- `font_size`
+- `line_height`
+- `entry_spacing`
+- `show_icons`
+- `section_order`
+- `section_visibility`
 
 Filtering:
 - Hidden rows excluded

@@ -1148,11 +1148,12 @@
                 display: flex;
                 align-items: center;
                 justify-content: center;
-                color: #14b8a6;
+                color: var(--text-muted);
                 font-size: 1.1rem;
-                font-weight: 700;
+                font-weight: 600;
                 flex: none;
                 padding: 0 2px;
+                opacity: 0.7;
             }}
 
             .hero-visual {{

@@ -43,8 +43,8 @@ def render_upload_preview_card() -> None:
             </div>
             <div class="hv-stat-divider"></div>
             <div class="hv-stat-item">
-                <span class="hv-stat-val">ATS</span>
-                <span class="hv-stat-label">tested</span>
+                <span class="hv-stat-val">100%</span>
+                <span class="hv-stat-label">free</span>
             </div>
             <div class="hv-stat-divider"></div>
             <div class="hv-stat-item">
@@ -148,6 +148,9 @@ def render_upload_preview_card() -> None:
         var jdTop = jdBox.getBoundingClientRect().top;
         var heroTop = hero.getBoundingClientRect().top;
         var offset = jdTop - heroTop;
+        // Only nudge DOWN (positive marginTop). Pulling up via negative
+        // margin caused the card to collide with the steps strip above it.
+        // If natural flow places hero below JD, we accept that small offset.
         if (offset > 4) {
             hero.style.marginTop = Math.round(offset) + 'px';
         }
@@ -189,7 +192,6 @@ def render_upload_landing_sections() -> None:
         <div class="landing-extended">
             <section class="landing-clean-section landing-intro-section">
                 <div class="landing-clean-head">
-                    <span class="landing-clean-tag">ExcelCV workflow</span>
                     <h2 class="landing-clean-title">How our free resume checker works</h2>
                     <p class="landing-clean-subtitle">
                         Our AI-powered scanner analyzes your resume like top ATS systems and recruiters.
@@ -215,7 +217,6 @@ def render_upload_landing_sections() -> None:
             </section>
             <section class="landing-clean-section">
                 <div class="landing-clean-head">
-                    <span class="landing-clean-tag">Complete resume analysis</span>
                     <h3 class="landing-clean-title">Advanced resume scanner features</h3>
                     <p class="landing-clean-subtitle">
                         Everything you need to create an ATS-friendly resume that gets noticed.
@@ -250,7 +251,6 @@ def render_upload_landing_sections() -> None:
             </section>
             <section class="landing-clean-section">
                 <div class="landing-clean-head">
-                    <span class="landing-clean-tag">Common Questions</span>
                     <h3 class="landing-clean-title">Frequently asked questions</h3>
                     <p class="landing-clean-subtitle">
                         Quick answers before you upload your next resume draft.
@@ -286,7 +286,6 @@ def render_upload_landing_sections() -> None:
             </section>
             <section class="landing-clean-section">
                 <div class="landing-clean-head">
-                    <span class="landing-clean-tag">Why choose ExcelCV</span>
                     <h3 class="landing-clean-title">Built for clarity, speed, and practical feedback</h3>
                 </div>
                 <div class="landing-clean-grid benefits-grid">
@@ -301,7 +300,6 @@ def render_upload_landing_sections() -> None:
             <!-- COMMENTED OUT: Resume checker success stories (fake testimonials — restore when real data available)
             <section class="landing-clean-section">
                 <div class="landing-clean-head">
-                    <span class="landing-clean-tag">Success stories</span>
                     <h3 class="landing-clean-title">Resume checker success stories</h3>
                 </div>
                 <div class="landing-clean-grid stories-grid">
@@ -329,7 +327,6 @@ def render_upload_landing_sections() -> None:
             <!-- COMMENTED OUT: Latest resume and career tips (blog cards have no links — restore when blog pages are complete)
             <section class="landing-clean-section">
                 <div class="landing-clean-head">
-                    <span class="landing-clean-tag">From the blog</span>
                     <h3 class="landing-clean-title">Latest resume and career tips</h3>
                 </div>
                 <div class="landing-clean-grid blog-grid">
@@ -1070,7 +1067,6 @@ def render_upload_page(compare_mode: bool = False) -> None:
         st.markdown(
             """
             <div class="landing-clean-head">
-                <span class="landing-clean-tag">Side-by-side ranking</span>
                 <h2 class="landing-clean-title">Compare Multiple Resumes (2-5 files)</h2>
                 <p class="landing-clean-subtitle">
                     Use one job description and rank candidates side-by-side using final score,

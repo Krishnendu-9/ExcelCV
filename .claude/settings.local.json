@@ -54,7 +54,17 @@
       "PowerShell(Start-Process \"$PWD\\\\Minor_Project_Report.docx\")",
       "Bash(py -3 tmp/generate_changes_report.py)",
       "PowerShell(Start-Process \"$PWD\\\\Report_Changes_Summary.docx\")",
-      "Bash(rm -f \"~\\\\$port_Changes_Summary.docx\" && rm -f docs/PROJECT_REPORT.md && echo \"Old files deleted\")"
+      "Bash(rm -f \"~\\\\$port_Changes_Summary.docx\" && rm -f docs/PROJECT_REPORT.md && echo \"Old files deleted\")",
+      "Bash(py -3 -m ruff check app.py src tests)",
+      "Bash(py -3 -m pip install ruff)",
+      "Bash(py -3 -m ruff check app.py src tests --statistics)",
+      "Bash(py -3 -m ruff check app.py src tests --select F821,F841,E402 --output-format=concise)",
+      "Bash(py -3 -m ruff check app.py src tests --fix)",
+      "Bash(py -3 -m ruff check app.py src tests --output-format=concise)",
+      "Bash(py -3 -m py_compile app.py)",
+      "Bash(py -3 -m compileall -q src tests)",
+      "Bash(py -3 -m unittest discover -s tests -p \"test_*.py\" -v)",
+      "Bash(git add *)"
     ],
     "additionalDirectories": [
       "E:\\Academic\\minor-project\\cv-review"

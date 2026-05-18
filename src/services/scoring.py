@@ -11,6 +11,12 @@ from functools import lru_cache
 from typing import Any, Dict, List, Optional, Tuple
 
 from src.services.scoring_constants import (
+    ATS_ESSENTIALS_BASE_SCORE,
+    ATS_ESSENTIALS_HEADERS_BONUS,
+    ATS_ESSENTIALS_KEYWORD_DENSITY_DIVISOR,
+    ATS_ESSENTIALS_TEXT_BASED_BONUS,
+    ATS_ESSENTIALS_WORD_COUNT_BONUS,
+    ATS_ESSENTIALS_WORD_COUNT_BONUS_THRESHOLD,
     ATS_PARSE_BASE_SCORE_GOOD,
     ATS_PARSE_BASE_SCORE_MODERATE,
     ATS_PARSE_BASE_SCORE_POOR,
@@ -19,23 +25,17 @@ from src.services.scoring_constants import (
     ATS_PARSE_TEXT_LENGTH_GOOD,
     ATS_PARSE_TEXT_LENGTH_MODERATE,
     ATS_PARSE_TEXT_LENGTH_POOR,
-    ATS_ESSENTIALS_BASE_SCORE,
-    ATS_ESSENTIALS_HEADERS_BONUS,
-    ATS_ESSENTIALS_KEYWORD_DENSITY_DIVISOR,
-    ATS_ESSENTIALS_TEXT_BASED_BONUS,
-    ATS_ESSENTIALS_WORD_COUNT_BONUS,
-    ATS_ESSENTIALS_WORD_COUNT_BONUS_THRESHOLD,
     MAX_SCORE,
     MIN_SCORE,
     QUANTIFY_BASE_SCORE,
     QUANTIFY_SCORE_MULTIPLIER,
-    REPETITION_MIN_WORDS,
-    REPETITION_VERB_REPEAT_THRESHOLD,
-    REPETITION_PENALTY_PER_EXTRA,
     REPETITION_MAX_FLAGGED_DISPLAY,
+    REPETITION_MIN_WORDS,
+    REPETITION_PENALTY_PER_EXTRA,
+    REPETITION_VERB_REPEAT_THRESHOLD,
+    SECTION_KEYWORDS,
     SECTIONS_MAX_SCORE,
     SECTIONS_SCORE_PER_SECTION,
-    SECTION_KEYWORDS,
     SPELLING_ALL_CAPS_MAX_PENALTY,
     SPELLING_ALL_CAPS_MIN_LENGTH,
     SPELLING_ALL_CAPS_THRESHOLD,
@@ -44,11 +44,11 @@ from src.services.scoring_constants import (
     SPELLING_DOUBLE_SPACE_PENALTY_PER_INSTANCE,
     SPELLING_GOOD_SCORE_THRESHOLD,
     STOP_WORDS,
-    TECH_ACRONYMS,
     TAILORING_DEFAULT_SCORE_NO_CV,
     TAILORING_DEFAULT_SCORE_NO_JD,
     TAILORING_DEFAULT_SCORE_NO_KEYWORDS,
     TAILORING_MIN_WORD_LENGTH,
+    TECH_ACRONYMS,
     WORD_SYNONYMS,
 )
 
@@ -1448,9 +1448,9 @@ def calculate_tailoring(cv_text: str, job_desc: str) -> Tuple[int, Dict[str, Any
             tech_phrases.add(m.strip())
 
     # â”€â”€ 2. Extract single-word tech/skill keywords from JD â”€â”€
-    jd_words = set(re.findall(rf"[a-z][a-z0-9\+\#\.]*(?:[a-z0-9\+\#])", jd))
+    jd_words = set(re.findall(r"[a-z][a-z0-9\+\#\.]*(?:[a-z0-9\+\#])", jd))
     cv_words_text = cv  # keep full text for phrase matching
-    cv_words = set(re.findall(rf"[a-z][a-z0-9\+\#\.]*(?:[a-z0-9\+\#])", cv))
+    cv_words = set(re.findall(r"[a-z][a-z0-9\+\#\.]*(?:[a-z0-9\+\#])", cv))
 
     # Remove stop words and very short words
     extra_stop = {"the", "and", "for", "are", "but", "not", "you", "all", "can", "had",

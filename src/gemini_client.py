@@ -14,6 +14,7 @@ from typing import Any, Dict, List, Optional
 
 import google.generativeai as genai
 
+from src.config import get_api_key, preferred_models
 from src.services.career_tools import (
     build_interview_prep_questions,
     build_learning_roadmap,
@@ -21,7 +22,6 @@ from src.services.career_tools import (
     build_priority_action_plan,
     build_recruiter_snapshot,
 )
-from src.config import get_api_key, preferred_models
 from src.services.scoring import (
     build_jd_skill_matrix,
     calculate_ats_essentials,
@@ -174,7 +174,7 @@ def _normalize_model_name(model: Optional[str]) -> Optional[str]:
     
     model = model.strip()
     # If it doesn't start with 'models/', add it (unless it's already a full path)
-    if not model.startswith('models/') and not '/' in model:
+    if not model.startswith('models/') and '/' not in model:
         # Check if it looks like a model name (e.g., "gemini-2.0-flash-exp")
         if model.startswith('gemini-'):
             return f"models/{model}"
@@ -419,8 +419,7 @@ CV:
                 break
         return unique_items
 
-    # Normalize match score
-    score = normalize_score(parsed.get("match_score", 0))
+    # Normalize match score (final score is recomputed via calculate_final_score_breakdown below)
     subscores = _as_dict(parsed.get("subscores"))
 
     # â”€â”€ Programmatic-only scores (deterministic â€” same CV always = same score) â”€â”€

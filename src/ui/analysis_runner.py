@@ -6,10 +6,10 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import streamlit as st
 
+from src.auth_utils import get_session_user
 from src.config import MAX_FILE_BYTES, MAX_FILE_MB
 from src.gemini_client import analyze_cv_with_gemini
 from src.pdf_utils import extract_cv_text, parse_confidence_chip
-from src.auth_utils import get_session_user
 from src.ui.app_utils import _coerce_score, _normalize_missing_skills, _sanitize_cv_filename
 from src.ui.common import issue_count
 
@@ -274,7 +274,8 @@ def _autosave_analysis(cv_name: str, job_description: str, analysis: Dict[str, A
     if not user:
         return
     try:
-        from src.database import Analysis as AnalysisModel, get_db as _get_db
+        from src.database import Analysis as AnalysisModel
+        from src.database import get_db as _get_db
         match_score = float(analysis.get("match_score", 0))
         db = _get_db()
         try:

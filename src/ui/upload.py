@@ -9,6 +9,22 @@ from io import BytesIO, StringIO
 from textwrap import dedent
 
 import streamlit as st
+import streamlit.components.v1 as components
+
+from src.auth_utils import get_session_user
+from src.config import MAX_FILE_MB
+from src.ui.analysis_runner import (
+    _autosave_analysis,
+    run_multi_resume_comparison,
+    run_single_analysis,
+)
+from src.ui.app_utils import (
+    _build_page_href,
+    _clear_comparison_run_artifacts,
+    _sanitize_cv_filename,
+    _save_report_snapshot,
+)
+from src.ui.common import issue_count
 
 
 def render_upload_preview_card() -> None:
@@ -242,23 +258,6 @@ def render_upload_landing_sections() -> None:
         landing_html,
         unsafe_allow_html=True,
     )
-
-import streamlit.components.v1 as components
-
-from src.auth_utils import get_session_user
-from src.config import MAX_FILE_MB
-from src.ui.analysis_runner import (
-    _autosave_analysis,
-    run_multi_resume_comparison,
-    run_single_analysis,
-)
-from src.ui.app_utils import (
-    _build_page_href,
-    _clear_comparison_run_artifacts,
-    _sanitize_cv_filename,
-    _save_report_snapshot,
-)
-from src.ui.common import issue_count
 
 
 def _comparison_input_signature(job_description: str, uploaded_cvs: list[object]) -> tuple[str, tuple[tuple[str, int], ...]]:

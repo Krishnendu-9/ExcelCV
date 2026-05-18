@@ -4,8 +4,8 @@ Mirrors the structure of ``my_analyses_page.py`` (card list + view/delete
 actions) so saved comparisons feel native alongside saved analyses.
 """
 
-from datetime import datetime
 import html
+from datetime import datetime
 
 import streamlit as st
 

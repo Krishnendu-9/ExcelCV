@@ -5,7 +5,18 @@ import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, JSON, String, Text, create_engine, event, text
+from sqlalchemy import (
+    JSON,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    create_engine,
+    event,
+    text,
+)
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
 
 _DB_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")

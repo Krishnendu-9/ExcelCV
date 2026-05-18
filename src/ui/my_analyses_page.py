@@ -1,7 +1,7 @@
 """My Analyses page - lists saved CV analysis history."""
 
-from datetime import datetime
 import html
+from datetime import datetime
 
 import streamlit as st
 

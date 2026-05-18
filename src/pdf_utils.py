@@ -1,10 +1,10 @@
 """CV text extraction helpers used by upload and scoring flows."""
 
-from pathlib import Path
 import re
-from io import BytesIO
-import zipfile
 import xml.etree.ElementTree as ET
+import zipfile
+from io import BytesIO
+from pathlib import Path
 
 try:
     from pypdf import PdfReader

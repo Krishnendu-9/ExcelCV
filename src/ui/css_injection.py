@@ -3,6 +3,7 @@
 import streamlit as st
 import streamlit.components.v1 as components
 
+
 def inject_file_uploader_spacing_css() -> None:
     """Matching outer-box treatment for the "Job description" textarea and the file uploader.
 

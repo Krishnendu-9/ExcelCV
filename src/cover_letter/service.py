@@ -13,7 +13,6 @@ from src.pdf_utils import extract_cv_text
 from src.services.scoring import calculate_contact_info
 from src.ui.app_utils import _sanitize_cv_filename
 
-
 _PHONE_RE = re.compile(r"(?:\+?\d[\d\s().-]{7,}\d)")
 _EMAIL_RE = re.compile(r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}")
 

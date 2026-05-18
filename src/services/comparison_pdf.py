@@ -11,7 +11,7 @@ from typing import Any
 from xml.sax.saxutils import escape as _esc
 
 from reportlab.lib import colors
-from reportlab.lib.enums import TA_LEFT, TA_RIGHT
+from reportlab.lib.enums import TA_RIGHT
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import mm
@@ -23,7 +23,6 @@ from reportlab.platypus import (
     Table,
     TableStyle,
 )
-
 
 _PRIMARY = colors.HexColor("#1d4ed8")
 _TEXT = colors.HexColor("#0f172a")

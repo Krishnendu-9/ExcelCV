@@ -4,17 +4,12 @@ from __future__ import annotations
 import json
 import uuid
 from datetime import date, datetime
+
 import streamlit as st
 import streamlit.components.v1 as components
 
 from src.auth_utils import get_session_user
 from src.database import CV, get_db
-from src.ui.cv_builder_pdf import _build_pdf_ready_html, _render_html_to_pdf_bytes
-from src.ui.cv_builder_preview_data import (
-    _build_preview_data_with_demo_defaults,
-    _is_cv_data_effectively_empty,
-    _row_has_meaningful_data,
-)
 from src.ui.cv_builder_constants import (
     A4_HEIGHT_PX,
     A4_WIDTH_PX,
@@ -31,10 +26,16 @@ from src.ui.cv_builder_constants import (
     PROFICIENCY_OPTIONS,
     SECTION_ADD_BUTTON_BY_ID,
     SECTION_ICON_BY_ID,
-    SECTION_IDS,
     SECTION_ID_TO_LABEL,
+    SECTION_IDS,
     TEMPLATE_CHOICES,
     TEMPLATE_CONFIGS,
+)
+from src.ui.cv_builder_pdf import _build_pdf_ready_html, _render_html_to_pdf_bytes
+from src.ui.cv_builder_preview_data import (
+    _build_preview_data_with_demo_defaults,
+    _is_cv_data_effectively_empty,
+    _row_has_meaningful_data,
 )
 from src.ui.cv_builder_value_utils import (
     _coerce_bool,
@@ -2747,10 +2748,7 @@ body:has(.st-key-cvb-page-native) {
 
 def _inject_builder_css_native(is_dark: bool) -> None:
     page_bg = "#0b1220" if is_dark else "#f3f5f8"
-    panel_bg = "#0f172a" if is_dark else "#ffffff"
     border = "#334155" if is_dark else "#d3dce8"
-    text = "#e2e8f0" if is_dark else "#0f172a"
-    muted = "#94a3b8" if is_dark else "#64748b"
     toolbar_bg = "#0f172a" if is_dark else "linear-gradient(90deg, #edf3fa 0%, #f6f9fe 18%, #ffffff 48%, #ffffff 100%)"
     toolbar_brd = "#334155" if is_dark else "#d7e1ec"
     toolbar_input_bg = "#1e293b" if is_dark else "#ffffff"

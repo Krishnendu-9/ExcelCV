@@ -5,7 +5,6 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-
 _PLACEHOLDER_PATTERNS = [
     re.compile(r"\[[^\]]{2,120}\]"),  # e.g. [Company Address]
     re.compile(r"<[^>]{2,120}>"),  # e.g. <insert something>

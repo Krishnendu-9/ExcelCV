@@ -4,10 +4,10 @@ from datetime import datetime
 
 import streamlit as st
 
-from src.email_utils import is_email_configured, send_contact_email
 from src.cover_letter import render_cover_letter_page
-from src.ui.app_utils import _build_page_href
+from src.email_utils import is_email_configured, send_contact_email
 from src.ui.report import render_evaluation_toolkit
+
 
 def _render_info_page_header(title: str, subtitle: str = "") -> None:
     """Render a consistent heading block for non-analysis pages."""
@@ -80,7 +80,7 @@ def render_static_page(page: str) -> None:
 
     if page_key == "explainable-scoring":
         st.markdown(
-            f"""
+            """
 <div class="landing-extended">
 
   <section class="landing-clean-section landing-intro-section">

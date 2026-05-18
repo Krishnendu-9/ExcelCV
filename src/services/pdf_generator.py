@@ -2,6 +2,7 @@
 from io import BytesIO
 from typing import Any
 from xml.sax.saxutils import escape as _esc
+
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER, TA_RIGHT
 from reportlab.lib.pagesizes import A4

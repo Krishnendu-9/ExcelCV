@@ -6,7 +6,6 @@ import json
 from functools import lru_cache
 from pathlib import Path
 
-import streamlit as st
 import streamlit.components.v1 as components
 
 from src.ui.css_generators import (
@@ -24,6 +23,7 @@ from src.ui.ui_constants import (
     LIGHT_BG_PRIMARY,
     LIGHT_TEXT_PRIMARY,
 )
+
 
 @lru_cache(maxsize=32)
 def _read_ui_markup_template(path: str, mtime_ns: int) -> str:

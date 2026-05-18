@@ -188,7 +188,7 @@ def generate_dropzone_css(is_light: bool) -> str:
 
 def generate_label_css() -> str:
     """Generate CSS for form labels (Job description, Upload resume)."""
-    return f"""
+    return """
             .stTextArea label,
             .stTextArea > label,
             .stTextArea label p,
@@ -202,7 +202,7 @@ def generate_label_css() -> str:
             .stFileUploader label,
             .stFileUploader > label,
             [data-testid="stFileUploader"] label,
-            [data-testid="stFileUploader"] > label {{
+            [data-testid="stFileUploader"] > label {
                 color: var(--text-primary) !important;
                 font-weight: 700 !important;
                 font-size: 1.35rem !important;
@@ -215,21 +215,21 @@ def generate_label_css() -> str:
                 line-height: 1.3 !important;
                 font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
                 text-transform: none !important;
-            }}
+            }
             body.theme-light .stTextArea label,
             body.theme-light [data-testid="stTextArea"] label,
             body.theme-light .stForm .stTextArea label,
             body.theme-light .stFileUploader label,
-            body.theme-light [data-testid="stFileUploader"] label {{
+            body.theme-light [data-testid="stFileUploader"] label {
                 color: #1f2937 !important;
-            }}
+            }
             body.theme-dark .stTextArea label,
             body.theme-dark [data-testid="stTextArea"] label,
             body.theme-dark .stForm .stTextArea label,
             body.theme-dark .stFileUploader label,
-            body.theme-dark [data-testid="stFileUploader"] label {{
+            body.theme-dark [data-testid="stFileUploader"] label {
                 color: #f9fafb !important;
-            }}
+            }
     """
 
 

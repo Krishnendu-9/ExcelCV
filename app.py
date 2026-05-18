@@ -14,41 +14,41 @@ import streamlit.components.v1 as components
 from src.auth_utils import (
     assert_session_secret_configured,
     build_session_cookie_header,
-    get_session_user,
     get_or_create_google_user,
+    get_session_user,
     login_user,
     logout_user,
-    set_session_cookie,
     restore_session_from_cookie,
-    _COOKIE_NAME,
+    set_session_cookie,
 )
 from src.database import init_db
 from src.ui.app_utils import APP_PAGES, _clear_analysis_state, _restore_report_snapshot
 from src.ui.auth_page import render_auth_page
 from src.ui.css_injection import (
     inject_compact_header_css,
-    inject_fixed_top_bar,
     inject_file_uploader_spacing_css,
+    inject_fixed_top_bar,
     inject_footer_full_width,
 )
+
 try:
-    from src.ui.css_injection import inject_header_layout_override, inject_dropdown_outside_click
+    from src.ui.css_injection import inject_dropdown_outside_click, inject_header_layout_override
 except ImportError:
     def inject_header_layout_override() -> None:
         return None
     def inject_dropdown_outside_click() -> None:
         return None
-from src.ui.layout import render_top_nav, render_site_footer
-from src.ui.upload import render_upload_page
 from src.ui.compare_report import render_compare_report_page
-from src.ui.report import render_report_view
-from src.ui.static_pages import render_static_page
 from src.ui.cv_builder_page import render_cv_builder_page
-from src.ui.my_cvs_page import render_my_cvs_page
+from src.ui.layout import render_site_footer, render_top_nav
 from src.ui.my_analyses_page import render_my_analyses_page
 from src.ui.my_comparisons_page import render_my_comparisons_page
+from src.ui.my_cvs_page import render_my_cvs_page
+from src.ui.report import render_report_view
 from src.ui.settings_page import render_settings_page
+from src.ui.static_pages import render_static_page
 from src.ui.ui_components import inject_back_button_sync, inject_base_css
+from src.ui.upload import render_upload_page
 
 PROTECTED_PAGES = {"resume-builder", "my-cvs", "my-analyses", "my-comparisons", "compare-report", "settings"}
 NAV_ACTIVE_LABELS = {

@@ -5,7 +5,6 @@ from typing import List, Optional
 
 from dotenv import load_dotenv
 
-
 # Load env from .env first, then .env.example as fallback for any missing keys.
 # `override=False` keeps explicit .env values as the source of truth.
 load_dotenv(".env", override=False)

@@ -8,12 +8,15 @@ from typing import Any, Dict, List
 import streamlit as st
 import streamlit.components.v1 as components
 
+from src.services.evaluation import build_evaluation_record, summarize_evaluation
 from src.services.reporting import build_report_pdf_bytes
+from src.ui.app_utils import _clear_analysis_state, _save_report_snapshot
 from src.ui.common import (
     _markdown_inline_to_html,
     get_score_color_class,
     issue_count,
 )
+
 
 def _build_sidebar_html(
     score: int,
@@ -782,7 +785,7 @@ def _build_file_name_check_html(file_name_check: Dict[str, Any]) -> str:
                     </div>
                 </div>"""
     else:
-        html += f"""
+        html += """
                 <div class="issue-card good-card" style="margin-top:14px;">
                     <div class="issue-heading">Your file name looks clean and professional.</div>
                 </div>"""
@@ -1551,10 +1554,6 @@ def render_report_page(analysis: Dict[str, Any], name: str = "CV") -> None:
         _render_download_buttons(name, analysis)
 
 
-from src.services.evaluation import build_evaluation_record, summarize_evaluation
-from src.ui.app_utils import _clear_analysis_state, _save_report_snapshot
-
-
 def render_evaluation_toolkit(analysis: Dict[str, Any], resume_name: str) -> None:
     """Render benchmark/evaluation controls for model-vs-human validation."""
     st.caption(
@@ -1647,7 +1646,3 @@ def render_report_view() -> None:
         if "rid" in st.query_params:
             del st.query_params["rid"]
         st.rerun()
-
-
-if __name__ == "__main__":
-    main()

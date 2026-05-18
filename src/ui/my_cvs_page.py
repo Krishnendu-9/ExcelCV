@@ -1,7 +1,7 @@
 """My CVs page - lists saved CVs with load/delete/export actions."""
 
-from datetime import datetime
 import html
+from datetime import datetime
 
 import streamlit as st
 

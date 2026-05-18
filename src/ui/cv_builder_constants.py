@@ -1,7 +1,6 @@
 """Constants for the CV builder."""
 from __future__ import annotations
 
-
 SECTION_SCHEMA: list[tuple[str, str]] = [
     ("personal", "Personal Information"),
     ("summary", "Professional Summary"),

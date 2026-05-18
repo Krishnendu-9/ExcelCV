@@ -11,7 +11,6 @@ from src.config import MAX_FILE_BYTES, MAX_FILE_MB
 from src.cover_letter.models import CoverLetterResult
 from src.cover_letter.service import generate_cover_letter
 
-
 _STATE_RESULT = "cover_letter_result"
 _STATE_ERROR = "cover_letter_error"
 _STATE_SUCCESS = "cover_letter_success"

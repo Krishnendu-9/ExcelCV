@@ -10,6 +10,7 @@ import urllib.parse
 from typing import Optional
 
 import requests
+
 from src import config as _app_config  # noqa: F401  # Ensures .env/.env.example are loaded.
 
 _AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"

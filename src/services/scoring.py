@@ -7,6 +7,7 @@ with AI-provided scores for more accurate results.
 """
 
 import re
+from functools import lru_cache
 from typing import Any, Dict, List, Optional, Tuple
 
 from src.services.scoring_constants import (
@@ -412,6 +413,17 @@ def _line_has_metric(line: str) -> bool:
     return False
 
 
+@lru_cache(maxsize=24)
+def _cached_experience_bullets(cv_text: str) -> tuple[str, ...]:
+    """Return normalized experience/project bullet lines for a CV text blob."""
+    text = (cv_text or "").strip()
+    if not text:
+        return tuple()
+    experience_text = _extract_experience_sections(text)
+    all_items = _rejoin_pdf_lines(experience_text)
+    return tuple(item for item in all_items if _is_experience_bullet(item))
+
+
 def calculate_quantifying_impact(cv_text: str) -> Tuple[int, Dict]:
     """
     Score 0-100 based on presence of numbers, %, $, and measurable results
@@ -441,14 +453,7 @@ def calculate_quantifying_impact(cv_text: str) -> Tuple[int, Dict]:
             "non_quantified_lines": [],
         }
 
-    # 1) Extract only the experience / project sections
-    experience_text = _extract_experience_sections(text)
-
-    # 2) Rejoin PDF-fragmented lines into complete bullet points
-    all_items = _rejoin_pdf_lines(experience_text)
-
-    # 3) Keep only lines that look like genuine achievement/responsibility bullets
-    lines = [item for item in all_items if _is_experience_bullet(item)]
+    lines = list(_cached_experience_bullets(text))
 
     if not lines:
         # No experience bullet points found â€” give a moderate baseline score
@@ -522,9 +527,7 @@ def calculate_bullets_consistency(cv_text: str) -> Tuple[int, Dict]:
     if not text:
         return _BULLETS_NO_DATA_SCORE, base
 
-    experience_text = _extract_experience_sections(text)
-    all_items = _rejoin_pdf_lines(experience_text)
-    bullets = [item for item in all_items if _is_experience_bullet(item)]
+    bullets = list(_cached_experience_bullets(text))
 
     if len(bullets) < 2:
         return _BULLETS_NO_DATA_SCORE, base
@@ -722,9 +725,7 @@ def calculate_spelling_grammar(cv_text: str) -> Tuple[int, Dict]:
 
     # â”€â”€ 4. Bullet points missing ending punctuation â”€â”€
     # Use PDF-line rejoining so we check *complete* bullets, not fragments.
-    experience_text = _extract_experience_sections(text)
-    bullets = _rejoin_pdf_lines(experience_text)
-    real_bullets = [b for b in bullets if _is_experience_bullet(b)]
+    real_bullets = list(_cached_experience_bullets(text))
     bullets_no_period = [
         b for b in real_bullets if b and b.rstrip()[-1:] not in ".!?:;"
     ]
@@ -1015,7 +1016,7 @@ _SENIOR_LEVEL_RE = re.compile(
     r"tech(?:nical)?\s+lead|team\s+lead|solution[s]?\s+architect|software\s+architect|c[teo]o)\b",
     re.IGNORECASE,
 )
-_DATE_RANGE_RE = re.compile(
+_SECTION_ORDER_DATE_RANGE_RE = re.compile(
     r"\b(?:19|20)\d{2}\s*(?:[-–—]|to)\s*(?:(?:19|20)\d{2}|present|current|now)\b",
     re.IGNORECASE,
 )
@@ -1076,16 +1077,14 @@ def calculate_sections_order(cv_text: str) -> Tuple[int, Dict[str, Any]]:
     low = text.lower()
 
     try:
-        exp_bullets = [
-            b for b in _rejoin_pdf_lines(_extract_experience_sections(text)) if _is_experience_bullet(b)
-        ]
+        exp_bullets = list(_cached_experience_bullets(text))
         exp_bullet_count = len(exp_bullets)
     except Exception:
         exp_bullet_count = 0
 
     has_entry_kw = bool(_ENTRY_LEVEL_RE.search(text))
     has_senior_kw = bool(_SENIOR_LEVEL_RE.search(text))
-    date_ranges = len(_DATE_RANGE_RE.findall(low))
+    date_ranges = len(_SECTION_ORDER_DATE_RANGE_RE.findall(low))
 
     if has_entry_kw and not has_senior_kw and exp_bullet_count <= 2:
         level = "entry"

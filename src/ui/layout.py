@@ -242,14 +242,27 @@ def render_site_footer() -> None:
         if logo_src
         else '<div class="site-footer-brand-title">ExcelCV</div>'
     )
+    is_guest = not get_session_user()
+    # Product footer links act like deliberate deep-nav: route guests through
+    # the auth gate (with a `next` hint so they bounce back) instead of letting
+    # them land on the home/cover-letter page and see a guest shell.
+    analyze_cv_href = _build_page_href("auth", next_page="upload-cv") if is_guest else _build_page_href("home")
+    compare_resumes_href = (
+        _build_page_href("auth", next_page="compare-cv")
+        if is_guest
+        else _build_page_href("home") + "#compare-section-anchor"
+    )
+    cover_letter_href = _build_page_href("auth", next_page="cover-letter") if is_guest else _build_page_href("cover-letter")
     footer_links = {
-        "resume_checker": _build_page_href("home"),
-        "ats_insights": _build_page_href("ats-insights"),
-        "evaluation_toolkit": _build_page_href("evaluation-toolkit"),
-        "explainable_scoring": _build_page_href("explainable-scoring"),
-        "project_notes": _build_page_href("project-notes"),
+        "analyze_cv": analyze_cv_href,
+        "compare_resumes": compare_resumes_href,
+        "cover_letter": cover_letter_href,
+        "resume_builder": _build_page_href("resume-builder"),
+        "my_cvs": _build_page_href("my-cvs"),
+        "my_analyses": _build_page_href("my-analyses"),
+        "resume_tips": _build_page_href("resume-tips"),
+        "cover_letter_guide": _build_page_href("cover-letter-guide"),
         "how_it_works": _build_page_href("how-it-works"),
-        "interview_prep": _build_page_href("interview-prep"),
         "privacy_policy": _build_page_href("privacy-policy"),
         "terms_of_service": _build_page_href("terms-of-service"),
         "contact": _build_page_href("contact"),
@@ -266,27 +279,28 @@ def render_site_footer() -> None:
                     </p>
                 </div>
                 <div class="site-footer-links-grid">
-                    <div class="site-footer-link-col">
+                    <div class="site-footer-link-col site-footer-link-col--wide">
                         <h4>Product</h4>
-                        <a href="{footer_links["resume_checker"]}" target="_self">Resume Checker</a>
-                        <a href="{footer_links["ats_insights"]}" target="_self">ATS Insights</a>
-                        <a href="{footer_links["evaluation_toolkit"]}" target="_self">Evaluation Toolkit</a>
-                        <a href="{footer_links["explainable_scoring"]}" target="_self">Explainable Scoring</a>
+                        <div class="site-footer-link-grid-2col">
+                            <a href="{footer_links["analyze_cv"]}" target="_self">Analyze CV</a>
+                            <a href="{footer_links["resume_builder"]}" target="_self">Resume Builder</a>
+                            <a href="{footer_links["compare_resumes"]}" target="_self">Compare Resumes</a>
+                            <a href="{footer_links["my_cvs"]}" target="_self">My CVs</a>
+                            <a href="{footer_links["cover_letter"]}" target="_self">Cover Letter</a>
+                            <a href="{footer_links["my_analyses"]}" target="_self">My Analyses</a>
+                        </div>
                     </div>
                     <div class="site-footer-link-col">
                         <h4>Resources</h4>
-                        <a href="{footer_links["project_notes"]}" target="_self">Project Notes</a>
+                        <a href="{footer_links["resume_tips"]}" target="_self">Resume Tips</a>
+                        <a href="{footer_links["cover_letter_guide"]}" target="_self">Cover Letter Guide</a>
                         <a href="{footer_links["how_it_works"]}" target="_self">How It Works</a>
-                        <a href="{footer_links["interview_prep"]}" target="_self">Interview Prep</a>
-                    </div>
-                    <div class="site-footer-link-col">
-                        <h4>Company</h4>
-                        <a href="{footer_links["contact"]}" target="_self">Contact</a>
                     </div>
                     <div class="site-footer-link-col">
                         <h4>Legal</h4>
                         <a href="{footer_links["privacy_policy"]}" target="_self">Privacy Policy</a>
                         <a href="{footer_links["terms_of_service"]}" target="_self">Terms of Service</a>
+                        <a href="{footer_links["contact"]}" target="_self">Contact Us</a>
                     </div>
                 </div>
             </div>

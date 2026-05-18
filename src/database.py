@@ -5,7 +5,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, JSON, String, Text, create_engine, text
+from sqlalchemy import DateTime, Float, ForeignKey, Integer, JSON, String, Text, create_engine, event, text
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
 
 _DB_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
@@ -14,6 +14,14 @@ os.makedirs(_DB_DIR, exist_ok=True)
 DB_PATH = os.path.join(_DB_DIR, "excelcv.db")
 engine = create_engine(f"sqlite:///{DB_PATH}", connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
+
+
+@event.listens_for(engine, "connect")
+def _set_sqlite_pragma(dbapi_connection, _connection_record) -> None:
+    """Enable SQLite FK enforcement for every connection."""
+    cursor = dbapi_connection.cursor()
+    cursor.execute("PRAGMA foreign_keys=ON")
+    cursor.close()
 
 
 class Base(DeclarativeBase):

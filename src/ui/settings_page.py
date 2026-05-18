@@ -3,7 +3,7 @@
 import streamlit as st
 
 from src.auth_utils import get_session_user, hash_password, logout_user, verify_password
-from src.database import CV, Analysis, User, get_db
+from src.database import CV, Analysis, Comparison, PasswordResetToken, User, get_db
 
 
 # DB helpers
@@ -63,8 +63,10 @@ def _change_password(user_id: str, current_password: str, new_password: str) -> 
 def _delete_account(user_id: str) -> tuple[bool, str]:
     db = get_db()
     try:
+        db.query(PasswordResetToken).filter(PasswordResetToken.user_id == user_id).delete()
         db.query(Analysis).filter(Analysis.user_id == user_id).delete()
         db.query(CV).filter(CV.user_id == user_id).delete()
+        db.query(Comparison).filter(Comparison.user_id == user_id).delete()
         user = db.query(User).filter(User.id == user_id).first()
         if not user:
             return False, "User not found."
@@ -321,7 +323,7 @@ def render_settings_page() -> None:
             st.markdown('<p class="settings-sec-title-danger">Delete Account</p>', unsafe_allow_html=True)
             st.markdown(
                 '<p class="settings-sec-sub">Permanently removes your account, all saved CVs, '
-                "and analysis history. This action cannot be undone.</p>",
+                "analysis history, and comparison history. This action cannot be undone.</p>",
                 unsafe_allow_html=True,
             )
             if st.session_state.get("settings_confirm_delete"):

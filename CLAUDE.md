@@ -3,44 +3,77 @@
 This file is for Claude to read at the start of a new session so it can immediately understand
 what has been built, what is working, and what still needs to be done.
 
+Last updated: **2026-05-18**
+
 ---
 
 ## Project Overview
 
-**ExcelCV** — AI-powered CV reviewer and resume builder built with Streamlit + Google Gemini.
+**ExcelCV** — AI-powered CV reviewer, multi-resume comparator, cover-letter generator, and
+resume builder built with Streamlit + Google Gemini.
 - Run: `streamlit run app.py --server.port 8501`
 - Database: SQLite (SQLAlchemy ORM) — `src/database.py`
 - Auth: email/password + Google OAuth (cookies for session persistence)
-- AI: Google Gemini via `src/gemini_client.py`
+- AI: Google Gemini via `src/gemini_client.py` (default `models/gemini-2.0-flash`)
+
+For the canonical project snapshot, see [docs/excelcv.md](docs/excelcv.md). For setup,
+see [docs/SETUP.md](docs/SETUP.md).
 
 ---
 
 ## Architecture
 
 ```
-app.py                      ← Main router (page dispatch, theme, auth gating)
+app.py                                ← Main router (page dispatch, theme, auth gating)
 src/
-  auth_utils.py             ← Session, cookies, password hashing, login/logout
-  database.py               ← SQLAlchemy models: User, CV, Analysis
-  gemini_client.py          ← Gemini API calls (CV analysis, bullet suggestions)
-  email_utils.py            ← Password reset email
-  oauth_utils.py            ← Google OAuth token exchange
-  services/pdf_generator.py ← CV PDF export (WeasyPrint / fallback)
+  auth_utils.py                       ← Session, cookies, password hashing, login/logout
+  config.py                           ← Env loading, MAX_FILE_BYTES / MAX_FILE_MB
+  database.py                         ← SQLAlchemy models: User, PasswordResetToken,
+                                         CV, Analysis, Comparison
+  gemini_client.py                    ← Gemini API calls (CV analysis, bullet suggestions)
+  email_utils.py                      ← Password reset email
+  oauth_utils.py                      ← Google OAuth token exchange
+  pdf_utils.py                        ← PDF/DOCX text extraction
+  assets/ui/base_theme.css.tpl        ← Global CSS template
+  cover_letter/
+    page.py                           ← Cover-letter page renderer
+    service.py                        ← Orchestration (parse → prompt → Gemini → result)
+    generator.py                      ← Prompt construction + Gemini call
+    models.py                         ← CoverLetterResult dataclass
+    validators.py                     ← Input validation
+    docx_builder.py                   ← DOCX export
+  services/
+    scoring.py                        ← Deterministic scoring engine
+    scoring_constants.py              ← Score weights, thresholds
+    evaluation.py                     ← Human-vs-AI evaluation metrics
+    reporting.py                      ← PDF / JSON report builder
+    pdf_generator.py                  ← CV PDF export (ReportLab, template-aware)
+    comparison_pdf.py                 ← Multi-resume comparison PDF
+    career_tools.py                   ← Supporting career utility functions
   ui/
-    app_utils.py            ← Page routing helpers, snapshot store, logo loader
-    layout.py               ← Header (nav + user dropdown), footer
-    css_injection.py        ← Global CSS helpers (compact header, top bar, etc.)
-    theme.py                ← Theme CSS variables injection
-    auth_page.py            ← Sign In / Sign Up / Google OAuth page
-    upload.py               ← Home / Analyze CV page (file upload + JD input)
-    report.py               ← Analysis report view
-    cv_builder_page.py      ← Resume Builder page (main focus of recent work)
-    my_cvs_page.py          ← My CVs page (saved CVs list)
-    my_analyses_page.py     ← My Analyses page (saved analyses list)
-    settings_page.py        ← Settings page (email, password, delete account)
-    static_pages.py         ← Info/legal pages (career blog, privacy, contact…)
-    analysis_runner.py      ← Analysis orchestration helpers
-    common.py               ← Shared UI helpers (issue_count, etc.)
+    app_utils.py                      ← APP_PAGES registry, URL helpers, snapshot store
+    layout.py                         ← Header (nav + user dropdown), footer
+    theme.py                          ← Theme CSS variable injection
+    css_injection.py                  ← Global CSS helpers
+    css_generators.py                 ← Theme-aware CSS builders
+    ui_components.py                  ← Shared UI primitives
+    ui_constants.py                   ← UI-wide constants
+    common.py                         ← Shared helpers (issue_count, score color, etc.)
+    auth_page.py                      ← Sign In / Sign Up / Google OAuth page
+    upload.py                         ← Home / Analyze CV + Compare form
+    analysis_runner.py                ← Analysis + comparison orchestration
+    report.py                         ← Single-resume report
+    compare_report.py                 ← Dedicated comparison results page
+    cv_builder_page.py                ← Resume Builder entry
+    cv_builder_constants.py           ← Template configs, zoom, section order
+    cv_builder_pdf.py                 ← Resume Builder PDF export
+    cv_builder_preview_data.py        ← Preview-data assembly
+    cv_builder_value_utils.py         ← Value normalization helpers
+    my_cvs_page.py                    ← Saved CVs list
+    my_analyses_page.py               ← Saved analyses list
+    my_comparisons_page.py            ← Saved comparisons list
+    settings_page.py                  ← Account settings
+    static_pages.py                   ← Info/legal pages + cover-letter dispatch
 ```
 
 ---
@@ -48,35 +81,57 @@ src/
 ## COMPLETED FEATURES
 
 ### Core Application
-- [x] Full page routing via `app.py` (home, upload, report, cv-builder, my-cvs, my-analyses, settings, auth, static pages)
+- [x] Full page routing via `app.py` (home, upload, report, compare-report, cover-letter,
+      resume-builder, my-cvs, my-analyses, my-comparisons, settings, auth, static pages)
 - [x] Theme toggle (light/dark) with localStorage persistence across sessions
 - [x] Google OAuth sign-in flow (exchange code → create user → set session cookie)
 - [x] Email/password sign-in, sign-up, forgot password (email reset link)
-- [x] Session cookie restore (persistent login across page reloads)
+- [x] Session cookie restore (persistent login across page reloads, opt-in)
 - [x] Protected pages redirect to auth gate, then bounce back to intended page
 - [x] Logout clears cookie and session
 
 ### Header & Footer
-- [x] Site header with logo, nav links, user dropdown ("Hi, Krishnendu ▾")
-- [x] User dropdown: Give Feedback, Support, Settings, Logout
+- [x] Site header with logo, nav links, user dropdown
+- [x] User dropdown: My Comparisons, Settings, Logout (plus feedback/support)
 - [x] Full-width professional footer with product/resource/legal columns
-- [x] Active nav item highlighting per page
+- [x] Active nav item highlighting per page (including compare-return state)
 
 ### Home / Analyze CV Page
-- [x] File upload (PDF/DOCX), job description textarea
+- [x] File upload (PDF/DOCX, ≤ 2 MB), job description textarea
 - [x] Gemini AI analysis with score, issues, skill gaps
-- [x] Upload preview card (static)
-- [x] Compare mode (multiple CVs)
+- [x] Animated hero illustration with horizontal score bar + category bars
+- [x] Compare mode (multiple CVs) — form anchored inside this page
 
-### Report Page
-- [x] Full analysis report rendering
-- [x] Shareable snapshot via `?rid=` query param
+### Multi-Resume Comparison (full reference: docs/compareCV.md)
+- [x] Dedicated `compare-report` page (not inline)
+- [x] 2-5 file upload with form-stage + runner-stage dedup
+- [x] Ranked table with inline meter bars, color-coded score tiers
+- [x] 8 sort options; rank column re-numbers on sort
+- [x] Top Match card (right column) + identity-based ★ winner pill
+- [x] Per-resume drill-down expanders → "Open as full report"
+- [x] CSV export + ReportLab PDF export
+- [x] Autosaved per user to `comparisons` table
+- [x] My Comparisons history page (route: `my-comparisons`)
+- [x] Gemini 429 / quota short-circuit (remaining files marked `skipped`)
+- [x] One-shot scroll-to-top on entry; return-to-compare hints for browser back
 
-### My CVs Page
-- [x] List saved CVs, open in builder, delete
+### Cover Letter Generator
+- [x] Resume + JD inputs (+ optional company / role / source / tone)
+- [x] Gemini-generated cover letter
+- [x] Markdown view + DOCX download
+- [x] Auth-gated
 
-### My Analyses Page
-- [x] List past analyses, view reports
+### Report Page (full reference: docs/report_page.md)
+- [x] Full analysis report rendering (4 group cards + sticky sidebar)
+- [x] Shareable snapshot via `?rid=` query param (in-memory store)
+- [x] **Horizontal animated score bar** (was a circular ring; restyled this session)
+      shared engine with hero panel via `@property --hv-p` + `@keyframes hv-sweep`
+- [x] PDF + JSON download
+- [x] Model evaluation toolkit (MAE / RMSE / correlation) inside collapsed expander
+
+### My CVs / My Analyses / My Comparisons
+- [x] List view, open / re-load, delete (with confirm)
+- [x] Per-user persistence survives logout
 
 ### Settings Page
 - [x] Change email (with password verification)
@@ -84,80 +139,54 @@ src/
 - [x] Delete account (with confirmation dialog)
 - [x] Card-styled UI matching homepage design
 
-### Resume Builder Page (`src/ui/cv_builder_page.py`)
-This is the most recently worked-on page. Current state:
-
-- [x] FlowCV-inspired two-column layout (left: form, right: live preview)
-- [x] Hero section + Overview/Content/Customize/AI Tools pill nav (cosmetic)
-- [x] Top controls: Resume Title, Template selector, Save button, Prepare PDF button
-- [x] Personal Details card (Full Name, Email, Phone, Location, Website, LinkedIn, GitHub)
-- [x] Collapsible sections: Summary, Education, Professional Experience, Skills, Certificates, Projects
-- [x] Each section supports adding/removing multiple entries
-- [x] Experience: multi-bullet support, AI bullet suggestion via Gemini
-- [x] Customize section (Accent Color picker + Font selector) in expander
-- [x] "Add Content" CTA button (styled like FlowCV's pink gradient button)
-- [x] Save CV to database, Load saved CV into builder
-- [x] PDF export via `generate_cv_pdf()`
-- [x] Three HTML templates: Classic, Modern, Minimal (in `generate_cv_html()`)
-- [x] Dark mode preview support (`preview_dark` param)
-- [x] **REAL-TIME PREVIEW** — as user types in Personal Details fields, the preview updates
-      instantly (no Enter/Submit needed). Implemented via postMessage JS bridge:
-      - `inject_cv_builder_realtime_js()` — injected 0-height iframe listens to `input` events
-        in the parent document using capture phase, scoped to `.st-key-cvb-personal-card`
-      - Broadcasts `{type:'cv-rt-update', field, value}` to all iframes
-      - `generate_cv_html()` preview has a `message` event listener that updates
-        `#cv-name` and `#cv-contact` DOM elements directly
-      - Contact row always rendered (with `display:none` when empty) so the handler
-        can always find `#cv-contact`
-- [x] **"Press Enter to apply" tooltip hidden** — `[data-testid="InputInstructions"]` set to
-      `display: none !important` in `_inject_cv_builder_css()`
+### Resume Builder Page (full reference: docs/resume_builder.md)
+- [x] 3-panel workspace (left rail, middle editor, right preview)
+- [x] Three templates: **Classic, Creative, Modern** (defined in `cv_builder_constants.py`
+      → `TEMPLATE_CONFIGS`). Each has distinct layout in both live preview and PDF.
+- [x] Canonical sections: personal, summary, experience, education, skills, projects,
+      languages, certifications, interests
+- [x] Section reorder, hide/show (eye icon), collapse/expand (chevron)
+- [x] AI bullet suggestion via Gemini (uses existing bullets as context)
+- [x] Customize controls: accent color, font, font size, line height, entry spacing
+      — all persisted with the saved CV
+- [x] Save / Load to DB; import / export JSON; one-click PDF download
+- [x] Cached PDF generation (`_cached_generate_cv_pdf` — only rebuilds on data change)
+- [x] Real-time preview for Personal Details fields via postMessage JS bridge
+- [x] Widget-state protection across reruns (`_protect_builder_widget_state`)
 
 ---
 
 ## KNOWN ISSUES / NOT YET DONE
 
-### Resume Builder — High Priority
-- [ ] **Real-time preview only works for Personal Details fields** (Full Name + contact row).
-      Fields in Experience, Education, Skills, Projects, Certifications do NOT update in real-time.
-      They update when the user presses Enter or tabs away, causing a full Streamlit rerun.
-      To extend real-time to other sections: add more postMessage handlers for each section,
-      or do a full-page snapshot diff approach.
+### Resume Builder
+- [ ] Real-time preview only covers Personal Details fields. Experience / Education / Skills /
+      Projects / Certifications still re-render on Streamlit's normal rerun.
+- [ ] Blank preview on first load (no skeleton / sample data).
+- [ ] `cv_builder_page.py` is still ~6.2k lines after the split into
+      `cv_builder_constants.py / cv_builder_pdf.py / cv_builder_preview_data.py /
+      cv_builder_value_utils.py`. Further extraction is possible.
 
-- [ ] **Preview is blank/white when the page first loads** (screenshot shows blank right panel).
-      This happens because session state fields are empty on first load. The preview shows
-      "Your Name" placeholder but no content. Consider showing a sample/skeleton CV on first load.
-
-- [ ] **"Add Content" button** (the pink gradient button at the bottom) currently just shows
-      an info message. It should instead scroll to the relevant section or open a modal
-      similar to FlowCV's "+ Add Content" flow.
-
-- [ ] **Overview / Customize / AI Tools pills** in the hero are cosmetic only — they have no
-      routing behavior. "AI Tools" should eventually open an AI-powered panel.
-
-- [ ] **PDF export quality** — `generate_cv_pdf()` in `src/services/pdf_generator.py` may fall
-      back to a simple text dump if WeasyPrint is not installed. Needs testing on the target
-      deployment environment.
+### Comparison
+- [ ] No shareable permalink for saved comparisons (per-user only — by design for v1).
+- [ ] Sequential per-file Gemini calls (intentional, see compareCV.md §7 — quota contract).
+      Bounded parallelism is a backlog item.
 
 ### Analysis / Report Page
-- [ ] The report page shares a snapshot via `?rid=` but the snapshot is in-memory
-      (`@st.cache_resource` dict). It does not persist across server restarts.
-      For production, consider database-backed snapshots.
+- [ ] Snapshot store is in-memory (`@st.cache_resource` dict) — shareable `?rid=` links
+      survive Streamlit reruns but NOT a server restart. Production: move to DB-backed.
 
 ### Static Pages
 - [ ] Many static pages (ATS Insights, Evaluation Toolkit, Project Notes, How It Works,
-      Interview Prep, Privacy Policy, Terms of Service) have placeholder content.
-      These need real content written for them.
+      Interview Prep, Privacy Policy, Terms of Service) still need real content.
 
 ### Contact Page
-- [ ] Contact form is wired to `send_contact_email()` but only works if SMTP env vars
-      are set. Currently no visual feedback if email is not configured.
+- [ ] Contact form is wired but only works if SMTP env vars are set. No visual feedback
+      when email is not configured.
 
 ### General / Infrastructure
 - [ ] No production deployment config. Currently runs locally on port 8501.
-- [ ] No test coverage for the new CV builder real-time JS bridge (JS-side logic is not
-      Python-testable; would need Playwright or Selenium for E2E tests).
-- [ ] `tests/test_app_helpers.py` and `tests/test_ui_smoke.py` are modified but may be
-      out of sync with the current page structure.
+- [ ] Thin test coverage — only `test_oauth_utils.py` and `test_scoring_sections_order.py`
+      under `tests/`. The CV-builder JS bridge has no automated coverage.
 
 ---
 
@@ -166,79 +195,78 @@ This is the most recently worked-on page. Current state:
 | File | Why it matters |
 |------|---------------|
 | `app.py` | All page routing, auth gating, theme sync |
+| `src/ui/app_utils.py` | `APP_PAGES`, URL helpers, in-memory snapshot store |
+| `src/ui/upload.py` | Analyze CV + Compare form (one page, two modes) |
+| `src/ui/compare_report.py` | Dedicated comparison-results page |
+| `src/ui/report.py` | Single-resume analysis report |
 | `src/ui/cv_builder_page.py` | Resume Builder — most recently worked on |
+| `src/cover_letter/page.py` | Cover-letter page renderer |
+| `src/cover_letter/service.py` | Cover-letter pipeline |
 | `src/ui/layout.py` | Header + footer for every page |
 | `src/ui/css_injection.py` | Global CSS overrides (compact header, etc.) |
+| `src/assets/ui/base_theme.css.tpl` | Global CSS template (theme tokens, hero bar, report bar) |
 | `src/auth_utils.py` | Session, cookies — touch with care |
-| `src/database.py` | SQLAlchemy models (User, CV, Analysis) |
-| `src/gemini_client.py` | AI calls — `suggest_cv_bullets()`, `analyze_cv()` |
+| `src/database.py` | SQLAlchemy models: User, PasswordResetToken, CV, Analysis, Comparison |
+| `src/gemini_client.py` | AI calls — `analyze_cv_with_gemini()`, `suggest_cv_bullets()` |
+| `src/services/scoring.py` | Deterministic scoring + `calculate_final_score_breakdown` |
+| `src/services/comparison_pdf.py` | ReportLab comparison PDF |
 | `src/services/pdf_generator.py` | CV PDF export |
 
 ---
 
-## RECENT SESSION WORK (last session: 2026-04-30)
+## RECENT SESSION WORK (2026-05-18)
 
-### Backend fixes & upgrades for Resume Builder
+### Score display restyled — circle → horizontal bar
+- Both score visualizations switched from a 148×148 (hero) / 140×140 (report) circular
+  conic-gradient ring to a 12px-tall horizontal linear-gradient bar.
+- Same animation engine retained: `@property --hv-p` (registered as `<percentage>`) +
+  `@keyframes hv-sweep` — `--hv-p` now drives a hard linear-gradient stop instead of a
+  conic-gradient stop, so the bar fills 0 → score% with the same easing.
+- Hero card (`src/ui/upload.py` → `render_upload_preview_card`):
+  - Made `.hero-visual` a `display: flex; flex-direction: column; height: 100%` container.
+  - `.hv-bars` gets `margin-top: auto` so the score block stays at the top and the
+    Content/Sections/ATS Essentials/Insights bars + tips push down to fill the column
+    height (Streamlit columns stretch — the card no longer has dead space below the tips).
+- Report sidebar (`src/ui/report.py` score card):
+  - `.report-score-ring-wrap` is now flex column auto-height (`max-width: 300px`),
+    `.report-score-ring` is the horizontal bar, `.report-score-ring-label` is `flex-row`
+    with `flex-wrap: wrap` so `.rsr-issues` flows onto its own line below `.rsr-num` /
+    `.rsr-den`.
+- All class names kept (`.report-score-ring*`, `.hv-ring*`) for compatibility, even though
+  the markup is no longer a ring — see docs/report_page.md §11 note.
 
-1. **Customization persisted in DB and restored on load** — DONE
-   - `collect_cv_data()` now includes a `"customization"` key with `accent_color`,
-     `font`, `font_size`, `line_height`, `entry_spacing`
-   - `load_cv_into_builder()` restores all five from the saved `data["customization"]`
-   - Previously these were lost every time a CV was loaded from My CVs
+### Earlier (2026-04-30) — Resume Builder backend
+1. Customization (accent_color, font, font_size, line_height, entry_spacing) persisted in
+   DB under `data["customization"]` and restored on load.
+2. Font Size / Line Height / Entry Spacing controls added inside the Customize expander
+   and wired end-to-end to both `generate_cv_html()` and `generate_cv_pdf()`.
+3. PDF generation cached via `_cached_generate_cv_pdf()` (`@st.cache_data`).
+4. `_save_cv` rolls back on DB error.
+5. Bullet removal cleans up orphan session-state keys.
+6. AI bullet suggestions pass existing bullets as `context` to avoid duplication.
+7. PDF generator XML-escapes user text (fixes `<` / `&` crashes in `Paragraph` markup).
 
-2. **Font Size / Line Height / Entry Spacing wired up end-to-end** — DONE
-   - `render_cv_builder_page()` reads `cvb_font_size`, `cvb_line_height`, `cvb_entry_spacing`
-     from session state and passes them to both `generate_cv_html()` and `generate_cv_pdf()`
-   - Three new number inputs added inside the **Customize** expander so users can
-     actually control these values
-
-3. **PDF generation cached** — DONE
-   - Added `@st.cache_data` wrapper `_cached_generate_cv_pdf()` — PDF bytes are only
-     rebuilt when the CV data actually changes, not on every Streamlit rerun
-
-4. **`_save_cv` rollback on DB error** — DONE
-   - Added `except Exception: db.rollback(); return False` so failed commits don't
-     leave the session in a dirty state
-
-5. **Bullet removal orphan key cleanup** — DONE
-   - "Remove Bullet" now pops the last bullet's session-state key before decrementing
-     the counter, so old values don't linger and ghost-populate bullets after re-adds
-
-6. **AI bullet suggestions use existing bullets as context** — DONE
-   - "AI Suggest" now builds a `context` string from all filled bullet fields and passes
-     it to `suggest_cv_bullets(role, company, context)` so Gemini avoids duplicating
-     bullets the user already wrote
-
-7. **PDF generator XML escaping** — DONE (`src/services/pdf_generator.py`)
-   - All user-supplied text now goes through `xml.sax.saxutils.escape` before being
-     embedded in ReportLab `Paragraph` markup — previously a `<` or `&` in a job title
-     or company name would crash PDF generation with an XML parse error
-
-### Previous session work (2026-04-29)
-
-1. **Real-time preview for Personal Details** — DONE
-   - Added `id="cv-name"` and `id="cv-contact"` to all three templates in `generate_cv_html()`
-   - Added `postMessage` listener inside the preview HTML
-   - Created `inject_cv_builder_realtime_js()` function
-   - Called it inside `render_cv_builder_page()` after `components.html(html, ...)`
-   - Confirmed working: user saw "Krishnendu Ghosh" appear live in preview
-
-2. **Removed "Press Enter to apply" tooltip** — DONE
-   - Added `[data-testid="InputInstructions"] { display: none !important; }` to
-     `_inject_cv_builder_css()` at the end of the style block
+### Earlier (2026-04-29) — Real-time preview
+1. Real-time preview for Personal Details fields via postMessage JS bridge
+   (`inject_cv_builder_realtime_js()` — 0-height iframe capture-phase listener).
+2. Removed "Press Enter to apply" tooltip
+   (`[data-testid="InputInstructions"] { display: none !important; }`).
 
 ---
 
 ## HOW TO START NEXT SESSION
 
-1. Read this file.
-2. Read `src/ui/cv_builder_page.py` (it is long, ~1310 lines — focus on `render_cv_builder_page()`,
-   `generate_cv_html()`, `_inject_cv_builder_css()`, and `inject_cv_builder_realtime_js()`).
+1. Read this file + skim [docs/excelcv.md](docs/excelcv.md) for the current snapshot.
+2. For the area you're touching, also read:
+   - Comparison work → [docs/compareCV.md](docs/compareCV.md)
+   - Report-page work → [docs/report_page.md](docs/report_page.md)
+   - Resume Builder work → [docs/resume_builder.md](docs/resume_builder.md)
 3. Ask the user what they want to work on next.
 
-Good next steps to suggest to the user if they don't have a specific request:
+Good next steps to suggest if the user doesn't have a specific request:
 - Extend real-time preview to Experience/Education/Skills sections
-- Improve the blank-preview-on-first-load UX (skeleton or sample data)
-- Wire up the "AI Tools" pill with an actual AI panel
-- Fill in content for static pages
-- PDF export testing and improvement
+- Skeleton/sample data for the blank-preview-on-first-load case
+- Move report snapshots to DB-backed persistence (survive server restarts)
+- Add shareable permalink for saved comparisons
+- Fill in content for the placeholder static pages
+- Add E2E test coverage (Playwright) for the CV-builder JS bridge

@@ -1032,6 +1032,9 @@
                     var(--bg-card);
                 border: 1px solid var(--border-light);
                 box-shadow: 0 22px 56px var(--shadow-lg);
+                display: flex;
+                flex-direction: column;
+                height: 100%;
             }}
             .hv-glow {{
                 position: absolute;
@@ -1075,27 +1078,33 @@
             }}
             .hv-ring-wrap {{
                 position: relative;
-                width: 148px;
-                height: 148px;
-                margin: 2px auto 8px;
+                width: 100%;
+                max-width: 320px;
+                height: auto;
+                margin: 6px auto 10px;
+                display: flex;
+                flex-direction: column;
+                gap: 10px;
             }}
             .hv-ring {{
+                order: 2;
                 width: 100%;
-                height: 100%;
-                border-radius: 50%;
-                background: conic-gradient(from -90deg, var(--hv-c1), var(--hv-c2) var(--hv-p, 92%), var(--bg-secondary) 0);
-                -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 13px), #000 calc(100% - 12px));
-                mask: radial-gradient(farthest-side, transparent calc(100% - 13px), #000 calc(100% - 12px));
+                height: 12px;
+                border-radius: 999px;
+                background: linear-gradient(90deg, var(--hv-c1) 0%, var(--hv-c2) var(--hv-p, 92%), var(--bg-secondary) var(--hv-p, 92%));
+                -webkit-mask: none;
+                mask: none;
                 animation: hv-sweep 1.7s cubic-bezier(.22, 1, .36, 1) .25s both;
             }}
             .hv-ring-label {{
-                position: absolute;
-                inset: 0;
+                order: 1;
+                position: static;
+                inset: auto;
                 display: flex;
-                flex-direction: column;
-                align-items: center;
+                flex-direction: row;
+                align-items: baseline;
                 justify-content: center;
-                gap: 2px;
+                gap: 10px;
             }}
             .hv-score {{
                 font-size: 2.35rem;
@@ -1125,6 +1134,7 @@
                 display: flex;
                 flex-direction: column;
                 gap: 8px;
+                margin-top: auto;
                 margin-bottom: 12px;
             }}
             .hv-bar-row {{
@@ -1503,8 +1513,7 @@
                     padding: 18px 18px 16px;
                 }}
                 .hv-ring-wrap {{
-                    width: 146px;
-                    height: 146px;
+                    max-width: 100%;
                 }}
                 .hv-score {{
                     font-size: 2.2rem;
@@ -1588,22 +1597,32 @@
             }}
             .site-footer-grid {{
                 display: grid;
-                grid-template-columns: minmax(300px, 1.25fr) minmax(620px, 1.75fr);
+                grid-template-columns: minmax(300px, 1fr) max-content;
                 justify-content: space-between;
                 column-gap: 26px;
                 row-gap: 25px;
                 align-items: start;
             }}
             .site-footer-links-grid {{
-                width: min(100%, 760px);
+                width: auto;
+                max-width: 100%;
                 margin-left: auto;
                 margin-right: 0;
                 display: grid;
-                grid-template-columns: repeat(4, minmax(120px, 1fr));
-                justify-content: space-between;
-                column-gap: 24px;
+                grid-template-columns: repeat(3, max-content);
+                justify-content: end;
+                column-gap: 56px;
                 row-gap: 16px;
                 align-items: start;
+            }}
+            .site-footer-link-grid-2col {{
+                display: grid;
+                grid-template-columns: repeat(2, max-content);
+                column-gap: 28px;
+                row-gap: 8px;
+            }}
+            .site-footer-link-col--wide .site-footer-link-grid-2col a {{
+                display: block;
             }}
             .site-footer-brand-title {{
                 font-size: 2rem;
@@ -1688,11 +1707,85 @@
             }}
             [data-testid="stElementContainer"]:has([data-testid="stCustomComponentV1"][style*="height: 0"]),
             [data-testid="stElementContainer"]:has([data-testid="stCustomComponentV1"][style*="height:0"]) {{
-                margin-top: 0 !important;
-                margin-bottom: 0 !important;
-                padding-top: 0 !important;
-                padding-bottom: 0 !important;
+                position: absolute !important;
+                top: 0 !important;
+                left: 0 !important;
+                width: 1px !important;
+                height: 0 !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                overflow: hidden !important;
+                pointer-events: none !important;
+                visibility: hidden !important;
+                z-index: -1 !important;
                 min-height: 0 !important;
+            }}
+            /* Collapse component iframes that render at height=0.
+               Root cause: Streamlit's stVerticalBlock is a flex column with a
+               `gap` between children. Each components.html(height=0) call adds
+               a child stElementContainer; even with the wrapper at height: 0,
+               the parent's flex gap still applies on both sides of each empty
+               child. With 5–6 inject_* helpers called before the footer, that
+               accumulates into ~250–300px of blank space above the footer.
+               Fix: take these empty wrappers out of normal flow with position:
+               absolute so the flex layout treats them as if they aren't there.
+               The iframe still loads and its script still runs. */
+            [data-testid="stElementContainer"]:has(> [data-testid="stCustomComponentV1"] > iframe[height="0"]),
+            [data-testid="stElementContainer"]:has(iframe[height="0"]) {{
+                position: absolute !important;
+                top: 0 !important;
+                left: 0 !important;
+                width: 1px !important;
+                height: 0 !important;
+                min-height: 0 !important;
+                max-height: 0 !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                overflow: hidden !important;
+                line-height: 0 !important;
+                pointer-events: none !important;
+                visibility: hidden !important;
+                z-index: -1 !important;
+            }}
+            [data-testid="stElementContainer"]:has(iframe[height="0"]) [data-testid="stCustomComponentV1"],
+            [data-testid="stElementContainer"]:has(iframe[height="0"]) iframe {{
+                height: 0 !important;
+                min-height: 0 !important;
+                max-height: 0 !important;
+                width: 1px !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                display: block !important;
+                border: 0 !important;
+            }}
+            /* Same treatment for style/script-only element containers, which
+               also occupy a flex slot in stVerticalBlock and would otherwise
+               contribute gap above the footer. */
+            [data-testid="stElementContainer"]:has(> style:only-child),
+            [data-testid="stElementContainer"]:has(> script:only-child) {{
+                position: absolute !important;
+                top: 0 !important;
+                left: 0 !important;
+                width: 1px !important;
+                height: 0 !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                overflow: hidden !important;
+                pointer-events: none !important;
+                visibility: hidden !important;
+                z-index: -1 !important;
+            }}
+            /* Streamlit's bottom anchor (used internally for iframe-height
+               measurement) ships with default margin that opens a large gap
+               between the last page block and the footer. Collapse it. */
+            [data-testid="stAppIframeResizerAnchor"] {{
+                height: 0 !important;
+                min-height: 0 !important;
+                max-height: 0 !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                line-height: 0 !important;
+                font-size: 0 !important;
             }}
             html,
             body {{
@@ -1755,6 +1848,14 @@
                     grid-template-columns: repeat(2, minmax(160px, 1fr));
                     column-gap: 24px;
                     row-gap: 16px;
+                }}
+                .site-footer-link-col--wide {{
+                    grid-column: span 2;
+                }}
+            }}
+            @media (max-width: 680px) {{
+                .site-footer-link-grid-2col {{
+                    grid-template-columns: 1fr;
                 }}
             }}
             @media (max-width: 680px) {{
@@ -2089,29 +2190,38 @@
                 font-size: 0.82rem;
                 flex-wrap: wrap;
             }}
-            /* Animated score ring — same sweep engine as the homepage hero panel. */
+            /* Animated score bar — same sweep engine as the homepage hero panel. */
             .report-score-ring-wrap {{
                 position: relative;
-                width: 140px;
-                height: 140px;
-                margin: 8px auto 6px;
+                width: 100%;
+                max-width: 300px;
+                height: auto;
+                margin: 10px auto 6px;
+                display: flex;
+                flex-direction: column;
+                align-items: stretch;
+                gap: 10px;
             }}
             .report-score-ring {{
+                order: 2;
                 width: 100%;
-                height: 100%;
-                border-radius: 50%;
-                background: conic-gradient(from -90deg, var(--rsr-c, #f59e0b) var(--hv-p, 0%), var(--bg-secondary) 0);
-                -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 12px), #000 calc(100% - 11px));
-                mask: radial-gradient(farthest-side, transparent calc(100% - 12px), #000 calc(100% - 11px));
+                height: 12px;
+                border-radius: 999px;
+                background: linear-gradient(90deg, var(--rsr-c, #f59e0b) 0%, var(--rsr-c, #f59e0b) var(--hv-p, 0%), var(--bg-secondary) var(--hv-p, 0%));
+                -webkit-mask: none;
+                mask: none;
                 animation: hv-sweep 1.6s cubic-bezier(.22, 1, .36, 1) .2s both;
             }}
             .report-score-ring-label {{
-                position: absolute;
-                inset: 0;
+                order: 1;
+                position: static;
+                inset: auto;
                 display: flex;
-                flex-direction: column;
-                align-items: center;
+                flex-direction: row;
+                align-items: baseline;
                 justify-content: center;
+                flex-wrap: wrap;
+                gap: 6px 8px;
             }}
             .report-score-ring-label .rsr-num {{
                 font-size: 2.3rem;
@@ -2123,10 +2233,11 @@
                 font-size: 0.84rem;
                 font-weight: 700;
                 color: var(--text-secondary);
-                margin-top: 3px;
             }}
             .report-score-ring-label .rsr-issues {{
-                margin-top: 7px;
+                flex-basis: 100%;
+                text-align: center;
+                margin-top: 2px;
                 font-size: 0.85rem;
             }}
             @media (prefers-reduced-motion: reduce) {{

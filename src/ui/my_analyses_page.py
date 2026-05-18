@@ -1,6 +1,7 @@
 """My Analyses page - lists saved CV analysis history."""
 
 from datetime import datetime
+import html
 
 import streamlit as st
 
@@ -103,19 +104,21 @@ def render_my_analyses_page() -> None:
             jd_preview = (analysis.job_description or "")[:120]
             if len(analysis.job_description or "") > 120:
                 jd_preview += "..."
+            safe_cv_name = html.escape(str(analysis.cv_name or ""))
+            safe_jd_preview = html.escape(jd_preview)
 
             st.markdown(
                 f"""
                 <div class="analysis-card">
                     <p class="analysis-cv-name">
-                        {analysis.cv_name}
+                        {safe_cv_name}
                         &nbsp;
                         <span class="score-badge" style="background:{'rgba(34,197,94,0.15)' if score>=75 else 'rgba(245,158,11,0.15)' if score>=50 else 'rgba(239,68,68,0.15)'};color:{color}">
                             {score:.0f}% match
                         </span>
                     </p>
                     <p class="analysis-meta">{_format_dt(analysis.created_at)}</p>
-                    <p class="analysis-jd-preview">Job: {jd_preview}</p>
+                    <p class="analysis-jd-preview">Job: {safe_jd_preview}</p>
                 </div>
                 """,
                 unsafe_allow_html=True,

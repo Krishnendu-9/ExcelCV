@@ -1,5 +1,7 @@
 # Compare Resumes Page (`compare-cv`) Documentation
 
+Last verified against the repository on **2026-05-18**.
+
 ## 1) Purpose
 
 The **Compare Multiple Resumes (2-5 files)** section lets a signed-in user:

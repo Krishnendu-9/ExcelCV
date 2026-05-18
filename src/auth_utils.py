@@ -16,27 +16,93 @@ import bcrypt
 import streamlit as st
 import streamlit.components.v1 as components
 
+from src import config as _app_config  # noqa: F401  # Ensures .env/.env.example are loaded.
 from src.database import PasswordResetToken, User, get_db
 
-_SESSION_SECRET = os.environ.get("SESSION_SECRET", "excelcv-session-key-change-in-prod")
 _SESSION_SECONDS = 3 * 24 * 3600  # 3 days
 _COOKIE_NAME = "excelcv_session"
 
 
+def _session_secret() -> str:
+    return (os.environ.get("SESSION_SECRET") or "").strip()
+
+
+def _persistent_login_enabled() -> bool:
+    return str(os.environ.get("ENABLE_PERSISTENT_LOGIN", "0")).strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
+def _ensure_session_secret() -> str:
+    """Return configured session secret or raise a clear startup/runtime error."""
+    secret = _session_secret()
+    if not secret:
+        raise RuntimeError(
+            "SESSION_SECRET is required for secure authentication. "
+            "Set SESSION_SECRET in your environment or .env file."
+        )
+    return secret
+
+
+def assert_session_secret_configured() -> None:
+    """Public startup guard for auth configuration."""
+    _ensure_session_secret()
+
+
+def is_persistent_login_enabled() -> bool:
+    """Return whether browser cookie-based persistent login is enabled."""
+    return _persistent_login_enabled()
+
+
+def _is_request_secure() -> bool:
+    """Best-effort detection of HTTPS requests behind direct/proxy deployments."""
+    try:
+        proto = str(st.context.headers.get("X-Forwarded-Proto", "")).lower()
+        if proto:
+            return proto == "https"
+        proto = str(st.context.headers.get("X-Forwarded-Protocol", "")).lower()
+        if proto:
+            return proto == "https"
+        url = str(getattr(st.context, "url", "") or "").lower()
+        if url.startswith("https://"):
+            return True
+    except Exception:
+        return False
+    return False
+
+
+def build_session_cookie_header(token: str, max_age: int = _SESSION_SECONDS) -> str:
+    """Build hardened session-cookie attributes for JS cookie writes."""
+    parts = [
+        f"{_COOKIE_NAME}={token}",
+        f"max-age={int(max_age)}",
+        "path=/",
+        "SameSite=Strict",
+    ]
+    if _is_request_secure():
+        parts.append("Secure")
+    return "; ".join(parts)
+
+
 def create_session_token(user_dict: dict) -> str:
     """Return a signed token encoding user_dict with a 3-day expiry."""
+    secret = _ensure_session_secret()
     expiry = int(time.time()) + _SESSION_SECONDS
     raw = json.dumps({"user": user_dict, "exp": expiry}, separators=(",", ":"))
     payload = base64.urlsafe_b64encode(raw.encode()).decode().rstrip("=")
-    sig = hmac.new(_SESSION_SECRET.encode(), payload.encode(), hashlib.sha256).hexdigest()
+    sig = hmac.new(secret.encode(), payload.encode(), hashlib.sha256).hexdigest()
     return f"{payload}.{sig}"
 
 
 def validate_session_token(token: str) -> Optional[dict]:
     """Return the user dict if the token is valid and unexpired, else None."""
     try:
+        secret = _ensure_session_secret()
         payload, sig = token.rsplit(".", 1)
-        expected = hmac.new(_SESSION_SECRET.encode(), payload.encode(), hashlib.sha256).hexdigest()
+        expected = hmac.new(secret.encode(), payload.encode(), hashlib.sha256).hexdigest()
         if not hmac.compare_digest(sig, expected):
             return None
         padded = payload + "=" * (-len(payload) % 4)
@@ -56,6 +122,8 @@ def restore_session_from_cookie() -> bool:
     """
     if st.session_state.get("user"):
         return True
+    if not _persistent_login_enabled():
+        return False
     try:
         token = ""
 
@@ -155,11 +223,14 @@ def login_user(user_dict: dict) -> None:
 
 def set_session_cookie(user_dict: dict) -> None:
     """Persist session auth as a browser cookie from both iframe and parent window contexts."""
+    if not _persistent_login_enabled():
+        return
     token = create_session_token(user_dict)
+    cookie = build_session_cookie_header(token, _SESSION_SECONDS)
     components.html(
         f"""<script>
 (function() {{
-  var cookie = "{_COOKIE_NAME}={token}; max-age={_SESSION_SECONDS}; path=/; SameSite=Lax";
+  var cookie = {json.dumps(cookie)};
   try {{ document.cookie = cookie; }} catch(e) {{}}
   try {{
     var w = window.parent && window.parent !== window ? window.parent : window;
@@ -193,6 +264,7 @@ def logout_user() -> None:
         "compare_jd",
         "compare_selected_files",
         "compare_cvs_rev",
+        "guest_session_id",
     ]:
         st.session_state.pop(key, None)
 

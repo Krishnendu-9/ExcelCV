@@ -2,11 +2,6 @@
 from __future__ import annotations
 
 import json
-import os
-import pathlib
-import subprocess
-import sys
-import tempfile
 import uuid
 from datetime import date, datetime
 import streamlit as st
@@ -14,214 +9,48 @@ import streamlit.components.v1 as components
 
 from src.auth_utils import get_session_user
 from src.database import CV, get_db
-
-# ─── Constants ────────────────────────────────────────────────────────────────
-
-SECTION_SCHEMA: list[tuple[str, str]] = [
-    ("personal", "Personal Information"),
-    ("summary", "Professional Summary"),
-    ("experience", "Work Experience"),
-    ("education", "Education"),
-    ("skills", "Skills"),
-    ("projects", "Projects"),
-    ("languages", "Languages"),
-    ("certifications", "Certifications"),
-    ("interests", "Interests"),
-]
-
-SECTION_IDS = [sid for sid, _ in SECTION_SCHEMA]
-SECTION_ID_TO_LABEL = dict(SECTION_SCHEMA)
-SECTION_LABEL_TO_ID = {label: sid for sid, label in SECTION_SCHEMA}
-
-ACCENT_COLORS = [
-    "#2563eb", "#7c3aed", "#059669", "#dc2626",
-    "#d97706", "#0891b2", "#4f46e5", "#be185d",
-]
-
-FONT_OPTIONS: dict[str, str] = {
-    "System Sans":     "system-ui, sans-serif",
-    "Georgia":         "Georgia, serif",
-    "Helvetica Neue":  "'Helvetica Neue', Arial, sans-serif",
-    "Times New Roman": "'Times New Roman', Times, serif",
-}
-
-PROFICIENCY_OPTIONS = ["Basic", "Intermediate", "Advanced", "Fluent", "Native"]
-A4_WIDTH_PX = 794
-A4_HEIGHT_PX = 1123
-TEMPLATE_DEFAULT_ZOOM: dict[str, int] = {
-    "modern": 100,
-    "classic": 100,
-    "creative": 100,
-}
-CVB_ZOOM_LEVELS: list[int] = [35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 90, 100]
-CVB_SCALE_VALUES: list[int] = [80, 85, 90, 95, 100, 105, 110, 115, 120, 125, 130]
-CVB_LINE_HEIGHT_VALUES: list[int] = list(range(10, 21))
-CVB_ENTRY_SPACING_VALUES: list[int] = list(range(0, 25, 2))
-CVB_PDF_TYPOGRAPHY_SCALE: float = 1.45
-
-TEMPLATE_CONFIGS = {
-    "classic": {"primary": "#1a1a2e", "accent": "#16213e", "link": "#2563eb", "rule": "#1a1a2e", "font": "Georgia, serif"},
-    "modern":  {"primary": "#2563eb", "accent": "#1e3a5f", "link": "#2563eb", "rule": "#2563eb", "font": "system-ui, sans-serif"},
-    "creative": {"primary": "#0ea5e9", "accent": "#0369a1", "link": "#0284c7", "rule": "#38bdf8", "font": "system-ui, sans-serif"},
-}
-
-TEMPLATE_CHOICES: list[tuple[str, str, str]] = [
-    ("classic", "Classic", "Single column, ATS-friendly"),
-    ("creative", "Creative", "Colored sidebar"),
-    ("modern", "Modern", "Two-column sidebar"),
-]
-
-LEGACY_SECTION_ORDER_V2: list[str] = [
-    "education",
-    "personal",
-    "skills",
-    "summary",
-    "projects",
-    "experience",
-    "languages",
-    "interests",
-    "certifications",
-]
-
-CVR_SECTION_ORDER: list[str] = [
-    "personal",
-    "summary",
-    "experience",
-    "education",
-    "skills",
-    "projects",
-    "languages",
-    "certifications",
-    "interests",
-]
-
-SECTION_ICON_BY_ID: dict[str, str] = {
-    "personal": ":material/person:",
-    "summary": ":material/description:",
-    "experience": ":material/work:",
-    "education": ":material/school:",
-    "skills": ":material/deployed_code:",
-    "projects": ":material/folder:",
-    "languages": ":material/language:",
-    "certifications": ":material/verified:",
-    "interests": ":material/interests:",
-}
-
-SECTION_ADD_BUTTON_BY_ID: dict[str, str] = {
-    "experience": "Add Position",
-    "education": "Add Education",
-    "skills": "Add Skill",
-    "projects": "Add Project",
-    "languages": "Add Language",
-    "certifications": "Add Certification",
-}
-
-CVB_PERSIST_BASE_KEYS: tuple[str, ...] = (
-    "cvb_cv_title",
-    "cvb_template",
-    "cvb_accent_color",
-    "cvb_font",
-    "cvb_font_size",
-    "cvb_line_height",
-    "cvb_entry_spacing",
-    "cvb_show_icons",
-    "cvb_zoom",
-    "cvb_section_order",
-    "cvb_section_visibility",
-    "cvb_active_section",
-    "cvb_full_name",
-    "cvb_prof_title",
-    "cvb_email",
-    "cvb_phone",
-    "cvb_location",
-    "cvb_website",
-    "cvb_linkedin",
-    "cvb_github",
-    "cvb_website_url",
-    "cvb_linkedin_url",
-    "cvb_github_url",
-    "cvb_summary",
-    "cvb_exp_ids",
-    "cvb_edu_ids",
-    "cvb_proj_ids",
-    "cvb_cert_ids",
-    "cvb_lang_ids",
-    "cvb_skill_ids",
-    "cvb_interests",
-    "cvb_interest_ctr",
+from src.ui.cv_builder_pdf import _build_pdf_ready_html, _render_html_to_pdf_bytes
+from src.ui.cv_builder_preview_data import (
+    _build_preview_data_with_demo_defaults,
+    _is_cv_data_effectively_empty,
+    _row_has_meaningful_data,
+)
+from src.ui.cv_builder_constants import (
+    A4_HEIGHT_PX,
+    A4_WIDTH_PX,
+    ACCENT_COLORS,
+    CVB_ENTRY_SPACING_VALUES,
+    CVB_LINE_HEIGHT_VALUES,
+    CVB_PDF_TYPOGRAPHY_SCALE,
+    CVB_PERSIST_BASE_KEYS,
+    CVB_SCALE_VALUES,
+    CVB_ZOOM_LEVELS,
+    CVR_SECTION_ORDER,
+    FONT_OPTIONS,
+    LEGACY_SECTION_ORDER_V2,
+    PROFICIENCY_OPTIONS,
+    SECTION_ADD_BUTTON_BY_ID,
+    SECTION_ICON_BY_ID,
+    SECTION_IDS,
+    SECTION_ID_TO_LABEL,
+    TEMPLATE_CHOICES,
+    TEMPLATE_CONFIGS,
+)
+from src.ui.cv_builder_value_utils import (
+    _coerce_bool,
+    _date_range,
+    _default_zoom_for_template,
+    _html_attr_escape,
+    _html_escape,
+    _normalize_contact_link,
+    _normalize_section_order,
+    _normalize_section_visibility,
+    _normalize_template,
+    _safe_float,
+    _safe_int,
 )
 
-
-def _normalize_template(template: str | None) -> str:
-    value = (template or "").strip().lower()
-    if value == "minimal":
-        return "creative"
-    if value in TEMPLATE_CONFIGS:
-        return value
-    return "classic"
-
-
-def _default_zoom_for_template(template: str | None) -> int:
-    return TEMPLATE_DEFAULT_ZOOM.get(_normalize_template(template), 100)
-
-
-def _section_id(value: str) -> str | None:
-    if value in SECTION_ID_TO_LABEL:
-        return value
-    return SECTION_LABEL_TO_ID.get(value)
-
-
-def _normalize_section_order(order: list | None) -> list[str]:
-    normalized: list[str] = []
-    for item in (order or []):
-        sid = _section_id(str(item))
-        if sid and sid not in normalized:
-            normalized.append(sid)
-    for sid in SECTION_IDS:
-        if sid not in normalized:
-            normalized.append(sid)
-    return normalized
-
-
-def _normalize_section_visibility(visibility: dict | None) -> dict[str, bool]:
-    normalized = {sid: True for sid in SECTION_IDS}
-    if not isinstance(visibility, dict):
-        return normalized
-    for key, value in visibility.items():
-        sid = _section_id(str(key))
-        if sid:
-            normalized[sid] = _coerce_bool(value, True)
-    return normalized
-
-
-def _coerce_bool(value: object, default: bool = False) -> bool:
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, (int, float)):
-        return value != 0
-    if value is None:
-        return default
-    text = str(value).strip().lower()
-    if text in {"1", "true", "yes", "on"}:
-        return True
-    if text in {"0", "false", "no", "off", ""}:
-        return False
-    return default
-
-
-def _safe_int(value: object, default: int) -> int:
-    try:
-        return int(float(str(value).strip()))
-    except Exception:
-        return default
-
-
-def _safe_float(value: object, default: float) -> float:
-    try:
-        return float(str(value).strip())
-    except Exception:
-        return default
-
+# ─── Constants ────────────────────────────────────────────────────────────────
 
 def _normalize_builder_tuning_state() -> None:
     ss = st.session_state
@@ -822,57 +651,6 @@ def _load_cv_for_builder_if_requested() -> None:
 
 # ─── HTML escape helpers ──────────────────────────────────────────────────────
 
-def _html_escape(s: str) -> str:
-    return (s or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-
-
-def _html_attr_escape(s: str) -> str:
-    return _html_escape(s).replace('"', "&quot;").replace("'", "&#x27;")
-
-
-def _coerce_href(raw: str) -> str:
-    value = str(raw or "").strip()
-    if not value:
-        return ""
-    low = value.lower()
-    if low.startswith(("http://", "https://", "mailto:", "tel:")):
-        return value
-    return f"https://{value.lstrip('/')}"
-
-
-def _normalize_contact_link(field: str, value: str, explicit_url: str = "") -> tuple[str, str]:
-    raw_text = str(value or "").strip()
-    raw_url = str(explicit_url or "").strip()
-    if not raw_text and not raw_url:
-        return "", ""
-
-    def _trim_scheme(v: str) -> str:
-        out = v.strip()
-        low = out.lower()
-        if low.startswith("https://"):
-            return out[8:]
-        if low.startswith("http://"):
-            return out[7:]
-        return out
-
-    display = raw_text
-    href = ""
-
-    if raw_url:
-        href = _coerce_href(raw_url)
-        if not display:
-            display = _trim_scheme(raw_url).replace("www.", "")
-
-    return display, href
-
-
-def _date_range(start: str, end: str, current: bool = False) -> str:
-    end_label = "Present" if current else end
-    if start and end_label:
-        return f"{start} – {end_label}"
-    return start or end_label or ""
-
-
 # ─── CV HTML preview generator ────────────────────────────────────────────────
 
 def _parse_date_for_input(value: str | date | None) -> date | None:
@@ -1082,115 +860,6 @@ def _cached_generate_cv_pdf(
         return _render_html_to_pdf_bytes(pdf_ready_html), ""
     except Exception as exc:
         return None, str(exc)
-
-
-def _build_pdf_ready_html(preview_html: str) -> str:
-    """Wrap preview HTML with print-specific CSS so PDF mirrors preview styles."""
-    if not preview_html:
-        return "<html><body></body></html>"
-    print_css = """
-@page { size: A4; margin: 0; }
-html, body {
-  margin: 0 !important;
-  padding: 0 !important;
-  background: #ffffff !important;
-  -webkit-print-color-adjust: exact;
-  print-color-adjust: exact;
-}
-body { width: 210mm; min-height: 297mm; }
-.cv-paper {
-  width: 210mm !important;
-  min-height: 297mm !important;
-  margin: 0 !important;
-  border: 0 !important;
-  box-shadow: none !important;
-}
-"""
-    if "</style>" in preview_html:
-        return preview_html.replace("</style>", f"{print_css}\n</style>", 1)
-    if "</head>" in preview_html:
-        return preview_html.replace("</head>", f"<style>{print_css}</style></head>", 1)
-    return f"<html><head><style>{print_css}</style></head><body>{preview_html}</body></html>"
-
-
-def _render_html_to_pdf_bytes(html: str) -> bytes:
-    """Render HTML to PDF using headless Chromium for WYSIWYG template fidelity."""
-    if sys.platform.startswith("win"):
-        return _render_html_to_pdf_bytes_windows_subprocess(html)
-
-    try:
-        from playwright.sync_api import sync_playwright
-    except Exception as exc:
-        raise RuntimeError(
-            "PDF engine unavailable. Install Playwright and Chromium: "
-            "'py -3 -m pip install playwright' then 'py -3 -m playwright install chromium'."
-        ) from exc
-
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
-        page = browser.new_page(viewport={"width": A4_WIDTH_PX, "height": A4_HEIGHT_PX})
-        page.set_content(html, wait_until="load")
-        page.emulate_media(media="screen")
-        pdf_bytes = page.pdf(
-            format="A4",
-            print_background=True,
-            prefer_css_page_size=True,
-            margin={"top": "0mm", "right": "0mm", "bottom": "0mm", "left": "0mm"},
-        )
-        browser.close()
-    return pdf_bytes
-
-
-def _render_html_to_pdf_bytes_windows_subprocess(html: str) -> bytes:
-    """Windows-safe Playwright PDF rendering in a child process.
-
-    Streamlit/tornado can run with a selector loop on Windows where asyncio
-    subprocess transport is unsupported. Running Playwright in a fresh process
-    avoids that loop-policy conflict.
-    """
-    html_path = ""
-    pdf_path = ""
-    try:
-        with tempfile.NamedTemporaryFile("w", encoding="utf-8", suffix=".html", delete=False) as f:
-            f.write(html)
-            html_path = f.name
-        with tempfile.NamedTemporaryFile("wb", suffix=".pdf", delete=False) as f:
-            pdf_path = f.name
-
-        py_script = (
-            "import sys, pathlib, asyncio\n"
-            "try:\n"
-            "    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())\n"
-            "except Exception:\n"
-            "    pass\n"
-            "from playwright.sync_api import sync_playwright\n"
-            "html = pathlib.Path(sys.argv[1]).read_text(encoding='utf-8')\n"
-            "outp = pathlib.Path(sys.argv[2])\n"
-            "with sync_playwright() as p:\n"
-            "    browser = p.chromium.launch(headless=True)\n"
-            "    page = browser.new_page(viewport={'width': 794, 'height': 1123})\n"
-            "    page.set_content(html, wait_until='load')\n"
-            "    page.emulate_media(media='screen')\n"
-            "    page.pdf(format='A4', print_background=True, prefer_css_page_size=True, margin={'top':'0mm','right':'0mm','bottom':'0mm','left':'0mm'}, path=str(outp))\n"
-            "    browser.close()\n"
-        )
-        proc = subprocess.run(
-            [sys.executable, "-c", py_script, html_path, pdf_path],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        if proc.returncode != 0:
-            detail = (proc.stderr or proc.stdout or "").strip()
-            raise RuntimeError(f"Playwright PDF process failed. {detail}")
-        return pathlib.Path(pdf_path).read_bytes()
-    finally:
-        for p in (html_path, pdf_path):
-            if p and os.path.exists(p):
-                try:
-                    os.remove(p)
-                except Exception:
-                    pass
 
 
 def _get_backup_json() -> str:
@@ -6537,224 +6206,6 @@ window.addEventListener('message', function(ev) {{
 </script>
 </body>
 </html>"""
-
-
-def _get_demo_cv_data() -> dict:
-    """Static demo data for previewing template structures."""
-    return {
-        "personal": {
-            "full_name": "Your Name",
-            "prof_title": "Professional Title",
-            "email": "you@email.com",
-            "phone": "+1 (555) 123-4567",
-            "location": "Your City, Country",
-            "website": "yourwebsite.dev",
-            "linkedin": "linkedin.com/in/yourprofile",
-            "github": "github.com/yourprofile",
-            "website_url": "https://yourwebsite.dev",
-            "linkedin_url": "https://www.linkedin.com/in/yourprofile",
-            "github_url": "https://github.com/yourprofile",
-            "summary": (
-                "Write a concise professional summary highlighting your years of experience, "
-                "core strengths, and measurable impact."
-            ),
-        },
-        "experience": [
-            {
-                "role": "Senior Full-Stack Developer",
-                "company": "TechVista Inc.",
-                "location": "San Francisco, CA",
-                "start_date": "2021-03-01",
-                "end_date": "",
-                "current": True,
-                "bullets": [
-                    "Architected and built real-time collaboration features.",
-                    "Reduced page load times by 60% through code optimization.",
-                    "Mentored a team of 5 developers.",
-                ],
-            },
-            {
-                "role": "Full-Stack Developer",
-                "company": "DataFlow Systems",
-                "location": "Austin, TX",
-                "start_date": "2018-06-01",
-                "end_date": "2021-02-01",
-                "current": False,
-                "bullets": [
-                    "Built RESTful APIs serving high-traffic SaaS products.",
-                    "Improved developer productivity by modernizing tooling.",
-                ],
-            },
-        ],
-        "education": [
-            {
-                "institution": "University of California",
-                "degree": "B.S.",
-                "field": "Computer Science",
-                "location": "Berkeley, CA",
-                "start_date": "2014-08-01",
-                "end_date": "2018-05-01",
-                "gpa": "3.8/4.0",
-            }
-        ],
-        "skills": {
-            "items": [
-                {"name": "React / Next.js"},
-                {"name": "TypeScript"},
-                {"name": "Node.js"},
-                {"name": "Python"},
-                {"name": "PostgreSQL"},
-                {"name": "AWS / Cloud"},
-                {"name": "Docker / K8s"},
-                {"name": "GraphQL"},
-            ],
-            "categories": [],
-        },
-        "projects": [
-            {
-                "name": "OpenBoard",
-                "role": "Creator & Maintainer",
-                "description": "Real-time collaborative whiteboard for distributed teams.",
-                "tech_stack": ["React", "WebSocket", "Canvas API"],
-                "link": "github.com/alexchen/openboard",
-                "start_date": "2023-01-01",
-                "end_date": "",
-            }
-        ],
-        "certifications": [
-            {"name": "AWS Solutions Architect", "issuer": "Amazon", "date": "Apr 2023", "link": ""},
-            {"name": "Google Cloud Professional Developer", "issuer": "Google", "date": "Aug 2022", "link": ""},
-        ],
-        "languages": [
-            {"language": "English", "proficiency": "Native"},
-            {"language": "Mandarin", "proficiency": "Fluent"},
-            {"language": "Spanish", "proficiency": "Intermediate"},
-        ],
-        "interests": ["Open Source", "Technical Writing", "Photography"],
-    }
-
-
-def _has_meaningful_text(value: object) -> bool:
-    return bool(str(value or "").strip())
-
-
-def _row_has_meaningful_data(row: object) -> bool:
-    if not isinstance(row, dict):
-        return False
-    for key, value in row.items():
-        # Internal row ids should never count as user content.
-        if str(key).strip().lower() == "id":
-            continue
-        if isinstance(value, list):
-            if any(_has_meaningful_text(v) for v in value):
-                return True
-        elif isinstance(value, dict):
-            if _row_has_meaningful_data(value):
-                return True
-        elif isinstance(value, bool):
-            if value:
-                return True
-        else:
-            if _has_meaningful_text(value):
-                return True
-    return False
-
-
-def _build_preview_data_with_demo_defaults(user_data: dict) -> dict:
-    """Merge user CV data over demo defaults for preview-only rendering.
-
-    Rules:
-    - Personal fields: fallback field-by-field to demo values.
-    - List sections (experience, education, projects, etc.): if user has real rows, use user rows;
-      otherwise use demo rows.
-    - Skills: if user has skill items, use them; otherwise demo skills.
-    """
-    demo = _get_demo_cv_data()
-    user = user_data if isinstance(user_data, dict) else {}
-
-    out = {
-        "personal": {},
-        "experience": [],
-        "education": [],
-        "skills": {"items": [], "categories": []},
-        "projects": [],
-        "certifications": [],
-        "languages": [],
-        "interests": [],
-        "customization": user.get("customization", {}),
-    }
-
-    up = user.get("personal", {}) if isinstance(user.get("personal", {}), dict) else {}
-    dp = demo.get("personal", {})
-    for key in set(dp.keys()) | set(up.keys()):
-        uval = up.get(key, "")
-        out["personal"][key] = uval if _has_meaningful_text(uval) else dp.get(key, "")
-
-    for section_key in ["experience", "education", "projects", "certifications", "languages"]:
-        urows = user.get(section_key, []) if isinstance(user.get(section_key, []), list) else []
-        drows = demo.get(section_key, [])
-        meaningful_user_rows = [row for row in urows if _row_has_meaningful_data(row)]
-        out[section_key] = meaningful_user_rows if meaningful_user_rows else drows
-
-    uskills = user.get("skills", {}) if isinstance(user.get("skills", {}), dict) else {}
-    uitems = uskills.get("items", []) if isinstance(uskills.get("items", []), list) else []
-    cleaned_uitems = []
-    for item in uitems:
-        if isinstance(item, dict) and _has_meaningful_text(item.get("name", "")):
-            cleaned_uitems.append({"name": str(item.get("name", "")).strip()})
-    if cleaned_uitems:
-        out["skills"]["items"] = cleaned_uitems
-        out["skills"]["categories"] = [{"id": "primary", "name": "Skills", "items": [s["name"] for s in cleaned_uitems]}]
-    else:
-        out["skills"] = demo.get("skills", {"items": [], "categories": []})
-
-    uinterests = user.get("interests", []) if isinstance(user.get("interests", []), list) else []
-    cleaned_interests = [str(v).strip() for v in uinterests if _has_meaningful_text(v)]
-    out["interests"] = cleaned_interests if cleaned_interests else demo.get("interests", [])
-
-    return out
-
-
-def _is_cv_data_effectively_empty(cv_data: dict) -> bool:
-    """True when user has not entered meaningful builder content yet."""
-    if not isinstance(cv_data, dict):
-        return True
-
-    personal = cv_data.get("personal", {}) or {}
-    for field in [
-        "full_name",
-        "prof_title",
-        "email",
-        "phone",
-        "location",
-        "linkedin",
-        "website",
-        "github",
-        "linkedin_url",
-        "website_url",
-        "github_url",
-        "summary",
-    ]:
-        if str(personal.get(field, "")).strip():
-            return False
-
-    for key in ["experience", "education", "projects", "certifications", "languages"]:
-        rows = cv_data.get(key, []) or []
-        for row in rows:
-            if _row_has_meaningful_data(row):
-                return False
-
-    skills = cv_data.get("skills", {}) or {}
-    for item in skills.get("items", []) or []:
-        if str(item.get("name", "")).strip():
-            return False
-    for cat in skills.get("categories", []) or []:
-        if any(str(x).strip() for x in (cat.get("items", []) or [])):
-            return False
-
-    if any(str(x).strip() for x in (cv_data.get("interests", []) or [])):
-        return False
-    return True
 
 
 def _render_template_component(current_tpl: str, is_dark: bool) -> None:

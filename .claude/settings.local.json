@@ -27,7 +27,37 @@
       "Bash(sort -k5 -n -r)",
       "Bash(awk '{print $5, $NF}')",
       "Bash(git rm *)",
-      "Bash(git commit -m ' *)"
+      "Bash(git commit -m ' *)",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('src/ui/upload.py', encoding='utf-8'\\).read\\(\\)\\); print\\('OK'\\)\")",
+      "Bash(py -c \"import ast; ast.parse\\(open\\('src/ui/upload.py', encoding='utf-8'\\).read\\(\\)\\); print\\('OK'\\)\")",
+      "Bash(py -c \"import streamlit; print\\(streamlit.__version__\\)\")",
+      "Bash(py -c \"import streamlit.components.v1 as c; import streamlit; import os; p = os.path.dirname\\(streamlit.__file__\\); import subprocess; r = subprocess.run\\(['findstr', '/s', '/i', '/m', 'streamlit_app', p], capture_output=True, text=True\\); print\\(r.stdout[:2000]\\)\")",
+      "Bash(py -c \"import streamlit; import os; p = os.path.dirname\\(streamlit.__file__\\); print\\(p\\)\")",
+      "Bash(dir /B \"C:\\\\Users\\\\User\\\\AppData\\\\Roaming\\\\Python\\\\Python313\\\\site-packages\\\\streamlit\\\\static\\\\static\\\\js\")",
+      "Bash(findstr /I \"main\")",
+      "Bash(taskkill /F /IM streamlit.exe)",
+      "Bash(taskkill /F /IM python.exe /FI \"WINDOWTITLE eq streamlit*\")",
+      "Bash(where /R \"C:\\\\Users\\\\User\\\\AppData\\\\Roaming\\\\Python\\\\Python313\\\\site-packages\\\\streamlit\" *.js)",
+      "Bash(cmd /c \"dir /B /S C:\\\\Users\\\\User\\\\AppData\\\\Roaming\\\\Python\\\\Python313\\\\site-packages\\\\streamlit\\\\static\\\\*.js\")",
+      "Bash(cmd /c \"findstr /M /S /I /C:\\\\\"streamlit_app\\\\\" \\\\\"C:\\\\Users\\\\User\\\\AppData\\\\Roaming\\\\Python\\\\Python313\\\\site-packages\\\\streamlit\\\\static\\\\static\\\\js\\\\*.js\\\\\" 2>nul\")",
+      "Bash(cmd /c \"findstr /M /S /I /C:\\\\\"stCustomComponentV1\\\\\" \\\\\"C:\\\\Users\\\\User\\\\AppData\\\\Roaming\\\\Python\\\\Python313\\\\site-packages\\\\streamlit\\\\static\\\\static\\\\js\\\\*.js\\\\\" 2>nul\")",
+      "Bash(cmd /c \"findstr /S /I /C:\\\\\"stCustomComponentV1\\\\\" \\\\\"C:\\\\Users\\\\User\\\\AppData\\\\Roaming\\\\Python\\\\Python313\\\\site-packages\\\\streamlit\\\\static\\\\static\\\\js\\\\*.js\\\\\" 2>nul\")",
+      "Bash(py -c \"import ast; ast.parse\\(open\\('src/ui/layout.py', encoding='utf-8'\\).read\\(\\)\\); ast.parse\\(open\\('src/ui/static_pages.py', encoding='utf-8'\\).read\\(\\)\\); print\\('OK'\\)\")",
+      "Bash(py -c \"import ast; ast.parse\\(open\\('src/ui/layout.py', encoding='utf-8'\\).read\\(\\)\\); print\\('OK'\\)\")",
+      "Bash(py -c \"import ast; ast.parse\\(open\\('src/ui/layout.py', encoding='utf-8'\\).read\\(\\)\\); ast.parse\\(open\\('src/ui/app_utils.py', encoding='utf-8'\\).read\\(\\)\\); print\\('OK'\\)\")",
+      "Bash(py -c \"import ast; ast.parse\\(open\\('src/ui/auth_page.py', encoding='utf-8'\\).read\\(\\)\\); print\\('OK'\\)\")",
+      "Bash(findstr /N \"stMarkdown.*a\\\\|color.*link\\\\|text-decoration\" \"src\\\\assets\\\\ui\\\\base_theme.css.tpl\")",
+      "Bash(py -3 -c \"import docx; print\\('python-docx OK:', docx.__version__\\)\")",
+      "Bash(mkdir -p tmp && ls tmp/)",
+      "Bash(py -3 tmp/generate_minor_report.py)",
+      "Bash(py -3 -c \"from docx import Document; d=Document\\('Minor_Project_Report.docx'\\); print\\('Valid DOCX. Paragraphs:', len\\(d.paragraphs\\), 'Tables:', len\\(d.tables\\)\\)\")",
+      "PowerShell(Start-Process \"$PWD\\\\Minor_Project_Report.docx\")",
+      "Bash(py -3 tmp/generate_changes_report.py)",
+      "PowerShell(Start-Process \"$PWD\\\\Report_Changes_Summary.docx\")",
+      "Bash(rm -f \"~\\\\$port_Changes_Summary.docx\" && rm -f docs/PROJECT_REPORT.md && echo \"Old files deleted\")"
+    ],
+    "additionalDirectories": [
+      "E:\\Academic\\minor-project\\cv-review"
     ]
   }
 }

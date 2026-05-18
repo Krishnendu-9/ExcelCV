@@ -292,18 +292,135 @@ def render_static_page(page: str) -> None:
     if page_key == "how-it-works":
         _render_info_page_header(
             "How It Works",
-            "From upload to report in a transparent, reproducible flow.",
+            "A walkthrough of every ExcelCV feature — what it does, how to use it, and what you get back.",
         )
-        st.markdown("### 1. Input")
-        st.write("Paste the job description and upload a PDF/DOCX resume.")
-        st.markdown("### 2. Parsing")
-        st.write("ExcelCV extracts text and checks parse confidence.")
-        st.markdown("### 3. Analysis")
-        st.write("Deterministic content checks run alongside model-based qualitative analysis.")
-        st.markdown("### 4. Scoring")
-        st.write("A weighted, explainable scoring breakdown computes final match score.")
-        st.markdown("### 5. Actionable Output")
-        st.write("You get missing skills, keyword gaps, rewrite suggestions, and downloadable reports.")
+        st.markdown("### Analyze CV")
+        st.markdown(
+            "Paste a job description and upload a PDF or DOCX resume. ExcelCV extracts the text, "
+            "runs deterministic checks (ATS parse rate, quantifying impact, repetition, spelling, "
+            "section completeness), and combines them with a model-based qualitative review. "
+            "You get a weighted final score, explainable component breakdown, missing skills, "
+            "keyword gaps, and rewrite suggestions you can act on."
+        )
+        st.markdown("### Compare Resumes")
+        st.markdown(
+            "Upload 2–5 resumes against the same job description to rank candidates side-by-side. "
+            "Each resume is scored independently, then ranked by final score with ATS parse, section "
+            "quality, issue count, and top missing skills shown in a single ranking table — useful "
+            "for picking the strongest applicant for a role or for comparing multiple drafts of your "
+            "own resume."
+        )
+        st.markdown("### Cover Letter")
+        st.markdown(
+            "Generate a tailored cover letter from your resume and the target job description. "
+            "ExcelCV pulls relevant experience from your CV, aligns it to the role's key requirements, "
+            "and produces a paragraph-formatted draft you can copy, edit, and refine — designed to "
+            "stay grounded in what's actually on your resume rather than inventing claims."
+        )
+        st.markdown("### Resume Builder")
+        st.markdown(
+            "Build a resume from scratch in a two-pane editor with a live preview. Pick from three "
+            "templates (Classic, Modern, Minimal), customize accent color and typography, and use "
+            "AI-suggested bullet points for experience entries. Save drafts to your account, reload "
+            "them later, and export to PDF when ready."
+        )
+        st.markdown("### My CVs and My Analyses")
+        st.markdown(
+            "Signed-in users get a personal library: every analysis you run is auto-saved to "
+            "**My Analyses** with the original JD, score, and report. Every resume you build is "
+            "saved to **My CVs** for editing, duplicating, or exporting later. No re-uploads — "
+            "everything stays attached to your account."
+        )
+        return
+
+    if page_key == "resume-tips":
+        _render_info_page_header(
+            "Resume Tips",
+            "Practical, ATS-friendly resume writing guidance — what recruiters and parsers actually look for.",
+        )
+        st.markdown("### Structure That Works")
+        st.markdown(
+            "- Use a single-column layout — tables, text boxes, and multi-column designs break ATS parsers.\n"
+            "- Stick to standard section headings: **Summary**, **Experience**, **Education**, **Skills**, **Projects**.\n"
+            "- Keep file format to PDF or DOCX. Avoid scanned images or PDFs exported from design tools.\n"
+            "- Aim for 1 page (early career) or 2 pages (5+ years experience). Cutting filler beats padding."
+        )
+        st.markdown("### Write Bullets That Land")
+        st.markdown(
+            "- Lead with a strong action verb: *built, shipped, reduced, automated, led, designed*.\n"
+            "- Quantify impact whenever possible — numbers, percentages, time saved, dollars, scale.\n"
+            "- Show the result, not just the task. *\"Migrated billing service to Kafka, cutting end-to-end latency 38%\"* beats *\"Worked on billing service migration.\"*\n"
+            "- Vary your action verbs across bullets so the resume doesn't read as repetitive."
+        )
+        st.markdown("### Tailor to the Job Description")
+        st.markdown(
+            "- Read the JD twice. Highlight role-specific keywords (tools, methodologies, seniority cues).\n"
+            "- Mirror those keywords naturally in your Summary and Experience — don't keyword-stuff.\n"
+            "- If a must-have skill is missing from your resume but you do have it, add it explicitly.\n"
+            "- Reorder bullets within a role so the JD-relevant ones appear first."
+        )
+        st.markdown("### Common Mistakes to Avoid")
+        st.markdown(
+            "- Generic objective statements (*\"Looking for a challenging role…\"*) — replace with a 2-line summary of your impact.\n"
+            "- Listing responsibilities instead of accomplishments.\n"
+            "- Inconsistent date formats, tense, or punctuation across entries.\n"
+            "- Using graphics, icons, or photos — they break parsing and rarely help.\n"
+            "- Outdated contact info or a non-professional email address."
+        )
+        st.markdown("### Before You Send")
+        st.markdown(
+            "- Run your resume through **Analyze CV** with the actual JD to catch gaps before a recruiter does.\n"
+            "- Read it out loud — awkward phrasing surfaces fast.\n"
+            "- Ask one peer in your target field for a 5-minute review."
+        )
+        return
+
+    if page_key == "cover-letter-guide":
+        _render_info_page_header(
+            "Cover Letter Guide",
+            "How to write a short, specific cover letter that complements your resume instead of repeating it.",
+        )
+        st.markdown("### What a Cover Letter Should Actually Do")
+        st.markdown(
+            "A good cover letter answers three questions the resume can't:\n"
+            "1. **Why this role, specifically?** Not the field — this exact position at this company.\n"
+            "2. **What evidence from your background maps directly to it?** One or two concrete stories.\n"
+            "3. **What do you bring that isn't on the resume?** Context, motivation, soft signals."
+        )
+        st.markdown("### Recommended Structure")
+        st.markdown(
+            "- **Opening (2–3 lines):** State the role and one specific reason you're applying — a "
+            "product, mission, or technical bet the company is making that you care about.\n"
+            "- **Middle (1–2 short paragraphs):** Pick the strongest story from your resume that "
+            "matches the role's top requirement. Explain *what*, *how*, and *result* in plain language.\n"
+            "- **Close (2–3 lines):** A clear next step (*\"I'd welcome the chance to discuss…\"*) and a thank-you.\n"
+            "- Keep the whole thing to **250–350 words**. Recruiters skim — long letters lose them."
+        )
+        st.markdown("### Tone and Voice")
+        st.markdown(
+            "- Write the way you'd speak in a first interview — professional, but not stiff.\n"
+            "- Avoid clichés (*\"team player,\" \"results-driven,\" \"passionate about\"*). Show, don't claim.\n"
+            "- Match the company's vocabulary — read their About page, latest blog post, or product copy.\n"
+            "- Use the hiring manager's name if you can find it. *\"Dear Hiring Team\"* is fine when you can't."
+        )
+        st.markdown("### Tailoring Quickly")
+        st.markdown(
+            "- Start from a base letter, then rewrite the opening and middle paragraph per application.\n"
+            "- The boilerplate that survives across applications is the close — everything before it should change.\n"
+            "- If you can't name a specific reason for *this* company within 30 seconds of thinking, it shows in the letter."
+        )
+        st.markdown("### Common Mistakes")
+        st.markdown(
+            "- Re-stating the resume bullet-by-bullet. The letter is context, not a summary.\n"
+            "- Vague enthusiasm without evidence (*\"I'm very excited about this opportunity\"*).\n"
+            "- Mentioning skills you don't have — recruiters notice and it costs trust.\n"
+            "- Forgetting to update the company name when reusing a draft. (It happens. Proofread.)"
+        )
+        st.markdown("### Generate a Draft Quickly")
+        st.markdown(
+            "Use the **Cover Letter** generator in ExcelCV to produce a tailored first draft from your "
+            "saved CV and a job description, then refine the opening and close with your own voice."
+        )
         return
 
     if page_key == "interview-prep":
@@ -343,7 +460,8 @@ def render_static_page(page: str) -> None:
         )
         st.markdown("### 3. Storage & Retention")
         st.write(
-            "Analysis data is handled in-session for app functionality. We do not provide user account storage in this project build."
+            "Signed-in accounts can persist CVs, analyses, and comparison history in the app database. "
+            "Guest sessions keep analysis data only for the current browser session."
         )
         st.markdown("### 4. Security")
         st.write("Reasonable safeguards are applied for processing within the app runtime environment.")

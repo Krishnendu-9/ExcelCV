@@ -1,10 +1,19 @@
 # CV Review Metrics Documentation
 
-This document explains how each metric and score is calculated in the ExcelCV: GenAI-Powered Vibecoded CV Reviewer application.
+Last verified against the repository on **2026-05-18**.
+
+This document explains how each metric and score is calculated in the ExcelCV application.
 
 ## Overview
 
-The CV review system analyzes resumes against job descriptions using Google Gemini AI and programmatic calculations. Metrics are organized into four main categories: Content, Sections, ATS Essentials, and Tailoring.
+The CV review system analyzes resumes against job descriptions using Google Gemini AI and programmatic calculations.
+
+- **Metric computations** live in [`src/services/scoring.py`](../src/services/scoring.py) as `calculate_*` functions (`calculate_ats_parse_rate`, `calculate_quantifying_impact`, `calculate_repetition`, `calculate_spelling_grammar`, `calculate_bullets_consistency`, `calculate_sections`, `calculate_sections_order`, `calculate_contact_info`, `calculate_ats_essentials`, `calculate_tailoring`, `calculate_file_name_quality`). Status badges are derived via `get_metric_status(score, ok_min, warn_min)` in the same module.
+- **Final weighted score** is assembled by `calculate_final_score_breakdown` ([`src/services/scoring.py`](../src/services/scoring.py)) and merged with Gemini output by [`src/gemini_client.py`](../src/gemini_client.py)'s `analyze_cv_with_gemini`.
+- **Report UI groups** are four: **Content**, **Sections**, **ATS Essentials**, **Insights**. Tailoring is no longer a UI group — it now contributes as the **JD Alignment** component (weight 0.25) inside the final weighted score; see [`docs/report_page.md`](report_page.md) for the report-page layout.
+- **`issue_count()`** for the score card lives in [`src/ui/common.py`](../src/ui/common.py).
+
+> **Note on legacy names.** Earlier revisions of this doc referenced `_calculate_*` helpers inside `src/gemini_client.py` and an `src/ui_components.py` module. Those have been moved: scoring helpers live in `src/services/scoring.py` (no leading underscore, public API), and `ui_components.py` now lives at `src/ui/ui_components.py`. The calculation formulas below are still accurate.
 
 ---
 
@@ -121,7 +130,7 @@ The AI checks for:
 **Description**: Evaluates the presence and completeness of standard resume sections.
 
 **Calculation Method** (programmatic in backend; optional AI blend):
-- **Backend:** `_calculate_sections(cv_text)` in `gemini_client.py` checks CV text for section-related keywords:
+- **Backend:** `calculate_sections(cv_text)` in `src/services/scoring.py` checks CV text for section-related keywords:
   - **Contact**: contact, email, phone, mobile, address, @, linkedin
   - **Experience**: experience, work history, employment, professional experience, career
   - **Education**: education, academic, degree, university, college, bachelor, master, phd
@@ -139,7 +148,7 @@ The AI checks for:
 **Description**: Evaluates ATS-friendly formatting and structural requirements.
 
 **Calculation Method** (programmatic in backend; optional AI blend):
-- **Backend:** `_calculate_ats_essentials(cv_text)` in `gemini_client.py`:
+- **Backend:** `calculate_ats_essentials(cv_text, file_name="", file_size_bytes=0)` in `src/services/scoring.py`:
   - **Section headers present**: CV text checked for standard section keywords (experience, education, skills, summary, objective, contact, work, employment).
   - **Text-based**: Assumed true when we have extracted text.
   - **Score:** Base 60 + 25 if section headers found + 10 for text-based + up to 5 for word count ≥ 200; capped at 100.
@@ -155,7 +164,7 @@ The AI checks for:
 **Description**: Measures how well the resume is tailored to the specific job description.
 
 **Calculation Method** (programmatic in backend; optional AI blend):
-- **Backend:** `_calculate_tailoring(cv_text, job_desc)` in `gemini_client.py`:
+- **Backend:** `calculate_tailoring(cv_text, job_desc)` in `src/services/scoring.py`:
   - Extracts significant words (3+ letters, alphabetic) from job description and CV; removes common stop words.
   - **Keyword match rate**: (JD keywords found in CV) / (total JD keywords) × 100.
   - **Skill match / alignment**: Same overlap used for a single alignment score 0–100.
@@ -224,9 +233,11 @@ This section maps each value on the report page to its source and code location,
 
 | File | Responsibility |
 |------|----------------|
-| `src/gemini_client.py` | API call, prompt, parsing, score normalization, ATS Parse Rate programmatic logic, status rules |
-| `src/ui_components.py` | `issue_count()`, Content score formula, sidebar rendering |
-| `app.py` | Calls `analyze_cv_with_gemini()`; stores analysis in session state; passes it to `render_report_page()` |
+| `src/gemini_client.py` | API call, prompt, parsing, score normalization; merges programmatic scores with AI output via `analyze_cv_with_gemini` |
+| `src/services/scoring.py` | All `calculate_*` programmatic metrics, `get_metric_status`, `calculate_final_score_breakdown`, `blend_scores` |
+| `src/ui/common.py` | `issue_count()`, `get_score_color_class()`, shared UI helpers |
+| `src/ui/report.py` | Sidebar + detail-card rendering for the report page (Content average computed here) |
+| `app.py` | Routes to `render_report_view()`; stores analysis in session state |
 
 ### "Your Score" (e.g. 72/100)
 
@@ -237,7 +248,7 @@ This section maps each value on the report page to its source and code location,
 ### "X issues" (e.g. 16 issues)
 
 - **Source:** Application logic only (not from the AI).
-- **Formula** (in `ui_components.py`, function `issue_count()`):
+- **Formula** (in `src/ui/common.py`, function `issue_count()`):
 
   ```
   issues = 0
@@ -250,18 +261,19 @@ This section maps each value on the report page to its source and code location,
 
 ### Content category score (e.g. 86%)
 
-- **Source:** AI provides the four sub-metrics; the app computes the category score.
-- **Formula** (in `ui_components.py`): **Content score = average** of: `ats_parse_rate`, `quantifying_impact.score`, `repetition.score`, `spelling_grammar.score` (integer average). Displayed next to the "Content" heading.
+- **Source:** Programmatic sub-metrics (+ optional AI blend); app computes the category score.
+- **Formula** (in `src/ui/report.py` `render_report_page`): **Content score = unweighted average** of `ats_parse_rate`, `quantifying_impact.score`, `repetition.score`, `spelling_grammar.score`, plus `bullets_consistency.score` when present (so it's a 4- or 5-way average). Mirrors the "Content Quality" component in `calculate_final_score_breakdown`. Displayed next to the "Content" heading.
 
 ### Content sub-items (ATS Parse Rate, Quantifying Impact, Repetition, Spelling & Grammar)
 
-- **Quantifying Impact, Repetition, Spelling & Grammar** are now **computed programmatically** in `gemini_client.py` so scores and status are always based on real logic:
-  - **Quantifying Impact:** `_calculate_quantifying_impact(cv_text)` – counts lines/bullets that contain numbers, %, $, or measurable language; score 40–100 from proportion quantified. Details describe how many bullets are quantified.
-  - **Repetition:** `_calculate_repetition(cv_text)` – word frequency and unique-ratio; higher score = less repetition. Penalizes heavily repeated words. Details suggest words to vary.
-  - **Spelling & Grammar:** `_calculate_spelling_grammar(cv_text)` – heuristic formatting check (double spaces, spacing after punctuation, excessive all-caps). No external spell-check library; score 0–100 with details for issues found.
+- **Quantifying Impact, Repetition, Spelling & Grammar, Bullets Consistency** are **computed programmatically** in `src/services/scoring.py` so scores and status are always based on real logic:
+  - **Quantifying Impact:** `calculate_quantifying_impact(cv_text)` – counts experience bullets that contain numbers, %, $, or measurable language; score 40–100 from proportion quantified. Details describe how many bullets are quantified.
+  - **Repetition:** `calculate_repetition(cv_text)` – word frequency and unique-ratio; higher score = less repetition. Penalizes heavily repeated words. Details suggest words to vary.
+  - **Spelling & Grammar:** `calculate_spelling_grammar(cv_text)` – heuristic formatting check (double spaces, spacing after punctuation, excessive all-caps). No external spell-check library; score 0–100 with details for issues found.
+  - **Bullets Consistency:** `calculate_bullets_consistency(cv_text)` – flags experience bullets outside the 15–45-word band (too short / too long). `status="ok"` + neutral message when too few bullets are detected.
 - If the AI also returns scores for these metrics, the backend **averages** programmatic and AI scores and uses AI details when present; otherwise programmatic details are used.
 - **ATS Parse Rate** remains programmatic + optional AI blend (see above).
-- **Status (No issues / Review / Error):** Derived in `gemini_client.py` via `_get_metric_status(score, ok_min, warn_min)` using **metric-specific thresholds** (backend and frontend match):
+- **Status (No issues / Review / Error):** Derived via `get_metric_status(score, ok_min, warn_min)` in `src/services/scoring.py` using **metric-specific thresholds** (backend and frontend match):
 
   | Metric | ok (No issues) | warn (Review) | error (Review) |
   |--------|----------------|---------------|----------------|
@@ -284,17 +296,22 @@ This section maps each value on the report page to its source and code location,
 
 | Metric / label | Source | Where computed / read |
 |----------------|--------|------------------------|
-| Your Score (match_score) | AI | gemini_client (parse); ui_components (display) |
-| X issues | App | ui_components.issue_count() |
-| Content % | AI + App | ui_components (average of 4 content scores) |
-| ATS Parse Rate score | AI + App | gemini_client (_calculate_ats_parse_rate + AI) |
-| ATS Parse Rate status | App (from score) | gemini_client _get_metric_status; UI label |
-| Quantifying Impact | Backend (programmatic + optional AI) | gemini_client _calculate_quantifying_impact; status from _get_metric_status(70, 50) |
-| Repetition | Backend (programmatic + optional AI) | gemini_client _calculate_repetition; status from _get_metric_status(80, 60) |
-| Spelling & Grammar | Backend (programmatic + optional AI) | gemini_client _calculate_spelling_grammar; status from _get_metric_status(90, 70) |
-| Sections % | Backend (programmatic + optional AI) | gemini_client _calculate_sections; ui_components (display) |
-| ATS Essentials % | Backend (programmatic + optional AI) | gemini_client _calculate_ats_essentials; ui_components (display) |
-| Tailoring % | Backend (programmatic + optional AI) | gemini_client _calculate_tailoring(cv_text, job_desc); ui_components (display) |
+| Your Score (match_score) | AI | gemini_client (parse); ui/report (display, horizontal score bar) |
+| X issues | App | ui/common.issue_count() |
+| Content % | App (programmatic + optional AI blend) | ui/report `render_report_page` (4- or 5-way average) |
+| ATS Parse Rate score | App + AI blend | services/scoring.calculate_ats_parse_rate; blended via blend_scores |
+| ATS Parse Rate status | App (from score) | services/scoring.get_metric_status(80, 60); UI label |
+| Quantifying Impact | App (programmatic + optional AI) | services/scoring.calculate_quantifying_impact; status from get_metric_status(70, 50) |
+| Repetition | App (programmatic + optional AI) | services/scoring.calculate_repetition; status from get_metric_status(80, 60) |
+| Spelling & Grammar | App (programmatic + optional AI) | services/scoring.calculate_spelling_grammar; status from get_metric_status(90, 70) |
+| Bullets Consistency | App (programmatic) | services/scoring.calculate_bullets_consistency |
+| Sections % | App (programmatic + optional AI) | services/scoring.calculate_sections; ui/report (display) |
+| Sections Order | App (programmatic) | services/scoring.calculate_sections_order |
+| ATS Essentials % | App (programmatic + optional AI) | services/scoring.calculate_ats_essentials; ui/report (display) |
+| Contact Completeness | App (programmatic) | services/scoring.calculate_contact_info |
+| File Name Quality | App (programmatic) | services/scoring.calculate_file_name_quality |
+| Tailoring / JD Alignment % | App (programmatic + optional AI) | services/scoring.calculate_tailoring(cv_text, job_desc); used as `jd_alignment` component in calculate_final_score_breakdown |
+| Final weighted score | App | services/scoring.calculate_final_score_breakdown (weights: jd_aligned vs no_jd mode) |
 
 ---
 

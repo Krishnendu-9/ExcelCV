@@ -34,6 +34,8 @@ APP_PAGES: Dict[str, str] = {
     "project-notes": "Project Notes",
     "how-it-works": "How It Works",
     "interview-prep": "Interview Prep",
+    "resume-tips": "Resume Tips",
+    "cover-letter-guide": "Cover Letter Guide",
     "privacy-policy": "Privacy Policy",
     "terms-of-service": "Terms of Service",
     "contact": "Contact",
@@ -169,6 +171,27 @@ def _report_snapshot_store() -> Dict[str, Dict[str, Any]]:
     return {}
 
 
+def _snapshot_scope() -> tuple[str | None, str]:
+    """Return (user_id, guest_session_id) used to scope report snapshots."""
+    user_id: str | None = None
+    try:
+        from src.auth_utils import get_session_user
+
+        user = get_session_user()
+        if isinstance(user, dict):
+            raw_uid = user.get("id")
+            if raw_uid:
+                user_id = str(raw_uid)
+    except Exception:
+        user_id = None
+
+    guest_session_id = str(st.session_state.get("guest_session_id", "") or "").strip()
+    if not guest_session_id:
+        guest_session_id = uuid4().hex
+        st.session_state["guest_session_id"] = guest_session_id
+    return user_id, guest_session_id
+
+
 def _build_report_snapshot() -> Dict[str, Any]:
     """Capture the minimum session fields required to restore a report page."""
     return {
@@ -185,7 +208,11 @@ def _save_report_snapshot(snapshot_id: Optional[str] = None) -> str:
     """Save current report state and return a shareable snapshot id."""
     store = _report_snapshot_store()
     sid = snapshot_id or uuid4().hex
-    store[sid] = _build_report_snapshot()
+    owner_user_id, guest_session_id = _snapshot_scope()
+    payload = _build_report_snapshot()
+    payload["_owner_user_id"] = owner_user_id
+    payload["_guest_session_id"] = guest_session_id
+    store[sid] = payload
 
     # Keep memory bounded.
     while len(store) > 200:
@@ -211,6 +238,7 @@ def _save_report_snapshot_from_data(
     """
     store = _report_snapshot_store()
     sid = uuid4().hex
+    owner_user_id, guest_session_id = _snapshot_scope()
     store[sid] = {
         "analysis": analysis,
         "cv_text": cv_text,
@@ -218,6 +246,8 @@ def _save_report_snapshot_from_data(
         "cv_name": cv_name or "CV",
         "cv_file_size": int(cv_file_size or 0),
         "issues": issue_count(analysis) if isinstance(analysis, dict) else 0,
+        "_owner_user_id": owner_user_id,
+        "_guest_session_id": guest_session_id,
     }
     while len(store) > 200:
         oldest_key = next(iter(store))
@@ -230,6 +260,16 @@ def _restore_report_snapshot(snapshot_id: str) -> bool:
     store = _report_snapshot_store()
     snapshot = store.get(snapshot_id)
     if not snapshot or not snapshot.get("analysis"):
+        return False
+    owner_user_id, guest_session_id = _snapshot_scope()
+    snapshot_owner = snapshot.get("_owner_user_id")
+    snapshot_guest = str(snapshot.get("_guest_session_id", "") or "")
+    # Never restore another authenticated user's snapshot. For guests,
+    # scope to the originating guest session only.
+    if snapshot_owner:
+        if owner_user_id != str(snapshot_owner):
+            return False
+    elif snapshot_guest and snapshot_guest != guest_session_id:
         return False
 
     st.session_state["analysis"] = snapshot.get("analysis")

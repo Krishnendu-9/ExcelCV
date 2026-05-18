@@ -5,6 +5,7 @@ actions) so saved comparisons feel native alongside saved analyses.
 """
 
 from datetime import datetime
+import html
 
 import streamlit as st
 
@@ -135,6 +136,8 @@ def render_my_comparisons_page() -> None:
             if len(comparison.job_description or "") > 140:
                 jd_preview += "..."
             top_name = comparison.top_resume_name or "(unnamed)"
+            safe_top_name = html.escape(str(top_name))
+            safe_jd_preview = html.escape(jd_preview)
             resume_count = int(comparison.resume_count or 0)
             resume_word = "resume" if resume_count == 1 else "resumes"
 
@@ -142,7 +145,7 @@ def render_my_comparisons_page() -> None:
                 f"""
                 <div class="comparison-card">
                     <p class="comparison-top-name">
-                        Top match: {top_name}
+                        Top match: {safe_top_name}
                         &nbsp;
                         <span class="comparison-score-badge" style="background:{badge_bg};color:{color}">
                             {top_score:.0f}/100
@@ -150,7 +153,7 @@ def render_my_comparisons_page() -> None:
                         <span class="comparison-count-chip">{resume_count} {resume_word}</span>
                     </p>
                     <p class="comparison-meta">{_format_dt(comparison.created_at)}</p>
-                    <p class="comparison-jd-preview">Job: {jd_preview}</p>
+                    <p class="comparison-jd-preview">Job: {safe_jd_preview}</p>
                 </div>
                 """,
                 unsafe_allow_html=True,

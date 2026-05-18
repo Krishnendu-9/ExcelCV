@@ -202,5 +202,5 @@ docs/
 
 ## 8) What's Not Set Up Yet
 
-- **No automated tests** — there's no `tests/` directory in this branch. The earlier SETUP guide referenced `py -3 -m unittest discover -s tests` and a Streamlit smoke test; both were aspirational, not real. If you add tests later, the convention would be `tests/` at the repo root with `test_*.py` files.
+- **Thin test coverage** — `tests/` exists with only `test_oauth_utils.py` and `test_scoring_sections_order.py`. Run with `py -3 -m unittest discover -s tests -p "test_*.py" -q`. Most UI, builder, comparison, and cover-letter logic is exercised only manually — adding Playwright / E2E coverage is on the backlog.
 - **No production deployment config** — the app runs locally on port 8501. For deployment you'd need to set `SESSION_SECRET` to a strong random value, harden the SMTP / OAuth secrets handling, and put SQLite behind a proper backup story (or migrate to Postgres via SQLAlchemy's connection string).

@@ -12,6 +12,8 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 from src.auth_utils import (
+    assert_session_secret_configured,
+    build_session_cookie_header,
     get_session_user,
     get_or_create_google_user,
     login_user,
@@ -95,13 +97,30 @@ def _set_query_params_atomic(params: dict[str, str]) -> None:
 
 def _render_auth_gate(intended_page: str) -> None:
     """Render auth page immediately for protected routes when user is logged out."""
-    st.session_state["auth_redirect"] = intended_page
+    target = str(intended_page or "home")
+    if target not in APP_PAGES or target == "auth":
+        target = "home"
+    st.session_state["auth_redirect"] = target
     st.session_state["page"] = "auth"
+    _set_query_params_atomic({"page": "auth", "next": target})
     _theme = st.session_state.get("theme", "light")
     inject_base_css(_theme)
     render_auth_page(theme=_theme)
     _inject_theme_persistence(_theme)
     st.stop()
+
+
+def _resolve_post_auth_target(default: str = "home") -> str:
+    """Return safe post-auth destination from session/query context."""
+    for raw in (
+        st.session_state.get("auth_redirect"),
+        st.query_params.get("next"),
+        st.query_params.get("page"),
+    ):
+        page = str(raw or "").strip()
+        if page and page in APP_PAGES and page != "auth":
+            return page
+    return default
 
 
 def _inject_theme_persistence(theme: str) -> None:
@@ -469,8 +488,19 @@ def _handle_oauth_callback() -> None:
     per OIDC) would linger until the user clicks something.
     """
     code = st.query_params.get("code")
+    returned_state = str(st.query_params.get("state") or "").strip()
     if not code or st.session_state.get("user"):
         return
+    from src.oauth_utils import parse_oauth_state_token
+    state_payload = parse_oauth_state_token(returned_state)
+    if not state_payload:
+        st.session_state["oauth_error"] = "Google sign-in failed (invalid state). Please try again."
+        st.session_state["page"] = "auth"
+        _set_query_params_atomic({"page": "auth"})
+        return
+    next_from_state = str(state_payload.get("next") or "").strip()
+    if next_from_state in APP_PAGES and next_from_state != "auth":
+        st.session_state["auth_redirect"] = next_from_state
 
     from src.oauth_utils import exchange_code_for_userinfo
     user_info = exchange_code_for_userinfo(code)
@@ -489,9 +519,8 @@ def _handle_oauth_callback() -> None:
 
     login_user(user)
     set_session_cookie(user)
-    target_page = st.session_state.pop("auth_redirect", "home")
-    if target_page not in APP_PAGES:
-        target_page = "home"
+    target_page = _resolve_post_auth_target("home")
+    st.session_state.pop("auth_redirect", None)
     st.session_state["page"] = target_page
     # Atomically replace EVERY query param so OAuth callback noise (iss,
     # code, state, scope, authuser, prompt, anything Google adds later)
@@ -529,6 +558,7 @@ def main() -> None:
         initial_sidebar_state="collapsed",
     )
     _inject_chunk_load_recovery()
+    assert_session_secret_configured()
     _init_database()
 
     if st.query_params.get('_logout'):
@@ -538,8 +568,9 @@ def main() -> None:
         if '_logout' in st.query_params:
             del st.query_params['_logout']
         _set_query_params_atomic({"page": "home"})
+        expired = build_session_cookie_header("", 0) + "; expires=Thu, 01 Jan 1970 00:00:00 GMT"
         components.html(
-            f'<script>\n(function() {{\n  var expire = "{_COOKIE_NAME}=; Max-Age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; SameSite=Lax";\n  try {{ document.cookie = expire; }} catch(e) {{}}\n  try {{\n    var w = window.parent && window.parent !== window ? window.parent : window;\n    w.document.cookie = expire;\n  }} catch(e) {{}}\n}})();\n</script>',
+            f'<script>\n(function() {{\n  var expire = {json.dumps(expired)};\n  try {{ document.cookie = expire; }} catch(e) {{}}\n  try {{\n    var w = window.parent && window.parent !== window ? window.parent : window;\n    w.document.cookie = expire;\n  }} catch(e) {{}}\n}})();\n</script>',
             height=0,
         )
 
@@ -582,11 +613,8 @@ def main() -> None:
 
     if st.session_state.get('page') == 'auth' or st.query_params.get('page') == 'auth':
         if get_session_user():
-            target_page = st.query_params.get("page")
-            if target_page == "auth" or target_page not in APP_PAGES:
-                target_page = st.session_state.pop("auth_redirect", "home")
-            if target_page == "auth" or target_page not in APP_PAGES:
-                target_page = "home"
+            target_page = _resolve_post_auth_target("home")
+            st.session_state.pop("auth_redirect", None)
             st.session_state["page"] = str(target_page)
             desired_params = {"page": str(target_page)}
             if target_page == "report":

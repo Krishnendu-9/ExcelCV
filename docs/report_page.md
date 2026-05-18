@@ -13,7 +13,8 @@ File: **`src/ui/report.py`** (≈1660 lines).
 
 After you upload a resume + job description and the analysis runs, you land on the **report
 page**. On the left there is a sticky **score card** — your resume's file name, an animated
-score ring (0–100, coloured green / amber / red), the issue count, a collapsible
+**horizontal score bar** (0–100, coloured green / amber / red) with the score number above the
+bar and the issue count below it, a collapsible
 "How this score is calculated" breakdown, and an accordion of four categories
 (**Content**, **Sections**, **ATS Essentials**, **Insights**) with per-check status badges.
 On the right are four matching **group cards**, each holding collapsible **detail cards** for
@@ -136,9 +137,9 @@ Structure:
   - `<div class="score-card">`:
     - `<div class="score-file">` — the resume file name (`cv_name`), HTML-escaped, ellipsis-truncated; omitted if empty.
     - `<div class="score-title">Your Score</div>`.
-    - `<div class="report-score-ring-wrap" style="--rsr-c:<colour>;">` — `--rsr-c` is the score colour: **green `#10b981`** if score ≥ 80, **amber `#f59e0b`** if ≥ 60, **red `#ef4444`** otherwise.
-      - `<div class="report-score-ring" style="--hv-p:<score>%;">` — a `conic-gradient(from -90deg, var(--rsr-c) var(--hv-p), var(--bg-secondary) 0)` donut, ring shape via a `radial-gradient` mask, animated 0→`score`% via `@keyframes hv-sweep` (the same engine as the homepage hero panel's ring; respects `prefers-reduced-motion`).
-      - `<div class="report-score-ring-label">` — `.rsr-num` (the score) · `.rsr-den` ("/ 100") · `.issues-text.rsr-issues` ("N issues" — has class `clickable` + `data-section-id="suggestions"` when `issues > 0`, so clicking it scrolls to the Suggestions card).
+    - `<div class="report-score-ring-wrap" style="--rsr-c:<colour>;">` — `--rsr-c` is the score colour: **green `#10b981`** if score ≥ 80, **amber `#f59e0b`** if ≥ 60, **red `#ef4444`** otherwise. The wrap is a `flex-direction: column` container (`max-width: 300px`, auto height) — no fixed square box.
+      - `<div class="report-score-ring" style="--hv-p:<score>%;">` — a 12px-tall **horizontal progress bar** (`border-radius: 999px`). The fill is driven by a single linear gradient with a hard stop at `--hv-p`: `linear-gradient(90deg, var(--rsr-c) 0%, var(--rsr-c) var(--hv-p), var(--bg-secondary) var(--hv-p))`. Animated 0→`score`% via `@keyframes hv-sweep` + `@property --hv-p` (registered as `<percentage>` so the custom-property interpolation is smooth) — same engine as the homepage hero panel's bar; respects `prefers-reduced-motion`. CSS `order: 2` so it sits visually below the label.
+      - `<div class="report-score-ring-label">` — `flex-direction: row` with `flex-wrap: wrap`. `.rsr-num` (the score) and `.rsr-den` ("/ 100") sit on one row above the bar; `.issues-text.rsr-issues` ("N issues") has `flex-basis: 100%` so it wraps onto its own line below them. The issues span has class `clickable` + `data-section-id="suggestions"` when `issues > 0`, so clicking it scrolls to the Suggestions card.
   - the **"How this score is calculated"** card — `_build_score_breakdown_html(score_breakdown)`: a `<div class="detail-card section-anchor score-breakdown-card collapsed" id="score-breakdown">` with a `<h3>` (+ a `▼` chevron in the markup) and a `{final_score}%` badge; body is a one-line explanation (mode: `jd_aligned` / `no_jd`, content average %) plus a "Weighted score breakdown" box with one `.contact-row` per component (`{label} — {score}% × {weight} = {weighted_points}`). **Collapsed by default** (the `collapsed` class is in the markup, not just applied by JS).
   - one `<div class="category">` per category. Each has:
     - `<div class="category-head" id="cat-head-<id>">` — `<span class="category-title">` (title + a `▼` `.category-chevron` when there are sub-items) and `<span class="category-score <class>">{pct}%</span>` where `<class>` = `get_score_color_class(pct)` → `score-good` / `score-medium` / `score-low`.
@@ -242,9 +243,14 @@ The records live only in session state (not persisted).
 - Layout: `.report-sidebar` (sticky), `.score-card`, `.score-card .score-file`,
   `.report-main`, `.report-group-wrap`, `.report-group`, `.report-group-head`,
   `.report-group-pill`, `.report-group-body`.
-- Score ring: `.report-score-ring-wrap`, `.report-score-ring`, `.report-score-ring-label`,
-  `.rsr-num`, `.rsr-den`, `.rsr-issues`; `@property --hv-p`, `@keyframes hv-sweep` (shared with
-  the homepage hero panel); `--rsr-c` set inline per render.
+- Score bar: `.report-score-ring-wrap` (flex column, auto height, `max-width: 300px`),
+  `.report-score-ring` (horizontal 12px bar with linear-gradient fill driven by `--hv-p`),
+  `.report-score-ring-label` (flex row, wraps issues span to its own line via `flex-basis: 100%`),
+  `.rsr-num`, `.rsr-den`, `.rsr-issues`; `@property --hv-p` (declared at the top of the hero-panel
+  CSS block — `syntax: '<percentage>'; inherits: false; initial-value: 92%;`) +
+  `@keyframes hv-sweep` (shared with the homepage hero panel — animates `--hv-p` from 0%);
+  `--rsr-c` set inline per render. The class names (`*-score-ring*`) are historical from the
+  original donut design — the markup is now a horizontal bar.
 - Sidebar accordion: `.category`, `.category-head` (`.expanded`), `.category-title`,
   `.category-chevron`, `.category-items` (`.collapsed`/`.expanded`), `.subitem` (`.clickable`),
   `.subitem-icon` (`.icon-ok`/`.icon-warn`), `.subitem-label-wrap`.
@@ -291,7 +297,7 @@ The records live only in session state (not persisted).
 
 | To change… | Edit |
 |---|---|
-| The score card / ring / file-name line / "N issues" link | `_build_sidebar_html` in `src/ui/report.py`; ring + `.score-file` CSS in `src/assets/ui/base_theme.css.tpl` |
+| The score card / score bar / file-name line / "N issues" link | `_build_sidebar_html` in `src/ui/report.py`; bar + `.score-file` CSS in `src/assets/ui/base_theme.css.tpl` (`.report-score-ring*` selectors — class names are historical, markup is now a horizontal bar) |
 | The category accordion (which checks appear, badge text) | `render_report_page` (`*_items_list` building) + `_build_sidebar_html` (the `is_content_metric` set / badge logic) |
 | The "How this score is calculated" card | `_build_score_breakdown_html`; the underlying numbers come from `calculate_final_score_breakdown` in `src/services/scoring.py` |
 | A specific detail card's content | the matching `_build_<x>_html` in `src/ui/report.py` |

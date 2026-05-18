@@ -1,11 +1,24 @@
 # Resume Builder: Current Behavior Reference
 
-This document tracks the current behavior of the Resume Builder page implemented in `src/ui/cv_builder_page.py`.
+Last verified against the repository on **2026-05-18**.
+
+This document tracks the current behavior of the Resume Builder page implemented in `src/ui/cv_builder_page.py` (and the recent split-out modules in the same package — see *Related Modules* below).
 
 ## Scope
 - Route: `?page=resume-builder`
 - Main module: `src/ui/cv_builder_page.py`
 - Entry point: `render_cv_builder_page()`
+
+### Related modules
+The original monolith was split into focused modules (all in `src/ui/`):
+
+| Module | Responsibility |
+|---|---|
+| `cv_builder_page.py` | Page composition, rendering, state lifecycle |
+| `cv_builder_constants.py` | `TEMPLATE_CONFIGS` (`classic`, `creative`, `modern`), `TEMPLATE_CHOICES`, zoom levels, section order |
+| `cv_builder_pdf.py` | PDF export pipeline |
+| `cv_builder_preview_data.py` | Preview-data assembly |
+| `cv_builder_value_utils.py` | Value normalization helpers |
 
 ## Runtime Sequence
 1. Initialize state via `_init_builder()`.

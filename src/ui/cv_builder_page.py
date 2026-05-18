@@ -2761,8 +2761,8 @@ def _inject_builder_css_native(is_dark: bool) -> None:
     rail_heading_color = "#94a3b8" if is_dark else "#65758b"
     rail_body_text = "#cbd5e1" if is_dark else "#334155"
     rail_divider = "#334155" if is_dark else "#dbe3ef"
-    scroll_thumb = "#475569" if is_dark else "#c1c7cd"
-    scroll_thumb_hover = "#64748b" if is_dark else "#aeb6bf"
+    scroll_thumb = "#475569" if is_dark else "#8d97a5"
+    scroll_thumb_hover = "#64748b" if is_dark else "#748193"
     left_slider_border = "#0f172a" if is_dark else "#ffffff"
     preview_tools_bg = "#0f172a" if is_dark else "#f6f7f9"
     style_label = "#94a3b8" if is_dark else "#475569"
@@ -2832,8 +2832,10 @@ section[data-testid="stMain"]:has(.st-key-cvb-page-native) {{
   margin-right: 0 !important;
 }}
 .st-key-cvb-page-native {{
-  height: calc(100vh - 92px) !important;
-  height: calc(100dvh - 92px) !important;
+  height: calc(100vh - var(--excelcv-fixed-header-space, 78px)) !important;
+  height: calc(100dvh - var(--excelcv-fixed-header-space, 78px)) !important;
+  max-height: calc(100vh - var(--excelcv-fixed-header-space, 78px)) !important;
+  max-height: calc(100dvh - var(--excelcv-fixed-header-space, 78px)) !important;
   min-height: 0 !important;
   display: flex !important;
   flex-direction: column !important;
@@ -2844,6 +2846,8 @@ section[data-testid="stMain"]:has(.st-key-cvb-page-native) {{
   background: {page_bg} !important;
   margin: 0 !important;
   padding: 0 !important;
+  --cvb-workspace-h: calc(100vh - var(--excelcv-fixed-header-space, 78px) - 56px);
+  --cvb-workspace-h: calc(100dvh - var(--excelcv-fixed-header-space, 78px) - 56px);
 }}
 .st-key-cvb-page-native > [data-testid="stLayoutWrapper"] {{
   margin: 0 !important;
@@ -2860,6 +2864,10 @@ section[data-testid="stMain"]:has(.st-key-cvb-page-native) {{
   padding: 0 !important;
   gap: 0 !important;
   row-gap: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  min-height: 0 !important;
+  height: 100% !important;
 }}
 .st-key-cvb-page-native > [data-testid="stVerticalBlock"] > [data-testid="stElementContainer"],
 .st-key-cvb-page-native > [data-testid="stVerticalBlock"] > div,
@@ -2880,6 +2888,10 @@ section[data-testid="stMain"]:has(.st-key-cvb-page-native) {{
 .st-key-cvb-page-native [data-testid="stElementContainer"]:has(.st-key-cvb-main-native) {{
   margin: 0 !important;
   padding: 0 !important;
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
 }}
 [data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"] {{
   gap: 0 !important;
@@ -3178,11 +3190,9 @@ section[data-testid="stMain"]:has(.st-key-cvb-page-native) .block-container {{
   line-height: 1 !important;
 }}
 .st-key-cvb-main-native {{
-  --cvb-native-panel-h: calc(100vh - 145px);
-  --cvb-native-panel-h: calc(100dvh - 145px);
-  height: var(--cvb-native-panel-h) !important;
-  max-height: var(--cvb-native-panel-h) !important;
-  flex: 1 !important;
+  height: var(--cvb-workspace-h) !important;
+  max-height: var(--cvb-workspace-h) !important;
+  flex: 1 1 auto !important;
   min-height: 0 !important;
   overflow: hidden !important;
   padding: 0 !important;
@@ -3206,8 +3216,8 @@ section[data-testid="stMain"]:has(.st-key-cvb-page-native) .block-container {{
 .st-key-cvb-main-native > [data-testid="stHorizontalBlock"],
 .st-key-cvb-main-native > div > [data-testid="stHorizontalBlock"],
 .st-key-cvb-main-native [data-testid="stElementContainer"]:has(> [data-testid="stHorizontalBlock"]) > [data-testid="stHorizontalBlock"] {{
-  height: var(--cvb-native-panel-h) !important;
-  max-height: var(--cvb-native-panel-h) !important;
+  height: var(--cvb-workspace-h) !important;
+  max-height: var(--cvb-workspace-h) !important;
   min-height: 0 !important;
   align-items: stretch !important;
   gap: 0 !important;
@@ -3270,10 +3280,10 @@ section[data-testid="stMain"]:has(.st-key-cvb-page-native) .block-container {{
   border-radius:0;
   padding:0 0 8px 8px !important;
   margin:0 !important;
-  height: var(--cvb-native-panel-h) !important;
-  max-height: var(--cvb-native-panel-h) !important;
+  height: var(--cvb-workspace-h) !important;
+  max-height: var(--cvb-workspace-h) !important;
   min-height: 0 !important;
-  overflow-y: scroll !important;
+  overflow-y: auto !important;
   overflow-x: hidden !important;
   scrollbar-gutter: auto !important;
   scrollbar-width: thin !important;
@@ -3288,10 +3298,10 @@ section[data-testid="stMain"]:has(.st-key-cvb-page-native) .block-container {{
   border-radius:0;
   padding:0 0 8px 0 !important;
   margin:0 !important;
-  height: var(--cvb-native-panel-h) !important;
-  max-height: var(--cvb-native-panel-h) !important;
+  height: var(--cvb-workspace-h) !important;
+  max-height: var(--cvb-workspace-h) !important;
   min-height: 0 !important;
-  overflow-y: scroll !important;
+  overflow-y: auto !important;
   overflow-x: hidden !important;
   position: relative !important;
   scrollbar-gutter: unset !important;
@@ -3308,10 +3318,10 @@ section[data-testid="stMain"]:has(.st-key-cvb-page-native) .block-container {{
   border-radius:0;
   padding:0 0 16px 16px !important;
   margin:0 !important;
-  height: var(--cvb-native-panel-h) !important;
-  max-height: var(--cvb-native-panel-h) !important;
+  height: var(--cvb-workspace-h) !important;
+  max-height: var(--cvb-workspace-h) !important;
   min-height: 0 !important;
-  overflow-y: scroll !important;
+  overflow-y: auto !important;
   overflow-x: hidden !important;
   scrollbar-gutter: auto !important;
   scrollbar-width: thin !important;
@@ -3354,7 +3364,10 @@ section[data-testid="stMain"]:has(.st-key-cvb-page-native) .block-container {{
 .st-key-cvb-middle-scroll-native > [data-testid="stVerticalBlock"],
 .st-key-cvb-right-scroll-native > [data-testid="stVerticalBlock"] {{
   min-height: 0 !important;
-  overflow: visible !important;
+  height: 100% !important;
+  max-height: 100% !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
   margin: 0 !important;
   padding: 0 !important;
   gap: 0 !important;
@@ -3968,6 +3981,28 @@ section[data-testid="stMain"]:has(.st-key-cvb-page-native) .block-container {{
 .st-key-cvb-page-native [data-testid="stElementContainer"]:has(.st-key-cvb-main-native) {{
   margin: 0 !important;
   padding: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+}}
+.st-key-cvb-page-native [data-testid="stElementContainer"]:has(.st-key-cvb-toolbar-native) {{
+  flex: 0 0 auto !important;
+  min-height: auto !important;
+}}
+.st-key-cvb-page-native [data-testid="stElementContainer"]:has(.st-key-cvb-main-native) {{
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+}}
+.st-key-cvb-page-native .st-key-cvb-left-scroll-native,
+.st-key-cvb-page-native .st-key-cvb-middle-scroll-native,
+.st-key-cvb-page-native .st-key-cvb-right-scroll-native {{
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  min-height: 0 !important;
+}}
+.st-key-cvb-page-native .st-key-cvb-left-scroll-native [data-testid="stVerticalBlock"],
+.st-key-cvb-page-native .st-key-cvb-middle-scroll-native [data-testid="stVerticalBlock"],
+.st-key-cvb-page-native .st-key-cvb-right-scroll-native [data-testid="stVerticalBlock"] {{
+  min-height: 0 !important;
 }}
 .st-key-cvb-left-scroll-native .cvb-rail-heading,
 .cvb-rail-heading {{
@@ -6269,3 +6304,5 @@ document.querySelectorAll('.tpl-card').forEach(function(card){{
     card_count = max(1, len(TEMPLATE_CHOICES))
     comp_h = 10 + (card_count * 58) + ((card_count - 1) * 8)
     components.html(html, height=comp_h, scrolling=False)
+
+

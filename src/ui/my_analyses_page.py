@@ -34,7 +34,6 @@ from src.ui.list_pages import (
     sparkline_svg,
 )
 
-
 _SORT_OPTIONS: dict[str, tuple[str, bool]] = {
     "Newest first": ("created_at", True),
     "Oldest first": ("created_at", False),

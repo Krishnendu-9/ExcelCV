@@ -2562,9 +2562,10 @@ def inject_compact_header_css() -> None:
         }
         /* CV Builder rail safety: prevent style controls from being clipped by global overrides. */
         [data-testid="stAppViewContainer"] .st-key-cvb-page-native .st-key-cvb-left-scroll-native {
-            height: var(--cvb-native-panel-h) !important;
-            max-height: var(--cvb-native-panel-h) !important;
-            overflow-y: scroll !important;
+            height: var(--cvb-workspace-h) !important;
+            max-height: var(--cvb-workspace-h) !important;
+            min-height: 0 !important;
+            overflow-y: auto !important;
             overflow-x: hidden !important;
             scrollbar-gutter: auto !important;
         }
@@ -2583,6 +2584,8 @@ def inject_compact_header_css() -> None:
         }
         [data-testid="stAppViewContainer"] .st-key-cvb-page-native .st-key-cvb-left-scroll-native > [data-testid="stVerticalBlock"] {
             min-height: 0 !important;
+            height: auto !important;
+            max-height: none !important;
             overflow: visible !important;
         }
         [data-testid="stAppViewContainer"] .st-key-cvb-page-native .st-key-cvb-style-native .cvb-style-label,
@@ -2940,6 +2943,12 @@ def inject_fixed_top_bar() -> None:
                 spacer.style.margin = '0';
                 spacer.style.padding = '0';
                 spacer.style.pointerEvents = 'none';
+
+                try {
+                    var fixedSpace = (top + headerHeight) + 'px';
+                    doc.documentElement.style.setProperty('--excelcv-fixed-header-space', fixedSpace);
+                    doc.body.style.setProperty('--excelcv-fixed-header-space', fixedSpace);
+                } catch (e) {}
             }
 
             function scheduleApply() {
@@ -3078,3 +3087,6 @@ def inject_logo_home_click_behavior() -> None:
         """,
         height=0,
     )
+
+
+

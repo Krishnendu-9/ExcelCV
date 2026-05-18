@@ -65,7 +65,11 @@
       "Bash(py -3 -m compileall -q src tests)",
       "Bash(py -3 -m unittest discover -s tests -p \"test_*.py\" -v)",
       "Bash(git add *)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "Bash(py -3 -m py_compile src/ui/upload.py src/ui/css_injection.py)",
+      "Bash(py -3 -m py_compile src/ui/css_injection.py src/ui/upload.py)",
+      "Bash(py -3 -m py_compile src/ui/upload.py)",
+      "Bash(py -3 -m py_compile src/ui/css_injection.py)"
     ],
     "additionalDirectories": [
       "E:\\Academic\\minor-project\\cv-review"

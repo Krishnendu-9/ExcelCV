@@ -1017,7 +1017,7 @@
             @property --hv-p {{
                 syntax: '<percentage>';
                 inherits: false;
-                initial-value: 92%;
+                initial-value: 86%;
             }}
             /* ── Vertically center .hero-visual within the right column of the
                 hero_wrapper. We force the row to stretch columns, then make the
@@ -1234,7 +1234,7 @@
                 width: 100%;
                 height: 12px;
                 border-radius: 999px;
-                background: linear-gradient(90deg, var(--hv-c1) 0%, var(--hv-c2) var(--hv-p, 92%), var(--bg-secondary) var(--hv-p, 92%));
+                background: linear-gradient(90deg, var(--hv-c1) 0%, var(--hv-c2) var(--hv-p, 86%), var(--bg-secondary) var(--hv-p, 86%));
                 -webkit-mask: none;
                 mask: none;
                 animation: hv-sweep 1.7s cubic-bezier(.22, 1, .36, 1) .25s both;
@@ -1690,7 +1690,7 @@
                     animation: none !important;
                 }}
                 .hv-ring {{
-                    --hv-p: 92%;
+                    --hv-p: 86%;
                 }}
                 .hv-bar-fill {{
                     width: var(--w, 100%) !important;

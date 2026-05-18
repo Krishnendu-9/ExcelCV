@@ -88,7 +88,7 @@ def render_upload_preview_card() -> None:
                 <div class="hv-ring-wrap">
                     <div class="hv-ring"></div>
                     <div class="hv-ring-label">
-                        <span class="hv-score">92</span>
+                        <span class="hv-score">86</span>
                         <span class="hv-out">OUT OF 100</span>
                     </div>
                 </div>
@@ -178,6 +178,39 @@ def render_upload_preview_card() -> None:
             wrapper0.__excelcvHeroAlignObserver = obs;
         }
     } catch (e) {}
+
+    // ── Count-up animation for the hero score number ───────────────────
+    function animateScore() {
+        var el = doc.querySelector('.hv-score');
+        if (!el || el.__excelcvCounted) return;
+        var target = parseInt(el.getAttribute('data-target') || el.textContent, 10);
+        if (!isFinite(target) || target <= 0) return;
+        el.__excelcvCounted = true;
+        // Match the score bar's hv-sweep animation: 1.7s duration with .25s delay.
+        var duration = 1700;
+        var startDelay = 250;
+        var startTs = null;
+        function easeOut(t) { return 1 - Math.pow(1 - t, 3); }
+        function step(ts) {
+            if (startTs === null) startTs = ts;
+            var t = Math.min(1, (ts - startTs) / duration);
+            el.textContent = Math.round(easeOut(t) * target).toString();
+            if (t < 1) w.requestAnimationFrame(step);
+            else el.textContent = target.toString();
+        }
+        setTimeout(function () { w.requestAnimationFrame(step); }, startDelay);
+    }
+
+    // Honor prefers-reduced-motion: skip the count-up entirely.
+    try {
+        if (w.matchMedia && w.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+            var elN = doc.querySelector('.hv-score');
+            if (elN) elN.__excelcvCounted = true;
+        }
+    } catch (e) {}
+
+    setTimeout(animateScore, 80);
+    setTimeout(animateScore, 320);
 })();
 </script>
 """,
@@ -190,31 +223,6 @@ def render_upload_landing_sections() -> None:
     landing_html = dedent(
         """
         <div class="landing-extended">
-            <section class="landing-clean-section landing-intro-section">
-                <div class="landing-clean-head">
-                    <h2 class="landing-clean-title">How our free resume checker works</h2>
-                    <p class="landing-clean-subtitle">
-                        Our AI-powered scanner analyzes your resume like top ATS systems and recruiters.
-                    </p>
-                </div>
-                <div class="landing-clean-grid steps-grid">
-                    <article class="landing-clean-card">
-                        <div class="landing-clean-icon">1</div>
-                        <h4>Upload your resume</h4>
-                        <p>Upload PDF or DOCX and we extract resume text for ATS-friendly evaluation.</p>
-                    </article>
-                    <article class="landing-clean-card">
-                        <div class="landing-clean-icon">2</div>
-                        <h4>ATS compatibility analysis</h4>
-                        <p>We check ATS parse diagnostics, sections, and formatting strength.</p>
-                    </article>
-                    <article class="landing-clean-card">
-                        <div class="landing-clean-icon">3</div>
-                        <h4>Get your resume score</h4>
-                        <p>Receive actionable feedback and downloadable report output for improvements.</p>
-                    </article>
-                </div>
-            </section>
             <section class="landing-clean-section">
                 <div class="landing-clean-head">
                     <h3 class="landing-clean-title">Advanced resume scanner features</h3>
@@ -275,6 +283,115 @@ def render_upload_landing_sections() -> None:
                     </article>
                 </div>
             </section>
+            <section class="landing-clean-section landing-showcase-section">
+                <div class="landing-clean-head">
+                    <h3 class="landing-clean-title">More than just a checker</h3>
+                    <p class="landing-clean-subtitle">
+                        ExcelCV is a full career platform &mdash; analyze, compare, write, build, and track in one place.
+                    </p>
+                </div>
+                <div class="landing-showcase-grid">
+                    <article class="landing-showcase-card">
+                        <div class="lsc-emoji">📋</div>
+                        <h4 class="lsc-title">Resume Builder</h4>
+                        <div class="lsc-mock lsc-mock-builder">
+                            <div class="lsc-mb-rail">
+                                <span class="lsc-mb-section active"></span>
+                                <span class="lsc-mb-section"></span>
+                                <span class="lsc-mb-section"></span>
+                                <span class="lsc-mb-section"></span>
+                            </div>
+                            <div class="lsc-mb-editor">
+                                <span class="lsc-mb-line lsc-mb-h"></span>
+                                <span class="lsc-mb-line lsc-mb-l1"></span>
+                                <span class="lsc-mb-line lsc-mb-l2"></span>
+                                <span class="lsc-mb-line lsc-mb-l3"></span>
+                            </div>
+                            <div class="lsc-mb-preview">
+                                <span class="lsc-mb-pname"></span>
+                                <span class="lsc-mb-pmeta"></span>
+                                <span class="lsc-mb-prule"></span>
+                                <span class="lsc-mb-pline"></span>
+                                <span class="lsc-mb-pline lsc-mb-pline-short"></span>
+                            </div>
+                        </div>
+                        <p class="lsc-desc">3 templates &middot; live preview &middot; AI bullet suggestions &middot; one-click PDF.</p>
+                    </article>
+                    <article class="landing-showcase-card">
+                        <div class="lsc-emoji">📊</div>
+                        <h4 class="lsc-title">Compare Resumes</h4>
+                        <div class="lsc-mock lsc-mock-compare">
+                            <div class="lsc-cmp-row lsc-cmp-winner">
+                                <span class="lsc-cmp-rank">★ 1</span>
+                                <span class="lsc-cmp-name"></span>
+                                <span class="lsc-cmp-score lsc-good">91</span>
+                            </div>
+                            <div class="lsc-cmp-row">
+                                <span class="lsc-cmp-rank">2</span>
+                                <span class="lsc-cmp-name"></span>
+                                <span class="lsc-cmp-score lsc-mid">74</span>
+                            </div>
+                            <div class="lsc-cmp-row">
+                                <span class="lsc-cmp-rank">3</span>
+                                <span class="lsc-cmp-name"></span>
+                                <span class="lsc-cmp-score lsc-mid">68</span>
+                            </div>
+                            <div class="lsc-cmp-row">
+                                <span class="lsc-cmp-rank">4</span>
+                                <span class="lsc-cmp-name"></span>
+                                <span class="lsc-cmp-score lsc-low">52</span>
+                            </div>
+                        </div>
+                        <p class="lsc-desc">Rank 2&ndash;5 CVs against one JD with sort, drill-down, and PDF export.</p>
+                    </article>
+                    <article class="landing-showcase-card">
+                        <div class="lsc-emoji">✉️</div>
+                        <h4 class="lsc-title">Cover Letter</h4>
+                        <div class="lsc-mock lsc-mock-letter">
+                            <div class="lsc-cl-head">
+                                <span class="lsc-cl-name"></span>
+                                <span class="lsc-cl-date"></span>
+                            </div>
+                            <span class="lsc-cl-line"></span>
+                            <span class="lsc-cl-line"></span>
+                            <span class="lsc-cl-line lsc-cl-line-short"></span>
+                            <span class="lsc-cl-line"></span>
+                            <span class="lsc-cl-line lsc-cl-line-short"></span>
+                            <div class="lsc-cl-foot">
+                                <span class="lsc-cl-pill">DOCX</span>
+                            </div>
+                        </div>
+                        <p class="lsc-desc">AI-tailored to your resume + JD. Optional tone, company, role. DOCX export.</p>
+                    </article>
+                    <article class="landing-showcase-card">
+                        <div class="lsc-emoji">📁</div>
+                        <h4 class="lsc-title">Your History</h4>
+                        <div class="lsc-mock lsc-mock-history">
+                            <div class="lsc-hi-row">
+                                <span class="lsc-hi-dot"></span>
+                                <span class="lsc-hi-name"></span>
+                                <span class="lsc-hi-score lsc-good">88</span>
+                            </div>
+                            <div class="lsc-hi-row">
+                                <span class="lsc-hi-dot"></span>
+                                <span class="lsc-hi-name"></span>
+                                <span class="lsc-hi-score lsc-mid">72</span>
+                            </div>
+                            <div class="lsc-hi-row">
+                                <span class="lsc-hi-dot"></span>
+                                <span class="lsc-hi-name"></span>
+                                <span class="lsc-hi-score lsc-good">94</span>
+                            </div>
+                            <div class="lsc-hi-row">
+                                <span class="lsc-hi-dot"></span>
+                                <span class="lsc-hi-name"></span>
+                                <span class="lsc-hi-score lsc-mid">65</span>
+                            </div>
+                        </div>
+                        <p class="lsc-desc">Saved CVs, analyses, and comparisons &mdash; survive logout, all per-user.</p>
+                    </article>
+                </div>
+            </section>
             <section class="landing-clean-cta">
                 <h3>Start your free resume analysis now</h3>
                 <p>Join more job seekers who improved their resumes with clear ATS feedback.</p>
@@ -284,17 +401,56 @@ def render_upload_landing_sections() -> None:
                     <span>100% free</span>
                 </div>
             </section>
-            <section class="landing-clean-section">
+            <section class="landing-clean-section landing-compare-section">
                 <div class="landing-clean-head">
-                    <h3 class="landing-clean-title">Built for clarity, speed, and practical feedback</h3>
+                    <p class="landing-compare-lead">Built differently. Built openly.</p>
+                    <h3 class="landing-clean-title">Why ExcelCV instead of a generic ATS scanner?</h3>
+                    <p class="landing-clean-subtitle">
+                        Most ATS tools give you a number and a keyword list. ExcelCV gives you a full report card &mdash; and the tools to act on it.
+                    </p>
                 </div>
-                <div class="landing-clean-grid benefits-grid">
-                    <article class="landing-clean-card"><p>Compare your resume against role expectations.</p></article>
-                    <article class="landing-clean-card"><p>Improve interview callback chance with better keyword coverage.</p></article>
-                    <article class="landing-clean-card"><p>Detect formatting issues that block ATS parsing.</p></article>
-                    <article class="landing-clean-card"><p>Identify missing sections and contact information quickly.</p></article>
-                    <article class="landing-clean-card"><p>Get JD alignment feedback with explainable scoring context.</p></article>
-                    <article class="landing-clean-card"><p>Track actionable next steps for resume improvement.</p></article>
+                <div class="landing-compare-wrap">
+                    <table class="landing-compare-table">
+                        <thead>
+                            <tr>
+                                <th class="lc-th-feature">Feature</th>
+                                <th class="lc-th-other">Generic ATS scanners</th>
+                                <th class="lc-th-us">ExcelCV</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td class="lc-feature">Score explainability</td>
+                                <td class="lc-other">Single black-box number</td>
+                                <td class="lc-us">11 metrics &middot; weighted breakdown &middot; per-check feedback</td>
+                            </tr>
+                            <tr>
+                                <td class="lc-feature">Multi-resume comparison</td>
+                                <td class="lc-other">One at a time</td>
+                                <td class="lc-us">Up to 5 side-by-side with sortable ranking</td>
+                            </tr>
+                            <tr>
+                                <td class="lc-feature">Cover letter generation</td>
+                                <td class="lc-other">Not included</td>
+                                <td class="lc-us">AI-tailored, DOCX download</td>
+                            </tr>
+                            <tr>
+                                <td class="lc-feature">Resume builder</td>
+                                <td class="lc-other">External tool needed</td>
+                                <td class="lc-us">Built-in &middot; 3 templates &middot; live preview &middot; PDF export</td>
+                            </tr>
+                            <tr>
+                                <td class="lc-feature">Saved history</td>
+                                <td class="lc-other">Often locked behind paywall</td>
+                                <td class="lc-us">My CVs &middot; My Analyses &middot; My Comparisons &mdash; free</td>
+                            </tr>
+                            <tr>
+                                <td class="lc-feature">Pricing</td>
+                                <td class="lc-other">Subscription / per-scan fees</td>
+                                <td class="lc-us">100% free, no card required</td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
             </section>
             <!-- COMMENTED OUT: Resume checker success stories (fake testimonials — restore when real data available)
@@ -688,9 +844,16 @@ def _comparison_rows_to_csv(rows: list[dict[str, object]], ordered_columns: list
 
 def _render_compare_form_card(current_user) -> None:
     """Render the compare form (or guest CTA) and, on submit, navigate to compare-report."""
-    with st.container(key="compare_form_box"):
-        if not current_user:
-            _auth_href2 = _build_page_href("auth", next_page="compare-cv")
+    if not current_user:
+        # ── Guest: TWO separate cards — JD textarea (input) + sign-in CTA (action) ──
+        st.text_area(
+            "Job description for comparison",
+            key="compare_jd_guest",
+            height=92,
+            placeholder="Paste the role description once and compare multiple resumes.",
+        )
+        _auth_href2 = _build_page_href("auth", next_page="compare-cv")
+        with st.container(key="compare_guest_box"):
             st.markdown(
                 f"""
                 <div class="guest-auth-shell">
@@ -708,7 +871,9 @@ def _render_compare_form_card(current_user) -> None:
                 """,
                 unsafe_allow_html=True,
             )
-            return
+        return
+
+    with st.container(key="compare_form_box"):
 
         if "compare_jd" not in st.session_state and st.session_state.get("jd"):
             st.session_state["compare_jd"] = st.session_state.get("jd", "")
@@ -1076,7 +1241,70 @@ def render_upload_page(compare_mode: bool = False) -> None:
             """,
             unsafe_allow_html=True,
         )
-        _render_compare_form_card(_current_user)
+        _cmp_left, _cmp_right = st.columns([1.0, 1.0], gap="medium")
+        with _cmp_left:
+            _render_compare_form_card(_current_user)
+        with _cmp_right:
+            st.markdown(
+                """
+                <div class="compare-preview-card">
+                    <div class="cpc-top-match">
+                        <div class="cpc-tm-tag">&starf; TOP MATCH &middot; RANK #1</div>
+                        <div class="cpc-tm-row">
+                            <span class="cpc-tm-name">Alex Rivera</span>
+                            <span class="cpc-tm-score">91<span class="cpc-tm-out">/100</span></span>
+                        </div>
+                        <div class="cpc-tm-bar"><span class="cpc-tm-bar-fill"></span></div>
+                        <div class="cpc-tm-metrics">
+                            <div class="cpc-tm-metric">
+                                <span class="cpc-tm-mlabel">JD Align</span>
+                                <span class="cpc-tm-mval cpc-good">92</span>
+                            </div>
+                            <div class="cpc-tm-metric">
+                                <span class="cpc-tm-mlabel">ATS Parse</span>
+                                <span class="cpc-tm-mval cpc-good">95</span>
+                            </div>
+                            <div class="cpc-tm-metric">
+                                <span class="cpc-tm-mlabel">Sections</span>
+                                <span class="cpc-tm-mval cpc-good">88</span>
+                            </div>
+                            <div class="cpc-tm-metric">
+                                <span class="cpc-tm-mlabel">Issues</span>
+                                <span class="cpc-tm-mval cpc-mid">9</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="cpc-table">
+                        <div class="cpc-row cpc-row-winner">
+                            <span class="cpc-rank">&starf; 1</span>
+                            <span class="cpc-name">Alex Rivera</span>
+                            <span class="cpc-bar"><span class="cpc-bar-fill cpc-good-bg" style="--cw:91%"></span></span>
+                            <span class="cpc-score cpc-good">91</span>
+                        </div>
+                        <div class="cpc-row">
+                            <span class="cpc-rank">2</span>
+                            <span class="cpc-name">Maria Solis</span>
+                            <span class="cpc-bar"><span class="cpc-bar-fill cpc-mid-bg" style="--cw:78%"></span></span>
+                            <span class="cpc-score cpc-mid">78</span>
+                        </div>
+                        <div class="cpc-row">
+                            <span class="cpc-rank">3</span>
+                            <span class="cpc-name">Jordan Kim</span>
+                            <span class="cpc-bar"><span class="cpc-bar-fill cpc-mid-bg" style="--cw:65%"></span></span>
+                            <span class="cpc-score cpc-mid">65</span>
+                        </div>
+                        <div class="cpc-row">
+                            <span class="cpc-rank">4</span>
+                            <span class="cpc-name">Sam Patel</span>
+                            <span class="cpc-bar"><span class="cpc-bar-fill cpc-low-bg" style="--cw:52%"></span></span>
+                            <span class="cpc-score cpc-low">52</span>
+                        </div>
+                    </div>
+                    <div class="cpc-foot">SAMPLE &middot; what a real ranking looks like</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
         if st.session_state.get("comparison_results"):
             _view_compare_results_href = _build_page_href("compare-report")
             st.markdown(
@@ -1091,14 +1319,23 @@ def render_upload_page(compare_mode: bool = False) -> None:
             )
         st.markdown(
             """
-            <div class="compare-next-shell">
-                <h4 class="compare-next-title">What happens next?</h4>
-                <ul class="compare-next-list">
-                    <li>ExcelCV analyzes each resume for ATS quality, content strength, and role alignment.</li>
-                    <li>You get ranked comparison results with score breakdown and detected issue count.</li>
-                    <li>Top missing skills are highlighted so you can quickly compare candidate gaps.</li>
-                    <li>Use the same JD across files to keep ranking consistent and decision-ready.</li>
-                </ul>
+            <div class="compare-feature-chips">
+                <div class="cfc-chip">
+                    <span class="cfc-icon">&#9889;</span>
+                    <span class="cfc-text"><strong>2&ndash;5 resumes</strong> ranked side-by-side</span>
+                </div>
+                <div class="cfc-chip">
+                    <span class="cfc-icon">&#128202;</span>
+                    <span class="cfc-text"><strong>8 sort options</strong> &middot; rank re-numbers live</span>
+                </div>
+                <div class="cfc-chip">
+                    <span class="cfc-icon">&starf;</span>
+                    <span class="cfc-text"><strong>Identity-locked</strong> top-match pill</span>
+                </div>
+                <div class="cfc-chip">
+                    <span class="cfc-icon">&#128229;</span>
+                    <span class="cfc-text"><strong>CSV + PDF</strong> export &middot; auto-saved</span>
+                </div>
             </div>
             """,
             unsafe_allow_html=True,

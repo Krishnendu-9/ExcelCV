@@ -18,18 +18,25 @@ def inject_file_uploader_spacing_css() -> None:
         body .st-key-hero_wrapper .stTextArea,
         body .st-key-hero_wrapper [data-testid="stTextArea"],
         body .st-key-compare_form_box .stTextArea,
-        body .st-key-compare_form_box [data-testid="stTextArea"] {
+        body .st-key-compare_form_box [data-testid="stTextArea"],
+        body .st-key-compare_section_shell .stTextArea,
+        body .st-key-compare_section_shell [data-testid="stTextArea"] {
             border: 1px solid rgba(0, 0, 0, 0.1) !important;
             background: #f9fafb !important;
         }
         body.theme-dark .st-key-hero_wrapper .stTextArea,
         body.theme-dark .st-key-hero_wrapper [data-testid="stTextArea"],
         body.theme-dark .st-key-compare_form_box .stTextArea,
-        body.theme-dark .st-key-compare_form_box [data-testid="stTextArea"] {
+        body.theme-dark .st-key-compare_form_box [data-testid="stTextArea"],
+        body.theme-dark .st-key-compare_section_shell .stTextArea,
+        body.theme-dark .st-key-compare_section_shell [data-testid="stTextArea"] {
             border: 1px solid rgba(255, 255, 255, 0.1) !important;
             background: #111827 !important;
         }
-        /* Shared card layout for BOTH the textarea box and the file-uploader box. */
+        /* Shared card layout for BOTH the textarea box and the file-uploader box.
+           Scopes: hero_wrapper (analyze CV), compare_form_box (logged-in compare),
+           and compare_section_shell (guest compare — JD textarea sits outside the
+           logged-in form_box wrapper). */
         body .st-key-hero_wrapper .stTextArea,
         body .st-key-hero_wrapper [data-testid="stTextArea"],
         body .st-key-hero_wrapper .stFileUploader,
@@ -37,7 +44,9 @@ def inject_file_uploader_spacing_css() -> None:
         body .st-key-compare_form_box .stTextArea,
         body .st-key-compare_form_box [data-testid="stTextArea"],
         body .st-key-compare_form_box .stFileUploader,
-        body .st-key-compare_form_box [data-testid="stFileUploader"] {
+        body .st-key-compare_form_box [data-testid="stFileUploader"],
+        body .st-key-compare_section_shell .stTextArea,
+        body .st-key-compare_section_shell [data-testid="stTextArea"] {
             display: flex !important;
             flex-direction: column !important;
             align-items: stretch !important;
@@ -60,7 +69,10 @@ def inject_file_uploader_spacing_css() -> None:
         body .st-key-compare_form_box .stTextArea > div:first-child,
         body .st-key-compare_form_box .stFileUploader > label,
         body .st-key-compare_form_box .stFileUploader label,
-        body .st-key-compare_form_box .stFileUploader > div:first-child {
+        body .st-key-compare_form_box .stFileUploader > div:first-child,
+        body .st-key-compare_section_shell .stTextArea > label,
+        body .st-key-compare_section_shell .stTextArea label,
+        body .st-key-compare_section_shell .stTextArea > div:first-child {
             display: block !important;
             width: 100% !important;
             margin: 0 !important;
@@ -76,7 +88,8 @@ def inject_file_uploader_spacing_css() -> None:
         body .st-key-hero_wrapper .stTextArea label p,
         body .st-key-hero_wrapper .stFileUploader label p,
         body .st-key-compare_form_box .stTextArea label p,
-        body .st-key-compare_form_box .stFileUploader label p {
+        body .st-key-compare_form_box .stFileUploader label p,
+        body .st-key-compare_section_shell .stTextArea label p {
             margin: 0 !important;
         }
         /* Even rhythm between the form's stacked widgets (textarea → uploader → button). */
@@ -1252,8 +1265,7 @@ def inject_compact_header_css() -> None:
             border-color: rgba(52, 211, 153, 0.42) !important;
             color: #bbf7d0 !important;
         }
-        .st-key-compare_form_box,
-        .st-key-upload_guest_box {
+        .st-key-compare_form_box {
             margin-top: 10px !important;
             margin-bottom: 4px !important;
             padding: 16px 16px 14px 16px !important;
@@ -1261,6 +1273,24 @@ def inject_compact_header_css() -> None:
             border: 1px solid __COMPARE_BOX_BORDER__ !important;
             background: __COMPARE_BOX_BG__ !important;
             box-shadow: __COMPARE_BOX_SHADOW__ !important;
+        }
+        /* Sign-in CTA card (hero + compare guest views): distinct accent look
+           so it visually differs from the clean white JD textarea card. */
+        .st-key-upload_guest_box,
+        .st-key-compare_guest_box {
+            margin-top: 14px !important;
+            margin-bottom: 4px !important;
+            padding: 22px 18px 20px !important;
+            border-radius: 14px !important;
+            border: 1px solid rgba(15, 106, 201, 0.22) !important;
+            background: linear-gradient(160deg, rgba(15, 106, 201, 0.07), rgba(20, 184, 166, 0.07)) !important;
+            box-shadow: 0 8px 22px rgba(15, 106, 201, 0.10) !important;
+        }
+        body.theme-dark .st-key-upload_guest_box,
+        body.theme-dark .st-key-compare_guest_box {
+            background: linear-gradient(160deg, rgba(15, 106, 201, 0.18), rgba(20, 184, 166, 0.14)) !important;
+            border-color: rgba(125, 211, 252, 0.30) !important;
+            box-shadow: 0 12px 28px rgba(2, 8, 23, 0.40) !important;
         }
         .guest-auth-shell {
             text-align: center !important;
@@ -1872,6 +1902,627 @@ def inject_compact_header_css() -> None:
         body.theme-dark [data-testid="stAppViewContainer"] .landing-clean-cta {
             background: linear-gradient(135deg, rgba(15, 106, 201, 0.72), rgba(20, 184, 166, 0.66)) !important;
             box-shadow: 0 18px 32px rgba(2, 8, 23, 0.36) !important;
+        }
+        /* ── Alternating section backgrounds for visual rhythm ─────────── */
+        [data-testid="stAppViewContainer"] .landing-extended > section.landing-clean-section:nth-of-type(even) {
+            background: linear-gradient(200deg, rgba(20, 184, 166, 0.06), rgba(15, 106, 201, 0.04)) !important;
+            border-color: rgba(20, 184, 166, 0.18) !important;
+        }
+        body.theme-dark [data-testid="stAppViewContainer"] .landing-extended > section.landing-clean-section:nth-of-type(even) {
+            background: linear-gradient(200deg, rgba(20, 184, 166, 0.10), rgba(15, 106, 201, 0.08)) !important;
+            border-color: rgba(20, 184, 166, 0.22) !important;
+        }
+        /* ── Comparison table (Why ExcelCV vs Generic ATS scanners) ────── */
+        [data-testid="stAppViewContainer"] .landing-compare-wrap {
+            overflow-x: auto !important;
+            margin-top: 8px !important;
+            border-radius: 14px !important;
+            border: 1px solid var(--border-color) !important;
+            background: var(--bg-card) !important;
+        }
+        [data-testid="stAppViewContainer"] .landing-compare-table {
+            width: 100% !important;
+            border-collapse: separate !important;
+            border-spacing: 0 !important;
+            font-size: 0.97rem !important;
+        }
+        [data-testid="stAppViewContainer"] .landing-compare-table thead th {
+            text-align: left !important;
+            padding: 16px 18px !important;
+            font-size: 0.95rem !important;
+            font-weight: 800 !important;
+            color: var(--text-primary) !important;
+            background: var(--bg-secondary) !important;
+            border-bottom: 2px solid var(--border-color) !important;
+        }
+        [data-testid="stAppViewContainer"] .landing-compare-table .lc-th-us {
+            color: #ffffff !important;
+            background: linear-gradient(135deg, #0f6ac9, #14b8a6) !important;
+            border-bottom-color: transparent !important;
+        }
+        [data-testid="stAppViewContainer"] .landing-compare-table .lc-th-other {
+            color: var(--text-muted) !important;
+        }
+        [data-testid="stAppViewContainer"] .landing-compare-table tbody td {
+            padding: 14px 18px !important;
+            border-bottom: 1px solid var(--border-color) !important;
+            vertical-align: top !important;
+            line-height: 1.5 !important;
+        }
+        [data-testid="stAppViewContainer"] .landing-compare-table tbody tr:last-child td {
+            border-bottom: none !important;
+        }
+        [data-testid="stAppViewContainer"] .landing-compare-table .lc-feature {
+            font-weight: 700 !important;
+            color: var(--text-primary) !important;
+            width: 24% !important;
+            min-width: 160px !important;
+        }
+        [data-testid="stAppViewContainer"] .landing-compare-table .lc-other {
+            color: var(--text-muted) !important;
+            width: 34% !important;
+        }
+        [data-testid="stAppViewContainer"] .landing-compare-table .lc-us {
+            color: var(--text-primary) !important;
+            width: 42% !important;
+            background: linear-gradient(135deg, rgba(15, 106, 201, 0.05), rgba(20, 184, 166, 0.05)) !important;
+            font-weight: 600 !important;
+        }
+        [data-testid="stAppViewContainer"] .landing-compare-table .lc-other::before {
+            content: "✕  " !important;
+            color: #ef4444 !important;
+            font-weight: 800 !important;
+        }
+        [data-testid="stAppViewContainer"] .landing-compare-table .lc-us::before {
+            content: "✓  " !important;
+            color: #10b981 !important;
+            font-weight: 800 !important;
+        }
+        body.theme-dark [data-testid="stAppViewContainer"] .landing-compare-table .lc-us {
+            background: linear-gradient(135deg, rgba(15, 106, 201, 0.16), rgba(20, 184, 166, 0.14)) !important;
+        }
+        @media (max-width: 768px) {
+            [data-testid="stAppViewContainer"] .landing-compare-table {
+                font-size: 0.88rem !important;
+            }
+            [data-testid="stAppViewContainer"] .landing-compare-table thead th,
+            [data-testid="stAppViewContainer"] .landing-compare-table tbody td {
+                padding: 10px 12px !important;
+            }
+            [data-testid="stAppViewContainer"] .landing-compare-table .lc-feature {
+                min-width: 120px !important;
+            }
+        }
+        /* ── Comparison table lead-in pill ────────────────────────────── */
+        [data-testid="stAppViewContainer"] .landing-compare-lead {
+            display: inline-block !important;
+            margin: 0 0 8px 0 !important;
+            padding: 6px 14px !important;
+            border-radius: 999px !important;
+            font-size: 0.78rem !important;
+            font-weight: 700 !important;
+            letter-spacing: 0.04em !important;
+            text-transform: uppercase !important;
+            color: #0f6ac9 !important;
+            background: rgba(15, 106, 201, 0.10) !important;
+            border: 1px solid rgba(15, 106, 201, 0.22) !important;
+        }
+        body.theme-dark [data-testid="stAppViewContainer"] .landing-compare-lead {
+            color: #7dd3fc !important;
+            background: rgba(15, 106, 201, 0.20) !important;
+            border-color: rgba(125, 211, 252, 0.30) !important;
+        }
+        /* ── Hover animations on landing-clean-cards ──────────────────── */
+        [data-testid="stAppViewContainer"] .landing-clean-card {
+            transition: transform 220ms cubic-bezier(.22, 1, .36, 1),
+                        box-shadow 220ms cubic-bezier(.22, 1, .36, 1),
+                        border-color 220ms ease !important;
+        }
+        [data-testid="stAppViewContainer"] .landing-clean-card:hover {
+            transform: translateY(-3px) !important;
+            box-shadow: 0 14px 28px var(--shadow-lg) !important;
+            border-color: rgba(20, 184, 166, 0.40) !important;
+        }
+        /* ── Feature showcase section ─────────────────────────────────── */
+        [data-testid="stAppViewContainer"] .landing-showcase-grid {
+            display: grid !important;
+            grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+            gap: 16px !important;
+        }
+        [data-testid="stAppViewContainer"] .landing-showcase-card {
+            border: 1px solid var(--border-color) !important;
+            border-radius: 16px !important;
+            background: var(--bg-card) !important;
+            padding: 18px 18px 16px !important;
+            box-shadow: 0 8px 18px var(--shadow) !important;
+            display: flex !important;
+            flex-direction: column !important;
+            gap: 10px !important;
+            transition: transform 220ms cubic-bezier(.22, 1, .36, 1),
+                        box-shadow 220ms cubic-bezier(.22, 1, .36, 1),
+                        border-color 220ms ease !important;
+        }
+        [data-testid="stAppViewContainer"] .landing-showcase-card:hover {
+            transform: translateY(-3px) !important;
+            box-shadow: 0 14px 28px var(--shadow-lg) !important;
+            border-color: rgba(20, 184, 166, 0.40) !important;
+        }
+        [data-testid="stAppViewContainer"] .lsc-emoji {
+            font-size: 1.5rem !important;
+            line-height: 1 !important;
+        }
+        [data-testid="stAppViewContainer"] .lsc-title {
+            margin: 0 !important;
+            font-size: 1.08rem !important;
+            font-weight: 800 !important;
+            color: var(--text-primary) !important;
+        }
+        [data-testid="stAppViewContainer"] .lsc-desc {
+            margin: 0 !important;
+            font-size: 0.86rem !important;
+            line-height: 1.45 !important;
+            color: var(--text-secondary) !important;
+        }
+        [data-testid="stAppViewContainer"] .lsc-mock {
+            position: relative !important;
+            height: 130px !important;
+            border-radius: 10px !important;
+            border: 1px solid var(--border-color) !important;
+            background: linear-gradient(160deg, var(--bg-secondary), var(--bg-card)) !important;
+            padding: 10px !important;
+            overflow: hidden !important;
+        }
+        /* Mockup: Resume Builder (3-panel mini) */
+        [data-testid="stAppViewContainer"] .lsc-mock-builder {
+            display: grid !important;
+            grid-template-columns: 22px 1fr 1.1fr !important;
+            gap: 6px !important;
+            padding: 8px !important;
+        }
+        [data-testid="stAppViewContainer"] .lsc-mb-rail {
+            display: flex !important;
+            flex-direction: column !important;
+            gap: 5px !important;
+            padding: 4px 2px !important;
+            background: var(--bg-card) !important;
+            border-radius: 6px !important;
+            border: 1px solid var(--border-color) !important;
+        }
+        [data-testid="stAppViewContainer"] .lsc-mb-section {
+            display: block !important;
+            height: 6px !important;
+            border-radius: 3px !important;
+            background: var(--border-color) !important;
+        }
+        [data-testid="stAppViewContainer"] .lsc-mb-section.active {
+            background: linear-gradient(90deg, #0f6ac9, #14b8a6) !important;
+        }
+        [data-testid="stAppViewContainer"] .lsc-mb-editor,
+        [data-testid="stAppViewContainer"] .lsc-mb-preview {
+            background: var(--bg-card) !important;
+            border-radius: 6px !important;
+            border: 1px solid var(--border-color) !important;
+            padding: 7px 6px !important;
+            display: flex !important;
+            flex-direction: column !important;
+            gap: 5px !important;
+        }
+        [data-testid="stAppViewContainer"] .lsc-mb-line {
+            display: block !important;
+            height: 5px !important;
+            border-radius: 3px !important;
+            background: var(--border-color) !important;
+        }
+        [data-testid="stAppViewContainer"] .lsc-mb-h {
+            height: 7px !important;
+            width: 70% !important;
+            background: linear-gradient(90deg, #0f6ac9, #14b8a6) !important;
+        }
+        [data-testid="stAppViewContainer"] .lsc-mb-l1 { width: 95% !important; }
+        [data-testid="stAppViewContainer"] .lsc-mb-l2 { width: 80% !important; }
+        [data-testid="stAppViewContainer"] .lsc-mb-l3 { width: 60% !important; }
+        [data-testid="stAppViewContainer"] .lsc-mb-pname {
+            display: block !important;
+            height: 8px !important;
+            width: 60% !important;
+            border-radius: 3px !important;
+            background: var(--text-primary) !important;
+            opacity: 0.45 !important;
+        }
+        [data-testid="stAppViewContainer"] .lsc-mb-pmeta {
+            display: block !important;
+            height: 4px !important;
+            width: 80% !important;
+            border-radius: 2px !important;
+            background: var(--text-muted) !important;
+            opacity: 0.5 !important;
+        }
+        [data-testid="stAppViewContainer"] .lsc-mb-prule {
+            display: block !important;
+            height: 1px !important;
+            width: 100% !important;
+            background: linear-gradient(90deg, transparent, var(--border-color), transparent) !important;
+        }
+        [data-testid="stAppViewContainer"] .lsc-mb-pline {
+            display: block !important;
+            height: 4px !important;
+            width: 100% !important;
+            border-radius: 2px !important;
+            background: var(--border-color) !important;
+        }
+        [data-testid="stAppViewContainer"] .lsc-mb-pline-short { width: 70% !important; }
+        /* Mockup: Compare table */
+        [data-testid="stAppViewContainer"] .lsc-mock-compare {
+            display: flex !important;
+            flex-direction: column !important;
+            gap: 4px !important;
+            padding: 8px !important;
+        }
+        [data-testid="stAppViewContainer"] .lsc-cmp-row {
+            display: grid !important;
+            grid-template-columns: 28px 1fr 32px !important;
+            align-items: center !important;
+            gap: 6px !important;
+            padding: 5px 7px !important;
+            border-radius: 6px !important;
+            background: var(--bg-card) !important;
+            border: 1px solid var(--border-color) !important;
+            font-size: 0.7rem !important;
+            font-weight: 700 !important;
+        }
+        [data-testid="stAppViewContainer"] .lsc-cmp-winner {
+            border-color: rgba(16, 185, 129, 0.40) !important;
+            background: linear-gradient(90deg, rgba(16, 185, 129, 0.10), var(--bg-card)) !important;
+        }
+        [data-testid="stAppViewContainer"] .lsc-cmp-rank {
+            color: var(--text-secondary) !important;
+            font-weight: 800 !important;
+        }
+        [data-testid="stAppViewContainer"] .lsc-cmp-winner .lsc-cmp-rank {
+            color: #f59e0b !important;
+        }
+        [data-testid="stAppViewContainer"] .lsc-cmp-name {
+            display: block !important;
+            height: 6px !important;
+            border-radius: 3px !important;
+            background: var(--border-color) !important;
+        }
+        [data-testid="stAppViewContainer"] .lsc-cmp-score {
+            text-align: right !important;
+            font-weight: 800 !important;
+            font-variant-numeric: tabular-nums !important;
+        }
+        [data-testid="stAppViewContainer"] .lsc-good { color: #10b981 !important; }
+        [data-testid="stAppViewContainer"] .lsc-mid { color: #f59e0b !important; }
+        [data-testid="stAppViewContainer"] .lsc-low { color: #ef4444 !important; }
+        /* Mockup: Cover Letter */
+        [data-testid="stAppViewContainer"] .lsc-mock-letter {
+            display: flex !important;
+            flex-direction: column !important;
+            gap: 4px !important;
+            padding: 10px !important;
+            background: var(--bg-card) !important;
+        }
+        [data-testid="stAppViewContainer"] .lsc-cl-head {
+            display: flex !important;
+            justify-content: space-between !important;
+            margin-bottom: 4px !important;
+        }
+        [data-testid="stAppViewContainer"] .lsc-cl-name {
+            display: block !important;
+            height: 7px !important;
+            width: 38% !important;
+            border-radius: 3px !important;
+            background: var(--text-primary) !important;
+            opacity: 0.55 !important;
+        }
+        [data-testid="stAppViewContainer"] .lsc-cl-date {
+            display: block !important;
+            height: 7px !important;
+            width: 22% !important;
+            border-radius: 3px !important;
+            background: var(--text-muted) !important;
+            opacity: 0.5 !important;
+        }
+        [data-testid="stAppViewContainer"] .lsc-cl-line {
+            display: block !important;
+            height: 4px !important;
+            width: 100% !important;
+            border-radius: 2px !important;
+            background: var(--border-color) !important;
+        }
+        [data-testid="stAppViewContainer"] .lsc-cl-line-short { width: 70% !important; }
+        [data-testid="stAppViewContainer"] .lsc-cl-foot {
+            display: flex !important;
+            justify-content: flex-end !important;
+            margin-top: auto !important;
+        }
+        [data-testid="stAppViewContainer"] .lsc-cl-pill {
+            font-size: 0.6rem !important;
+            font-weight: 800 !important;
+            letter-spacing: 0.06em !important;
+            padding: 3px 8px !important;
+            border-radius: 999px !important;
+            background: linear-gradient(135deg, #0f6ac9, #14b8a6) !important;
+            color: #ffffff !important;
+        }
+        /* Mockup: History list */
+        [data-testid="stAppViewContainer"] .lsc-mock-history {
+            display: flex !important;
+            flex-direction: column !important;
+            gap: 5px !important;
+            padding: 8px !important;
+        }
+        [data-testid="stAppViewContainer"] .lsc-hi-row {
+            display: grid !important;
+            grid-template-columns: 12px 1fr 30px !important;
+            align-items: center !important;
+            gap: 8px !important;
+            padding: 5px 7px !important;
+            border-radius: 6px !important;
+            background: var(--bg-card) !important;
+            border: 1px solid var(--border-color) !important;
+            font-size: 0.7rem !important;
+            font-weight: 800 !important;
+        }
+        [data-testid="stAppViewContainer"] .lsc-hi-dot {
+            display: block !important;
+            width: 8px !important;
+            height: 8px !important;
+            border-radius: 999px !important;
+            background: linear-gradient(135deg, #0f6ac9, #14b8a6) !important;
+        }
+        [data-testid="stAppViewContainer"] .lsc-hi-name {
+            display: block !important;
+            height: 6px !important;
+            border-radius: 3px !important;
+            background: var(--border-color) !important;
+        }
+        [data-testid="stAppViewContainer"] .lsc-hi-score {
+            text-align: right !important;
+            font-variant-numeric: tabular-nums !important;
+        }
+        @media (max-width: 1100px) {
+            [data-testid="stAppViewContainer"] .landing-showcase-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            }
+        }
+        @media (max-width: 600px) {
+            [data-testid="stAppViewContainer"] .landing-showcase-grid {
+                grid-template-columns: 1fr !important;
+            }
+        }
+        /* ── Compare Multiple Resumes — preview card on the right ─────── */
+        [data-testid="stAppViewContainer"] .compare-preview-card {
+            border: 1px solid var(--border-color) !important;
+            border-radius: 18px !important;
+            background:
+                radial-gradient(120% 80% at 0% 0%, rgba(15, 106, 201, 0.10), transparent 60%),
+                radial-gradient(130% 90% at 100% 100%, rgba(20, 184, 166, 0.13), transparent 55%),
+                var(--bg-card) !important;
+            box-shadow: 0 18px 36px var(--shadow-lg) !important;
+            padding: 18px 18px 14px !important;
+            display: flex !important;
+            flex-direction: column !important;
+            gap: 14px !important;
+            height: 100% !important;
+        }
+        [data-testid="stAppViewContainer"] .cpc-top-match {
+            border: 1px solid var(--border-color) !important;
+            border-radius: 14px !important;
+            background: var(--bg-card) !important;
+            padding: 12px 14px !important;
+            display: flex !important;
+            flex-direction: column !important;
+            gap: 8px !important;
+        }
+        [data-testid="stAppViewContainer"] .cpc-tm-tag {
+            display: inline-flex !important;
+            align-items: center !important;
+            align-self: flex-start !important;
+            padding: 3px 10px !important;
+            border-radius: 999px !important;
+            font-size: 0.7rem !important;
+            font-weight: 800 !important;
+            letter-spacing: 0.06em !important;
+            color: #0f6ac9 !important;
+            background: rgba(15, 106, 201, 0.10) !important;
+            border: 1px solid rgba(15, 106, 201, 0.22) !important;
+        }
+        [data-testid="stAppViewContainer"] .cpc-tm-row {
+            display: flex !important;
+            align-items: baseline !important;
+            justify-content: space-between !important;
+            gap: 10px !important;
+        }
+        [data-testid="stAppViewContainer"] .cpc-tm-name {
+            font-size: 1.05rem !important;
+            font-weight: 800 !important;
+            color: var(--text-primary) !important;
+        }
+        [data-testid="stAppViewContainer"] .cpc-tm-score {
+            font-size: 1.5rem !important;
+            font-weight: 900 !important;
+            color: #10b981 !important;
+            font-variant-numeric: tabular-nums !important;
+        }
+        [data-testid="stAppViewContainer"] .cpc-tm-out {
+            font-size: 0.8rem !important;
+            font-weight: 700 !important;
+            color: var(--text-muted) !important;
+            margin-left: 2px !important;
+        }
+        [data-testid="stAppViewContainer"] .cpc-tm-bar {
+            position: relative !important;
+            height: 8px !important;
+            border-radius: 999px !important;
+            background: var(--bg-secondary) !important;
+            overflow: hidden !important;
+        }
+        [data-testid="stAppViewContainer"] .cpc-tm-bar-fill {
+            position: absolute !important;
+            inset: 0 !important;
+            width: 91% !important;
+            background: linear-gradient(90deg, #0f6ac9, #10b981) !important;
+            border-radius: 999px !important;
+        }
+        [data-testid="stAppViewContainer"] .cpc-tm-metrics {
+            display: grid !important;
+            grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+            gap: 6px !important;
+            margin-top: 2px !important;
+        }
+        [data-testid="stAppViewContainer"] .cpc-tm-metric {
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: center !important;
+            padding: 4px 2px !important;
+            border-radius: 8px !important;
+            background: var(--bg-secondary) !important;
+            min-width: 0 !important;
+        }
+        [data-testid="stAppViewContainer"] .cpc-tm-mlabel {
+            font-size: 0.62rem !important;
+            font-weight: 700 !important;
+            text-transform: uppercase !important;
+            letter-spacing: 0.04em !important;
+            color: var(--text-muted) !important;
+        }
+        [data-testid="stAppViewContainer"] .cpc-tm-mval {
+            font-size: 0.95rem !important;
+            font-weight: 800 !important;
+            font-variant-numeric: tabular-nums !important;
+            margin-top: 1px !important;
+        }
+        [data-testid="stAppViewContainer"] .cpc-table {
+            display: flex !important;
+            flex-direction: column !important;
+            gap: 5px !important;
+        }
+        [data-testid="stAppViewContainer"] .cpc-row {
+            display: grid !important;
+            grid-template-columns: 36px 1fr 110px 40px !important;
+            align-items: center !important;
+            gap: 10px !important;
+            padding: 8px 10px !important;
+            border-radius: 10px !important;
+            border: 1px solid var(--border-color) !important;
+            background: var(--bg-card) !important;
+            font-size: 0.85rem !important;
+        }
+        [data-testid="stAppViewContainer"] .cpc-row-winner {
+            border-color: rgba(16, 185, 129, 0.40) !important;
+            background: linear-gradient(90deg, rgba(16, 185, 129, 0.10), var(--bg-card)) !important;
+        }
+        [data-testid="stAppViewContainer"] .cpc-rank {
+            font-weight: 800 !important;
+            color: var(--text-secondary) !important;
+            font-size: 0.85rem !important;
+        }
+        [data-testid="stAppViewContainer"] .cpc-row-winner .cpc-rank {
+            color: #f59e0b !important;
+        }
+        [data-testid="stAppViewContainer"] .cpc-name {
+            font-weight: 700 !important;
+            color: var(--text-primary) !important;
+            white-space: nowrap !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+        }
+        [data-testid="stAppViewContainer"] .cpc-bar {
+            position: relative !important;
+            height: 6px !important;
+            border-radius: 999px !important;
+            background: var(--bg-secondary) !important;
+            overflow: hidden !important;
+        }
+        [data-testid="stAppViewContainer"] .cpc-bar-fill {
+            display: block !important;
+            height: 100% !important;
+            width: var(--cw, 80%) !important;
+            border-radius: 999px !important;
+        }
+        [data-testid="stAppViewContainer"] .cpc-good-bg { background: #10b981 !important; }
+        [data-testid="stAppViewContainer"] .cpc-mid-bg { background: #f59e0b !important; }
+        [data-testid="stAppViewContainer"] .cpc-low-bg { background: #ef4444 !important; }
+        [data-testid="stAppViewContainer"] .cpc-score {
+            text-align: right !important;
+            font-weight: 800 !important;
+            font-variant-numeric: tabular-nums !important;
+        }
+        [data-testid="stAppViewContainer"] .cpc-good { color: #10b981 !important; }
+        [data-testid="stAppViewContainer"] .cpc-mid { color: #f59e0b !important; }
+        [data-testid="stAppViewContainer"] .cpc-low { color: #ef4444 !important; }
+        [data-testid="stAppViewContainer"] .cpc-foot {
+            text-align: center !important;
+            font-size: 0.7rem !important;
+            font-weight: 700 !important;
+            letter-spacing: 0.08em !important;
+            text-transform: uppercase !important;
+            color: var(--text-muted) !important;
+            margin-top: 2px !important;
+        }
+        /* ── Compare section feature chips (replaces "What happens next?") */
+        [data-testid="stAppViewContainer"] .compare-feature-chips {
+            display: grid !important;
+            grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+            gap: 12px !important;
+            margin-top: 18px !important;
+        }
+        [data-testid="stAppViewContainer"] .cfc-chip {
+            display: flex !important;
+            align-items: center !important;
+            gap: 10px !important;
+            padding: 12px 14px !important;
+            border-radius: 12px !important;
+            border: 1px solid var(--border-color) !important;
+            background: var(--bg-card) !important;
+            box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06) !important;
+            transition: transform 200ms cubic-bezier(.22, 1, .36, 1),
+                        box-shadow 200ms cubic-bezier(.22, 1, .36, 1) !important;
+        }
+        [data-testid="stAppViewContainer"] .cfc-chip:hover {
+            transform: translateY(-2px) !important;
+            box-shadow: 0 10px 20px rgba(15, 23, 42, 0.10) !important;
+        }
+        body.theme-dark [data-testid="stAppViewContainer"] .cfc-chip {
+            box-shadow: 0 4px 12px rgba(2, 8, 23, 0.30) !important;
+        }
+        [data-testid="stAppViewContainer"] .cfc-icon {
+            font-size: 1.1rem !important;
+            flex: none !important;
+            width: 32px !important;
+            height: 32px !important;
+            border-radius: 999px !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            background: linear-gradient(135deg, rgba(15, 106, 201, 0.10), rgba(20, 184, 166, 0.12)) !important;
+        }
+        [data-testid="stAppViewContainer"] .cfc-text {
+            font-size: 0.84rem !important;
+            line-height: 1.35 !important;
+            color: var(--text-secondary) !important;
+        }
+        [data-testid="stAppViewContainer"] .cfc-text strong {
+            color: var(--text-primary) !important;
+            font-weight: 800 !important;
+        }
+        @media (max-width: 900px) {
+            [data-testid="stAppViewContainer"] .compare-feature-chips {
+                grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            }
+        }
+        @media (max-width: 520px) {
+            [data-testid="stAppViewContainer"] .compare-feature-chips {
+                grid-template-columns: 1fr !important;
+            }
+            [data-testid="stAppViewContainer"] .cpc-row {
+                grid-template-columns: 32px 1fr 36px !important;
+            }
+            [data-testid="stAppViewContainer"] .cpc-bar {
+                display: none !important;
+            }
         }
         /* Stable preview card contrast for both theme modes */
         [data-testid="stAppViewContainer"] .upload-preview {

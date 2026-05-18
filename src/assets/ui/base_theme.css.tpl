@@ -1019,6 +1019,142 @@
                 inherits: false;
                 initial-value: 92%;
             }}
+            /* ── Vertically center .hero-visual within the right column of the
+                hero_wrapper. We force the row to stretch columns, then make the
+                right column's stVerticalBlock use justify-content: center so
+                the card sits in the middle of the available vertical space. */
+            .st-key-hero_wrapper [data-testid="stHorizontalBlock"] {{
+                align-items: stretch !important;
+            }}
+            .st-key-hero_wrapper [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:has(.hero-visual),
+            .st-key-hero_wrapper [data-testid="stHorizontalBlock"] > [data-testid="column"]:has(.hero-visual) {{
+                display: flex !important;
+                flex-direction: column !important;
+                align-self: stretch !important;
+            }}
+            .st-key-hero_wrapper [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:has(.hero-visual) > div,
+            .st-key-hero_wrapper [data-testid="stHorizontalBlock"] > [data-testid="column"]:has(.hero-visual) > div {{
+                flex: 1 1 auto !important;
+                display: flex !important;
+                flex-direction: column !important;
+            }}
+            .st-key-hero_wrapper [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:has(.hero-visual) [data-testid="stVerticalBlock"]:has(.hero-visual),
+            .st-key-hero_wrapper [data-testid="stHorizontalBlock"] > [data-testid="column"]:has(.hero-visual) [data-testid="stVerticalBlock"]:has(.hero-visual) {{
+                flex: 1 1 auto !important;
+                justify-content: center !important;
+            }}
+            /* ── Stats strip (above the demo card) ──────────────────────── */
+            .hv-stats {{
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 8px;
+                padding: 4px 6px 14px;
+                margin-bottom: 4px;
+            }}
+            .hv-stat-item {{
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                flex: 1;
+                min-width: 0;
+            }}
+            .hv-stat-val {{
+                font-size: 1.15rem;
+                font-weight: 800;
+                color: var(--text-primary);
+                background: linear-gradient(120deg, #0f6ac9, #14b8a6);
+                -webkit-background-clip: text;
+                background-clip: text;
+                -webkit-text-fill-color: transparent;
+                letter-spacing: 0.01em;
+                line-height: 1.1;
+            }}
+            .hv-stat-label {{
+                font-size: 0.68rem;
+                font-weight: 600;
+                color: var(--text-muted);
+                letter-spacing: 0.06em;
+                text-transform: uppercase;
+                margin-top: 2px;
+            }}
+            .hv-stat-divider {{
+                width: 1px;
+                height: 28px;
+                background: linear-gradient(180deg, transparent, var(--border-color), transparent);
+                flex: none;
+            }}
+
+            /* ── How-it-works 3-step strip ─────────────────────────────── */
+            .hv-steps {{
+                display: flex;
+                align-items: stretch;
+                gap: 8px;
+                margin-bottom: 14px;
+            }}
+            .hv-step {{
+                flex: 1;
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                padding: 12px 12px;
+                border-radius: 14px;
+                background: var(--bg-card);
+                border: 1px solid var(--border-light);
+                box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
+                min-width: 0;
+            }}
+            body.theme-dark .hv-step {{
+                box-shadow: 0 4px 12px rgba(2, 8, 23, 0.30);
+            }}
+            .hv-step-num {{
+                flex: none;
+                width: 28px;
+                height: 28px;
+                border-radius: 999px;
+                background: linear-gradient(135deg, #0f6ac9, #14b8a6);
+                color: #ffffff;
+                font-weight: 800;
+                font-size: 0.88rem;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                box-shadow: 0 4px 10px rgba(20, 184, 166, 0.30);
+            }}
+            .hv-step-body {{
+                display: flex;
+                flex-direction: column;
+                min-width: 0;
+            }}
+            .hv-step-title {{
+                font-size: 0.85rem;
+                font-weight: 700;
+                color: var(--text-primary);
+                line-height: 1.15;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }}
+            .hv-step-desc {{
+                font-size: 0.7rem;
+                color: var(--text-muted);
+                line-height: 1.2;
+                margin-top: 2px;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }}
+            .hv-step-arrow {{
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                color: #14b8a6;
+                font-size: 1.1rem;
+                font-weight: 700;
+                flex: none;
+                padding: 0 2px;
+            }}
+
             .hero-visual {{
                 --hv-c1: #0f6ac9;
                 --hv-c2: #14b8a6;
@@ -1034,7 +1170,13 @@
                 box-shadow: 0 22px 56px var(--shadow-lg);
                 display: flex;
                 flex-direction: column;
-                height: 100%;
+            }}
+            .hv-top,
+            .hv-bottom {{
+                position: relative;
+                z-index: 1;
+                display: flex;
+                flex-direction: column;
             }}
             .hv-glow {{
                 position: absolute;
@@ -1134,8 +1276,6 @@
                 display: flex;
                 flex-direction: column;
                 gap: 8px;
-                margin-top: auto;
-                margin-bottom: 12px;
             }}
             .hv-bar-row {{
                 display: flex;

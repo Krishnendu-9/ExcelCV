@@ -31,51 +31,154 @@ def render_upload_preview_card() -> None:
     """Animated 'live report' illustration shown beside the hero copy."""
     st.markdown(
         """
+        <div class="hv-stats">
+            <div class="hv-stat-item">
+                <span class="hv-stat-val">5.4s</span>
+                <span class="hv-stat-label">avg analysis</span>
+            </div>
+            <div class="hv-stat-divider"></div>
+            <div class="hv-stat-item">
+                <span class="hv-stat-val">11</span>
+                <span class="hv-stat-label">scoring metrics</span>
+            </div>
+            <div class="hv-stat-divider"></div>
+            <div class="hv-stat-item">
+                <span class="hv-stat-val">ATS</span>
+                <span class="hv-stat-label">tested</span>
+            </div>
+            <div class="hv-stat-divider"></div>
+            <div class="hv-stat-item">
+                <span class="hv-stat-val">50+</span>
+                <span class="hv-stat-label">CVs scored</span>
+            </div>
+        </div>
+        <div class="hv-steps">
+            <div class="hv-step">
+                <div class="hv-step-num">1</div>
+                <div class="hv-step-body">
+                    <div class="hv-step-title">Upload</div>
+                    <div class="hv-step-desc">PDF or DOCX</div>
+                </div>
+            </div>
+            <div class="hv-step-arrow">&rarr;</div>
+            <div class="hv-step">
+                <div class="hv-step-num">2</div>
+                <div class="hv-step-body">
+                    <div class="hv-step-title">Paste JD</div>
+                    <div class="hv-step-desc">role description</div>
+                </div>
+            </div>
+            <div class="hv-step-arrow">&rarr;</div>
+            <div class="hv-step">
+                <div class="hv-step-num">3</div>
+                <div class="hv-step-body">
+                    <div class="hv-step-title">Get scored</div>
+                    <div class="hv-step-desc">in seconds</div>
+                </div>
+            </div>
+        </div>
         <div class="hero-visual">
             <div class="hv-glow"></div>
-            <div class="hv-header">
-                <span class="hv-dot"></span>
-                <span class="hv-title">ATS Resume Report</span>
-                <span class="hv-live">SAMPLE</span>
+            <div class="hv-top">
+                <div class="hv-header">
+                    <span class="hv-dot"></span>
+                    <span class="hv-title">ATS Resume Report</span>
+                    <span class="hv-live">SAMPLE</span>
+                </div>
+                <div class="hv-ring-wrap">
+                    <div class="hv-ring"></div>
+                    <div class="hv-ring-label">
+                        <span class="hv-score">92</span>
+                        <span class="hv-out">OUT OF 100</span>
+                    </div>
+                </div>
+                <div class="hv-grade">Strong match &mdash; recruiter-ready</div>
             </div>
-            <div class="hv-ring-wrap">
-                <div class="hv-ring"></div>
-                <div class="hv-ring-label">
-                    <span class="hv-score">92</span>
-                    <span class="hv-out">OUT OF 100</span>
+            <div class="hv-bottom">
+                <div class="hv-bars">
+                    <div class="hv-bar-row">
+                        <span class="hv-bar-name">Content</span>
+                        <span class="hv-bar"><span class="hv-bar-fill" style="--w:92%"></span></span>
+                        <span class="hv-bar-val">92%</span>
+                    </div>
+                    <div class="hv-bar-row">
+                        <span class="hv-bar-name">Sections</span>
+                        <span class="hv-bar"><span class="hv-bar-fill" style="--w:88%"></span></span>
+                        <span class="hv-bar-val">88%</span>
+                    </div>
+                    <div class="hv-bar-row">
+                        <span class="hv-bar-name">ATS Essentials</span>
+                        <span class="hv-bar"><span class="hv-bar-fill" style="--w:100%"></span></span>
+                        <span class="hv-bar-val">100%</span>
+                    </div>
+                    <div class="hv-bar-row">
+                        <span class="hv-bar-name">Insights</span>
+                        <span class="hv-bar"><span class="hv-bar-fill" style="--w:80%"></span></span>
+                        <span class="hv-bar-val">80%</span>
+                    </div>
                 </div>
-            </div>
-            <div class="hv-grade">Strong match &mdash; recruiter-ready</div>
-            <div class="hv-bars">
-                <div class="hv-bar-row">
-                    <span class="hv-bar-name">Content</span>
-                    <span class="hv-bar"><span class="hv-bar-fill" style="--w:92%"></span></span>
-                    <span class="hv-bar-val">92%</span>
+                <div class="hv-tips">
+                    <span class="hv-tip">Quantify achievements with concrete metrics</span>
+                    <span class="hv-tip">Add missing keyword: &ldquo;Kubernetes&rdquo;</span>
+                    <span class="hv-tip">Trim the summary to three sharp lines</span>
                 </div>
-                <div class="hv-bar-row">
-                    <span class="hv-bar-name">Sections</span>
-                    <span class="hv-bar"><span class="hv-bar-fill" style="--w:88%"></span></span>
-                    <span class="hv-bar-val">88%</span>
-                </div>
-                <div class="hv-bar-row">
-                    <span class="hv-bar-name">ATS Essentials</span>
-                    <span class="hv-bar"><span class="hv-bar-fill" style="--w:100%"></span></span>
-                    <span class="hv-bar-val">100%</span>
-                </div>
-                <div class="hv-bar-row">
-                    <span class="hv-bar-name">Insights</span>
-                    <span class="hv-bar"><span class="hv-bar-fill" style="--w:80%"></span></span>
-                    <span class="hv-bar-val">80%</span>
-                </div>
-            </div>
-            <div class="hv-tips">
-                <span class="hv-tip">Quantify achievements with concrete metrics</span>
-                <span class="hv-tip">Add missing keyword: &ldquo;Kubernetes&rdquo;</span>
-                <span class="hv-tip">Trim the summary to three sharp lines</span>
             </div>
         </div>
         """,
         unsafe_allow_html=True,
+    )
+    # JS to align the demo card's TOP with the Job description card's TOP on
+    # the left side of the hero_wrapper. Runs in the parent document, watches
+    # for layout changes.
+    components.html(
+        """
+<script>
+(function () {
+    var w = window.parent && window.parent !== window ? window.parent : window;
+    var doc = w.document;
+
+    function alignHero() {
+        var wrapper = doc.querySelector('.st-key-hero_wrapper');
+        if (!wrapper) return;
+        var hero = wrapper.querySelector('.hero-visual');
+        var jdBox = wrapper.querySelector('[data-testid="stTextArea"]');
+        if (!hero || !jdBox) return;
+        // Reset any prior offset so we measure clean.
+        hero.style.marginTop = '0px';
+        var jdTop = jdBox.getBoundingClientRect().top;
+        var heroTop = hero.getBoundingClientRect().top;
+        var offset = jdTop - heroTop;
+        if (offset > 4) {
+            hero.style.marginTop = Math.round(offset) + 'px';
+        }
+    }
+
+    // Run shortly after render, then again to catch late layout changes.
+    setTimeout(alignHero, 60);
+    setTimeout(alignHero, 240);
+    setTimeout(alignHero, 720);
+
+    // Re-align on window resize.
+    if (!w.__excelcvHeroAlignResize) {
+        w.__excelcvHeroAlignResize = true;
+        w.addEventListener('resize', function () {
+            setTimeout(alignHero, 60);
+        });
+    }
+
+    // Observe the wrapper for size/content changes (Streamlit reruns) and re-align.
+    try {
+        var wrapper0 = doc.querySelector('.st-key-hero_wrapper');
+        if (wrapper0 && !wrapper0.__excelcvHeroAlignObserver) {
+            var obs = new w.ResizeObserver(function () { alignHero(); });
+            obs.observe(wrapper0);
+            wrapper0.__excelcvHeroAlignObserver = obs;
+        }
+    } catch (e) {}
+})();
+</script>
+""",
+        height=0,
     )
 
 

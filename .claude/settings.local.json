@@ -69,7 +69,15 @@
       "Bash(py -3 -m py_compile src/ui/upload.py src/ui/css_injection.py)",
       "Bash(py -3 -m py_compile src/ui/css_injection.py src/ui/upload.py)",
       "Bash(py -3 -m py_compile src/ui/upload.py)",
-      "Bash(py -3 -m py_compile src/ui/css_injection.py)"
+      "Bash(py -3 -m py_compile src/ui/css_injection.py)",
+      "Bash(xargs wc -l)",
+      "Bash(python -c ' *)",
+      "PowerShell($files = @\\('src/ui/list_pages.py','src/ui/my_cvs_page.py','src/ui/my_analyses_page.py','src/ui/my_comparisons_page.py','src/cover_letter/page.py'\\); foreach \\($f in $files\\) { try { & py -c \"import ast,sys; ast.parse\\(open\\(r'$f',encoding='utf-8'\\).read\\(\\)\\); print\\('OK', r'$f'\\)\" } catch { Write-Host \"ERR $f $_\" } })",
+      "PowerShell(& py -c \"from src.ui import list_pages, my_cvs_page, my_analyses_page, my_comparisons_page, settings_page; from src.cover_letter import page; print\\('All imports OK'\\)\")",
+      "PowerShell(& py -c \"from src.ui import list_pages; print\\('OK'\\)\")",
+      "PowerShell(& py -c \"from src.ui import list_pages, my_analyses_page, my_cvs_page, my_comparisons_page; print\\('OK'\\)\")",
+      "PowerShell(& py -c \"import os; from src import config; print\\('SESSION_SECRET set?', bool\\(os.getenv\\('SESSION_SECRET'\\)\\)\\); print\\('ENABLE_PERSISTENT_LOGIN =', repr\\(os.getenv\\('ENABLE_PERSISTENT_LOGIN'\\)\\)\\); from src.auth_utils import is_persistent_login_enabled; print\\('persistent enabled?', is_persistent_login_enabled\\(\\)\\)\")",
+      "PowerShell(& py -c \"from src.ui import auth_page, layout; import app; print\\('OK'\\)\")"
     ],
     "additionalDirectories": [
       "E:\\Academic\\minor-project\\cv-review"

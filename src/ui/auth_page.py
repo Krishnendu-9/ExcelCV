@@ -38,39 +38,56 @@ def _logo_data_uri() -> str:
 
 
 def _redirect_after_login(user_dict: dict, redirect_to: str) -> None:
-    """Set session cookie client-side and hard-navigate so auth persists across page reloads."""
+    """Land the user on their intended page with auth preserved.
+
+    Avoids a hard ``window.location.href`` navigation because Streamlit's
+    components iframe is sandboxed without ``allow-same-origin``: writing the
+    persistence cookie from JS does not reliably reach the parent's cookie
+    jar, so a hard reload would land on a fresh ``session_state`` with no
+    ``user`` — appearing logged out. Instead we:
+
+      1. Set ``session_state["user"]`` (so this rerun is authenticated).
+      2. Best-effort write the persistence cookie via a 0-height component;
+         when it works it survives tab close. When it doesn't, we still rely
+         on (1) for the current tab session.
+      3. Update query params + ``session_state["page"]`` and ``st.rerun``.
+    """
     login_user(user_dict)
-    target_url = _build_page_href(redirect_to or "home")
-    cookie_value = ""
+    target_page = str(redirect_to or "home").strip().lower()
+    if target_page in {"", "auth"} or target_page not in APP_PAGES:
+        target_page = "home"
+
     if is_persistent_login_enabled():
         token = create_session_token(user_dict)
         cookie_value = build_session_cookie_header(token)
-    components.html(
-        f"""<script>
+        components.html(
+            f"""<script>
 (function() {{
   var cookie = {json.dumps(cookie_value)};
-  var target = {json.dumps(target_url)};
-  function forceNavigate(win) {{
-    try {{ win.location.href = target; }} catch(e) {{}}
-    try {{ win.location.assign(target); }} catch(e) {{}}
-  }}
-  if (cookie) {{
-    try {{ document.cookie = cookie; }} catch(e) {{}}
-  }}
+  try {{ document.cookie = cookie; }} catch(e) {{}}
   try {{
     var w = window.parent && window.parent !== window ? window.parent : window;
-    if (cookie) {{
-      w.document.cookie = cookie;
-    }}
-    forceNavigate(w);
-    return;
+    w.document.cookie = cookie;
   }} catch(e) {{}}
-  forceNavigate(window);
 }})();
 </script>""",
-        height=0,
-    )
-    st.stop()
+            height=0,
+        )
+
+    st.session_state["page"] = target_page
+    st.session_state.pop("auth_redirect", None)
+    desired_params = {"page": target_page}
+    try:
+        if dict(st.query_params.to_dict()) != desired_params:
+            st.query_params.from_dict(desired_params)
+    except Exception:
+        try:
+            st.query_params.clear()
+            for k, v in desired_params.items():
+                st.query_params[k] = v
+        except Exception:
+            pass
+    st.rerun()
 
 
 def _resolve_post_login_target() -> str:
@@ -208,30 +225,52 @@ def _base_css(t: dict) -> str:
 
     /* Outer auth card — ~88vh tall, vertically centered in the viewport so a
        small breathing margin shows above and below. */
+    /* Center the auth panel vertically inside the viewport regardless of
+       monitor size. Streamlit's main block container is normally an
+       auto-height vertical block; scoping with ``:has(.st-key-auth_shell)``
+       only affects pages that actually render the auth shell, so other
+       routes (home / settings / etc.) are untouched. */
+    [data-testid="stMainBlockContainer"]:has(.st-key-auth_shell) {{
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        min-height: 100vh !important;
+    }}
+
     .st-key-auth_shell {{
         width: 100% !important;
-        max-width: 100% !important;
-        height: 88dvh !important;
-        max-height: 88dvh !important;
+        /* Note: Streamlit's .main .block-container already caps content at
+           1240px (see base_theme.css.tpl), so the panel can't span past
+           that on very wide monitors. */
+        /* Size to content; vertical centering is done by the parent flex
+           container above. This is what gives the panel a stable visual
+           position on every monitor — small displays show the panel almost
+           edge-to-edge, big displays show breathing room around it. */
+        height: auto !important;
+        min-height: 0 !important;
+        max-height: none !important;
         margin: 0 auto !important;
         border-radius: 22px !important;
         border: 1px solid {t["hero_panel_border"]} !important;
         background: {t["hero_panel_bg"]} !important;
         box-shadow: 0 18px 38px rgba(15, 23, 42, 0.14) !important;
-        padding: 1.2rem 1.8rem !important;
+        padding: 1.6rem 1.8rem !important;
         box-sizing: border-box !important;
         overflow: hidden !important;
     }}
 
-    /* Two-column flex centering inside the shell. */
+    /* Two-column layout anchored to the top of the shell.
+       Top-anchoring (instead of vertical-centering) keeps the auth card at
+       the same Y position across monitors — otherwise the card slides up or
+       down as the left column's heading wraps differently per viewport. */
     .st-key-auth_shell > [data-testid="stVerticalBlock"] {{
         width: 100% !important;
-        height: 100% !important;
-        justify-content: center !important;
+        height: auto !important;
+        justify-content: flex-start !important;
     }}
     .st-key-auth_shell [data-testid="stHorizontalBlock"] {{
         width: 100% !important;
-        align-items: center !important;
+        align-items: flex-start !important;
     }}
 
     /* Left value-prop panel — logo, eyebrow, title, feature list, and

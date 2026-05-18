@@ -70,6 +70,10 @@ NAV_ACTION_TO_PAGE = {
     "resume-builder": "resume-builder",
     "my-cvs": "my-cvs",
     "my-analyses": "my-analyses",
+    # User-dropdown destinations (bridge buttons live in layout.py).
+    "my-comparisons": "my-comparisons",
+    "settings": "settings",
+    "contact": "contact",
 }
 HOME_COMPARE_FOCUS_KEY = "home_nav_focus_compare"
 

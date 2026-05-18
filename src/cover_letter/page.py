@@ -39,28 +39,59 @@ def _cover_letter_icon_data_uri() -> str:
 def _render_tips_card() -> None:
     st.markdown(
         """
-        <section class="landing-clean-section">
-            <article class="landing-clean-card">
-                <h4>💡 Tips for best results:</h4>
-                <p>- Make sure your CV is up-to-date and well-formatted</p>
-                <p>- Include the complete job description for better personalization</p>
-                <p>- Mention any specific achievements you want highlighted</p>
-                <p>- Review and customize the generated letter before sending</p>
-            </article>
+        <section class="cl-tips-section">
+            <div class="cl-tips-card">
+                <div class="cl-tips-head">
+                    <span class="cl-tips-icon">💡</span>
+                    <h4>Tips for best results</h4>
+                </div>
+                <ul class="cl-tips-list">
+                    <li>Make sure your CV is up-to-date and well-formatted.</li>
+                    <li>Paste the full job description — more context yields better personalization.</li>
+                    <li>Mention specific achievements you want highlighted in the additional info field.</li>
+                    <li>Always review and customize the generated letter before sending.</li>
+                </ul>
+            </div>
         </section>
         """,
         unsafe_allow_html=True,
     )
 
 
-def _render_preview(result: CoverLetterResult) -> None:
+def _render_success_card(result: CoverLetterResult) -> None:
+    """Result panel: download CTA + collapsible preview, presented as one card."""
+    st.markdown(
+        """
+        <div class="cl-success-card">
+            <div class="cl-success-head">
+                <span class="cl-success-icon">✓</span>
+                <div>
+                    <p class="cl-success-title">Your cover letter is ready</p>
+                    <p class="cl-success-sub">Download the .docx or preview the text before sending.</p>
+                </div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.download_button(
+        "Download .docx",
+        data=result.docx_bytes,
+        file_name=result.file_name,
+        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        width="stretch",
+        key="cover_letter_download_btn",
+        type="primary",
+        on_click="ignore",
+    )
     with st.expander("Preview generated letter", expanded=False):
         st.text_area(
             "Generated cover letter",
             value=result.full_text,
-            height=280,
+            height=320,
             key="cover_letter_preview_text",
             disabled=True,
+            label_visibility="collapsed",
         )
 
 
@@ -208,6 +239,87 @@ def render_cover_letter_page() -> None:
                     height: 62px;
                 }
             }
+            /* ── Success card ─────────────────────────────────── */
+            [data-testid="stAppViewContainer"] .st-key-cover_letter_page_shell .cl-success-card {
+                margin: 1.1rem 0 0.6rem;
+                padding: 1rem 1.25rem;
+                background: linear-gradient(135deg, rgba(34, 197, 94, 0.10), rgba(16, 185, 129, 0.04));
+                border: 1px solid rgba(34, 197, 94, 0.32);
+                border-radius: 14px;
+                box-shadow: 0 6px 18px rgba(16, 185, 129, 0.08);
+            }
+            [data-testid="stAppViewContainer"] .st-key-cover_letter_page_shell .cl-success-head {
+                display: flex;
+                align-items: center;
+                gap: 0.85rem;
+            }
+            [data-testid="stAppViewContainer"] .st-key-cover_letter_page_shell .cl-success-icon {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                width: 34px;
+                height: 34px;
+                border-radius: 999px;
+                background: #22c55e;
+                color: #fff;
+                font-weight: 800;
+                font-size: 1rem;
+                flex-shrink: 0;
+                box-shadow: 0 4px 12px rgba(34, 197, 94, 0.35);
+            }
+            [data-testid="stAppViewContainer"] .st-key-cover_letter_page_shell .cl-success-title {
+                margin: 0;
+                font-weight: 700;
+                color: var(--text-primary);
+                font-size: 1rem;
+            }
+            [data-testid="stAppViewContainer"] .st-key-cover_letter_page_shell .cl-success-sub {
+                margin: 0.1rem 0 0;
+                color: var(--text-secondary);
+                font-size: 0.85rem;
+            }
+            /* ── Tips card ────────────────────────────────────── */
+            [data-testid="stAppViewContainer"] .st-key-cover_letter_page_shell .cl-tips-section {
+                margin-top: 1.4rem;
+            }
+            [data-testid="stAppViewContainer"] .st-key-cover_letter_page_shell .cl-tips-card {
+                background: var(--bg-card);
+                border: 1px solid var(--border-color);
+                border-left: 3px solid rgba(99, 102, 241, 0.55);
+                border-radius: 14px;
+                padding: 1.1rem 1.3rem;
+                box-shadow: 0 1px 2px var(--shadow);
+            }
+            [data-testid="stAppViewContainer"] .st-key-cover_letter_page_shell .cl-tips-head {
+                display: flex;
+                align-items: center;
+                gap: 0.55rem;
+                margin-bottom: 0.6rem;
+            }
+            [data-testid="stAppViewContainer"] .st-key-cover_letter_page_shell .cl-tips-icon {
+                font-size: 1.15rem;
+            }
+            [data-testid="stAppViewContainer"] .st-key-cover_letter_page_shell .cl-tips-card h4 {
+                margin: 0;
+                color: var(--text-primary);
+                font-size: 1rem;
+                font-weight: 700;
+            }
+            [data-testid="stAppViewContainer"] .st-key-cover_letter_page_shell .cl-tips-list {
+                margin: 0;
+                padding: 0 0 0 1.1rem;
+                color: var(--text-secondary);
+                font-size: 0.88rem;
+                line-height: 1.7;
+            }
+            [data-testid="stAppViewContainer"] .st-key-cover_letter_page_shell .cl-tips-list li {
+                margin: 0 0 0.15rem;
+            }
+            /* Submit button gets the brand primary look. */
+            [data-testid="stAppViewContainer"] .st-key-cover_letter_page_shell .st-key-cover_letter_submit button {
+                font-weight: 700 !important;
+                letter-spacing: 0.01em !important;
+            }
             </style>
             """,
             unsafe_allow_html=True,
@@ -284,7 +396,12 @@ def render_cover_letter_page() -> None:
                     "(e.g., LinkedIn, employee referral, hiring manager outreach)"
                 ),
             )
-            submitted = st.button("Generate & Direct Download", width="stretch", key="cover_letter_submit")
+            submitted = st.button(
+                "Generate cover letter",
+                width="stretch",
+                key="cover_letter_submit",
+                type="primary",
+            )
 
     if submitted:
         st.session_state[_STATE_ERROR] = ""
@@ -327,17 +444,6 @@ def render_cover_letter_page() -> None:
     if error_msg:
         st.error(error_msg)
     if success_msg and isinstance(result_obj, CoverLetterResult):
-        st.success(success_msg)
-        st.download_button(
-            "Generate & Direct Download",
-            data=result_obj.docx_bytes,
-            file_name=result_obj.file_name,
-            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            width="stretch",
-            key="cover_letter_download_btn",
-            type="primary",
-            on_click="ignore",
-        )
-        _render_preview(result_obj)
+        _render_success_card(result_obj)
 
     _render_tips_card()

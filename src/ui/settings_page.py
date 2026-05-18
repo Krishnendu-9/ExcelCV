@@ -173,6 +173,40 @@ def render_settings_page() -> None:
             margin: 1rem 0;
             opacity: 0.6;
         }
+        [data-testid="stAppViewContainer"] .settings-delete-confirm {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.85rem;
+            padding: 0.9rem 1rem;
+            margin: 0.4rem 0 0.9rem;
+            background: linear-gradient(180deg, rgba(239, 68, 68, 0.08), rgba(239, 68, 68, 0.02));
+            border: 1px solid rgba(239, 68, 68, 0.32);
+            border-radius: 12px;
+        }
+        [data-testid="stAppViewContainer"] .settings-delete-confirm-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 28px;
+            height: 28px;
+            border-radius: 999px;
+            background: rgba(239, 68, 68, 0.22);
+            color: #dc2626;
+            font-weight: 800;
+            flex-shrink: 0;
+        }
+        [data-testid="stAppViewContainer"] .settings-delete-confirm-title {
+            margin: 0;
+            font-weight: 700;
+            color: var(--text-primary);
+            font-size: 0.95rem;
+        }
+        [data-testid="stAppViewContainer"] .settings-delete-confirm-sub {
+            margin: 0.2rem 0 0;
+            color: var(--text-secondary);
+            font-size: 0.84rem;
+            line-height: 1.5;
+        }
         @media (max-width: 820px) {
             [data-testid="stAppViewContainer"] .st-key-settings_page_shell {
                 margin-top: -38px !important;
@@ -327,7 +361,20 @@ def render_settings_page() -> None:
                 unsafe_allow_html=True,
             )
             if st.session_state.get("settings_confirm_delete"):
-                st.warning("This will permanently delete your account and all data. Are you sure?")
+                st.markdown(
+                    """
+                    <div class="settings-delete-confirm">
+                        <span class="settings-delete-confirm-icon">!</span>
+                        <div>
+                            <p class="settings-delete-confirm-title">Permanently delete your account?</p>
+                            <p class="settings-delete-confirm-sub">
+                                We'll remove your saved CVs, analyses, and comparisons. This cannot be undone.
+                            </p>
+                        </div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
                 dc1, dc2, _ = st.columns([1.4, 1, 2])
                 with dc1:
                     if st.button("Yes, Delete My Account", key="settings_do_delete", type="primary", width="stretch"):

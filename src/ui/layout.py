@@ -25,6 +25,15 @@ NAV_ITEMS = [
     ("My CVs", "my-cvs"),
     ("My Analyses", "my-analyses"),
 ]
+# Page keys that need a hidden bridge button so the user-dropdown <a> tags
+# can route through Streamlit's in-app nav (preserving session_state)
+# instead of triggering a full-page reload. These do NOT render as visible
+# top-nav items — only their bridge buttons are emitted.
+DROPDOWN_NAV_ITEMS = [
+    "my-comparisons",
+    "settings",
+    "contact",
+]
 
 
 def _nav_action_button_key(action: str) -> str:
@@ -188,16 +197,39 @@ def render_site_header(show_theme_toggle: bool = True, current_page: str = "uplo
         raw_full_name = str(_user.get("full_name", "")).strip()
         name_tokens = [token for token in raw_full_name.replace(",", " ").split() if token.strip()]
         first_name = (name_tokens[0] if name_tokens else "User")[:18]
+
+        def _dropdown_link(page_key: str, icon: str, label: str, extra_class: str = "") -> str:
+            """Build a dropdown <a> that routes through the in-app bridge button.
+
+            Falls back to a normal navigation if the bridge button can't be
+            found (e.g. theme toggle removed the header for some reason).
+            """
+            href = _build_page_href(page_key)
+            onclick = (
+                "try{var w=window.parent&&window.parent!==window?window.parent:window;"
+                f"var b=w.document.querySelector('.{_nav_action_css_class(page_key)} button');"
+                "if(b){event.preventDefault();event.stopPropagation();b.click();return false;}}catch(_e){}"
+            )
+            cls = f"site-user-item{(' ' + extra_class) if extra_class else ''}"
+            return (
+                f'<a href="{href}" target="_self" class="{cls}" '
+                f'data-nav-action="{page_key}" onclick="{onclick}">{icon}{label}</a>'
+            )
+
         user_section_html = (
             '<details class="site-user-dropdown">'
             f'<summary class="site-user-trigger">Hi, {first_name}<span class="site-user-caret">&#9662;</span></summary>'
             '<div class="site-user-panel">'
-            f'<a href="{_build_page_href("my-comparisons")}" target="_self" class="site-user-item">{_ICON_COMPARISONS}My Comparisons</a>'
-            f'<a href="{_build_page_href("contact")}" target="_self" class="site-user-item">{_ICON_FEEDBACK}Give Feedback</a>'
-            f'<a href="{_build_page_href("contact")}" target="_self" class="site-user-item">{_ICON_SUPPORT}Support</a>'
-            f'<a href="{_build_page_href("settings")}" target="_self" class="site-user-item">{_ICON_SETTINGS}Settings</a>'
-            f'<a href="/?_logout=1&_t={_cur_theme}" target="_self" class="site-user-item site-user-item-logout">{_ICON_LOGOUT}Logout</a>'
-            "</div>"
+            + _dropdown_link("my-comparisons", _ICON_COMPARISONS, "My Comparisons")
+            + _dropdown_link("contact", _ICON_FEEDBACK, "Give Feedback")
+            + _dropdown_link("contact", _ICON_SUPPORT, "Support")
+            + _dropdown_link("settings", _ICON_SETTINGS, "Settings")
+            # Logout intentionally keeps a hard nav: the ``?_logout=1`` query
+            # param is handled in main() before any page render to clear the
+            # session and cookie, so we want the new HTTP request that a real
+            # navigation produces.
+            + f'<a href="/?_logout=1&_t={_cur_theme}" target="_self" class="site-user-item site-user-item-logout">{_ICON_LOGOUT}Logout</a>'
+            + "</div>"
             "</details>"
         )
     else:
@@ -213,6 +245,19 @@ def render_site_header(show_theme_toggle: bool = True, current_page: str = "uplo
     nav_action: str | None = None
     with st.container(key="site_nav_action_bridge"):
         for _, page_key in nav_items:
+            if st.button(
+                " ",
+                key=_nav_action_button_key(page_key),
+                help=f"Internal navigation trigger for {page_key}",
+                on_click=_queue_nav_action,
+                args=(page_key,),
+            ):
+                nav_action = page_key
+        # Bridge buttons for the user-dropdown items. Same mechanism, just
+        # not rendered as visible nav links — they exist so the dropdown
+        # <a> tags' onclick handler can find a Streamlit button to click,
+        # keeping the click in-app instead of triggering a hard reload.
+        for page_key in DROPDOWN_NAV_ITEMS:
             if st.button(
                 " ",
                 key=_nav_action_button_key(page_key),

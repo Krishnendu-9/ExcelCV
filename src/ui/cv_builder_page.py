@@ -1,8 +1,9 @@
 """CV Builder page — 3-panel workspace (left rail · editor · preview)."""
+
 from __future__ import annotations
 
-import json
 import hashlib
+import json
 import uuid
 from datetime import date, datetime
 
@@ -54,6 +55,7 @@ from src.ui.cv_builder_value_utils import (
 
 # ─── Constants ────────────────────────────────────────────────────────────────
 
+
 def _normalize_builder_tuning_state() -> None:
     ss = st.session_state
     ss["cvb_font_size"] = max(8, min(16, _safe_int(ss.get("cvb_font_size", 11), 11)))
@@ -63,6 +65,7 @@ def _normalize_builder_tuning_state() -> None:
     default_zoom = _default_zoom_for_template(ss.get("cvb_template"))
     ss["cvb_zoom"] = max(35, min(100, _safe_int(ss.get("cvb_zoom", default_zoom), default_zoom)))
 
+
 def _clear_link_query_params() -> None:
     try:
         for qk in list(st.query_params.keys()):
@@ -70,6 +73,7 @@ def _clear_link_query_params() -> None:
                 del st.query_params[qk]
     except Exception:
         pass
+
 
 def _query_param_str(name: str) -> str | None:
     """Return a query param as a trimmed string, or None if not present."""
@@ -89,6 +93,7 @@ def _query_param_str(name: str) -> str | None:
         return None
     return str(raw).strip()
 
+
 def _rerun_resume_builder() -> None:
     """Rerun while pinning the active route to Resume Builder."""
     st.session_state["page"] = "resume-builder"
@@ -98,7 +103,9 @@ def _rerun_resume_builder() -> None:
         pass
     st.rerun()
 
+
 # ─── Session-state initialisation ────────────────────────────────────────────
+
 
 def _copy_state_value(value: object) -> object:
     if isinstance(value, dict):
@@ -106,6 +113,7 @@ def _copy_state_value(value: object) -> object:
     if isinstance(value, list):
         return list(value)
     return value
+
 
 def _persistable_dynamic_keys(ss: dict) -> set[str]:
     keys: set[str] = set()
@@ -180,6 +188,7 @@ def _persistable_dynamic_keys(ss: dict) -> set[str]:
         )
     return keys
 
+
 def _protect_builder_widget_state() -> None:
     """Preserve builder data even when widgets are temporarily not mounted."""
     ss = st.session_state
@@ -208,50 +217,53 @@ def _protect_builder_widget_state() -> None:
 
     ss[mirror_key] = mirror
 
+
 def _init_builder() -> None:
     defaults: dict = {
-        "cvb_cv_title":       "My Resume",
-        "cvb_template":       "classic",
-        "cvb_loaded_cv_id":   None,
-        "cvb_last_saved":     None,
-        "cvb_show_import":    False,
-        "cvb_accent_color":   "#2563eb",
-        "cvb_font":           "System Sans",
-        "cvb_font_size":      11,
-        "cvb_line_height":    1.4,
-        "cvb_entry_spacing":  8,
-        "cvb_show_icons":     True,
-        "cvb_zoom":           100,
-        "cvb_section_order":      list(SECTION_IDS),
+        "cvb_cv_title": "My Resume",
+        "cvb_template": "classic",
+        "cvb_loaded_cv_id": None,
+        "cvb_last_saved": None,
+        "cvb_show_import": False,
+        "cvb_accent_color": "#2563eb",
+        "cvb_font": "System Sans",
+        "cvb_font_size": 11,
+        "cvb_line_height": 1.4,
+        "cvb_entry_spacing": 8,
+        "cvb_show_icons": True,
+        "cvb_zoom": 100,
+        "cvb_section_order": list(SECTION_IDS),
         "cvb_section_visibility": {sid: True for sid in SECTION_IDS},
-        "cvb_active_section":     "personal",
-        "cvb_full_name":   "",
-        "cvb_prof_title":  "",
-        "cvb_email":       "",
-        "cvb_phone":       "",
-        "cvb_location":    "",
-        "cvb_website":     "",
-        "cvb_linkedin":    "",
-        "cvb_github":      "",
-        "cvb_website_url":  "",
+        "cvb_active_section": "personal",
+        "cvb_full_name": "",
+        "cvb_prof_title": "",
+        "cvb_email": "",
+        "cvb_phone": "",
+        "cvb_location": "",
+        "cvb_website": "",
+        "cvb_linkedin": "",
+        "cvb_github": "",
+        "cvb_website_url": "",
         "cvb_linkedin_url": "",
-        "cvb_github_url":   "",
-        "cvb_summary":     "",
-        "cvb_exp_ids":       [],
-        "cvb_edu_ids":       [],
-        "cvb_proj_ids":      [],
-        "cvb_cert_ids":      [],
-        "cvb_lang_ids":      [],
-        "cvb_skill_ids":     [],
+        "cvb_github_url": "",
+        "cvb_summary": "",
+        "cvb_exp_ids": [],
+        "cvb_edu_ids": [],
+        "cvb_proj_ids": [],
+        "cvb_cert_ids": [],
+        "cvb_lang_ids": [],
+        "cvb_skill_ids": [],
         "cvb_skill_cat_ids": [],
-        "cvb_interests":     [],
-        "cvb_interest_ctr":  0,
+        "cvb_interests": [],
+        "cvb_interest_ctr": 0,
     }
     for k, v in defaults.items():
         if k not in st.session_state:
             st.session_state[k] = v.copy() if isinstance(v, (dict, list)) else v
     st.session_state["cvb_template"] = _normalize_template(st.session_state.get("cvb_template"))
-    st.session_state["cvb_section_order"] = _normalize_section_order(st.session_state.get("cvb_section_order"))
+    st.session_state["cvb_section_order"] = _normalize_section_order(
+        st.session_state.get("cvb_section_order")
+    )
     if st.session_state["cvb_section_order"] == SECTION_IDS:
         st.session_state["cvb_section_order"] = list(CVR_SECTION_ORDER)
     if "cvb_sidebar_layout_v2_migrated" not in st.session_state:
@@ -265,7 +277,9 @@ def _init_builder() -> None:
     if "cvb_zoom_default_v4_migrated" not in st.session_state:
         current_zoom = _safe_int(st.session_state.get("cvb_zoom", 65), 65)
         if current_zoom in (45, 75, 95):
-            st.session_state["cvb_zoom"] = _default_zoom_for_template(st.session_state.get("cvb_template", "classic"))
+            st.session_state["cvb_zoom"] = _default_zoom_for_template(
+                st.session_state.get("cvb_template", "classic")
+            )
         st.session_state["cvb_zoom_default_v4_migrated"] = True
     if "cvb_zoom_default_v5_migrated" not in st.session_state:
         current_zoom = _safe_int(st.session_state.get("cvb_zoom", 100), 100)
@@ -373,7 +387,9 @@ def _init_builder() -> None:
             if not str(st.session_state.get(desc_key, "")).strip():
                 st.session_state[desc_key] = st.session_state.get(legacy_key, "")
         st.session_state["cvb_edu_desc_migration_v1"] = True
-    st.session_state["cvb_section_visibility"] = _normalize_section_visibility(st.session_state.get("cvb_section_visibility"))
+    st.session_state["cvb_section_visibility"] = _normalize_section_visibility(
+        st.session_state.get("cvb_section_visibility")
+    )
     if st.session_state.get("cvb_active_section") not in SECTION_IDS:
         st.session_state["cvb_active_section"] = SECTION_IDS[0]
     _normalize_builder_tuning_state()
@@ -382,7 +398,9 @@ def _init_builder() -> None:
         st.session_state["cvb_link_query_bootstrap_v1"] = True
     _protect_builder_widget_state()
 
+
 # ─── Data collection ──────────────────────────────────────────────────────────
+
 
 def collect_cv_data() -> dict:
     ss = st.session_state
@@ -392,18 +410,18 @@ def collect_cv_data() -> dict:
     q_website = _query_param_str("cvb_lurl_website")
     q_github = _query_param_str("cvb_lurl_github")
     personal = {
-        "full_name":  ss.get("cvb_full_name", ""),
+        "full_name": ss.get("cvb_full_name", ""),
         "prof_title": ss.get("cvb_prof_title", ""),
-        "email":      ss.get("cvb_email", ""),
-        "phone":      ss.get("cvb_phone", ""),
-        "location":   ss.get("cvb_location", ""),
-        "website":    ss.get("cvb_website", ""),
-        "linkedin":   ss.get("cvb_linkedin", ""),
-        "github":     ss.get("cvb_github", ""),
-        "website_url":  q_website if q_website is not None else ss.get("cvb_website_url", ""),
+        "email": ss.get("cvb_email", ""),
+        "phone": ss.get("cvb_phone", ""),
+        "location": ss.get("cvb_location", ""),
+        "website": ss.get("cvb_website", ""),
+        "linkedin": ss.get("cvb_linkedin", ""),
+        "github": ss.get("cvb_github", ""),
+        "website_url": q_website if q_website is not None else ss.get("cvb_website_url", ""),
         "linkedin_url": q_linkedin if q_linkedin is not None else ss.get("cvb_linkedin_url", ""),
-        "github_url":   q_github if q_github is not None else ss.get("cvb_github_url", ""),
-        "summary":    ss.get("cvb_summary", ""),
+        "github_url": q_github if q_github is not None else ss.get("cvb_github_url", ""),
+        "summary": ss.get("cvb_summary", ""),
     }
     experience = []
     for eid in ss.get("cvb_exp_ids", []):
@@ -411,36 +429,38 @@ def collect_cv_data() -> dict:
             continue
         bcount = ss.get(f"cvb_exp_bcount_{eid}", 1)
         bullets = [ss.get(f"cvb_exp_b_{eid}_{i}", "") for i in range(bcount)]
-        experience.append({
-            "id":         eid,
-            "role":       ss.get(f"cvb_exp_role_{eid}", ""),
-            "company":    ss.get(f"cvb_exp_company_{eid}", ""),
-            "location":   ss.get(f"cvb_exp_loc_{eid}", ""),
-            "start_date": ss.get(f"cvb_exp_start_{eid}", ""),
-            "end_date":   ss.get(f"cvb_exp_end_{eid}", ""),
-            "current":    ss.get(f"cvb_exp_curr_{eid}", False),
-            "description": ss.get(f"cvb_exp_desc_{eid}", ""),
-            "bullets":    [b for b in bullets if b.strip()],
-        })
+        experience.append(
+            {
+                "id": eid,
+                "role": ss.get(f"cvb_exp_role_{eid}", ""),
+                "company": ss.get(f"cvb_exp_company_{eid}", ""),
+                "location": ss.get(f"cvb_exp_loc_{eid}", ""),
+                "start_date": ss.get(f"cvb_exp_start_{eid}", ""),
+                "end_date": ss.get(f"cvb_exp_end_{eid}", ""),
+                "current": ss.get(f"cvb_exp_curr_{eid}", False),
+                "description": ss.get(f"cvb_exp_desc_{eid}", ""),
+                "bullets": [b for b in bullets if b.strip()],
+            }
+        )
     education = []
     for eid in ss.get("cvb_edu_ids", []):
         if not _coerce_bool(ss.get(f"cvb_edu_visible_{eid}", True), True):
             continue
-        edu_description = str(
-            ss.get(f"cvb_edu_desc_{eid}", ss.get(f"cvb_edu_gpa_{eid}", ""))
+        edu_description = str(ss.get(f"cvb_edu_desc_{eid}", ss.get(f"cvb_edu_gpa_{eid}", "")))
+        education.append(
+            {
+                "id": eid,
+                "institution": ss.get(f"cvb_edu_inst_{eid}", ""),
+                "degree": ss.get(f"cvb_edu_degree_{eid}", ""),
+                "field": ss.get(f"cvb_edu_field_{eid}", ""),
+                "location": ss.get(f"cvb_edu_loc_{eid}", ""),
+                "start_date": ss.get(f"cvb_edu_start_{eid}", ""),
+                "end_date": ss.get(f"cvb_edu_end_{eid}", ""),
+                "current": ss.get(f"cvb_edu_curr_{eid}", False),
+                "description": edu_description,
+                "gpa": edu_description,
+            }
         )
-        education.append({
-            "id":          eid,
-            "institution": ss.get(f"cvb_edu_inst_{eid}", ""),
-            "degree":      ss.get(f"cvb_edu_degree_{eid}", ""),
-            "field":       ss.get(f"cvb_edu_field_{eid}", ""),
-            "location":    ss.get(f"cvb_edu_loc_{eid}", ""),
-            "start_date":  ss.get(f"cvb_edu_start_{eid}", ""),
-            "end_date":    ss.get(f"cvb_edu_end_{eid}", ""),
-            "current":     ss.get(f"cvb_edu_curr_{eid}", False),
-            "description": edu_description,
-            "gpa":         edu_description,
-        })
     skill_items = []
     for sid in ss.get("cvb_skill_ids", []):
         if not _coerce_bool(ss.get(f"cvb_skill_visible_{sid}", True), True):
@@ -448,36 +468,54 @@ def collect_cv_data() -> dict:
         value = ss.get(f"cvb_skill_item_{sid}", "").strip()
         if value:
             skill_items.append({"id": sid, "name": value})
-    skills_cats = [{"id": "primary", "name": "Skills", "items": [item["name"] for item in skill_items]}] if skill_items else []
+    skills_cats = (
+        [{"id": "primary", "name": "Skills", "items": [item["name"] for item in skill_items]}]
+        if skill_items
+        else []
+    )
     projects = []
     for pid in ss.get("cvb_proj_ids", []):
         if not _coerce_bool(ss.get(f"cvb_proj_visible_{pid}", True), True):
             continue
         q_proj_link = _query_param_str(f"cvb_lurl_proj_{pid}")
-        projects.append({
-            "id":          pid,
-            "name":        ss.get(f"cvb_proj_name_{pid}", ""),
-            "role":        ss.get(f"cvb_proj_role_{pid}", ""),
-            "description": ss.get(f"cvb_proj_desc_{pid}", ""),
-            "tech_stack":  [t.strip() for t in ss.get(f"cvb_proj_tech_{pid}", "").split(",") if t.strip()],
-            "link":        ss.get(f"cvb_proj_link_{pid}", ""),
-            "link_url":    q_proj_link if q_proj_link is not None else ss.get(f"cvb_proj_link_url_{pid}", ""),
-            "start_date":  ss.get(f"cvb_proj_start_{pid}", ""),
-            "end_date":    ss.get(f"cvb_proj_end_{pid}", ""),
-        })
+        projects.append(
+            {
+                "id": pid,
+                "name": ss.get(f"cvb_proj_name_{pid}", ""),
+                "role": ss.get(f"cvb_proj_role_{pid}", ""),
+                "description": ss.get(f"cvb_proj_desc_{pid}", ""),
+                "tech_stack": [
+                    t.strip() for t in ss.get(f"cvb_proj_tech_{pid}", "").split(",") if t.strip()
+                ],
+                "link": ss.get(f"cvb_proj_link_{pid}", ""),
+                "link_url": (
+                    q_proj_link
+                    if q_proj_link is not None
+                    else ss.get(f"cvb_proj_link_url_{pid}", "")
+                ),
+                "start_date": ss.get(f"cvb_proj_start_{pid}", ""),
+                "end_date": ss.get(f"cvb_proj_end_{pid}", ""),
+            }
+        )
     certifications = []
     for cid in ss.get("cvb_cert_ids", []):
         if not _coerce_bool(ss.get(f"cvb_cert_visible_{cid}", True), True):
             continue
         q_cert_link = _query_param_str(f"cvb_lurl_cert_{cid}")
-        certifications.append({
-            "id":     cid,
-            "name":   ss.get(f"cvb_cert_name_{cid}", ""),
-            "issuer": ss.get(f"cvb_cert_issuer_{cid}", ""),
-            "date":   ss.get(f"cvb_cert_date_{cid}", ""),
-            "link":   ss.get(f"cvb_cert_link_{cid}", ""),
-            "link_url": q_cert_link if q_cert_link is not None else ss.get(f"cvb_cert_link_url_{cid}", ""),
-        })
+        certifications.append(
+            {
+                "id": cid,
+                "name": ss.get(f"cvb_cert_name_{cid}", ""),
+                "issuer": ss.get(f"cvb_cert_issuer_{cid}", ""),
+                "date": ss.get(f"cvb_cert_date_{cid}", ""),
+                "link": ss.get(f"cvb_cert_link_{cid}", ""),
+                "link_url": (
+                    q_cert_link
+                    if q_cert_link is not None
+                    else ss.get(f"cvb_cert_link_url_{cid}", "")
+                ),
+            }
+        )
     languages = []
     for lid in ss.get("cvb_lang_ids", []):
         lang_name = str(ss.get(f"cvb_lang_name_{lid}", "") or "").strip()
@@ -485,40 +523,44 @@ def collect_cv_data() -> dict:
             continue
         if not _coerce_bool(ss.get(f"cvb_lang_visible_{lid}", True), True):
             continue
-        languages.append({
-            "id":          lid,
-            "language":    lang_name,
-            "proficiency": ss.get(f"cvb_lang_prof_{lid}", "Intermediate"),
-        })
+        languages.append(
+            {
+                "id": lid,
+                "language": lang_name,
+                "proficiency": ss.get(f"cvb_lang_prof_{lid}", "Intermediate"),
+            }
+        )
     return {
-        "personal":       personal,
-        "experience":     experience,
-        "education":      education,
-        "skills":         {"items": skill_items, "categories": skills_cats},
-        "projects":       projects,
+        "personal": personal,
+        "experience": experience,
+        "education": education,
+        "skills": {"items": skill_items, "categories": skills_cats},
+        "projects": projects,
         "certifications": certifications,
-        "languages":      languages,
-        "interests":      ss.get("cvb_interests", []),
+        "languages": languages,
+        "interests": ss.get("cvb_interests", []),
         "customization": {
-            "accent_color":  ss.get("cvb_accent_color", "#2563eb"),
-            "font":          ss.get("cvb_font", "System Sans"),
-            "font_size":     ss.get("cvb_font_size", 11),
-            "line_height":   ss.get("cvb_line_height", 1.4),
+            "accent_color": ss.get("cvb_accent_color", "#2563eb"),
+            "font": ss.get("cvb_font", "System Sans"),
+            "font_size": ss.get("cvb_font_size", 11),
+            "line_height": ss.get("cvb_line_height", 1.4),
             "entry_spacing": ss.get("cvb_entry_spacing", 8),
-            "show_icons":    _coerce_bool(ss.get("cvb_show_icons", True), True),
+            "show_icons": _coerce_bool(ss.get("cvb_show_icons", True), True),
             "section_order": _normalize_section_order(ss.get("cvb_section_order")),
             "section_visibility": _normalize_section_visibility(ss.get("cvb_section_visibility")),
         },
     }
 
+
 # ─── Load from DB ─────────────────────────────────────────────────────────────
+
 
 def load_cv_into_builder(cv_record: CV) -> None:
     d = cv_record.data or {}
     ss = st.session_state
     _clear_link_query_params()
-    ss["cvb_cv_title"]     = cv_record.title
-    ss["cvb_template"]     = _normalize_template(cv_record.template)
+    ss["cvb_cv_title"] = cv_record.title
+    ss["cvb_template"] = _normalize_template(cv_record.template)
     ss["cvb_loaded_cv_id"] = cv_record.id
     p = d.get("personal", {})
     for field in [
@@ -540,16 +582,16 @@ def load_cv_into_builder(cv_record: CV) -> None:
     for exp in d.get("experience", []):
         eid = exp.get("id") or str(uuid.uuid4())
         exp_ids.append(eid)
-        ss[f"cvb_exp_role_{eid}"]    = exp.get("role", "")
+        ss[f"cvb_exp_role_{eid}"] = exp.get("role", "")
         ss[f"cvb_exp_company_{eid}"] = exp.get("company", "")
-        ss[f"cvb_exp_loc_{eid}"]     = exp.get("location", "")
-        ss[f"cvb_exp_start_{eid}"]   = exp.get("start_date", "")
-        ss[f"cvb_exp_end_{eid}"]     = exp.get("end_date", "")
-        ss[f"cvb_exp_curr_{eid}"]    = exp.get("current", False)
-        ss[f"cvb_exp_desc_{eid}"]    = exp.get("description", "")
+        ss[f"cvb_exp_loc_{eid}"] = exp.get("location", "")
+        ss[f"cvb_exp_start_{eid}"] = exp.get("start_date", "")
+        ss[f"cvb_exp_end_{eid}"] = exp.get("end_date", "")
+        ss[f"cvb_exp_curr_{eid}"] = exp.get("current", False)
+        ss[f"cvb_exp_desc_{eid}"] = exp.get("description", "")
         ss[f"cvb_exp_visible_{eid}"] = True
         bullets = exp.get("bullets", [""])
-        ss[f"cvb_exp_bcount_{eid}"]  = len(bullets) or 1
+        ss[f"cvb_exp_bcount_{eid}"] = len(bullets) or 1
         for i, b in enumerate(bullets):
             ss[f"cvb_exp_b_{eid}_{i}"] = b
     ss["cvb_exp_ids"] = exp_ids
@@ -557,16 +599,16 @@ def load_cv_into_builder(cv_record: CV) -> None:
     for edu in d.get("education", []):
         eid = edu.get("id") or str(uuid.uuid4())
         edu_ids.append(eid)
-        ss[f"cvb_edu_inst_{eid}"]   = edu.get("institution", "")
+        ss[f"cvb_edu_inst_{eid}"] = edu.get("institution", "")
         ss[f"cvb_edu_degree_{eid}"] = edu.get("degree", "")
-        ss[f"cvb_edu_field_{eid}"]  = edu.get("field", "")
-        ss[f"cvb_edu_loc_{eid}"]    = edu.get("location", "")
-        ss[f"cvb_edu_start_{eid}"]  = edu.get("start_date", "")
-        ss[f"cvb_edu_end_{eid}"]    = edu.get("end_date", "")
-        ss[f"cvb_edu_curr_{eid}"]   = edu.get("current", False)
+        ss[f"cvb_edu_field_{eid}"] = edu.get("field", "")
+        ss[f"cvb_edu_loc_{eid}"] = edu.get("location", "")
+        ss[f"cvb_edu_start_{eid}"] = edu.get("start_date", "")
+        ss[f"cvb_edu_end_{eid}"] = edu.get("end_date", "")
+        ss[f"cvb_edu_curr_{eid}"] = edu.get("current", False)
         edu_description = edu.get("description", edu.get("gpa", ""))
-        ss[f"cvb_edu_desc_{eid}"]   = edu_description
-        ss[f"cvb_edu_gpa_{eid}"]    = edu_description
+        ss[f"cvb_edu_desc_{eid}"] = edu_description
+        ss[f"cvb_edu_gpa_{eid}"] = edu_description
         ss[f"cvb_edu_visible_{eid}"] = True
     ss["cvb_edu_ids"] = edu_ids
     parsed_skill_items = d.get("skills", {}).get("items", [])
@@ -587,24 +629,24 @@ def load_cv_into_builder(cv_record: CV) -> None:
     for proj in d.get("projects", []):
         pid = proj.get("id") or str(uuid.uuid4())
         proj_ids.append(pid)
-        ss[f"cvb_proj_name_{pid}"]  = proj.get("name", "")
-        ss[f"cvb_proj_role_{pid}"]  = proj.get("role", "")
-        ss[f"cvb_proj_desc_{pid}"]  = proj.get("description", "")
-        ss[f"cvb_proj_tech_{pid}"]  = ", ".join(proj.get("tech_stack", []))
-        ss[f"cvb_proj_link_{pid}"]  = proj.get("link", "")
+        ss[f"cvb_proj_name_{pid}"] = proj.get("name", "")
+        ss[f"cvb_proj_role_{pid}"] = proj.get("role", "")
+        ss[f"cvb_proj_desc_{pid}"] = proj.get("description", "")
+        ss[f"cvb_proj_tech_{pid}"] = ", ".join(proj.get("tech_stack", []))
+        ss[f"cvb_proj_link_{pid}"] = proj.get("link", "")
         ss[f"cvb_proj_link_url_{pid}"] = proj.get("link_url", "")
         ss[f"cvb_proj_start_{pid}"] = proj.get("start_date", "")
-        ss[f"cvb_proj_end_{pid}"]   = proj.get("end_date", "")
+        ss[f"cvb_proj_end_{pid}"] = proj.get("end_date", "")
         ss[f"cvb_proj_visible_{pid}"] = True
     ss["cvb_proj_ids"] = proj_ids
     cert_ids = []
     for cert in d.get("certifications", []):
         cid = cert.get("id") or str(uuid.uuid4())
         cert_ids.append(cid)
-        ss[f"cvb_cert_name_{cid}"]   = cert.get("name", "")
+        ss[f"cvb_cert_name_{cid}"] = cert.get("name", "")
         ss[f"cvb_cert_issuer_{cid}"] = cert.get("issuer", "")
-        ss[f"cvb_cert_date_{cid}"]   = cert.get("date", "")
-        ss[f"cvb_cert_link_{cid}"]   = cert.get("link", "")
+        ss[f"cvb_cert_date_{cid}"] = cert.get("date", "")
+        ss[f"cvb_cert_link_{cid}"] = cert.get("link", "")
         ss[f"cvb_cert_link_url_{cid}"] = cert.get("link_url", "")
         ss[f"cvb_cert_visible_{cid}"] = True
     ss["cvb_cert_ids"] = cert_ids
@@ -618,18 +660,27 @@ def load_cv_into_builder(cv_record: CV) -> None:
     ss["cvb_lang_ids"] = lang_ids
     ss["cvb_interests"] = d.get("interests", [])
     cust = d.get("customization", {})
-    ss["cvb_accent_color"]  = cust.get("accent_color", ss.get("cvb_accent_color", "#3b82f6"))
-    ss["cvb_font"]          = cust.get("font", ss.get("cvb_font", "System Sans"))
-    ss["cvb_font_size"]     = _safe_int(cust.get("font_size", ss.get("cvb_font_size", 11)), 11)
-    ss["cvb_line_height"]   = _safe_float(cust.get("line_height", ss.get("cvb_line_height", 1.4)), 1.4)
-    ss["cvb_entry_spacing"] = _safe_int(cust.get("entry_spacing", ss.get("cvb_entry_spacing", 8)), 8)
-    ss["cvb_show_icons"]    = _coerce_bool(cust.get("show_icons", ss.get("cvb_show_icons", True)), True)
+    ss["cvb_accent_color"] = cust.get("accent_color", ss.get("cvb_accent_color", "#3b82f6"))
+    ss["cvb_font"] = cust.get("font", ss.get("cvb_font", "System Sans"))
+    ss["cvb_font_size"] = _safe_int(cust.get("font_size", ss.get("cvb_font_size", 11)), 11)
+    ss["cvb_line_height"] = _safe_float(
+        cust.get("line_height", ss.get("cvb_line_height", 1.4)), 1.4
+    )
+    ss["cvb_entry_spacing"] = _safe_int(
+        cust.get("entry_spacing", ss.get("cvb_entry_spacing", 8)), 8
+    )
+    ss["cvb_show_icons"] = _coerce_bool(
+        cust.get("show_icons", ss.get("cvb_show_icons", True)), True
+    )
     if isinstance(cust, dict):
         if "section_order" in cust:
             ss["cvb_section_order"] = _normalize_section_order(cust.get("section_order"))
         if "section_visibility" in cust:
-            ss["cvb_section_visibility"] = _normalize_section_visibility(cust.get("section_visibility"))
+            ss["cvb_section_visibility"] = _normalize_section_visibility(
+                cust.get("section_visibility")
+            )
     _normalize_builder_tuning_state()
+
 
 def _load_cv_for_builder_if_requested() -> None:
     load_id = st.session_state.pop("cvb_load_id", None)
@@ -649,9 +700,11 @@ def _load_cv_for_builder_if_requested() -> None:
     finally:
         db.close()
 
+
 # ─── HTML escape helpers ──────────────────────────────────────────────────────
 
 # ─── CV HTML preview generator ────────────────────────────────────────────────
+
 
 def _parse_date_for_input(value: str | date | None) -> date | None:
     if isinstance(value, date):
@@ -676,7 +729,9 @@ def _parse_date_for_input(value: str | date | None) -> date | None:
             continue
     return None
 
+
 _MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
 
 def _parse_month_year(value: str | date | None) -> tuple[int | None, int | None]:
     if isinstance(value, date):
@@ -695,11 +750,13 @@ def _parse_month_year(value: str | date | None) -> tuple[int | None, int | None]
         return parsed.month, parsed.year
     return None, None
 
+
 def _set_month_year_storage(storage_key: str, month: int | None, year: int | None) -> None:
     if month and year:
         st.session_state[storage_key] = f"{month:02d}/{year:04d}"
     else:
         st.session_state[storage_key] = ""
+
 
 def _date_field(
     label: str,
@@ -727,7 +784,9 @@ def _date_field(
     raw_value = str(ss.get(storage_key, "") or "").strip()
     display_value = "Present (Current)" if is_current else (raw_value if raw_value else "MM/YYYY")
 
-    st.markdown(f"<div class='cvb-date-field-label'>{_html_escape(label)}</div>", unsafe_allow_html=True)
+    st.markdown(
+        f"<div class='cvb-date-field-label'>{_html_escape(label)}</div>", unsafe_allow_html=True
+    )
     if disabled:
         st.text_input(label, value=display_value, disabled=True, label_visibility="collapsed")
         return
@@ -755,7 +814,9 @@ def _date_field(
                         with cols[c]:
                             m_label = _MONTH_ABBR[m - 1]
                             m_type = "primary" if selected_month == m else "secondary"
-                            if st.button(m_label, key=f"{storage_key}__m_{m}", type=m_type, width="stretch"):
+                            if st.button(
+                                m_label, key=f"{storage_key}__m_{m}", type=m_type, width="stretch"
+                            ):
                                 ss[month_key] = m
                                 selected_month = m
                                 _set_month_year_storage(storage_key, selected_month, selected_year)
@@ -775,10 +836,17 @@ def _date_field(
                             y = years[idx]
                             with cols[c]:
                                 y_type = "primary" if selected_year == y else "secondary"
-                                if st.button(str(y), key=f"{storage_key}__y_{y}", type=y_type, width="stretch"):
+                                if st.button(
+                                    str(y),
+                                    key=f"{storage_key}__y_{y}",
+                                    type=y_type,
+                                    width="stretch",
+                                ):
                                     ss[year_key] = y
                                     selected_year = y
-                                    _set_month_year_storage(storage_key, selected_month, selected_year)
+                                    _set_month_year_storage(
+                                        storage_key, selected_month, selected_year
+                                    )
 
             if st.button("Clear", key=f"{storage_key}__clear"):
                 if allow_present and current_key:
@@ -786,6 +854,7 @@ def _date_field(
                 ss[month_key] = None
                 ss[year_key] = None
                 _set_month_year_storage(storage_key, None, None)
+
 
 def _save_cv(cv_data: dict, title: str, template: str) -> bool:
     user = get_session_user()
@@ -815,7 +884,9 @@ def _save_cv(cv_data: dict, title: str, template: str) -> bool:
     finally:
         db.close()
 
+
 # ─── PDF / backup helpers ─────────────────────────────────────────────────────
+
 
 @st.cache_data(show_spinner=False)
 def _cached_generate_cv_pdf(
@@ -833,7 +904,9 @@ def _cached_generate_cv_pdf(
 ) -> tuple[bytes | None, str]:
     try:
         cv_data = json.loads(data_json) if data_json else {}
-        section_visibility = json.loads(section_visibility_json) if section_visibility_json else None
+        section_visibility = (
+            json.loads(section_visibility_json) if section_visibility_json else None
+        )
         section_order = json.loads(section_order_json) if section_order_json else None
         preview_source = _build_preview_source(cv_data)
         preview_html = generate_cv_html(
@@ -902,9 +975,11 @@ def _pdf_request_payload(
         section_order_json,
     )
 
+
 def _get_backup_json() -> str:
     data = {k: v for k, v in st.session_state.items() if k.startswith("cvb_")}
     return json.dumps(data, indent=2, default=str)
+
 
 def _import_from_json(uploaded_file) -> None:
     try:
@@ -926,12 +1001,14 @@ def _import_from_json(uploaded_file) -> None:
     except Exception as exc:
         st.error(f"Import failed: {exc}")
 
+
 def _reset_all() -> None:
     keys = [k for k in st.session_state if k.startswith("cvb_")]
     for k in keys:
         del st.session_state[k]
     _clear_link_query_params()
     _init_builder()
+
 
 def _inject_reset_popup_native_js() -> None:
     components.html(
@@ -989,7 +1066,9 @@ def _inject_reset_popup_native_js() -> None:
         height=0,
     )
 
+
 # ─── Form section renderers ───────────────────────────────────────────────────
+
 
 @st.fragment
 def _render_backup_button_fragment(backup_payload: str) -> None:
@@ -1008,7 +1087,9 @@ def _render_save_button_fragment(template: str) -> None:
     ss = st.session_state
     if st.button("Save", key="cvb_toolbar_save"):
         cv_data = collect_cv_data()
-        title = (ss.get("cvb_cv_title", "") or ss.get("cvb_toolbar_title_native", "") or "My Resume").strip()
+        title = (
+            ss.get("cvb_cv_title", "") or ss.get("cvb_toolbar_title_native", "") or "My Resume"
+        ).strip()
         if _save_cv(cv_data, title, template):
             ss["cvb_cv_title"] = title
             ss["cvb_last_saved"] = datetime.now().strftime("%I:%M %p")
@@ -1588,6 +1669,7 @@ def _inject_realtime_js() -> None:
         height=0,
     )
 
+
 def _inject_sections_relay_js() -> None:
     """Relay postMessage events from the section-list iframe to hidden Streamlit buttons.
 
@@ -1598,7 +1680,8 @@ def _inject_sections_relay_js() -> None:
     This relay (also a components.html, height=0) runs its script in the parent-page
     context, so it can freely access window.parent.document and click hidden buttons.
     """
-    components.html("""<script>
+    components.html(
+        """<script>
 (function() {
   var w = window.parent && window.parent !== window ? window.parent : window;
   var doc = w.document;
@@ -1721,7 +1804,10 @@ def _inject_sections_relay_js() -> None:
 
   w.addEventListener('message', w[KEY]);
 })();
-</script>""", height=0)
+</script>""",
+        height=0,
+    )
+
 
 def _inject_middle_section_exact_css(is_dark: bool = False) -> None:
     """Final high-specificity middle-panel card overrides for CVReviewer parity."""
@@ -2768,6 +2854,7 @@ def _inject_middle_section_exact_css(is_dark: bool = False) -> None:
             unsafe_allow_html=True,
         )
 
+
 def _inject_chevron_hider_js() -> None:
     """Hide Streamlit's built-in expander chevron precisely (safe — only hides the icon
     span itself, never walks up to potentially break the heading).
@@ -2779,7 +2866,8 @@ def _inject_chevron_hider_js() -> None:
     """
     # Custom section cards replaced st.expander, so this legacy observer is no longer needed.
     return
-    components.html("""<script>
+    components.html(
+        """<script>
 (function() {
   var w = window.parent && window.parent !== window ? window.parent : window;
   var doc = w.document;
@@ -2825,7 +2913,10 @@ def _inject_chevron_hider_js() -> None:
   var observer = new MutationObserver(hideChevrons);
   observer.observe(doc.body, { childList: true, subtree: true });
 })();
-</script>""", height=0)
+</script>""",
+        height=0,
+    )
+
 
 def _inject_builder_final_alignment_overrides() -> None:
     """Last-pass CSS overrides to defeat global theme alignment defaults."""
@@ -2904,13 +2995,13 @@ body:has(.st-key-cvb-page-native) {
         unsafe_allow_html=True,
     )
 
+
 # ─── CSS injection ────────────────────────────────────────────────────────────
+
 
 def _inject_builder_css_native(is_dark: bool) -> None:
     page_bg = "#0b1220" if is_dark else "#f3f5f8"
     border = "#334155" if is_dark else "#d3dce8"
-    toolbar_bg = "#0f172a" if is_dark else "linear-gradient(90deg, #edf3fa 0%, #f6f9fe 18%, #ffffff 48%, #ffffff 100%)"
-    toolbar_brd = "#334155" if is_dark else "#d7e1ec"
     toolbar_input_bg = "#1e293b" if is_dark else "#ffffff"
     toolbar_input_brd = "#475569" if is_dark else "#d7e1ec"
     toolbar_input_text = "#e2e8f0" if is_dark else "#0f172a"
@@ -2946,29 +3037,32 @@ def _inject_builder_css_native(is_dark: bool) -> None:
     left_panel_bg = "#0f172a" if is_dark else "#f7f9fc"
     scroll_track = "#111827" if is_dark else "#e6ebf2"
     expander_card_bg = "#0f172a" if is_dark else "#ffffff"
-    expander_header_bg = "#111827" if is_dark else "rgba(243,245,247,0.90)"
     expander_content_bg = "#0f172a" if is_dark else "#ffffff"
     expander_border = "#334155" if is_dark else "#d3dce8"
-    expander_divider = "#334155" if is_dark else "#e2e8f0"
-    section_header_text = "#e2e8f0" if is_dark else "#0f172a"
-    section_icon = "#60a5fa" if is_dark else "#0b63ce"
-    card_shadow = "0 1px 2px rgba(2, 6, 23, 0.45)" if is_dark else "0 1px 2px rgba(15, 23, 42, 0.05)"
+    card_shadow = (
+        "0 1px 2px rgba(2, 6, 23, 0.45)" if is_dark else "0 1px 2px rgba(15, 23, 42, 0.05)"
+    )
     field_bg = "#111827" if is_dark else "rgba(243,245,247,0.75)"
     field_border = "#475569" if is_dark else "#d1dae6"
     field_text = "#e2e8f0" if is_dark else "#0f172a"
     field_focus_bg = "#0b1220" if is_dark else "#ffffff"
     field_focus_border = "#60a5fa" if is_dark else "#0b63ce"
-    field_focus_ring = "0 0 0 3px rgba(59,130,246,0.22)" if is_dark else "0 0 0 3px rgba(11,99,206,0.14)"
+    field_focus_ring = (
+        "0 0 0 3px rgba(59,130,246,0.22)" if is_dark else "0 0 0 3px rgba(11,99,206,0.14)"
+    )
     label_color = "#cbd5e1" if is_dark else "#64748b"
-    chevron_stroke = "94a3b8" if is_dark else "64748b"
     accent_ring_inner = "#0f172a" if is_dark else "#ffffff"
     cur_accent = st.session_state.get("cvb_accent_color", ACCENT_COLORS[0])
     native_dot_parts: list[str] = []
     for i, color in enumerate(ACCENT_COLORS):
-        ring = f"box-shadow:0 0 0 2px {accent_ring_inner},0 0 0 4px {color} !important;" if color == cur_accent else ""
+        ring = (
+            f"box-shadow:0 0 0 2px {accent_ring_inner},0 0 0 4px {color} !important;"
+            if color == cur_accent
+            else ""
+        )
         native_dot_parts.append(
             f'.st-key-cvb-color-dots-native [class*="st-key-acc_native_{i}"] button '
-            f'{{ background:{color} !important; {ring} }}'
+            f"{{ background:{color} !important; {ring} }}"
         )
     native_dot_css = "\n".join(native_dot_parts)
     st.markdown(
@@ -4706,24 +4800,27 @@ body.cvb-reset-open .st-key-cvb-reset-float-native {{
         unsafe_allow_html=True,
     )
 
-def _render_sections_list_component(section_order: list[str], visibility: dict[str, bool], is_dark: bool) -> None:
+
+def _render_sections_list_component(
+    section_order: list[str], visibility: dict[str, bool], is_dark: bool
+) -> None:
     """Render a unified section list via components.html with SortableJS.
 
     Each row is [grip SVG | truncated label | eye SVG] — all inside one card,
     matching CVReviewer's layout exactly.  Order and visibility changes are
     communicated back to Streamlit via a hidden text-input bridge widget.
     """
-    ITEM_H  = 46
+    ITEM_H = 46
     ITEM_GAP = 8
     n = len(section_order)
     comp_h = max(n * (ITEM_H + ITEM_GAP) + 8, 44)
 
-    bg     = "#1e293b" if is_dark else "#ffffff"
+    bg = "#1e293b" if is_dark else "#ffffff"
     border = "#334155" if is_dark else "#d3dce8"
-    text   = "#e2e8f0" if is_dark else "#0f172a"
-    muted  = "#94a3b8" if is_dark else "#64748b"
-    hov    = "#60a5fa" if is_dark else "#0a64ca"
-    pg_bg  = "transparent"
+    text = "#e2e8f0" if is_dark else "#0f172a"
+    muted = "#94a3b8" if is_dark else "#64748b"
+    hov = "#60a5fa" if is_dark else "#0a64ca"
+    pg_bg = "transparent"
 
     items_html = "".join(
         f'<li class="sec-item" data-id="{sid}">'
@@ -4731,7 +4828,7 @@ def _render_sections_list_component(section_order: list[str], visibility: dict[s
         f'<span class="sec-label">{SECTION_ID_TO_LABEL.get(sid, sid.title())}</span>'
         f'<button type="button" class="eye-btn" data-visible="{str(visibility.get(sid, True)).lower()}"'
         f' aria-label="Toggle visibility"></button>'
-        f'</li>'
+        f"</li>"
         for sid in section_order
     )
 
@@ -4821,6 +4918,7 @@ document.querySelectorAll('.eye-btn').forEach(function(btn){{
 
     components.html(html, height=comp_h, scrolling=False)
 
+
 def _build_preview_source(cv_data: dict) -> dict:
     """Return preview data source.
 
@@ -4833,9 +4931,14 @@ def _build_preview_source(cv_data: dict) -> dict:
     src["_user_only_preview"] = True
     return src
 
+
 def _render_style_component(
-    current_accent: str, font_size: int, line_height: float, entry_spacing: int,
-    show_icons: bool, is_dark: bool
+    current_accent: str,
+    font_size: int,
+    line_height: float,
+    entry_spacing: int,
+    show_icons: bool,
+    is_dark: bool,
 ) -> None:
     """STYLE section as a custom HTML component matching CVReviewer exactly.
 
@@ -4846,9 +4949,9 @@ def _render_style_component(
     """
     lbl_color = "#94a3b8" if is_dark else "#64748b"
     txt_color = "#f1f5f9" if is_dark else "#0f172a"
-    track_bg  = "#334155" if is_dark else "#e2e8f0"
-    tog_off   = "#475569" if is_dark else "#e2e8f0"
-    ring_bg   = "#1e293b" if is_dark else "#ffffff"
+    track_bg = "#334155" if is_dark else "#e2e8f0"
+    tog_off = "#475569" if is_dark else "#e2e8f0"
+    ring_bg = "#1e293b" if is_dark else "#ffffff"
     value_color = "#93c5fd" if is_dark else "#0b5cb8"
     sw_border = "#475569" if is_dark else "#cbd5e1"
 
@@ -4989,6 +5092,7 @@ document.getElementById('icons-lbl').addEventListener('click',function(e){{e.pre
     # Total: ~314px → use 330 for safety
     components.html(html, height=340, scrolling=False)
 
+
 def _render_zoom_toolbar_component(zoom: int, is_dark: bool = False) -> None:
     bar_bg = "#0f172a" if is_dark else "#ffffff"
     bar_border = "#334155" if is_dark else "#dbe3ef"
@@ -5052,11 +5156,13 @@ document.querySelectorAll('.icon-btn').forEach(function(btn){{
 </body></html>"""
     components.html(html, height=45, scrolling=False)
 
+
 _RAIL_HEADING_ICONS = {
     "sections": "<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M8 6h13'/><path d='M8 12h13'/><path d='M8 18h13'/><path d='M3 6h.01'/><path d='M3 12h.01'/><path d='M3 18h.01'/></svg>",
     "templates": "<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><rect width='18' height='18' x='3' y='3' rx='2'/><path d='M3 9h18'/><path d='M9 21V9'/></svg>",
     "style": "<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='13.5' cy='6.5' r='.5'/><circle cx='17.5' cy='10.5' r='.5'/><circle cx='8.5' cy='7.5' r='.5'/><circle cx='6.5' cy='12.5' r='.5'/><path d='M12 22a1 1 0 0 0 1-1v-1a2 2 0 0 1 2-2h1a4 4 0 0 0 0-8 7 7 0 1 0-4 12Z'/></svg>",
 }
+
 
 def _render_left_rail_heading(label: str, icon_key: str) -> None:
     icon_svg = _RAIL_HEADING_ICONS.get(icon_key, "")
@@ -5066,12 +5172,13 @@ def _render_left_rail_heading(label: str, icon_key: str) -> None:
         unsafe_allow_html=True,
     )
 
+
 def _render_left_panel_native() -> None:
     ss = st.session_state
 
     section_order = _normalize_section_order(ss.get("cvb_section_order"))
-    visibility    = _normalize_section_visibility(ss.get("cvb_section_visibility"))
-    ss["cvb_section_order"]      = section_order
+    visibility = _normalize_section_visibility(ss.get("cvb_section_visibility"))
+    ss["cvb_section_order"] = section_order
     ss["cvb_section_visibility"] = visibility
 
     is_dark = ss.get("theme", "light") == "dark"
@@ -5144,6 +5251,7 @@ def _render_left_panel_native() -> None:
         show_icons=_coerce_bool(ss.get("cvb_show_icons", True), True),
         is_dark=is_dark,
     )
+
 
 def _render_middle_panel_native() -> None:
     def _handle_header_add(section_id: str) -> bool:
@@ -5256,7 +5364,11 @@ def _render_middle_panel_native() -> None:
                                 st.rerun()
                 with hr:
                     with st.container(key=f"cvb-section-chevron-{sid}"):
-                        chevron_glyph = ":material/keyboard_arrow_down:" if is_open else ":material/chevron_right:"
+                        chevron_glyph = (
+                            ":material/keyboard_arrow_down:"
+                            if is_open
+                            else ":material/chevron_right:"
+                        )
                         if st.button(
                             chevron_glyph,
                             key=f"cvb_section_toggle_{sid}",
@@ -5272,9 +5384,12 @@ def _render_middle_panel_native() -> None:
                 with st.container(key=f"cvb-section-content-{sid}"):
                     render_map[sid]()
 
+
 def _render_right_panel_native(cv_data: dict, is_dark: bool) -> None:
     ss = st.session_state
-    zoom = _safe_int(ss.get("cvb_zoom", _default_zoom_for_template(ss.get("cvb_template", "classic"))), 100)
+    zoom = _safe_int(
+        ss.get("cvb_zoom", _default_zoom_for_template(ss.get("cvb_template", "classic"))), 100
+    )
     levels = CVB_ZOOM_LEVELS
 
     with st.container(key="cvb-zoom-hidden-buttons"):
@@ -5314,13 +5429,17 @@ def _render_right_panel_native(cv_data: dict, is_dark: bool) -> None:
         section_visibility=sec_vis,
         section_order=sec_order,
     )
-    preview_body = preview_html.split("<body>", 1)[-1].split("</body>", 1)[0] if "<body>" in preview_html else preview_html
+    preview_body = (
+        preview_html.split("<body>", 1)[-1].split("</body>", 1)[0]
+        if "<body>" in preview_html
+        else preview_html
+    )
     preview_styles = ""
     style_start = preview_html.find("<style>")
     if style_start != -1:
         style_end = preview_html.find("</style>", style_start + 7)
         if style_end != -1:
-            preview_styles = preview_html[style_start + 7:style_end]
+            preview_styles = preview_html[style_start + 7 : style_end]
     scale = zoom / 100.0
     bg = "#0b1220" if is_dark else "#f4f7fb"
     paper_bg = "#0f172a" if is_dark else "#ffffff"
@@ -5356,6 +5475,7 @@ body {{ padding:0; }}
     frame_height = max(900, int(A4_HEIGHT_PX * scale) + 80)
     components.html(preview_doc, height=frame_height, scrolling=False)
 
+
 def render_cv_builder_page() -> None:
     _init_builder()
     _load_cv_for_builder_if_requested()
@@ -5364,14 +5484,14 @@ def render_cv_builder_page() -> None:
     _inject_builder_css_native(is_dark)
     _inject_middle_section_exact_css(is_dark)
 
-    ss        = st.session_state
+    ss = st.session_state
     cv_data_snapshot = collect_cv_data()
-    template  = _normalize_template(ss.get("cvb_template", "classic"))
-    accent    = ss.get("cvb_accent_color") or None
-    font      = FONT_OPTIONS.get(ss.get("cvb_font", "System Sans"))
+    template = _normalize_template(ss.get("cvb_template", "classic"))
+    accent = ss.get("cvb_accent_color") or None
+    font = FONT_OPTIONS.get(ss.get("cvb_font", "System Sans"))
     font_size = _safe_int(ss.get("cvb_font_size", 11), 11)
-    lh        = _safe_float(ss.get("cvb_line_height", 1.4), 1.4)
-    spacing   = _safe_int(ss.get("cvb_entry_spacing", 8), 8)
+    lh = _safe_float(ss.get("cvb_line_height", 1.4), 1.4)
+    spacing = _safe_int(ss.get("cvb_entry_spacing", 8), 8)
     show_icons = _coerce_bool(ss.get("cvb_show_icons", True), True)
     sec_vis = _normalize_section_visibility(ss.get("cvb_section_visibility"))
     sec_order = _normalize_section_order(ss.get("cvb_section_order"))
@@ -5406,7 +5526,10 @@ def render_cv_builder_page() -> None:
                 with st.container(key="cvb-toolbar-meta-native"):
                     last_saved = ss.get("cvb_last_saved")
                     saved_txt = f"Saved {last_saved}" if last_saved else "Saved --:--:--"
-                    st.markdown(f"<span class='cvb-saved-ts-native'>{saved_txt}</span>", unsafe_allow_html=True)
+                    st.markdown(
+                        f"<span class='cvb-saved-ts-native'>{saved_txt}</span>",
+                        unsafe_allow_html=True,
+                    )
                     current_title = (ss.get("cvb_cv_title", "My Resume") or "My Resume").strip()
                     if ss.get("cvb_toolbar_title_native", "") != current_title:
                         ss["cvb_toolbar_title_native"] = current_title
@@ -5416,7 +5539,9 @@ def render_cv_builder_page() -> None:
                         label_visibility="collapsed",
                         placeholder="My Resume",
                     )
-                    title_from_toolbar = st.session_state.get("cvb_toolbar_title_native", "").strip()
+                    title_from_toolbar = st.session_state.get(
+                        "cvb_toolbar_title_native", ""
+                    ).strip()
                     if title_from_toolbar and title_from_toolbar != ss.get("cvb_cv_title", ""):
                         ss["cvb_cv_title"] = title_from_toolbar
             with col_actions:
@@ -5442,7 +5567,9 @@ def render_cv_builder_page() -> None:
                                 on_click="ignore",
                             )
                         else:
-                            if st.button("Download PDF", key="cvb_toolbar_download_prepare", type="primary"):
+                            if st.button(
+                                "Download PDF", key="cvb_toolbar_download_prepare", type="primary"
+                            ):
                                 with st.spinner("Preparing PDF..."):
                                     bytes_out, err_out = _cached_generate_cv_pdf(*pdf_args)
                                 ss["cvb_pdf_hash"] = pdf_hash
@@ -5473,7 +5600,9 @@ def render_cv_builder_page() -> None:
                     )
 
         if ss.get("cvb_show_import"):
-            uploaded = st.file_uploader("Upload JSON backup", type=["json"], key="cvb_import_file_native")
+            uploaded = st.file_uploader(
+                "Upload JSON backup", type=["json"], key="cvb_import_file_native"
+            )
             if uploaded:
                 _import_from_json(uploaded)
         if pdf_error:
@@ -5498,7 +5627,13 @@ def render_cv_builder_page() -> None:
                 with st.container(key="cvb-right-scroll-native"):
                     with st.container(key="cvb-preview-tools-native"):
                         _render_zoom_toolbar_component(
-                            _safe_int(ss.get("cvb_zoom", _default_zoom_for_template(ss.get("cvb_template", "classic"))), 100),
+                            _safe_int(
+                                ss.get(
+                                    "cvb_zoom",
+                                    _default_zoom_for_template(ss.get("cvb_template", "classic")),
+                                ),
+                                100,
+                            ),
                             is_dark=is_dark,
                         )
                     _render_right_panel_native(cv_data_live, is_dark)
@@ -5508,6 +5643,7 @@ def render_cv_builder_page() -> None:
     _inject_sections_relay_js()
     _inject_builder_final_alignment_overrides()
     return
+
 
 def _summary_section() -> None:
     with st.container(key="cvb-summary-inner-card"):
@@ -5521,17 +5657,30 @@ def _summary_section() -> None:
         char_count = len(summary_val)
         st.markdown(f"<div class='cvb-summary-counter'>{char_count}</div>", unsafe_allow_html=True)
 
+
 def _education_section() -> None:
     edu_ids = list(st.session_state.get("cvb_edu_ids", []))
     if not edu_ids:
         seeded_id = str(uuid.uuid4())
         st.session_state["cvb_edu_ids"] = [seeded_id]
-        st.session_state[f"cvb_edu_degree_{seeded_id}"] = st.session_state.get(f"cvb_edu_degree_{seeded_id}", "")
-        st.session_state[f"cvb_edu_inst_{seeded_id}"] = st.session_state.get(f"cvb_edu_inst_{seeded_id}", "")
-        st.session_state[f"cvb_edu_loc_{seeded_id}"] = st.session_state.get(f"cvb_edu_loc_{seeded_id}", "")
-        st.session_state[f"cvb_edu_start_{seeded_id}"] = st.session_state.get(f"cvb_edu_start_{seeded_id}", "")
-        st.session_state[f"cvb_edu_end_{seeded_id}"] = st.session_state.get(f"cvb_edu_end_{seeded_id}", "")
-        st.session_state[f"cvb_edu_curr_{seeded_id}"] = bool(st.session_state.get(f"cvb_edu_curr_{seeded_id}", False))
+        st.session_state[f"cvb_edu_degree_{seeded_id}"] = st.session_state.get(
+            f"cvb_edu_degree_{seeded_id}", ""
+        )
+        st.session_state[f"cvb_edu_inst_{seeded_id}"] = st.session_state.get(
+            f"cvb_edu_inst_{seeded_id}", ""
+        )
+        st.session_state[f"cvb_edu_loc_{seeded_id}"] = st.session_state.get(
+            f"cvb_edu_loc_{seeded_id}", ""
+        )
+        st.session_state[f"cvb_edu_start_{seeded_id}"] = st.session_state.get(
+            f"cvb_edu_start_{seeded_id}", ""
+        )
+        st.session_state[f"cvb_edu_end_{seeded_id}"] = st.session_state.get(
+            f"cvb_edu_end_{seeded_id}", ""
+        )
+        st.session_state[f"cvb_edu_curr_{seeded_id}"] = bool(
+            st.session_state.get(f"cvb_edu_curr_{seeded_id}", False)
+        )
         st.session_state[f"cvb_edu_desc_{seeded_id}"] = st.session_state.get(
             f"cvb_edu_desc_{seeded_id}",
             st.session_state.get(f"cvb_edu_gpa_{seeded_id}", ""),
@@ -5563,20 +5712,30 @@ def _education_section() -> None:
                 eye_col, del_col = st.columns(2, gap="small")
                 with eye_col:
                     edu_visible = bool(st.session_state.get(f"cvb_edu_visible_{eid}", True))
-                    edu_eye_icon = ":material/visibility:" if edu_visible else ":material/visibility_off:"
-                    if st.button(edu_eye_icon, key=f"vis_edu_{eid}", type="tertiary", help="Show/Hide in CV"):
+                    edu_eye_icon = (
+                        ":material/visibility:" if edu_visible else ":material/visibility_off:"
+                    )
+                    if st.button(
+                        edu_eye_icon, key=f"vis_edu_{eid}", type="tertiary", help="Show/Hide in CV"
+                    ):
                         st.session_state[f"cvb_edu_visible_{eid}"] = not edu_visible
                         st.rerun()
                 with del_col:
-                    if len(edu_ids) > 1 and st.button(":material/delete:", key=f"rem_edu_{eid}", type="tertiary"):
+                    if len(edu_ids) > 1 and st.button(
+                        ":material/delete:", key=f"rem_edu_{eid}", type="tertiary"
+                    ):
                         _remove_education(eid)
                         st.rerun()
 
-            st.text_input("Degree", key=f"cvb_edu_degree_{eid}", placeholder="B.S. Computer Science")
+            st.text_input(
+                "Degree", key=f"cvb_edu_degree_{eid}", placeholder="B.S. Computer Science"
+            )
 
             c1, c2 = st.columns(2)
             with c1:
-                st.text_input("Institution", key=f"cvb_edu_inst_{eid}", placeholder="University of...")
+                st.text_input(
+                    "Institution", key=f"cvb_edu_inst_{eid}", placeholder="University of..."
+                )
             with c2:
                 st.text_input("Location", key=f"cvb_edu_loc_{eid}", placeholder="City, Country")
 
@@ -5586,7 +5745,12 @@ def _education_section() -> None:
                     _date_field("Start Date", f"cvb_edu_start_{eid}")
             with c4:
                 with st.container(key=f"cvb-edu-date-end-{eid}"):
-                    _date_field("End Date", f"cvb_edu_end_{eid}", allow_present=True, current_key=f"cvb_edu_curr_{eid}")
+                    _date_field(
+                        "End Date",
+                        f"cvb_edu_end_{eid}",
+                        allow_present=True,
+                        current_key=f"cvb_edu_curr_{eid}",
+                    )
 
             st.text_area(
                 "Description / Details",
@@ -5595,6 +5759,7 @@ def _education_section() -> None:
                 placeholder="Additional details...",
             )
             st.session_state[f"cvb_edu_gpa_{eid}"] = st.session_state.get(f"cvb_edu_desc_{eid}", "")
+
 
 def _skills_section() -> None:
     ss = st.session_state
@@ -5637,8 +5802,12 @@ def _skills_section() -> None:
                 )
             with c2:
                 skill_visible = bool(ss.get(f"cvb_skill_visible_{sid}", True))
-                skill_eye_icon = ":material/visibility:" if skill_visible else ":material/visibility_off:"
-                if st.button(skill_eye_icon, key=f"vis_skill_{sid}", type="tertiary", help="Show/Hide in CV"):
+                skill_eye_icon = (
+                    ":material/visibility:" if skill_visible else ":material/visibility_off:"
+                )
+                if st.button(
+                    skill_eye_icon, key=f"vis_skill_{sid}", type="tertiary", help="Show/Hide in CV"
+                ):
                     ss[f"cvb_skill_visible_{sid}"] = not skill_visible
                     st.rerun()
             with c3:
@@ -5649,6 +5818,7 @@ def _skills_section() -> None:
                     on_click=_remove_skill,
                     args=(sid,),
                 )
+
 
 def _projects_section() -> None:
     proj_ids = list(st.session_state.get("cvb_proj_ids", []))
@@ -5673,8 +5843,12 @@ def _projects_section() -> None:
                 st.markdown(f"**Project {idx + 1}**")
             with ph_eye:
                 proj_visible = bool(st.session_state.get(f"cvb_proj_visible_{pid}", True))
-                proj_eye_icon = ":material/visibility:" if proj_visible else ":material/visibility_off:"
-                if st.button(proj_eye_icon, key=f"vis_proj_{pid}", type="tertiary", help="Show/Hide in CV"):
+                proj_eye_icon = (
+                    ":material/visibility:" if proj_visible else ":material/visibility_off:"
+                )
+                if st.button(
+                    proj_eye_icon, key=f"vis_proj_{pid}", type="tertiary", help="Show/Hide in CV"
+                ):
                     st.session_state[f"cvb_proj_visible_{pid}"] = not proj_visible
                     st.rerun()
             with ph_del:
@@ -5691,9 +5865,13 @@ def _projects_section() -> None:
                     st.rerun()
             c1, c2 = st.columns(2)
             with c1:
-                st.text_input("Project Name", key=f"cvb_proj_name_{pid}", placeholder="Enter project name")
+                st.text_input(
+                    "Project Name", key=f"cvb_proj_name_{pid}", placeholder="Enter project name"
+                )
             with c2:
-                st.text_input("Your Role", key=f"cvb_proj_role_{pid}", placeholder="Enter your role")
+                st.text_input(
+                    "Your Role", key=f"cvb_proj_role_{pid}", placeholder="Enter your role"
+                )
 
             _date_field("Date", f"cvb_proj_start_{pid}")
             st.text_area(
@@ -5709,7 +5887,11 @@ def _projects_section() -> None:
                 help="Comma separated technologies used in this project.",
             )
             with st.container(key=f"cvb-link-field-proj-{pid}"):
-                st.text_input("Project Link", key=f"cvb_proj_link_{pid}", placeholder="Enter project link display text")
+                st.text_input(
+                    "Project Link",
+                    key=f"cvb_proj_link_{pid}",
+                    placeholder="Enter project link display text",
+                )
             with st.container(key=f"cvb-link-url-proj-{pid}"):
                 st.text_input(
                     "Project Link URL",
@@ -5717,6 +5899,7 @@ def _projects_section() -> None:
                     label_visibility="collapsed",
                     placeholder="https://project-url.com",
                 )
+
 
 def _languages_section() -> None:
     lang_ids = list(st.session_state.get("cvb_lang_ids", []))
@@ -5746,8 +5929,12 @@ def _languages_section() -> None:
                 )
             with c3:
                 lang_visible = bool(st.session_state.get(f"cvb_lang_visible_{lid}", True))
-                lang_eye_icon = ":material/visibility:" if lang_visible else ":material/visibility_off:"
-                if st.button(lang_eye_icon, key=f"vis_lang_{lid}", type="tertiary", help="Show/Hide in CV"):
+                lang_eye_icon = (
+                    ":material/visibility:" if lang_visible else ":material/visibility_off:"
+                )
+                if st.button(
+                    lang_eye_icon, key=f"vis_lang_{lid}", type="tertiary", help="Show/Hide in CV"
+                ):
                     st.session_state[f"cvb_lang_visible_{lid}"] = not lang_visible
                     st.rerun()
             with c4:
@@ -5755,6 +5942,7 @@ def _languages_section() -> None:
                     st.session_state["cvb_lang_ids"].remove(lid)
                     st.session_state.pop(f"cvb_lang_visible_{lid}", None)
                     st.rerun()
+
 
 def _certifications_section() -> None:
     cert_ids = list(st.session_state.get("cvb_cert_ids", []))
@@ -5775,8 +5963,12 @@ def _certifications_section() -> None:
                 st.markdown(f"**Certification {idx + 1}**")
             with ch_eye:
                 cert_visible = bool(st.session_state.get(f"cvb_cert_visible_{cid}", True))
-                cert_eye_icon = ":material/visibility:" if cert_visible else ":material/visibility_off:"
-                if st.button(cert_eye_icon, key=f"vis_cert_{cid}", type="tertiary", help="Show/Hide in CV"):
+                cert_eye_icon = (
+                    ":material/visibility:" if cert_visible else ":material/visibility_off:"
+                )
+                if st.button(
+                    cert_eye_icon, key=f"vis_cert_{cid}", type="tertiary", help="Show/Hide in CV"
+                ):
                     st.session_state[f"cvb_cert_visible_{cid}"] = not cert_visible
                     st.rerun()
             with ch_del:
@@ -5791,14 +5983,20 @@ def _certifications_section() -> None:
                     except Exception:
                         pass
                     st.rerun()
-            st.text_input("Title", key=f"cvb_cert_name_{cid}", placeholder="Enter certification title")
+            st.text_input(
+                "Title", key=f"cvb_cert_name_{cid}", placeholder="Enter certification title"
+            )
             c1, c2 = st.columns(2)
             with c1:
                 st.text_input("Issuer", key=f"cvb_cert_issuer_{cid}", placeholder="Enter issuer")
             with c2:
                 _date_field("Date", f"cvb_cert_date_{cid}")
             with st.container(key=f"cvb-link-field-cert-{cid}"):
-                st.text_input("Credential URL", key=f"cvb_cert_link_{cid}", placeholder="Enter credential display text")
+                st.text_input(
+                    "Credential URL",
+                    key=f"cvb_cert_link_{cid}",
+                    placeholder="Enter credential display text",
+                )
             with st.container(key=f"cvb-link-url-cert-{cid}"):
                 st.text_input(
                     "Credential URL Link",
@@ -5806,6 +6004,7 @@ def _certifications_section() -> None:
                     label_visibility="collapsed",
                     placeholder="https://credential-url.com",
                 )
+
 
 def _interests_section() -> None:
     interests = list(st.session_state.get("cvb_interests", []))
@@ -5845,11 +6044,14 @@ def _interests_section() -> None:
                 st.session_state["cvb_interest_ctr"] = ctr + 1
                 st.rerun()
 
+
 # --- CVReviewer middle-panel runtime overrides (v2) ---
 def _personal_section() -> None:
     with st.container(key="cvb-personal-inner-card"):
         st.text_input("Full Name", key="cvb_full_name", placeholder="Enter full name")
-        st.text_input("Professional Title", key="cvb_prof_title", placeholder="Enter professional title")
+        st.text_input(
+            "Professional Title", key="cvb_prof_title", placeholder="Enter professional title"
+        )
 
         c1, c2 = st.columns(2)
         with c1:
@@ -5862,7 +6064,9 @@ def _personal_section() -> None:
             st.text_input("Location", key="cvb_location", placeholder="Enter location")
         with c4:
             with st.container(key="cvb-link-field-linkedin"):
-                st.text_input("LinkedIn", key="cvb_linkedin", placeholder="Enter LinkedIn display text")
+                st.text_input(
+                    "LinkedIn", key="cvb_linkedin", placeholder="Enter LinkedIn display text"
+                )
             with st.container(key="cvb-link-url-linkedin"):
                 st.text_input(
                     "LinkedIn URL",
@@ -5874,7 +6078,9 @@ def _personal_section() -> None:
         c5, c6 = st.columns(2)
         with c5:
             with st.container(key="cvb-link-field-website"):
-                st.text_input("Website", key="cvb_website", placeholder="Enter website display text")
+                st.text_input(
+                    "Website", key="cvb_website", placeholder="Enter website display text"
+                )
             with st.container(key="cvb-link-url-website"):
                 st.text_input(
                     "Website URL",
@@ -5892,6 +6098,7 @@ def _personal_section() -> None:
                     label_visibility="collapsed",
                     placeholder="https://github.com/username",
                 )
+
 
 def _experience_section() -> None:
     exp_ids = list(st.session_state.get("cvb_exp_ids", []))
@@ -5966,8 +6173,15 @@ def _experience_section() -> None:
                             st.rerun()
                     with act_eye:
                         exp_visible = bool(st.session_state.get(f"cvb_exp_visible_{eid}", True))
-                        exp_eye_icon = ":material/visibility:" if exp_visible else ":material/visibility_off:"
-                        if st.button(exp_eye_icon, key=f"vis_exp_{eid}", type="tertiary", help="Show/Hide in CV"):
+                        exp_eye_icon = (
+                            ":material/visibility:" if exp_visible else ":material/visibility_off:"
+                        )
+                        if st.button(
+                            exp_eye_icon,
+                            key=f"vis_exp_{eid}",
+                            type="tertiary",
+                            help="Show/Hide in CV",
+                        ):
                             st.session_state[f"cvb_exp_visible_{eid}"] = not exp_visible
                             st.rerun()
                     with act_del:
@@ -6005,7 +6219,10 @@ def _experience_section() -> None:
             for i in range(bcount):
                 bc1, bc2, bc3 = st.columns([0.25, 8.2, 0.55])
                 with bc1:
-                    st.markdown("<div style='color:#0b63ce;font-size:1rem;line-height:2.1;'>&bull;</div>", unsafe_allow_html=True)
+                    st.markdown(
+                        "<div style='color:#0b63ce;font-size:1rem;line-height:2.1;'>&bull;</div>",
+                        unsafe_allow_html=True,
+                    )
                 with bc2:
                     st.text_input(
                         f"bullet_{eid}_{i}",
@@ -6026,6 +6243,7 @@ def _experience_section() -> None:
             if st.button("Add bullet point", key=f"add_b_{eid}", type="tertiary"):
                 st.session_state[f"cvb_exp_bcount_{eid}"] = bcount + 1
                 st.rerun()
+
 
 # --- CVReviewer template-structure overrides (safe, isolated) ---
 def generate_cv_html(
@@ -6126,11 +6344,15 @@ def generate_cv_html(
                     if k == field_key:
                         raw_val = str(v or "").strip()
                         break
-                disp, href = _normalize_contact_link(
-                    field_key,
-                    raw_val,
-                    contact_urls.get(field_key, ""),
-                ) if field_key in link_fields else (raw_val, "")
+                disp, href = (
+                    _normalize_contact_link(
+                        field_key,
+                        raw_val,
+                        contact_urls.get(field_key, ""),
+                    )
+                    if field_key in link_fields
+                    else (raw_val, "")
+                )
                 visible = bool(str(disp or "").strip())
                 hidden = " style='display:none'" if not visible else ""
                 ico = icon_map.get(field_key, "")
@@ -6163,7 +6385,11 @@ def generate_cv_html(
         parts = []
         for k, _, v in contacts_raw:
             val = str(v or "").strip()
-            disp, href = _normalize_contact_link(k, val, contact_urls.get(k, "")) if k in link_fields else (val, "")
+            disp, href = (
+                _normalize_contact_link(k, val, contact_urls.get(k, ""))
+                if k in link_fields
+                else (val, "")
+            )
             ico = icon_map.get(k, "")
             hidden_attr = " style='display:none'" if not disp else ""
             if k in link_fields:
@@ -6235,7 +6461,9 @@ def generate_cv_html(
             company = _html_escape(exp.get("company", ""))
             loc = _html_escape(exp.get("location", ""))
             desc = _html_escape(exp.get("description", ""))
-            dr = _date_range_html(exp.get("start_date", ""), exp.get("end_date", ""), bool(exp.get("current", False)))
+            dr = _date_range_html(
+                exp.get("start_date", ""), exp.get("end_date", ""), bool(exp.get("current", False))
+            )
             bullets = [str(b).strip() for b in exp.get("bullets", []) if str(b).strip()]
 
             row_top = (
@@ -6265,7 +6493,9 @@ def generate_cv_html(
             field = _html_escape(edu.get("field", ""))
             loc = _html_escape(edu.get("location", ""))
             details = _html_escape(edu.get("description", edu.get("gpa", "")))
-            dr = _date_range_html(edu.get("start_date", ""), edu.get("end_date", ""), bool(edu.get("current", False)))
+            dr = _date_range_html(
+                edu.get("start_date", ""), edu.get("end_date", ""), bool(edu.get("current", False))
+            )
             desc_left = " \u00b7 ".join([x for x in [degree, field] if x])
 
             parts.append(
@@ -6412,7 +6642,11 @@ def generate_cv_html(
         f"<div class='cv-paper classic {icons_class}'>"
         "<header class='cv-head center'>"
         f"<h1 id='cv-name'{name_hidden_attr}>{name}</h1>"
-        + (f"<p class='cv-title' id='cv-title'>{title}</p>" if title else "<p class='cv-title' id='cv-title' style='display:none'></p>")
+        + (
+            f"<p class='cv-title' id='cv-title'>{title}</p>"
+            if title
+            else "<p class='cv-title' id='cv-title' style='display:none'></p>"
+        )
         + _classic_contact_row()
         + "</header>"
         + _ordered_sections(order, compact=False)
@@ -6422,7 +6656,11 @@ def generate_cv_html(
     # Modern (CVReviewer-like blue sidebar)
     left_pref_modern = {"skills", "languages", "certifications", "interests"}
     left_modern_ids = [sid for sid in order if sid in left_pref_modern and vis.get(sid, True)]
-    right_modern_ids = [sid for sid in order if sid not in left_pref_modern and sid != "personal" and vis.get(sid, True)]
+    right_modern_ids = [
+        sid
+        for sid in order
+        if sid not in left_pref_modern and sid != "personal" and vis.get(sid, True)
+    ]
     modern_left_sections: list[str] = []
     for sid in left_modern_ids:
         if sid == "skills":
@@ -6437,12 +6675,20 @@ def generate_cv_html(
         "<div class='modern-grid'>"
         "<aside class='modern-left'>"
         f"<h1 id='cv-name'{name_hidden_attr}>{name}</h1>"
-        + (f"<p class='cv-title' id='cv-title'>{title}</p>" if title else "<p class='cv-title' id='cv-title' style='display:none'></p>")
+        + (
+            f"<p class='cv-title' id='cv-title'>{title}</p>"
+            if title
+            else "<p class='cv-title' id='cv-title' style='display:none'></p>"
+        )
         + _modern_contact_stack()
         + "".join(modern_left_sections)
         + "</aside>"
         "<main class='modern-right'>"
-        + ( _sec("Professional Summary", section_map.get("summary", "")) if vis.get("summary", True) else "" )
+        + (
+            _sec("Professional Summary", section_map.get("summary", ""))
+            if vis.get("summary", True)
+            else ""
+        )
         + _ordered_sections([sid for sid in right_modern_ids if sid != "summary"], compact=False)
         + "</main>"
         + "</div></div>"
@@ -6450,7 +6696,11 @@ def generate_cv_html(
 
     # Creative (CVReviewer-like light/colored sidebar)
     left_pref_creative = {"skills", "languages", "interests"}
-    right_creative_ids = [sid for sid in order if sid not in left_pref_creative and sid != "personal" and vis.get(sid, True)]
+    right_creative_ids = [
+        sid
+        for sid in order
+        if sid not in left_pref_creative and sid != "personal" and vis.get(sid, True)
+    ]
     left_creative_ids = [sid for sid in order if sid in left_pref_creative and vis.get(sid, True)]
     creative_left_sections: list[str] = []
     for sid in left_creative_ids:
@@ -6466,12 +6716,16 @@ def generate_cv_html(
         "<div class='creative-grid'>"
         "<aside class='creative-left'>"
         f"<h1 id='cv-name'{name_hidden_attr}>{name}</h1>"
-        + (f"<p class='cv-title' id='cv-title'>{title}</p>" if title else "<p class='cv-title' id='cv-title' style='display:none'></p>")
+        + (
+            f"<p class='cv-title' id='cv-title'>{title}</p>"
+            if title
+            else "<p class='cv-title' id='cv-title' style='display:none'></p>"
+        )
         + _modern_contact_stack()
         + "".join(creative_left_sections)
         + "</aside>"
         "<main class='creative-right'>"
-        + ( _sec("About Me", section_map.get("summary", "")) if vis.get("summary", True) else "" )
+        + (_sec("About Me", section_map.get("summary", "")) if vis.get("summary", True) else "")
         + _ordered_sections([sid for sid in right_creative_ids if sid != "summary"], compact=False)
         + "</main>"
         + "</div></div>"
@@ -6939,20 +7193,21 @@ window.addEventListener('message', function(ev) {{
 </body>
 </html>"""
 
+
 def _render_template_component(current_tpl: str, is_dark: bool) -> None:
     """Render template-selection cards as a custom HTML component.
 
     Keep the left bar compact (same style as before), while preview shows the template demo.
     """
-    bg        = "#1e293b" if is_dark else "#ffffff"
-    bg_hover  = "#334155" if is_dark else "#f8fbff"
+    bg = "#1e293b" if is_dark else "#ffffff"
+    bg_hover = "#334155" if is_dark else "#f8fbff"
     bg_active = "#1e3a5f" if is_dark else "rgba(59,130,246,0.12)"
-    border    = "#334155" if is_dark else "#d3dce8"
-    border_act= "rgba(96,165,250,0.6)" if is_dark else "rgba(59,130,246,0.55)"
-    text_main = "#f1f5f9"  if is_dark else "#0f172a"
-    text_act  = "#bfdbfe"  if is_dark else "#2563eb"
-    text_sub  = "#94a3b8"  if is_dark else "#64748b"
-    text_sub_act="#93c5fd" if is_dark else "#2563eb"
+    border = "#334155" if is_dark else "#d3dce8"
+    border_act = "rgba(96,165,250,0.6)" if is_dark else "rgba(59,130,246,0.55)"
+    text_main = "#f1f5f9" if is_dark else "#0f172a"
+    text_act = "#bfdbfe" if is_dark else "#2563eb"
+    text_sub = "#94a3b8" if is_dark else "#64748b"
+    text_sub_act = "#93c5fd" if is_dark else "#2563eb"
 
     cards_html = ""
     for tpl_key, tpl_label, tpl_desc in TEMPLATE_CHOICES:
@@ -7002,7 +7257,3 @@ document.querySelectorAll('.tpl-card').forEach(function(card){{
     card_count = max(1, len(TEMPLATE_CHOICES))
     comp_h = 10 + (card_count * 58) + ((card_count - 1) * 8)
     components.html(html, height=comp_h, scrolling=False)
-
-
-
-

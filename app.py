@@ -34,10 +34,14 @@ from src.ui.css_injection import (
 try:
     from src.ui.css_injection import inject_dropdown_outside_click, inject_header_layout_override
 except ImportError:
+
     def inject_header_layout_override() -> None:
         return None
+
     def inject_dropdown_outside_click() -> None:
         return None
+
+
 from src.ui.compare_report import render_compare_report_page
 from src.ui.cv_builder_page import render_cv_builder_page
 from src.ui.layout import render_site_footer, render_top_nav
@@ -50,7 +54,14 @@ from src.ui.static_pages import render_static_page
 from src.ui.ui_components import inject_back_button_sync, inject_base_css
 from src.ui.upload import render_upload_page
 
-PROTECTED_PAGES = {"resume-builder", "my-cvs", "my-analyses", "my-comparisons", "compare-report", "settings"}
+PROTECTED_PAGES = {
+    "resume-builder",
+    "my-cvs",
+    "my-analyses",
+    "my-comparisons",
+    "compare-report",
+    "settings",
+}
 NAV_ACTIVE_LABELS = {
     "home": "Analyze CV",
     "upload": "Analyze CV",
@@ -297,7 +308,9 @@ def _inject_theme_persistence(theme: str) -> None:
     )
 
 
-def _inject_url_and_anchor_cleanup(current_page: str = "home", report_snapshot_id: str | None = None) -> None:
+def _inject_url_and_anchor_cleanup(
+    current_page: str = "home", report_snapshot_id: str | None = None
+) -> None:
     """Keep URL clean, prevent hash-based reload jumps, and collapse invisible injection wrappers."""
     desired_page_js = json.dumps(str(current_page or "home"))
     desired_rid_js = json.dumps(str(report_snapshot_id or ""))
@@ -534,7 +547,6 @@ def _show_queued_toast() -> None:
         st.success(message)
 
 
-
 @st.cache_resource
 def _init_database() -> None:
     init_db()
@@ -555,6 +567,7 @@ def _handle_oauth_callback() -> None:
     if not code or st.session_state.get("user"):
         return
     from src.oauth_utils import parse_oauth_state_token
+
     state_payload = parse_oauth_state_token(returned_state)
     if not state_payload:
         st.session_state["oauth_error"] = "Google sign-in failed (invalid state). Please try again."
@@ -566,6 +579,7 @@ def _handle_oauth_callback() -> None:
         st.session_state["auth_redirect"] = next_from_state
 
     from src.oauth_utils import exchange_code_for_userinfo
+
     user_info = exchange_code_for_userinfo(code)
     if not user_info:
         st.session_state["oauth_error"] = "Google sign-in failed. Please try again."
@@ -612,7 +626,6 @@ def _require_auth(intended_page: str = "home") -> None:
         _render_auth_gate(intended_page)
 
 
-
 def main() -> None:
     """Main application entry point."""
     st.set_page_config(
@@ -624,44 +637,39 @@ def main() -> None:
     assert_session_secret_configured()
     _init_database()
 
-    if st.query_params.get('_logout'):
+    if st.query_params.get("_logout"):
         logout_user()
         st.session_state["ui_toast"] = {"message": "Signed out successfully.", "icon": "👋"}
         st.session_state["_skip_cookie_restore_once"] = True
-        if '_logout' in st.query_params:
-            del st.query_params['_logout']
+        if "_logout" in st.query_params:
+            del st.query_params["_logout"]
         _set_query_params_atomic({"page": "home"})
         expired = build_session_cookie_header("", 0) + "; expires=Thu, 01 Jan 1970 00:00:00 GMT"
         components.html(
-            f'<script>\n(function() {{\n  var expire = {json.dumps(expired)};\n  try {{ document.cookie = expire; }} catch(e) {{}}\n  try {{\n    var w = window.parent && window.parent !== window ? window.parent : window;\n    w.document.cookie = expire;\n  }} catch(e) {{}}\n}})();\n</script>',
+            f"<script>\n(function() {{\n  var expire = {json.dumps(expired)};\n  try {{ document.cookie = expire; }} catch(e) {{}}\n  try {{\n    var w = window.parent && window.parent !== window ? window.parent : window;\n    w.document.cookie = expire;\n  }} catch(e) {{}}\n}})();\n</script>",
             height=0,
         )
 
-    if not st.session_state.pop('_skip_cookie_restore_once', False):
+    if not st.session_state.pop("_skip_cookie_restore_once", False):
         restore_session_from_cookie()
 
     _handle_oauth_callback()
     _handle_reset_token()
 
-
-    if 'theme' not in st.session_state:
-        raw_theme = st.query_params.get('_t') or st.query_params.get('theme')
-        st.session_state['theme'] = raw_theme if raw_theme in ('light', 'dark') else 'light'
+    if "theme" not in st.session_state:
+        raw_theme = st.query_params.get("_t") or st.query_params.get("theme")
+        st.session_state["theme"] = raw_theme if raw_theme in ("light", "dark") else "light"
 
     _show_queued_toast()
-    if 'page' not in st.session_state:
-        st.session_state['page'] = 'home'
-    if st.session_state.get('page') not in APP_PAGES:
-        st.session_state['page'] = 'home'
-    if 'report_snapshot_id' not in st.session_state:
-        st.session_state['report_snapshot_id'] = None
+    if "page" not in st.session_state:
+        st.session_state["page"] = "home"
+    if st.session_state.get("page") not in APP_PAGES:
+        st.session_state["page"] = "home"
+    if "report_snapshot_id" not in st.session_state:
+        st.session_state["report_snapshot_id"] = None
 
     next_page = st.query_params.get("next")
-    if (
-        st.query_params.get("page") == "auth"
-        and next_page in APP_PAGES
-        and next_page != "auth"
-    ):
+    if st.query_params.get("page") == "auth" and next_page in APP_PAGES and next_page != "auth":
         st.session_state["auth_redirect"] = str(next_page)
 
     url_page = st.query_params.get("page")
@@ -697,7 +705,7 @@ def main() -> None:
         except Exception:
             pass
 
-    if st.session_state.get('page') == 'auth' or st.query_params.get('page') == 'auth':
+    if st.session_state.get("page") == "auth" or st.query_params.get("page") == "auth":
         if get_session_user():
             target_page = _resolve_post_auth_target("home")
             st.session_state.pop("auth_redirect", None)
@@ -711,49 +719,51 @@ def main() -> None:
                 _set_query_params_atomic(desired_params)
                 st.rerun()
         else:
-            st.session_state['page'] = 'auth'
-            _theme = st.session_state.get('theme', 'light')
+            st.session_state["page"] = "auth"
+            _theme = st.session_state.get("theme", "light")
             inject_base_css(_theme)
             render_auth_page(theme=_theme)
             _inject_theme_persistence(_theme)
             return
 
-    if st.query_params.get('_clear'):
+    if st.query_params.get("_clear"):
         _clear_analysis_state(clear_comparison=True)
-        st.session_state['page'] = 'home'
+        st.session_state["page"] = "home"
         _set_query_params_atomic({"page": "home"})
 
     if (
-        st.session_state.get('page') == 'report'
-        and not st.session_state.get('analysis')
-        and st.session_state.get('report_snapshot_id')
+        st.session_state.get("page") == "report"
+        and not st.session_state.get("analysis")
+        and st.session_state.get("report_snapshot_id")
     ):
-        _restore_report_snapshot(str(st.session_state['report_snapshot_id']))
+        _restore_report_snapshot(str(st.session_state["report_snapshot_id"]))
 
-    if st.session_state.get('page') == 'report' and not st.session_state.get('analysis'):
-        st.session_state['page'] = 'home'
+    if st.session_state.get("page") == "report" and not st.session_state.get("analysis"):
+        st.session_state["page"] = "home"
         _set_query_params_atomic({"page": "home"})
 
-    if st.session_state.get('cvb_load_id'):
-        st.session_state['page'] = 'resume-builder'
+    if st.session_state.get("cvb_load_id"):
+        st.session_state["page"] = "resume-builder"
 
-    current_page = str(st.session_state.get('page', 'upload'))
-    if current_page == 'compare-cv':
-        st.session_state['page'] = 'home'
-        st.session_state['scroll_to_compare_anchor'] = True
+    current_page = str(st.session_state.get("page", "upload"))
+    if current_page == "compare-cv":
+        st.session_state["page"] = "home"
+        st.session_state["scroll_to_compare_anchor"] = True
         st.session_state[HOME_COMPARE_FOCUS_KEY] = True
-        current_page = 'home'
+        current_page = "home"
 
     # Defensive cleanup: stale compare-focus/nav-action state from a previous
     # page can leak into the first Resume Builder paint and briefly mark
     # "Compare Resumes" as active.
-    if current_page == 'resume-builder':
+    if current_page == "resume-builder":
         st.session_state[HOME_COMPARE_FOCUS_KEY] = False
-        st.session_state.pop('scroll_to_compare_anchor', None)
-        if str(st.session_state.get('nav_action_pending', '')).strip() == 'compare-anchor':
-            st.session_state.pop('nav_action_pending', None)
+        st.session_state.pop("scroll_to_compare_anchor", None)
+        if str(st.session_state.get("nav_action_pending", "")).strip() == "compare-anchor":
+            st.session_state.pop("nav_action_pending", None)
     active_nav_label = NAV_ACTIVE_LABELS.get(current_page, "Analyze CV")
-    if current_page in ("home", "upload", "upload-cv") and st.session_state.get(HOME_COMPARE_FOCUS_KEY):
+    if current_page in ("home", "upload", "upload-cv") and st.session_state.get(
+        HOME_COMPARE_FOCUS_KEY
+    ):
         active_nav_label = "Compare Resumes"
     nav_action = render_top_nav(active_nav_label)
     if nav_action:
@@ -780,35 +790,35 @@ def main() -> None:
         if current_page not in ("home", "upload", "upload-cv"):
             st.session_state[HOME_COMPARE_FOCUS_KEY] = False
         st.session_state.pop("nav_action_pending", None)
-        current_page = str(st.session_state.get('page', 'upload'))
+        current_page = str(st.session_state.get("page", "upload"))
 
-    if current_page in ('home', 'upload', 'upload-cv'):
+    if current_page in ("home", "upload", "upload-cv"):
         render_upload_page(compare_mode=False)
-    elif current_page == 'compare-report':
-        _require_auth('compare-report')
+    elif current_page == "compare-report":
+        _require_auth("compare-report")
         render_compare_report_page()
-    elif current_page == 'report':
+    elif current_page == "report":
         render_report_view()
-    elif current_page == 'resume-builder':
-        _require_auth('resume-builder')
+    elif current_page == "resume-builder":
+        _require_auth("resume-builder")
         render_cv_builder_page()
-    elif current_page == 'my-cvs':
-        _require_auth('my-cvs')
+    elif current_page == "my-cvs":
+        _require_auth("my-cvs")
         render_my_cvs_page()
-    elif current_page == 'my-analyses':
-        _require_auth('my-analyses')
+    elif current_page == "my-analyses":
+        _require_auth("my-analyses")
         render_my_analyses_page()
-    elif current_page == 'my-comparisons':
-        _require_auth('my-comparisons')
+    elif current_page == "my-comparisons":
+        _require_auth("my-comparisons")
         render_my_comparisons_page()
-    elif current_page == 'settings':
-        _require_auth('settings')
+    elif current_page == "settings":
+        _require_auth("settings")
         render_settings_page()
     else:
         render_static_page(current_page)
 
-    _inject_theme_persistence(st.session_state['theme'])
-    inject_base_css(st.session_state['theme'])
+    _inject_theme_persistence(st.session_state["theme"])
+    inject_base_css(st.session_state["theme"])
     inject_file_uploader_spacing_css()
     inject_compact_header_css()
     inject_header_layout_override()

@@ -1,12 +1,23 @@
 """Settings page - profile, preferences, notifications, login info, account deletion."""
 
-from datetime import datetime, timezone
+from datetime import timezone
 
 import streamlit as st
 
-from src.auth_utils import get_session_user, hash_password, logout_user, verify_password
-from src.database import CV, Analysis, Comparison, PasswordResetToken, User, get_db
-
+from src.auth_utils import (
+    get_session_user,
+    hash_password,
+    logout_user,
+    verify_password,
+)
+from src.database import (
+    CV,
+    Analysis,
+    Comparison,
+    PasswordResetToken,
+    User,
+    get_db,
+)
 
 # ─── DB helpers ────────────────────────────────────────────────────────────────
 
@@ -131,8 +142,7 @@ _ICON_GEAR = (
     "0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z'/>"
 )
 _ICON_USER = (
-    "<path d='M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2'/>"
-    "<circle cx='12' cy='7' r='4'/>"
+    "<path d='M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2'/>" "<circle cx='12' cy='7' r='4'/>"
 )
 _ICON_BELL = (
     "<path d='M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9'/>"
@@ -183,9 +193,9 @@ def _section_header(icon_svg: str, title: str, subtitle: str = "", *, danger: bo
         f'  <span class="{icon_cls}">{icon_svg}</span>'
         f'  <div class="settings-sec-title-wrap">'
         f'    <p class="{title_cls}">{title}</p>'
-        f'    {sub_html}'
-        f'  </div>'
-        f'</div>'
+        f"    {sub_html}"
+        f"  </div>"
+        f"</div>"
     )
 
 
@@ -764,9 +774,21 @@ def render_settings_page() -> None:
                 )
 
                 notif_options = [
-                    ("settings_notif_career", "Career tips", "Weekly resume best-practices and job-search advice."),
-                    ("settings_notif_product", "Product updates", "New features, templates, and improvements."),
-                    ("settings_notif_security", "Security alerts", "Sign-ins from new devices and important account events."),
+                    (
+                        "settings_notif_career",
+                        "Career tips",
+                        "Weekly resume best-practices and job-search advice.",
+                    ),
+                    (
+                        "settings_notif_product",
+                        "Product updates",
+                        "New features, templates, and improvements.",
+                    ),
+                    (
+                        "settings_notif_security",
+                        "Security alerts",
+                        "Sign-ins from new devices and important account events.",
+                    ),
                 ]
                 for key, title, desc in notif_options:
                     row_l, row_r = st.columns([5, 1])
@@ -824,11 +846,13 @@ def render_settings_page() -> None:
             )
 
             if is_google:
-                st.markdown('<p class="settings-field-label">Google Account</p>', unsafe_allow_html=True)
+                st.markdown(
+                    '<p class="settings-field-label">Google Account</p>', unsafe_allow_html=True
+                )
                 st.markdown(
                     f'<div class="settings-google-chip">'
                     f'<span class="settings-google-dot"></span>'
-                    f'Connected &mdash; {user_email}'
+                    f"Connected &mdash; {user_email}"
                     f"</div>",
                     unsafe_allow_html=True,
                 )
@@ -837,16 +861,22 @@ def render_settings_page() -> None:
                 if is_password_account:
                     dc_col, _ = st.columns([1, 3])
                     with dc_col:
-                        if st.button("Disconnect Google", key="settings_disconnect_google", width="stretch"):
+                        if st.button(
+                            "Disconnect Google", key="settings_disconnect_google", width="stretch"
+                        ):
                             ok, msg = _disconnect_google(user_id)
                             (st.success if ok else st.error)(msg)
                             if ok:
                                 st.rerun()
                 else:
-                    st.caption("Set a password below before disconnecting Google — otherwise you'll be locked out.")
+                    st.caption(
+                        "Set a password below before disconnecting Google — otherwise you'll be locked out."
+                    )
                 st.markdown('<hr class="settings-divider"/>', unsafe_allow_html=True)
 
-            st.markdown('<p class="settings-field-label">Email &amp; Password</p>', unsafe_allow_html=True)
+            st.markdown(
+                '<p class="settings-field-label">Email &amp; Password</p>', unsafe_allow_html=True
+            )
             verified_pill = (
                 f'<span class="settings-verified">{_svg(_ICON_CHECK, size=12)}Verified</span>'
             )
@@ -870,18 +900,26 @@ def render_settings_page() -> None:
 
             elif panel == "email":
                 st.markdown('<hr class="settings-divider"/>', unsafe_allow_html=True)
-                st.markdown('<p class="settings-field-label">Change Email</p>', unsafe_allow_html=True)
+                st.markdown(
+                    '<p class="settings-field-label">Change Email</p>', unsafe_allow_html=True
+                )
                 if not is_password_account:
                     st.info("Google-only accounts cannot change email here.")
                     if st.button("Cancel", key="settings_cancel_email_info"):
                         st.session_state.pop("settings_panel", None)
                         st.rerun()
                 else:
-                    new_email = st.text_input("New email address", key="settings_new_email", placeholder="new@example.com")
-                    cur_pass = st.text_input("Current password", type="password", key="settings_cur_pass_email")
+                    new_email = st.text_input(
+                        "New email address", key="settings_new_email", placeholder="new@example.com"
+                    )
+                    cur_pass = st.text_input(
+                        "Current password", type="password", key="settings_cur_pass_email"
+                    )
                     fc1, fc2, _ = st.columns([1, 1, 2])
                     with fc1:
-                        if st.button("Save Email", key="settings_save_email", type="primary", width="stretch"):
+                        if st.button(
+                            "Save Email", key="settings_save_email", type="primary", width="stretch"
+                        ):
                             if new_email and cur_pass:
                                 ok, msg = _change_email(user_id, cur_pass, new_email)
                                 if ok:
@@ -900,19 +938,32 @@ def render_settings_page() -> None:
 
             elif panel == "password":
                 st.markdown('<hr class="settings-divider"/>', unsafe_allow_html=True)
-                st.markdown('<p class="settings-field-label">Change Password</p>', unsafe_allow_html=True)
+                st.markdown(
+                    '<p class="settings-field-label">Change Password</p>', unsafe_allow_html=True
+                )
                 if not is_password_account:
                     st.info("Google-only accounts cannot change password here.")
                     if st.button("Cancel", key="settings_cancel_pass_info"):
                         st.session_state.pop("settings_panel", None)
                         st.rerun()
                 else:
-                    cur_pass = st.text_input("Current password", type="password", key="settings_cur_pass")
-                    new_pass = st.text_input("New password (min 8 chars)", type="password", key="settings_new_pass")
-                    conf_pass = st.text_input("Confirm new password", type="password", key="settings_conf_pass")
+                    cur_pass = st.text_input(
+                        "Current password", type="password", key="settings_cur_pass"
+                    )
+                    new_pass = st.text_input(
+                        "New password (min 8 chars)", type="password", key="settings_new_pass"
+                    )
+                    conf_pass = st.text_input(
+                        "Confirm new password", type="password", key="settings_conf_pass"
+                    )
                     pc1, pc2, _ = st.columns([1, 1, 2])
                     with pc1:
-                        if st.button("Save Password", key="settings_save_pass", type="primary", width="stretch"):
+                        if st.button(
+                            "Save Password",
+                            key="settings_save_pass",
+                            type="primary",
+                            width="stretch",
+                        ):
                             if cur_pass and new_pass and conf_pass:
                                 if new_pass != conf_pass:
                                     st.error("New passwords do not match.")
@@ -959,7 +1010,12 @@ def render_settings_page() -> None:
                 )
                 dc1, dc2, _ = st.columns([1.4, 1, 2])
                 with dc1:
-                    if st.button("Yes, Delete My Account", key="settings_do_delete", type="primary", width="stretch"):
+                    if st.button(
+                        "Yes, Delete My Account",
+                        key="settings_do_delete",
+                        type="primary",
+                        width="stretch",
+                    ):
                         ok, msg = _delete_account(user_id)
                         if ok:
                             logout_user()

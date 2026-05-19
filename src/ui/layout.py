@@ -170,6 +170,7 @@ def _render_html_block(html: str) -> None:
     """Render HTML reliably across Streamlit versions/runtimes."""
     st.markdown(html, unsafe_allow_html=True)
 
+
 def render_theme_toggle(standalone: bool = True, key: str = "theme_toggle") -> None:
     """Render the theme switch button. If standalone=False, only the button (for use inside a column)."""
     if standalone:
@@ -179,7 +180,7 @@ def render_theme_toggle(standalone: bool = True, key: str = "theme_toggle") -> N
         container = st.container()
     with container:
         current_theme = st.session_state.get("theme", "light")
-        theme_icon = "\U0001F319" if current_theme == "light" else "\u2600\ufe0f"
+        theme_icon = "\U0001f319" if current_theme == "light" else "\u2600\ufe0f"
         if st.button(
             theme_icon,
             key=key,
@@ -244,7 +245,9 @@ def render_site_header(show_theme_toggle: bool = True, current_page: str = "uplo
 
     nav_links: List[str] = []
     for label, page_key in nav_items:
-        is_active = page_key == active_page or (page_key == "compare-anchor" and active_page == "compare-cv")
+        is_active = page_key == active_page or (
+            page_key == "compare-anchor" and active_page == "compare-cv"
+        )
         active_cls = " site-nav-item-active" if is_active else ""
         if page_key == "compare-anchor":
             href = _build_page_href("home") + "#compare-section-anchor"
@@ -255,7 +258,7 @@ def render_site_header(show_theme_toggle: bool = True, current_page: str = "uplo
         nav_links.append(
             f'<a href="{href}" target="_self" '
             f'onclick="try{{var w=window.parent&&window.parent!==window?window.parent:window;'
-            f'var b=w.document.querySelector(\'.{_nav_action_css_class(page_key)} button\');'
+            f"var b=w.document.querySelector('.{_nav_action_css_class(page_key)} button');"
             f'if(b){{event.preventDefault();event.stopPropagation();b.click();return false;}}}}catch(_e){{}}" '
             f'class="site-nav-item{active_cls}" data-nav-action="{page_key}" style="text-decoration:none;">{label}</a>'
         )
@@ -308,11 +311,11 @@ def render_site_header(show_theme_toggle: bool = True, current_page: str = "uplo
         ' fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"'
         ' stroke-linejoin="round" class="site-user-item-icon" aria-hidden="true">'
         '<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08'
-        'a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74'
-        'l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25'
-        'a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25'
-        'a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08'
-        'a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38'
+        "a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74"
+        "l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25"
+        "a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25"
+        "a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08"
+        "a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38"
         'a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>'
         '<circle cx="12" cy="12" r="3"/></svg>'
     )
@@ -367,7 +370,20 @@ def render_site_header(show_theme_toggle: bool = True, current_page: str = "uplo
             "</details>"
         )
     else:
-        next_after_auth = current_page if current_page in ("home", "upload", "upload-cv", "compare-cv", "resume-builder", "my-cvs", "my-analyses") else "home"
+        next_after_auth = (
+            current_page
+            if current_page
+            in (
+                "home",
+                "upload",
+                "upload-cv",
+                "compare-cv",
+                "resume-builder",
+                "my-cvs",
+                "my-analyses",
+            )
+            else "home"
+        )
         user_section_html = (
             f'<a href="{_build_page_href("auth", next_page=next_after_auth)}" target="_self" '
             f'class="site-nav-item site-nav-item-signin" style="text-decoration:none;white-space:nowrap;">Sign In</a>'
@@ -441,7 +457,9 @@ def render_top_nav(active_page: str) -> str | None:
 def render_site_footer() -> None:
     """Render a full-width professional footer band for all pages."""
     year = datetime.now().year
-    footer_theme_cls = "footer-light" if st.session_state.get("theme", "light") == "light" else "footer-dark"
+    footer_theme_cls = (
+        "footer-light" if st.session_state.get("theme", "light") == "light" else "footer-dark"
+    )
     logo_src = _load_logo_data_uri(st.session_state.get("theme", "light"))
     footer_brand_heading = (
         f'<img src="{logo_src}" alt="ExcelCV logo" class="site-footer-brand-logo" />'
@@ -452,13 +470,19 @@ def render_site_footer() -> None:
     # Product footer links act like deliberate deep-nav: route guests through
     # the auth gate (with a `next` hint so they bounce back) instead of letting
     # them land on the home/cover-letter page and see a guest shell.
-    analyze_cv_href = _build_page_href("auth", next_page="upload-cv") if is_guest else _build_page_href("home")
+    analyze_cv_href = (
+        _build_page_href("auth", next_page="upload-cv") if is_guest else _build_page_href("home")
+    )
     compare_resumes_href = (
         _build_page_href("auth", next_page="compare-cv")
         if is_guest
         else _build_page_href("home") + "#compare-section-anchor"
     )
-    cover_letter_href = _build_page_href("auth", next_page="cover-letter") if is_guest else _build_page_href("cover-letter")
+    cover_letter_href = (
+        _build_page_href("auth", next_page="cover-letter")
+        if is_guest
+        else _build_page_href("cover-letter")
+    )
     footer_links = {
         "analyze_cv": analyze_cv_href,
         "compare_resumes": compare_resumes_href,
@@ -519,5 +543,3 @@ def render_site_footer() -> None:
     </footer>
     """
     st.markdown(footer_html, unsafe_allow_html=True)
-
-

@@ -77,7 +77,18 @@
       "PowerShell(& py -c \"from src.ui import list_pages; print\\('OK'\\)\")",
       "PowerShell(& py -c \"from src.ui import list_pages, my_analyses_page, my_cvs_page, my_comparisons_page; print\\('OK'\\)\")",
       "PowerShell(& py -c \"import os; from src import config; print\\('SESSION_SECRET set?', bool\\(os.getenv\\('SESSION_SECRET'\\)\\)\\); print\\('ENABLE_PERSISTENT_LOGIN =', repr\\(os.getenv\\('ENABLE_PERSISTENT_LOGIN'\\)\\)\\); from src.auth_utils import is_persistent_login_enabled; print\\('persistent enabled?', is_persistent_login_enabled\\(\\)\\)\")",
-      "PowerShell(& py -c \"from src.ui import auth_page, layout; import app; print\\('OK'\\)\")"
+      "PowerShell(& py -c \"from src.ui import auth_page, layout; import app; print\\('OK'\\)\")",
+      "PowerShell(& py -c \"from src.cover_letter import page; print\\('OK'\\)\")",
+      "PowerShell(& py -c \"from src.ui import my_cvs_page; print\\('OK'\\)\")",
+      "Bash(findstr /I \"env example\")",
+      "Bash(findstr /I \"SMTP\" .env .env.example)",
+      "Bash(findstr /I \"SMTP\" .env)",
+      "Bash(findstr /I \"streamlit\" requirements.txt)",
+      "Bash(findstr streamlit *)",
+      "Bash(py -c \"import ast; ast.parse\\(open\\('src/email_utils.py', encoding='utf-8'\\).read\\(\\)\\); print\\('OK'\\)\")",
+      "Bash(py -c \"import ast; [ast.parse\\(open\\(p, encoding='utf-8'\\).read\\(\\)\\) for p in ['src/email_utils.py', 'src/ui/layout.py', 'src/ui/static_pages.py']]; print\\('OK'\\)\")",
+      "Bash(py -c \"import ast; [ast.parse\\(open\\(p, encoding='utf-8'\\).read\\(\\)\\) for p in ['app.py', 'src/ui/layout.py', 'src/ui/static_pages.py']]; print\\('OK'\\)\")",
+      "Bash(py -c \"import ast; [ast.parse\\(open\\(p, encoding='utf-8'\\).read\\(\\)\\) for p in ['app.py', 'src/ui/layout.py']]; print\\('OK'\\)\")"
     ],
     "additionalDirectories": [
       "E:\\Academic\\minor-project\\cv-review"

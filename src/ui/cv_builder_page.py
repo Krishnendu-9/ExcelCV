@@ -62,7 +62,6 @@ def _normalize_builder_tuning_state() -> None:
     default_zoom = _default_zoom_for_template(ss.get("cvb_template"))
     ss["cvb_zoom"] = max(35, min(100, _safe_int(ss.get("cvb_zoom", default_zoom), default_zoom)))
 
-
 def _clear_link_query_params() -> None:
     try:
         for qk in list(st.query_params.keys()):
@@ -70,7 +69,6 @@ def _clear_link_query_params() -> None:
                 del st.query_params[qk]
     except Exception:
         pass
-
 
 def _query_param_str(name: str) -> str | None:
     """Return a query param as a trimmed string, or None if not present."""
@@ -90,6 +88,14 @@ def _query_param_str(name: str) -> str | None:
         return None
     return str(raw).strip()
 
+def _rerun_resume_builder() -> None:
+    """Rerun while pinning the active route to Resume Builder."""
+    st.session_state["page"] = "resume-builder"
+    try:
+        st.query_params["page"] = "resume-builder"
+    except Exception:
+        pass
+    st.rerun()
 
 # ─── Session-state initialisation ────────────────────────────────────────────
 
@@ -99,7 +105,6 @@ def _copy_state_value(value: object) -> object:
     if isinstance(value, list):
         return list(value)
     return value
-
 
 def _persistable_dynamic_keys(ss: dict) -> set[str]:
     keys: set[str] = set()
@@ -174,7 +179,6 @@ def _persistable_dynamic_keys(ss: dict) -> set[str]:
         )
     return keys
 
-
 def _protect_builder_widget_state() -> None:
     """Preserve builder data even when widgets are temporarily not mounted."""
     ss = st.session_state
@@ -203,14 +207,12 @@ def _protect_builder_widget_state() -> None:
 
     ss[mirror_key] = mirror
 
-
 def _init_builder() -> None:
     defaults: dict = {
         "cvb_cv_title":       "My Resume",
         "cvb_template":       "classic",
         "cvb_loaded_cv_id":   None,
         "cvb_last_saved":     None,
-        "cvb_confirm_reset":  False,
         "cvb_show_import":    False,
         "cvb_accent_color":   "#2563eb",
         "cvb_font":           "System Sans",
@@ -379,7 +381,6 @@ def _init_builder() -> None:
         st.session_state["cvb_link_query_bootstrap_v1"] = True
     _protect_builder_widget_state()
 
-
 # ─── Data collection ──────────────────────────────────────────────────────────
 
 def collect_cv_data() -> dict:
@@ -509,7 +510,6 @@ def collect_cv_data() -> dict:
         },
     }
 
-
 # ─── Load from DB ─────────────────────────────────────────────────────────────
 
 def load_cv_into_builder(cv_record: CV) -> None:
@@ -630,7 +630,6 @@ def load_cv_into_builder(cv_record: CV) -> None:
             ss["cvb_section_visibility"] = _normalize_section_visibility(cust.get("section_visibility"))
     _normalize_builder_tuning_state()
 
-
 def _load_cv_for_builder_if_requested() -> None:
     load_id = st.session_state.pop("cvb_load_id", None)
     if not load_id:
@@ -648,7 +647,6 @@ def _load_cv_for_builder_if_requested() -> None:
             st.warning("CV not found.")
     finally:
         db.close()
-
 
 # ─── HTML escape helpers ──────────────────────────────────────────────────────
 
@@ -677,9 +675,7 @@ def _parse_date_for_input(value: str | date | None) -> date | None:
             continue
     return None
 
-
 _MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-
 
 def _parse_month_year(value: str | date | None) -> tuple[int | None, int | None]:
     if isinstance(value, date):
@@ -698,13 +694,11 @@ def _parse_month_year(value: str | date | None) -> tuple[int | None, int | None]
         return parsed.month, parsed.year
     return None, None
 
-
 def _set_month_year_storage(storage_key: str, month: int | None, year: int | None) -> None:
     if month and year:
         st.session_state[storage_key] = f"{month:02d}/{year:04d}"
     else:
         st.session_state[storage_key] = ""
-
 
 def _date_field(
     label: str,
@@ -792,7 +786,6 @@ def _date_field(
                 ss[year_key] = None
                 _set_month_year_storage(storage_key, None, None)
 
-
 def _save_cv(cv_data: dict, title: str, template: str) -> bool:
     user = get_session_user()
     if not user:
@@ -820,7 +813,6 @@ def _save_cv(cv_data: dict, title: str, template: str) -> bool:
         return False
     finally:
         db.close()
-
 
 # ─── PDF / backup helpers ─────────────────────────────────────────────────────
 
@@ -862,11 +854,9 @@ def _cached_generate_cv_pdf(
     except Exception as exc:
         return None, str(exc)
 
-
 def _get_backup_json() -> str:
     data = {k: v for k, v in st.session_state.items() if k.startswith("cvb_")}
     return json.dumps(data, indent=2, default=str)
-
 
 def _import_from_json(uploaded_file) -> None:
     try:
@@ -888,16 +878,105 @@ def _import_from_json(uploaded_file) -> None:
     except Exception as exc:
         st.error(f"Import failed: {exc}")
 
-
 def _reset_all() -> None:
     keys = [k for k in st.session_state if k.startswith("cvb_")]
     for k in keys:
         del st.session_state[k]
     _clear_link_query_params()
-    st.rerun()
+    _init_builder()
 
+def _inject_reset_popup_native_js() -> None:
+    components.html(
+        """<script>
+(function () {
+  var w = window.parent && window.parent !== window ? window.parent : window;
+  var doc = w.document;
+
+  function closeResetPopup() {
+    try { doc.body.classList.remove('cvb-reset-open'); } catch (_e) {}
+  }
+  function openResetPopup() {
+    try { doc.body.classList.add('cvb-reset-open'); } catch (_e) {}
+  }
+
+  closeResetPopup();
+
+  if (!w.__excelcvResetPopupBound) {
+    w.__excelcvResetPopupBound = true;
+
+    doc.addEventListener('click', function (evt) {
+      var t = evt && evt.target;
+      if (!t) return;
+
+      var openBtn = t.closest && t.closest('.cvb-reset-open-native');
+      if (openBtn) {
+        evt.preventDefault();
+        evt.stopPropagation();
+        openResetPopup();
+        return;
+      }
+
+      var cancelBtn = t.closest && t.closest('.cvb-reset-cancel-native');
+      if (cancelBtn) {
+        evt.preventDefault();
+        evt.stopPropagation();
+        closeResetPopup();
+        return;
+      }
+
+      if (doc.body.classList.contains('cvb-reset-open')) {
+        var panel = doc.querySelector('.st-key-cvb-reset-float-native');
+        if (panel && !panel.contains(t)) {
+          closeResetPopup();
+        }
+      }
+    }, true);
+
+    w.addEventListener('keydown', function (evt) {
+      if (evt && evt.key === 'Escape') closeResetPopup();
+    }, true);
+  }
+})();
+</script>""",
+        height=0,
+    )
 
 # ─── Form section renderers ───────────────────────────────────────────────────
+
+@st.fragment
+def _render_backup_button_fragment(backup_payload: str) -> None:
+    st.download_button(
+        "Backup",
+        data=backup_payload,
+        file_name="cv_backup.json",
+        mime="application/json",
+        key="cvb_toolbar_backup",
+        on_click="ignore",
+    )
+
+
+@st.fragment
+def _render_save_button_fragment(template: str) -> None:
+    ss = st.session_state
+    if st.button("Save", key="cvb_toolbar_save"):
+        cv_data = collect_cv_data()
+        title = (ss.get("cvb_cv_title", "") or ss.get("cvb_toolbar_title_native", "") or "My Resume").strip()
+        if _save_cv(cv_data, title, template):
+            ss["cvb_cv_title"] = title
+            ss["cvb_last_saved"] = datetime.now().strftime("%I:%M %p")
+            ss["cvb_toolbar_save_notice"] = f"Saved {ss['cvb_last_saved']}"
+            ss["cvb_toolbar_save_notice_kind"] = "ok"
+        else:
+            ss["cvb_toolbar_save_notice"] = "Save failed."
+            ss["cvb_toolbar_save_notice_kind"] = "err"
+
+    note = str(ss.get("cvb_toolbar_save_notice", "") or "").strip()
+    if note:
+        if ss.get("cvb_toolbar_save_notice_kind") == "err":
+            st.caption(f"! {note}")
+        else:
+            st.caption(note)
+
 
 def _inject_realtime_js() -> None:
     components.html(
@@ -1431,7 +1510,6 @@ def _inject_realtime_js() -> None:
         height=0,
     )
 
-
 def _inject_sections_relay_js() -> None:
     """Relay postMessage events from the section-list iframe to hidden Streamlit buttons.
 
@@ -1448,6 +1526,11 @@ def _inject_sections_relay_js() -> None:
   var doc = w.document;
 
   function findBtn(classFragment) {
+    var root = doc.querySelector('.st-key-cvb-hidden-buttons');
+    if (root) {
+      var scoped = root.querySelector('[class*="' + classFragment + '"] button');
+      if (scoped) return scoped;
+    }
     return doc.querySelector('[class*="' + classFragment + '"] button') || null;
   }
 
@@ -1491,6 +1574,7 @@ def _inject_sections_relay_js() -> None:
       var movedId = String(ev.data.movedId || '');
       var newPos  = Number(ev.data.newPos);
       if (!movedId) return;
+      if (!Number.isFinite(newPos) || newPos < 0) return;
       var btn = findBtn('st-key-cvb_pos_' + movedId + '_' + newPos);
       if (!btn) btn = findBtn('st-key-cvb-pos-' + movedId.replace(/_/g,'-') + '-' + newPos);
       clickWithInputCommit(btn);
@@ -1560,7 +1644,6 @@ def _inject_sections_relay_js() -> None:
   w.addEventListener('message', w[KEY]);
 })();
 </script>""", height=0)
-
 
 def _inject_middle_section_exact_css(is_dark: bool = False) -> None:
     """Final high-specificity middle-panel card overrides for CVReviewer parity."""
@@ -1838,7 +1921,7 @@ def _inject_middle_section_exact_css(is_dark: bool = False) -> None:
 }
 [data-baseweb="popover"] [class*="st-key-cvb-date-popover-"] [data-testid="stHorizontalBlock"] {
   align-items: start !important;
-  column-gap: 12px !important;
+  column-gap: 8px !important;
 }
 [data-baseweb="popover"] [class*="st-key-cvb-date-popover-"] [data-testid="stHorizontalBlock"] > [data-testid="column"]:first-child {
   min-width: 184px !important;
@@ -1851,8 +1934,8 @@ def _inject_middle_section_exact_css(is_dark: bool = False) -> None:
   flex: 0 0 236px !important;
 }
 [data-baseweb="popover"] [class*="st-key-cvb-date-popover-"] [data-testid="stButton"] > button {
-  min-height: 40px !important;
-  height: 40px !important;
+  min-height: 36px !important;
+  height: 36px !important;
   padding: 0 9px !important;
   border-radius: 12px !important;
   font-size: 16px !important;
@@ -1876,9 +1959,9 @@ def _inject_middle_section_exact_css(is_dark: bool = False) -> None:
   width: 100% !important;
   min-width: 0 !important;
   max-width: none !important;
-  min-height: 40px !important;
-  height: 40px !important;
-  max-height: 40px !important;
+  min-height: 36px !important;
+  height: 36px !important;
+  max-height: 36px !important;
   padding: 0 8px !important;
   display: inline-flex !important;
   align-items: center !important;
@@ -2607,7 +2690,6 @@ def _inject_middle_section_exact_css(is_dark: bool = False) -> None:
             unsafe_allow_html=True,
         )
 
-
 def _inject_chevron_hider_js() -> None:
     """Hide Streamlit's built-in expander chevron precisely (safe — only hides the icon
     span itself, never walks up to potentially break the heading).
@@ -2664,7 +2746,6 @@ def _inject_chevron_hider_js() -> None:
   observer.observe(doc.body, { childList: true, subtree: true });
 })();
 </script>""", height=0)
-
 
 def _inject_builder_final_alignment_overrides() -> None:
     """Last-pass CSS overrides to defeat global theme alignment defaults."""
@@ -2743,7 +2824,6 @@ body:has(.st-key-cvb-page-native) {
         unsafe_allow_html=True,
     )
 
-
 # ─── CSS injection ────────────────────────────────────────────────────────────
 
 def _inject_builder_css_native(is_dark: bool) -> None:
@@ -2771,8 +2851,6 @@ def _inject_builder_css_native(is_dark: bool) -> None:
     toolbar_hover_color = "#bfdbfe" if is_dark else "#0d5ec0"
     toolbar_save_hover_bg = "rgba(16,185,129,0.18)" if is_dark else "#ebf8f1"
     toolbar_save_hover_color = "#6ee7b7" if is_dark else "#0f8a4c"
-    toolbar_reset_hover_bg = "rgba(239,68,68,0.18)" if is_dark else "#fcebec"
-    toolbar_reset_hover_color = "#fca5a5" if is_dark else "#e53935"
     middle_panel_bg = "#0f172a" if is_dark else "#f3f5f8"
     right_panel_bg = "#0b1220" if is_dark else "#f6f7f9"
     left_panel_bg = "#0f172a" if is_dark else "#f7f9fc"
@@ -2806,7 +2884,7 @@ def _inject_builder_css_native(is_dark: bool) -> None:
     st.markdown(
         f"""<style>
 .site-footer-band {{ display:none !important; }}
-html:has(.st-key-cvb-page-native),
+html:has(.st-key-cvb-page-native)
 body:has(.st-key-cvb-page-native) {{
   height: 100vh !important;
   height: 100dvh !important;
@@ -2818,7 +2896,7 @@ body:has(.st-key-cvb-page-native) {{
 }}
 [data-testid="stAppViewContainer"]:has(.st-key-cvb-page-native),
 [data-testid="stAppViewContainer"]:has(.st-key-cvb-page-native) > .main,
-[data-testid="stApp"]:has(.st-key-cvb-page-native),
+[data-testid="stApp"]:has(.st-key-cvb-page-native)
 section[data-testid="stMain"]:has(.st-key-cvb-page-native) {{
   height: 100vh !important;
   height: 100dvh !important;
@@ -2877,7 +2955,7 @@ section[data-testid="stMain"]:has(.st-key-cvb-page-native) {{
   min-height: 0 !important;
 }}
 .st-key-cvb-page-native > [data-testid="stVerticalBlock"] > [data-testid="stElementContainer"]:empty,
-.st-key-cvb-page-native > [data-testid="stVerticalBlock"] > div:empty,
+.st-key-cvb-page-native > [data-testid="stVerticalBlock"] > div:empty
 .st-key-cvb-page-native > [data-testid="stVerticalBlock"] > div > [data-testid="stElementContainer"]:empty {{
   display: none !important;
 }}
@@ -2898,7 +2976,7 @@ section[data-testid="stMain"]:has(.st-key-cvb-page-native) {{
   row-gap: 0 !important;
 }}
 [data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"] > div:has(.st-key-cvb-page-native),
-[data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"] > div:has(.st-key-cvb-toolbar-native),
+[data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"] > div:has(.st-key-cvb-toolbar-native)
 [data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"] > [data-testid="stElementContainer"]:has(.st-key-cvb-page-native) {{
   margin-top: 0 !important;
   padding-top: 0 !important;
@@ -2909,14 +2987,14 @@ section[data-testid="stMain"]:has(.st-key-cvb-page-native) {{
   padding-top: 0 !important;
   gap: 0 !important;
 }}
-[data-testid="stAppViewContainer"]:has(.st-key-cvb-page-native),
+[data-testid="stAppViewContainer"]:has(.st-key-cvb-page-native)
 [data-testid="stMain"]:has(.st-key-cvb-page-native) {{
   height: 100vh !important;
   height: 100dvh !important;
   overflow: hidden !important;
 }}
 [data-testid="stMainBlockContainer"]:has(.st-key-cvb-page-native),
-[data-testid="stMainBlockContainer"]:has(.st-key-cvb-page-native) .block-container,
+[data-testid="stMainBlockContainer"]:has(.st-key-cvb-page-native) .block-container
 section[data-testid="stMain"]:has(.st-key-cvb-page-native) .block-container {{
   height: 100vh !important;
   height: 100dvh !important;
@@ -2946,6 +3024,137 @@ section[data-testid="stMain"]:has(.st-key-cvb-page-native) .block-container {{
   padding:0 20px !important;
   margin:0 !important;
 }}
+.st-key-cvb-page-native [data-testid="stElementContainer"]:has(.st-key-cvb-reset-float-native) {{
+  margin: 0 !important;
+  padding: 0 !important;
+  height: 0 !important;
+  min-height: 0 !important;
+  overflow: visible !important;
+}}
+.st-key-cvb-reset-float-native {{
+  display: none !important;
+  pointer-events: none !important;
+  position: fixed !important;
+  top: calc(var(--excelcv-fixed-header-space, 78px) + 12px) !important;
+  right: 16px !important;
+  width: min(520px, calc(100vw - 24px)) !important;
+  z-index: 1250 !important;
+  border: 1px solid #f5c2c7 !important;
+  border-radius: 12px !important;
+  background: #fff7f7 !important;
+  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.16) !important;
+  padding: 18px 20px 16px !important;
+}}
+body.cvb-reset-open .st-key-cvb-reset-float-native {{
+  display: block !important;
+  pointer-events: auto !important;
+}}
+.st-key-cvb-reset-float-native > [data-testid="stVerticalBlock"] {{
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  gap: 14px !important;
+}}
+.st-key-cvb-reset-float-actions {{
+  margin: 0 !important;
+  display: block !important;
+  clear: both !important;
+}}
+.st-key-cvb-reset-float-actions [data-testid="stHorizontalBlock"] {{
+  gap: 8px !important;
+  align-items: center !important;
+  justify-content: center !important;
+}}
+.st-key-cvb-reset-float-actions [data-testid="stHorizontalBlock"] > [data-testid="column"] {{
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+}}
+.st-key-cvb-reset-float-actions [data-testid="stButton"] {{
+  margin: 0 !important;
+  padding: 0 !important;
+}}
+.st-key-cvb-reset-float-native .cvb-reset-float-title {{
+  margin: 0 0 8px 0 !important;
+  color: #9f1239 !important;
+  font-size: 14px !important;
+  font-weight: 700 !important;
+}}
+.st-key-cvb-reset-float-native .cvb-reset-float-msg {{
+  margin: 0 !important;
+  padding: 0 8px !important;
+  color: #6b2138 !important;
+  font-size: 13px !important;
+  line-height: 1.5 !important;
+  text-align: center !important;
+  display: block !important;
+  margin-bottom: 2px !important;
+}}
+/* Match My CVs confirm-button behavior (transparent base, red/green hover), small size. */
+[data-testid="stAppViewContainer"] .st-key-cvb-reset-float-native [class*="st-key-btn_confirm_reset_native"][class*="st-key-btn_confirm_reset_native"] button,
+[data-testid="stAppViewContainer"] .st-key-cvb-reset-float-native [class*="st-key-btn_confirm_reset_native"][class*="st-key-btn_confirm_reset_native"] button:focus,
+[data-testid="stAppViewContainer"] .st-key-cvb-reset-float-native [class*="st-key-btn_confirm_reset_native"][class*="st-key-btn_confirm_reset_native"] [data-baseweb="button"] {{
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  border-radius: 8px !important;
+  width: auto !important;
+  min-width: 96px !important;
+  min-height: 36px !important;
+  height: 36px !important;
+  padding: 0 12px !important;
+  font-weight: 600 !important;
+}}
+[data-testid="stAppViewContainer"] .st-key-cvb-reset-float-native [class*="st-key-btn_confirm_reset_native"][class*="st-key-btn_confirm_reset_native"] button *,
+[data-testid="stAppViewContainer"] .st-key-cvb-reset-float-native [class*="st-key-btn_confirm_reset_native"][class*="st-key-btn_confirm_reset_native"] button p {{
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
+}}
+[data-testid="stAppViewContainer"] .st-key-cvb-reset-float-native [class*="st-key-btn_confirm_reset_native"][class*="st-key-btn_confirm_reset_native"] button {{
+  color: #ef4444 !important;
+  border: 1px solid rgba(239, 68, 68, 0.45) !important;
+}}
+[data-testid="stAppViewContainer"] .st-key-cvb-reset-float-native [class*="st-key-btn_confirm_reset_native"][class*="st-key-btn_confirm_reset_native"] button * {{
+  color: #ef4444 !important;
+}}
+[data-testid="stAppViewContainer"] .st-key-cvb-reset-float-native [class*="st-key-btn_confirm_reset_native"][class*="st-key-btn_confirm_reset_native"] button:hover {{
+  background: rgba(239, 68, 68, 0.12) !important;
+  background-color: rgba(239, 68, 68, 0.12) !important;
+  border-color: rgba(239, 68, 68, 0.65) !important;
+}}
+.st-key-cvb-toolbar-actions-native .cvb-reset-open-native,
+.st-key-cvb-reset-float-native .cvb-reset-cancel-native {{
+  appearance: none !important;
+  border: 1px solid #d1d5db !important;
+  background: transparent !important;
+  color: #334155 !important;
+  border-radius: 8px !important;
+  min-height: 36px !important;
+  height: 36px !important;
+  padding: 0 12px !important;
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
+}}
+.st-key-cvb-toolbar-actions-native .cvb-reset-open-native:hover,
+.st-key-cvb-toolbar-actions-native .cvb-reset-open-native:focus-visible,
+.st-key-cvb-reset-float-native .cvb-reset-cancel-native:hover,
+.st-key-cvb-reset-float-native .cvb-reset-cancel-native:focus-visible {{
+  background: rgba(34, 197, 94, 0.12) !important;
+  border-color: rgba(34, 197, 94, 0.55) !important;
+  color: #15803d !important;
+}}
+@media (max-width: 760px) {{
+  .st-key-cvb-reset-float-native {{
+    left: 12px !important;
+    right: 12px !important;
+    width: auto !important;
+  }}
+}}
+
 .st-key-cvb-toolbar-native > [data-testid="stLayoutWrapper"],
 .st-key-cvb-toolbar-native > [data-testid="stElementContainer"] {{
   margin: 0 !important;
@@ -3013,22 +3222,43 @@ section[data-testid="stMain"]:has(.st-key-cvb-page-native) .block-container {{
 .st-key-cvb-toolbar-actions-native [data-testid="stHorizontalBlock"] {{
   align-items: center !important;
   justify-content: flex-end !important;
-  gap: 12px !important;
+  gap: 8px !important;
   flex-wrap: nowrap !important;
   white-space: nowrap !important;
 }}
 .st-key-cvb-toolbar-actions-native {{
   display: block !important;
+  width: 100% !important;
+  margin-left: 0 !important;
+}}
+.st-key-cvb-toolbar-actions-native > div,
+.st-key-cvb-toolbar-actions-native [data-testid="stVerticalBlock"],
+.st-key-cvb-toolbar-actions-native [data-testid="stHorizontalBlock"] {{
+  width: 100% !important;
+  margin-left: 0 !important;
 }}
 .st-key-cvb-toolbar-actions-native [data-testid="column"] {{
   flex: 0 0 auto !important;
   width: auto !important;
   min-width: fit-content !important;
 }}
+.st-key-cvb-toolbar-actions-native [data-testid="stButton"] > button,
+.st-key-cvb-toolbar-actions-native [data-testid="stDownloadButton"] > button,
+.st-key-cvb-toolbar-actions-native .cvb-reset-open-native {{
+  height: 36px !important;
+  min-height: 36px !important;
+  max-height: 36px !important;
+  padding: 0 12px !important;
+  line-height: 1 !important;
+  margin: 0 !important;
+  border-radius: 8px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}}
 .st-key-cvb-toolbar-actions-native .st-key-cvb_toolbar_import button,
 .st-key-cvb-toolbar-actions-native .st-key-cvb_toolbar_backup button,
-.st-key-cvb-toolbar-actions-native .st-key-cvb_toolbar_save button,
-.st-key-cvb-toolbar-actions-native .st-key-cvb_toolbar_reset button {{
+.st-key-cvb-toolbar-actions-native .st-key-cvb_toolbar_save button {{
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
@@ -3041,7 +3271,7 @@ section[data-testid="stMain"]:has(.st-key-cvb-page-native) .block-container {{
   width: auto !important;
   min-width: auto !important;
   max-width: none !important;
-  height: 40px !important;
+  height: 36px !important;
   padding: 0 12px !important;
   border-radius: 8px !important;
   border: none !important;
@@ -3071,15 +3301,9 @@ section[data-testid="stMain"]:has(.st-key-cvb-page-native) .block-container {{
   min-width: 84px !important;
   max-width: 84px !important;
 }}
-.st-key-cvb-toolbar-actions-native .st-key-cvb_toolbar_reset button {{
-  width: 80px !important;
-  min-width: 80px !important;
-  max-width: 80px !important;
-}}
 .st-key-cvb-toolbar-actions-native .st-key-cvb_toolbar_import button::before,
 .st-key-cvb-toolbar-actions-native .st-key-cvb_toolbar_backup button::before,
-.st-key-cvb-toolbar-actions-native .st-key-cvb_toolbar_save button::before,
-.st-key-cvb-toolbar-actions-native .st-key-cvb_toolbar_reset button::before {{
+.st-key-cvb-toolbar-actions-native .st-key-cvb_toolbar_save button::before {{
   content: "" !important;
   display: inline-flex !important;
   align-items: center !important;
@@ -3108,10 +3332,6 @@ section[data-testid="stMain"]:has(.st-key-cvb-page-native) .block-container {{
   -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23000' stroke-width='2'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19 21H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h11l5 5v9a2 2 0 0 1-2 2z'/%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M17 21v-8H7v8'/%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M7 3v5h8'/%3E%3C/svg%3E") !important;
   mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23000' stroke-width='2'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19 21H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h11l5 5v9a2 2 0 0 1-2 2z'/%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M17 21v-8H7v8'/%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M7 3v5h8'/%3E%3C/svg%3E") !important;
 }}
-.st-key-cvb-toolbar-actions-native .st-key-cvb_toolbar_reset button::before {{
-  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23000' stroke-width='2'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M4 4v6h6M20 20v-6h-6'/%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M20 9a8 8 0 0 0-13.66-4.66L4 6m16 12l-2.34 1.66A8 8 0 0 1 4 15'/%3E%3C/svg%3E") !important;
-  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23000' stroke-width='2'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M4 4v6h6M20 20v-6h-6'/%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M20 9a8 8 0 0 0-13.66-4.66L4 6m16 12l-2.34 1.66A8 8 0 0 1 4 15'/%3E%3C/svg%3E") !important;
-}}
 .st-key-cvb-toolbar-actions-native .st-key-cvb_toolbar_import button:hover,
 .st-key-cvb-toolbar-actions-native .st-key-cvb_toolbar_import button:focus-visible,
 .st-key-cvb-toolbar-actions-native .st-key-cvb_toolbar_backup button:hover,
@@ -3124,11 +3344,6 @@ section[data-testid="stMain"]:has(.st-key-cvb-page-native) .block-container {{
   background: {toolbar_save_hover_bg} !important;
   color: {toolbar_save_hover_color} !important;
 }}
-.st-key-cvb-toolbar-actions-native .st-key-cvb_toolbar_reset button:hover,
-.st-key-cvb-toolbar-actions-native .st-key-cvb_toolbar_reset button:focus-visible {{
-  background: {toolbar_reset_hover_bg} !important;
-  color: {toolbar_reset_hover_color} !important;
-}}
 .st-key-cvb-toolbar-actions-native .st-key-cvb_toolbar_download button[kind="primary"],
 .st-key-cvb-toolbar-actions-native .st-key-cvb_toolbar_download button[data-testid="baseButton-primary"] {{
   display: inline-flex !important;
@@ -3136,10 +3351,10 @@ section[data-testid="stMain"]:has(.st-key-cvb-page-native) .block-container {{
   justify-content: center !important;
   gap: 6px !important;
   white-space: nowrap !important;
-  height: 40px !important;
-  width: 176px !important;
-  min-width: 176px !important;
-  max-width: 176px !important;
+  height: 36px !important;
+  width: 138px !important;
+  min-width: 138px !important;
+  max-width: 138px !important;
   padding: 0 12px !important;
   border-radius: 8px !important;
   background:#0059B3 !important;
@@ -3233,7 +3448,7 @@ section[data-testid="stMain"]:has(.st-key-cvb-page-native) .block-container {{
   margin: 0 !important;
 }}
 .st-key-cvb-main-native > [data-testid="stHorizontalBlock"] > [data-testid="column"]:nth-child(1),
-.st-key-cvb-main-native > div > [data-testid="stHorizontalBlock"] > [data-testid="column"]:nth-child(1),
+.st-key-cvb-main-native > div > [data-testid="stHorizontalBlock"] > [data-testid="column"]:nth-child(1)
 .st-key-cvb-main-native [data-testid="stElementContainer"]:has(> [data-testid="stHorizontalBlock"]) > [data-testid="stHorizontalBlock"] > [data-testid="column"]:nth-child(1) {{
   flex: 0 0 256px !important;
   width: 256px !important;
@@ -3241,7 +3456,7 @@ section[data-testid="stMain"]:has(.st-key-cvb-page-native) .block-container {{
   max-width: 256px !important;
 }}
 .st-key-cvb-main-native > [data-testid="stHorizontalBlock"] > [data-testid="column"]:nth-child(2),
-.st-key-cvb-main-native > div > [data-testid="stHorizontalBlock"] > [data-testid="column"]:nth-child(2),
+.st-key-cvb-main-native > div > [data-testid="stHorizontalBlock"] > [data-testid="column"]:nth-child(2)
 .st-key-cvb-main-native [data-testid="stElementContainer"]:has(> [data-testid="stHorizontalBlock"]) > [data-testid="stHorizontalBlock"] > [data-testid="column"]:nth-child(2) {{
   flex: 9 1 0 !important;
   width: auto !important;
@@ -3249,7 +3464,7 @@ section[data-testid="stMain"]:has(.st-key-cvb-page-native) .block-container {{
   min-width: 0 !important;
 }}
 .st-key-cvb-main-native > [data-testid="stHorizontalBlock"] > [data-testid="column"]:nth-child(3),
-.st-key-cvb-main-native > div > [data-testid="stHorizontalBlock"] > [data-testid="column"]:nth-child(3),
+.st-key-cvb-main-native > div > [data-testid="stHorizontalBlock"] > [data-testid="column"]:nth-child(3)
 .st-key-cvb-main-native [data-testid="stElementContainer"]:has(> [data-testid="stHorizontalBlock"]) > [data-testid="stHorizontalBlock"] > [data-testid="column"]:nth-child(3) {{
   flex: 7 1 0 !important;
   width: auto !important;
@@ -3266,7 +3481,7 @@ section[data-testid="stMain"]:has(.st-key-cvb-page-native) .block-container {{
 .st-key-cvb-main-native > div > [data-testid="stHorizontalBlock"] > [data-testid="column"] [data-testid="stVerticalBlock"],
 .st-key-cvb-main-native [data-testid="stElementContainer"]:has(> [data-testid="stHorizontalBlock"]) > [data-testid="stHorizontalBlock"] > [data-testid="column"] > div,
 .st-key-cvb-main-native [data-testid="stElementContainer"]:has(> [data-testid="stHorizontalBlock"]) > [data-testid="stHorizontalBlock"] > [data-testid="column"] [data-testid="stElementContainer"],
-.st-key-cvb-main-native [data-testid="stElementContainer"]:has(> [data-testid="stHorizontalBlock"]) > [data-testid="stHorizontalBlock"] > [data-testid="column"] [data-testid="stVerticalBlockBorderWrapper"],
+.st-key-cvb-main-native [data-testid="stElementContainer"]:has(> [data-testid="stHorizontalBlock"]) > [data-testid="stHorizontalBlock"] > [data-testid="column"] [data-testid="stVerticalBlockBorderWrapper"]
 .st-key-cvb-main-native [data-testid="stElementContainer"]:has(> [data-testid="stHorizontalBlock"]) > [data-testid="stHorizontalBlock"] > [data-testid="column"] [data-testid="stVerticalBlock"] {{
   padding: 0 !important;
   margin: 0 !important;
@@ -3393,48 +3608,48 @@ section[data-testid="stMain"]:has(.st-key-cvb-page-native) .block-container {{
   padding-right: 0 !important;
 }}
 .st-key-cvb-left-scroll-native::-webkit-scrollbar,
-.st-key-cvb-middle-scroll-native::-webkit-scrollbar,
+.st-key-cvb-middle-scroll-native::-webkit-scrollbar
 .st-key-cvb-right-scroll-native::-webkit-scrollbar {{
   width: 6px !important;
   height: 6px !important;
 }}
 .st-key-cvb-left-scroll-native::-webkit-scrollbar-track,
-.st-key-cvb-middle-scroll-native::-webkit-scrollbar-track,
+.st-key-cvb-middle-scroll-native::-webkit-scrollbar-track
 .st-key-cvb-right-scroll-native::-webkit-scrollbar-track {{
   background: {scroll_track} !important;
   border-radius: 8px !important;
 }}
 .st-key-cvb-left-scroll-native::-webkit-scrollbar-thumb,
-.st-key-cvb-middle-scroll-native::-webkit-scrollbar-thumb,
+.st-key-cvb-middle-scroll-native::-webkit-scrollbar-thumb
 .st-key-cvb-right-scroll-native::-webkit-scrollbar-thumb {{
   background: {scroll_thumb} !important;
   border-radius: 8px !important;
 }}
 .st-key-cvb-left-scroll-native::-webkit-scrollbar-thumb:hover,
-.st-key-cvb-middle-scroll-native::-webkit-scrollbar-thumb:hover,
+.st-key-cvb-middle-scroll-native::-webkit-scrollbar-thumb:hover
 .st-key-cvb-right-scroll-native::-webkit-scrollbar-thumb:hover {{
   background: {scroll_thumb_hover} !important;
 }}
 .st-key-cvb-left-scroll-native > [data-testid="stVerticalBlock"]::-webkit-scrollbar,
-.st-key-cvb-middle-scroll-native > [data-testid="stVerticalBlock"]::-webkit-scrollbar,
+.st-key-cvb-middle-scroll-native > [data-testid="stVerticalBlock"]::-webkit-scrollbar
 .st-key-cvb-right-scroll-native > [data-testid="stVerticalBlock"]::-webkit-scrollbar {{
   width: 6px !important;
   height: 6px !important;
 }}
 .st-key-cvb-left-scroll-native > [data-testid="stVerticalBlock"]::-webkit-scrollbar-track,
-.st-key-cvb-middle-scroll-native > [data-testid="stVerticalBlock"]::-webkit-scrollbar-track,
+.st-key-cvb-middle-scroll-native > [data-testid="stVerticalBlock"]::-webkit-scrollbar-track
 .st-key-cvb-right-scroll-native > [data-testid="stVerticalBlock"]::-webkit-scrollbar-track {{
   background: {scroll_track} !important;
   border-radius: 8px !important;
 }}
 .st-key-cvb-left-scroll-native > [data-testid="stVerticalBlock"]::-webkit-scrollbar-thumb,
-.st-key-cvb-middle-scroll-native > [data-testid="stVerticalBlock"]::-webkit-scrollbar-thumb,
+.st-key-cvb-middle-scroll-native > [data-testid="stVerticalBlock"]::-webkit-scrollbar-thumb
 .st-key-cvb-right-scroll-native > [data-testid="stVerticalBlock"]::-webkit-scrollbar-thumb {{
   background: {scroll_thumb} !important;
   border-radius: 8px !important;
 }}
 .st-key-cvb-left-scroll-native > [data-testid="stVerticalBlock"]::-webkit-scrollbar-thumb:hover,
-.st-key-cvb-middle-scroll-native > [data-testid="stVerticalBlock"]::-webkit-scrollbar-thumb:hover,
+.st-key-cvb-middle-scroll-native > [data-testid="stVerticalBlock"]::-webkit-scrollbar-thumb:hover
 .st-key-cvb-right-scroll-native > [data-testid="stVerticalBlock"]::-webkit-scrollbar-thumb:hover {{
   background: {scroll_thumb_hover} !important;
 }}
@@ -3572,14 +3787,14 @@ section[data-testid="stMain"]:has(.st-key-cvb-page-native) .block-container {{
   min-height: 86px !important;
 }}
 /* Focus: blue border + soft glow on wrapper, white background */
-.st-key-cvb-middle-scroll-native div[data-baseweb="input"]:focus-within,
+.st-key-cvb-middle-scroll-native div[data-baseweb="input"]:focus-within
 .st-key-cvb-middle-scroll-native div[data-baseweb="textarea"]:focus-within {{
   border-color: {field_focus_border} !important;
   box-shadow: {field_focus_ring} !important;
   background: {field_focus_bg} !important;
 }}
 /* Placeholder */
-.st-key-cvb-middle-scroll-native div[data-baseweb="input"] input::placeholder,
+.st-key-cvb-middle-scroll-native div[data-baseweb="input"] input::placeholder
 .st-key-cvb-middle-scroll-native div[data-baseweb="textarea"] textarea::placeholder {{
   color: #94a3b8 !important;
   opacity: 1 !important;
@@ -3847,7 +4062,7 @@ section[data-testid="stMain"]:has(.st-key-cvb-page-native) .block-container {{
   font-size: 0 !important;
   border: 2px solid transparent !important;
 }}
-{native_dot_css}
+{native_dot_css},
 .st-key-cvb-color-dots-native .stButton button:hover {{
   transform: scale(1.04);
 }}
@@ -3896,7 +4111,7 @@ section[data-testid="stMain"]:has(.st-key-cvb-page-native) .block-container {{
 .st-key-cvb-left-scroll-native .stSlider [data-baseweb="slider"] > div:nth-child(1) {{
   height: 4px !important;
 }}
-.st-key-cvb-left-scroll-native .stCheckbox [data-baseweb="checkbox"] > div:first-child,
+.st-key-cvb-left-scroll-native .stCheckbox [data-baseweb="checkbox"] > div:first-child
 .st-key-cvb-left-scroll-native .stToggle [data-baseweb="checkbox"] > div:first-child {{
   border-radius: 999px !important;
 }}
@@ -4008,10 +4223,70 @@ section[data-testid="stMain"]:has(.st-key-cvb-page-native) .block-container {{
 .cvb-rail-heading {{
   margin-top: 0 !important;
 }}
+
+/* Toolbar parity pass: equal button height + strict right-cluster alignment */
+.st-key-cvb-toolbar-native [data-testid="stHorizontalBlock"] > [data-testid="column"]:last-child > div,
+.st-key-cvb-toolbar-native [data-testid="stHorizontalBlock"] > [data-testid="column"]:last-child [data-testid="stVerticalBlock"] {{
+  justify-content: flex-end !important;
+}}
+.st-key-cvb-toolbar-actions-native,
+.st-key-cvb-toolbar-actions-native > div,
+.st-key-cvb-toolbar-actions-native [data-testid="stVerticalBlock"],
+.st-key-cvb-toolbar-actions-native [data-testid="stHorizontalBlock"] {{
+  width: 100% !important;
+  margin-left: 0 !important;
+}}
+.st-key-cvb-toolbar-actions-native [data-testid="stHorizontalBlock"] {{
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 8px !important;
+}}
+.st-key-cvb-toolbar-actions-native [data-testid="stHorizontalBlock"] > [data-testid="column"] {{
+  display: flex !important;
+  align-items: center !important;
+  width: auto !important;
+  flex: 0 0 auto !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}}
+[data-testid="stElementContainer"].st-key-cvb_toolbar_import [data-testid="stButton"] > button,
+[data-testid="stElementContainer"].st-key-cvb_toolbar_backup [data-testid="stButton"] > button,
+[data-testid="stElementContainer"].st-key-cvb_toolbar_save [data-testid="stButton"] > button {{
+  height: 36px !important;
+  min-height: 36px !important;
+  max-height: 36px !important;
+  padding: 0 12px !important;
+  line-height: 1 !important;
+  border-radius: 8px !important;
+}}
+[data-testid="stElementContainer"].st-key-cvb_toolbar_download [data-testid="stDownloadButton"] > button {{
+  height: 36px !important;
+  min-height: 36px !important;
+  max-height: 36px !important;
+  width: 138px !important;
+  min-width: 138px !important;
+  max-width: 138px !important;
+  line-height: 1 !important;
+}}
+.st-key-cvb-toolbar-actions-native .cvb-reset-open-native {{
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  height: 36px !important;
+  min-height: 36px !important;
+  line-height: 1 !important;
+  margin: 0 !important;
+}}
+.st-key-cvb-toolbar-actions-native button p,
+.st-key-cvb-toolbar-actions-native button span,
+.st-key-cvb-toolbar-actions-native .cvb-reset-open-native {{
+  margin: 0 !important;
+  line-height: 1 !important;
+}}
 </style>""",
         unsafe_allow_html=True,
     )
-
 
 def _render_sections_list_component(section_order: list[str], visibility: dict[str, bool], is_dark: bool) -> None:
     """Render a unified section list via components.html with SortableJS.
@@ -4034,9 +4309,9 @@ def _render_sections_list_component(section_order: list[str], visibility: dict[s
 
     items_html = "".join(
         f'<li class="sec-item" data-id="{sid}">'
-        f'<button class="grip-btn" tabindex="-1" aria-label="Drag to reorder"></button>'
+        f'<button type="button" class="grip-btn" tabindex="-1" aria-label="Drag to reorder"></button>'
         f'<span class="sec-label">{SECTION_ID_TO_LABEL.get(sid, sid.title())}</span>'
-        f'<button class="eye-btn" data-visible="{str(visibility.get(sid, True)).lower()}"'
+        f'<button type="button" class="eye-btn" data-visible="{str(visibility.get(sid, True)).lower()}"'
         f' aria-label="Toggle visibility"></button>'
         f'</li>'
         for sid in section_order
@@ -4106,6 +4381,7 @@ if(typeof Sortable!=='undefined'){{
     animation:150,handle:'.grip-btn',
     ghostClass:'s-ghost',chosenClass:'s-chosen',
     onEnd:function(evt){{
+      if(!evt || evt.oldIndex === evt.newIndex) return;
       sendDragEnd(evt.item.dataset.id, evt.newIndex);
     }}
   }});
@@ -4113,6 +4389,7 @@ if(typeof Sortable!=='undefined'){{
 
 document.querySelectorAll('.eye-btn').forEach(function(btn){{
   btn.addEventListener('click',function(e){{
+    e.preventDefault();
     e.stopPropagation();
     var v=this.dataset.visible==='true';
     this.dataset.visible=String(!v);
@@ -4126,7 +4403,6 @@ document.querySelectorAll('.eye-btn').forEach(function(btn){{
 
     components.html(html, height=comp_h, scrolling=False)
 
-
 def _build_preview_source(cv_data: dict) -> dict:
     """Return preview data source.
 
@@ -4138,7 +4414,6 @@ def _build_preview_source(cv_data: dict) -> dict:
     src = dict(cv_data) if isinstance(cv_data, dict) else {}
     src["_user_only_preview"] = True
     return src
-
 
 def _render_style_component(
     current_accent: str, font_size: int, line_height: float, entry_spacing: int,
@@ -4296,7 +4571,6 @@ document.getElementById('icons-lbl').addEventListener('click',function(e){{e.pre
     # Total: ~314px → use 330 for safety
     components.html(html, height=340, scrolling=False)
 
-
 def _render_zoom_toolbar_component(zoom: int, is_dark: bool = False) -> None:
     bar_bg = "#0f172a" if is_dark else "#ffffff"
     bar_border = "#334155" if is_dark else "#dbe3ef"
@@ -4360,13 +4634,11 @@ document.querySelectorAll('.icon-btn').forEach(function(btn){{
 </body></html>"""
     components.html(html, height=45, scrolling=False)
 
-
 _RAIL_HEADING_ICONS = {
     "sections": "<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M8 6h13'/><path d='M8 12h13'/><path d='M8 18h13'/><path d='M3 6h.01'/><path d='M3 12h.01'/><path d='M3 18h.01'/></svg>",
     "templates": "<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><rect width='18' height='18' x='3' y='3' rx='2'/><path d='M3 9h18'/><path d='M9 21V9'/></svg>",
     "style": "<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='13.5' cy='6.5' r='.5'/><circle cx='17.5' cy='10.5' r='.5'/><circle cx='8.5' cy='7.5' r='.5'/><circle cx='6.5' cy='12.5' r='.5'/><path d='M12 22a1 1 0 0 0 1-1v-1a2 2 0 0 1 2-2h1a4 4 0 0 0 0-8 7 7 0 1 0-4 12Z'/></svg>",
 }
-
 
 def _render_left_rail_heading(label: str, icon_key: str) -> None:
     icon_svg = _RAIL_HEADING_ICONS.get(icon_key, "")
@@ -4375,7 +4647,6 @@ def _render_left_rail_heading(label: str, icon_key: str) -> None:
         f"<h4 class='cvb-rail-heading'>{icon_html}<span>{_html_escape(label)}</span></h4>",
         unsafe_allow_html=True,
     )
-
 
 def _render_left_panel_native() -> None:
     ss = st.session_state
@@ -4400,42 +4671,42 @@ def _render_left_panel_native() -> None:
                         order.remove(sid)
                     order.insert(pos, sid)
                     ss["cvb_section_order"] = _normalize_section_order(order)
-                    st.rerun()
+                    _rerun_resume_builder()
         for sid in SECTION_IDS:
             if st.button("_", key=f"cvb_eye_{sid}"):
                 current_vis = _normalize_section_visibility(ss.get("cvb_section_visibility"))
                 current_vis[sid] = not current_vis.get(sid, True)
                 ss["cvb_section_visibility"] = current_vis
-                st.rerun()
+                _rerun_resume_builder()
         for tpl_key, _, _ in TEMPLATE_CHOICES:
             if st.button("_", key=f"cvb_tpl_{tpl_key}"):
                 ss["cvb_template"] = tpl_key
                 ss["cvb_zoom"] = _default_zoom_for_template(tpl_key)
-                st.rerun()
+                _rerun_resume_builder()
         # Hidden accent color buttons
         for i, color in enumerate(ACCENT_COLORS):
             if st.button("_", key=f"cvb_acc_{i}"):
                 ss["cvb_accent_color"] = color
-                st.rerun()
+                _rerun_resume_builder()
         # Hidden font scale buttons (scale × 100 as int: 80,85,...,130)
         for sv in CVB_SCALE_VALUES:
             if st.button("_", key=f"cvb_scale_{sv}"):
                 ss["cvb_font_size"] = max(8, min(16, round(sv / 100.0 * 11)))
-                st.rerun()
+                _rerun_resume_builder()
         # Hidden line-height buttons (val = lh × 10: 10,11,...,20 → 1.0 to 2.0)
         for lhv in CVB_LINE_HEIGHT_VALUES:
             if st.button("_", key=f"cvb_lh_{lhv}"):
                 ss["cvb_line_height"] = lhv / 10.0
-                st.rerun()
+                _rerun_resume_builder()
         # Hidden entry-spacing buttons (val = px: 0,2,4,...,24)
         for esv in CVB_ENTRY_SPACING_VALUES:
             if st.button("_", key=f"cvb_es_{esv}"):
                 ss["cvb_entry_spacing"] = esv
-                st.rerun()
+                _rerun_resume_builder()
         # Hidden toggle buttons
         if st.button("_", key="cvb_icons_toggle"):
             ss["cvb_show_icons"] = not ss.get("cvb_show_icons", True)
-            st.rerun()
+            _rerun_resume_builder()
 
     _render_left_rail_heading("Sections", "")
     _render_sections_list_component(section_order, visibility, is_dark)
@@ -4455,7 +4726,6 @@ def _render_left_panel_native() -> None:
         show_icons=_coerce_bool(ss.get("cvb_show_icons", True), True),
         is_dark=is_dark,
     )
-
 
 def _render_middle_panel_native() -> None:
     def _handle_header_add(section_id: str) -> bool:
@@ -4584,7 +4854,6 @@ def _render_middle_panel_native() -> None:
                 with st.container(key=f"cvb-section-content-{sid}"):
                     render_map[sid]()
 
-
 def _render_right_panel_native(cv_data: dict, is_dark: bool) -> None:
     ss = st.session_state
     zoom = _safe_int(ss.get("cvb_zoom", _default_zoom_for_template(ss.get("cvb_template", "classic"))), 100)
@@ -4594,14 +4863,14 @@ def _render_right_panel_native(cv_data: dict, is_dark: bool) -> None:
         if st.button("_", key="cvb_zoom_out_relay"):
             idx = levels.index(zoom) if zoom in levels else levels.index(45)
             ss["cvb_zoom"] = levels[max(0, idx - 1)]
-            st.rerun()
+            _rerun_resume_builder()
         if st.button("_", key="cvb_zoom_in_relay"):
             idx = levels.index(zoom) if zoom in levels else levels.index(45)
             ss["cvb_zoom"] = levels[min(len(levels) - 1, idx + 1)]
-            st.rerun()
+            _rerun_resume_builder()
         if st.button("_", key="cvb_zoom_reset_relay"):
             ss["cvb_zoom"] = _default_zoom_for_template(ss.get("cvb_template", "classic"))
-            st.rerun()
+            _rerun_resume_builder()
 
     template = _normalize_template(ss.get("cvb_template", "classic"))
     accent = ss.get("cvb_accent_color") or None
@@ -4669,7 +4938,6 @@ body {{ padding:0; }}
     frame_height = max(900, int(A4_HEIGHT_PX * scale) + 80)
     components.html(preview_doc, height=frame_height, scrolling=False)
 
-
 def render_cv_builder_page() -> None:
     _init_builder()
     _load_cv_for_builder_if_requested()
@@ -4732,25 +5000,10 @@ def render_cv_builder_page() -> None:
                     with a1:
                         if st.button("Import", key="cvb_toolbar_import"):
                             ss["cvb_show_import"] = not ss.get("cvb_show_import", False)
-                            st.rerun()
                     with a2:
-                        st.download_button(
-                            "Backup",
-                            data=_get_backup_json(),
-                            file_name="cv_backup.json",
-                            mime="application/json",
-                            key="cvb_toolbar_backup",
-                            on_click="ignore",
-                        )
+                        _render_backup_button_fragment(_get_backup_json())
                     with a3:
-                        if st.button("Save", key="cvb_toolbar_save"):
-                            title = (ss.get("cvb_cv_title", "") or ss.get("cvb_toolbar_title_native", "") or "My Resume").strip()
-                            if _save_cv(cv_data, title, template):
-                                ss["cvb_cv_title"] = title
-                                ss["cvb_last_saved"] = datetime.now().strftime("%I:%M %p")
-                                st.rerun()
-                            else:
-                                st.error("Save failed.")
+                        _render_save_button_fragment(template)
                     with a4:
                         cv_title_pdf = (ss.get("cvb_cv_title", "resume") or "resume").strip()
                         if pdf_bytes:
@@ -4761,25 +5014,32 @@ def render_cv_builder_page() -> None:
                                 mime="application/pdf",
                                 key="cvb_toolbar_download",
                                 type="primary",
-                                on_click="rerun",
+                                on_click="ignore",
                             )
                         else:
                             st.button("Download PDF", key="cvb_toolbar_download_disabled", disabled=True)
                     with a5:
-                        if st.button("Reset", key="cvb_toolbar_reset"):
-                            ss["cvb_confirm_reset"] = True
-                            st.rerun()
+                        st.markdown(
+                            "<div role='button' tabindex='0' class='cvb-reset-open-native'>Reset</div>",
+                            unsafe_allow_html=True,
+                        )
 
-        if ss.get("cvb_confirm_reset"):
-            st.warning("This will clear all your CV data. This cannot be undone.")
-            rc1, rc2, _ = st.columns([1, 1, 6])
-            with rc1:
-                if st.button("Yes, Reset", key="btn_confirm_reset_native", type="primary"):
-                    _reset_all()
-            with rc2:
-                if st.button("Cancel", key="btn_cancel_reset_native"):
-                    ss["cvb_confirm_reset"] = False
-                    st.rerun()
+        with st.container(key="cvb-reset-float-native"):
+            st.markdown(
+                "<div class='cvb-reset-float-title'>Reset CV Data?</div>"
+                "<div class='cvb-reset-float-msg'>This will clear all your CV data. This cannot be undone.</div>",
+                unsafe_allow_html=True,
+            )
+            with st.container(key="cvb-reset-float-actions"):
+                _, rc1, rc2, _ = st.columns([0.16, 1, 1, 0.16], gap="small")
+                with rc1:
+                    if st.button("Yes, Reset", key="btn_confirm_reset_native", type="primary"):
+                        _reset_all()
+                with rc2:
+                    st.markdown(
+                        "<div role='button' tabindex='0' class='cvb-reset-cancel-native'>Cancel</div>",
+                        unsafe_allow_html=True,
+                    )
 
         if ss.get("cvb_show_import"):
             uploaded = st.file_uploader("Upload JSON backup", type=["json"], key="cvb_import_file_native")
@@ -4813,6 +5073,7 @@ def render_cv_builder_page() -> None:
                     _render_right_panel_native(cv_data_live, is_dark)
 
     _inject_realtime_js()
+    _inject_reset_popup_native_js()
     _inject_sections_relay_js()
     _inject_chevron_hider_js()
     _inject_builder_final_alignment_overrides()
@@ -4829,7 +5090,6 @@ def _summary_section() -> None:
         )
         char_count = len(st.session_state.get("cvb_summary", ""))
         st.markdown(f"<div class='cvb-summary-counter'>{char_count}/500</div>", unsafe_allow_html=True)
-
 
 def _education_section() -> None:
     edu_ids = list(st.session_state.get("cvb_edu_ids", []))
@@ -4906,7 +5166,6 @@ def _education_section() -> None:
             )
             st.session_state[f"cvb_edu_gpa_{eid}"] = st.session_state.get(f"cvb_edu_desc_{eid}", "")
 
-
 def _skills_section() -> None:
     ss = st.session_state
     skill_ids = list(ss.get("cvb_skill_ids", []))
@@ -4960,7 +5219,6 @@ def _skills_section() -> None:
                     on_click=_remove_skill,
                     args=(sid,),
                 )
-
 
 def _projects_section() -> None:
     proj_ids = list(st.session_state.get("cvb_proj_ids", []))
@@ -5030,7 +5288,6 @@ def _projects_section() -> None:
                     placeholder="https://project-url.com",
                 )
 
-
 def _languages_section() -> None:
     lang_ids = list(st.session_state.get("cvb_lang_ids", []))
     if not lang_ids:
@@ -5068,7 +5325,6 @@ def _languages_section() -> None:
                     st.session_state["cvb_lang_ids"].remove(lid)
                     st.session_state.pop(f"cvb_lang_visible_{lid}", None)
                     st.rerun()
-
 
 def _certifications_section() -> None:
     cert_ids = list(st.session_state.get("cvb_cert_ids", []))
@@ -5121,7 +5377,6 @@ def _certifications_section() -> None:
                     placeholder="https://credential-url.com",
                 )
 
-
 def _interests_section() -> None:
     interests = list(st.session_state.get("cvb_interests", []))
     if interests:
@@ -5159,7 +5414,6 @@ def _interests_section() -> None:
                 st.session_state["cvb_interests"] = interests
                 st.session_state["cvb_interest_ctr"] = ctr + 1
                 st.rerun()
-
 
 # --- CVReviewer middle-panel runtime overrides (v2) ---
 def _personal_section() -> None:
@@ -5208,7 +5462,6 @@ def _personal_section() -> None:
                     label_visibility="collapsed",
                     placeholder="https://github.com/username",
                 )
-
 
 def _experience_section() -> None:
     exp_ids = list(st.session_state.get("cvb_exp_ids", []))
@@ -5343,7 +5596,6 @@ def _experience_section() -> None:
             if st.button("Add bullet point", key=f"add_b_{eid}", type="tertiary"):
                 st.session_state[f"cvb_exp_bcount_{eid}"] = bcount + 1
                 st.rerun()
-
 
 # --- CVReviewer template-structure overrides (safe, isolated) ---
 def generate_cv_html(
@@ -6240,7 +6492,6 @@ window.addEventListener('message', function(ev) {{
 </body>
 </html>"""
 
-
 def _render_template_component(current_tpl: str, is_dark: bool) -> None:
     """Render template-selection cards as a custom HTML component.
 
@@ -6304,5 +6555,7 @@ document.querySelectorAll('.tpl-card').forEach(function(card){{
     card_count = max(1, len(TEMPLATE_CHOICES))
     comp_h = 10 + (card_count * 58) + ((card_count - 1) * 8)
     components.html(html, height=comp_h, scrolling=False)
+
+
 
 

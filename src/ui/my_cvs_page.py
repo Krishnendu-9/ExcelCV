@@ -1,6 +1,7 @@
 """My CVs page — lists saved CVs with load / export / delete actions."""
 
 import html
+import json
 
 import streamlit as st
 
@@ -15,6 +16,22 @@ from src.ui.list_pages import (
     render_meta_line,
     render_page_header,
 )
+
+
+@st.cache_data(show_spinner=False)
+def _generate_cv_pdf_cached(data_json: str, template: str) -> bytes:
+    """Render a saved CV to PDF bytes, cached on (data, template).
+
+    Cache invalidates automatically whenever the CV is edited: a save in the
+    Resume Builder updates ``cv.data``, the serialized JSON changes, and the
+    cache miss regenerates. Returns ``b""`` on any rendering failure so the
+    caller can show a disabled "PDF unavailable" button without crashing.
+    """
+    try:
+        cv_data = json.loads(data_json) if data_json else {}
+        return generate_cv_pdf(cv_data, template) or b""
+    except Exception:
+        return b""
 
 
 def _go_to_builder() -> None:
@@ -91,33 +108,30 @@ def render_my_cvs_page() -> None:
                         st.rerun()
 
                 with col_export:
-                    cache_key = f"cv_pdf_cache_{cv.id}"
-                    if st.session_state.get(cache_key) is None:
-                        if st.button("Prepare PDF", key=f"mycvs_prep_{cv.id}", width="stretch"):
-                            try:
-                                st.session_state[cache_key] = generate_cv_pdf(cv.data, cv.template)
-                            except Exception:
-                                st.session_state[cache_key] = b""
-                            st.rerun()
+                    # Single-click download. _generate_cv_pdf_cached caches by
+                    # (data_json, template), so first render pays the rendering
+                    # cost once per CV and every later interaction is instant.
+                    # Editing the CV in the builder changes data_json → cache
+                    # auto-invalidates on next visit.
+                    data_json = json.dumps(cv.data, sort_keys=True, default=str)
+                    pdf_bytes = _generate_cv_pdf_cached(data_json, str(cv.template))
+                    if pdf_bytes:
+                        safe_title = str(cv.title).replace(" ", "_") or "resume"
+                        st.download_button(
+                            "Download PDF",
+                            data=pdf_bytes,
+                            file_name=f"{safe_title}.pdf",
+                            mime="application/pdf",
+                            key=f"mycvs_dl_{cv.id}",
+                            width="stretch",
+                        )
                     else:
-                        cached_pdf = st.session_state.get(cache_key) or b""
-                        if cached_pdf:
-                            safe_title = str(cv.title).replace(" ", "_")
-                            st.download_button(
-                                "Download PDF",
-                                data=cached_pdf,
-                                file_name=f"{safe_title}.pdf",
-                                mime="application/pdf",
-                                key=f"mycvs_dl_{cv.id}",
-                                width="stretch",
-                            )
-                        else:
-                            st.button(
-                                "PDF unavailable",
-                                disabled=True,
-                                key=f"mycvs_dl_err_{cv.id}",
-                                width="stretch",
-                            )
+                        st.button(
+                            "PDF unavailable",
+                            disabled=True,
+                            key=f"mycvs_dl_err_{cv.id}",
+                            width="stretch",
+                        )
 
                 with col_delete:
                     with st.container(key=f"lp_action_delete_cv_{cv.id}"):
@@ -134,7 +148,6 @@ def render_my_cvs_page() -> None:
                                 db2.commit()
                         finally:
                             db2.close()
-                        st.session_state.pop(f"cv_pdf_cache_{target_id}", None)
                         st.session_state.pop(f"confirm_delete_cv_{target_id}", None)
                         st.session_state["ui_toast"] = {
                             "message": f"Deleted '{target_title}'.",

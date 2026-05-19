@@ -454,6 +454,17 @@
                 border: 0 !important;
                 box-shadow: none !important;
             }}
+            /* Force the st.code copy button to stay visible (Streamlit hides
+               its wrapper at opacity:0 until hover). Only one st.code in the
+               app — the support dialog's email row — so global scope is fine. */
+            [data-testid="stCode"] > div,
+            [data-testid="stCode"] button,
+            [data-testid="stCodeBlockCopyButton"],
+            [data-testid="stCodeCopyButton"] {{
+                opacity: 1 !important;
+                visibility: visible !important;
+                pointer-events: auto !important;
+            }}
             .theme-toggle-gap {{
                 height: 4px;
             }}

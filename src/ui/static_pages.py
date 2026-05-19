@@ -5,7 +5,7 @@ from datetime import datetime
 import streamlit as st
 
 from src.cover_letter import render_cover_letter_page
-from src.email_utils import is_email_configured, send_contact_email
+from src.email_utils import is_email_configured, send_acknowledgement_email, send_contact_email
 from src.ui.report import render_evaluation_toolkit
 
 
@@ -647,6 +647,15 @@ def render_static_page(page: str) -> None:
                             message.strip(),
                         )
                         if ok:
+                            # Best-effort acknowledgement back to the submitter —
+                            # background thread so the success banner shows
+                            # immediately without waiting for a second SMTP send.
+                            import threading as _threading
+                            _threading.Thread(
+                                target=send_acknowledgement_email,
+                                args=(email.strip(), name.strip(), inquiry, message.strip()),
+                                daemon=True,
+                            ).start()
                             st.success(f"Thanks, {name.strip()}! Your message has been sent.")
                         else:
                             st.warning(

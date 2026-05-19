@@ -1,11 +1,15 @@
 """Site-wide layout components: top nav header, footer, and theme toggle."""
 
+import json
+import threading
 from datetime import datetime
 from typing import List
 
 import streamlit as st
+import streamlit.components.v1 as components
 
 from src.auth_utils import get_session_user
+from src.email_utils import is_email_configured, send_acknowledgement_email, send_contact_email
 from src.ui.app_utils import _build_page_href, _load_logo_data_uri
 
 PROTECTED_HEADER_PAGES = {"resume-builder", "my-cvs", "my-analyses", "compare-cv"}
@@ -16,23 +20,25 @@ NAV_LABEL_TO_PAGE = {
     "Resume Builder": "resume-builder",
     "My CVs": "my-cvs",
     "My Analyses": "my-analyses",
+    "My Comparisons": "my-comparisons",
 }
 NAV_ITEMS = [
     ("Analyze CV", "upload-cv"),
     ("Compare Resumes", "compare-anchor"),
-    ("Cover Letter", "cover-letter"),
     ("Resume Builder", "resume-builder"),
+    ("Cover Letter", "cover-letter"),
     ("My CVs", "my-cvs"),
     ("My Analyses", "my-analyses"),
+    ("My Comparisons", "my-comparisons"),
 ]
 # Page keys that need a hidden bridge button so the user-dropdown <a> tags
 # can route through Streamlit's in-app nav (preserving session_state)
 # instead of triggering a full-page reload. These do NOT render as visible
 # top-nav items — only their bridge buttons are emitted.
 DROPDOWN_NAV_ITEMS = [
-    "my-comparisons",
+    "give-feedback",
+    "support",
     "settings",
-    "contact",
 ]
 
 
@@ -51,6 +57,113 @@ def _nav_action_css_class(action: str) -> str:
 def _queue_nav_action(action: str) -> None:
     """Persist the most recent nav action so header highlight can update immediately."""
     st.session_state["nav_action_pending"] = str(action)
+
+
+def _open_feedback_dialog() -> None:
+    """Mark the feedback modal as open and reset any prior submit state.
+
+    Streamlit only allows one open dialog per script run, so opening Feedback
+    must also tear down any stale Support flag (e.g. left True after the user
+    X-dismissed the Support modal earlier).
+    """
+    st.session_state["support_dialog_open"] = False
+    st.session_state["feedback_dialog_open"] = True
+    st.session_state.pop("feedback_sent", None)
+
+
+def _open_support_dialog() -> None:
+    """Mark the support modal as open. Tears down any stale Feedback flag for
+    the same mutual-exclusion reason as :func:`_open_feedback_dialog`."""
+    st.session_state["feedback_dialog_open"] = False
+    st.session_state.pop("feedback_sent", None)
+    st.session_state["support_dialog_open"] = True
+
+
+@st.dialog("Support")
+def _support_dialog() -> None:
+    """Lightweight support modal — shows the support email + an Open Mail App
+    button. No form: routes the user to their own mail client so we never
+    intercept what's meant for a direct reply. The 'always-visible copy button'
+    rule lives in base_theme.css.tpl as a global override."""
+    st.session_state["support_dialog_open"] = False
+    st.write("We'll get back to you as soon as possible.")
+    st.code("support@excelcv.app", language=None)
+    st.link_button(
+        "Open mail app",
+        "mailto:support@excelcv.app?subject=ExcelCV%20Support%20Request",
+        type="primary",
+        width="stretch",
+    )
+
+
+@st.dialog("Send feedback")
+def _feedback_dialog() -> None:
+    """Lightweight feedback modal — single textarea, ships to support inbox."""
+    if st.session_state.get("feedback_sent"):
+        st.markdown("#### Thank you for your feedback")
+        st.write(
+            "We've received your message. Our team reviews every submission "
+            "and will get back to you if a response is needed."
+        )
+        if st.button("Close", key="feedback_close_btn", type="primary", width="stretch"):
+            st.session_state["feedback_dialog_open"] = False
+            st.session_state.pop("feedback_sent", None)
+            st.session_state.pop("feedback_message_input", None)
+            st.rerun()
+        return
+
+    user = get_session_user() or {}
+    st.write("Help us improve ExcelCV. We read every message.")
+    message = st.text_area(
+        "Your feedback",
+        key="feedback_message_input",
+        height=160,
+        label_visibility="collapsed",
+        placeholder="Share a feature idea, a bug, or any thought...",
+    )
+
+    if st.button("Send feedback", key="feedback_send_btn", type="primary", width="stretch"):
+        text = (message or "").strip()
+        if not text:
+            st.warning("Please type a message before sending.")
+        elif not is_email_configured():
+            st.error(
+                "We couldn't send your feedback right now. "
+                "Please email support@excelcv.app directly."
+            )
+        else:
+            user_name = str(user.get("full_name") or "ExcelCV user")
+            user_email = str(user.get("email") or "")
+            ok = send_contact_email(
+                name=user_name,
+                reply_to=user_email or "noreply@excelcv.app",
+                inquiry="Feedback",
+                subject="ExcelCV Feedback",
+                message=text,
+            )
+            if ok:
+                # Best-effort acknowledgement back to the submitter — fire it
+                # off in a background daemon thread so the user doesn't wait
+                # for a second SMTP roundtrip before seeing the thank-you
+                # screen. The ack is a courtesy; the inbox notification (above)
+                # is what actually matters.
+                if user_email:
+                    threading.Thread(
+                        target=send_acknowledgement_email,
+                        args=(user_email, user_name, "Feedback", text),
+                        daemon=True,
+                    ).start()
+                # Flip to thank-you branch. st.rerun() closes the dialog, then
+                # the top-level `if feedback_dialog_open: _feedback_dialog()`
+                # immediately reopens it on the next render — this time with
+                # feedback_sent=True, so the thank-you branch renders.
+                st.session_state["feedback_sent"] = True
+                st.rerun()
+            else:
+                st.error(
+                    "We couldn't send your feedback right now. "
+                    "Please email support@excelcv.app directly."
+                )
 
 
 def _render_html_block(html: str) -> None:
@@ -150,6 +263,32 @@ def render_site_header(show_theme_toggle: bool = True, current_page: str = "uplo
     with col_nav:
         _render_html_block('<div class="site-nav site-nav-left">' + "".join(nav_links) + "</div>")
 
+    # Normalize nav active classes on every render so stale client-side mutations
+    # from other pages (e.g. home scroll-spy) cannot leak into this page.
+    components.html(
+        f"""<script>
+(function() {{
+  var w = window.parent && window.parent !== window ? window.parent : window;
+  var doc = w.document;
+  var active = {json.dumps(active_page)};
+  var homeLikeNav = active === 'upload-cv' || active === 'compare-cv';
+  if (!homeLikeNav && w.__excelcv_compare_spy_observer__) {{
+    try {{ w.__excelcv_compare_spy_observer__.disconnect(); }} catch (_e) {{}}
+    w.__excelcv_compare_spy_observer__ = null;
+  }}
+  var items = doc.querySelectorAll('a.site-nav-item[data-nav-action]');
+  if (!items || !items.length) return;
+  for (var i = 0; i < items.length; i++) {{
+    var el = items[i];
+    var action = String(el.getAttribute('data-nav-action') || '');
+    var isActive = (action === active) || (action === 'compare-anchor' && active === 'compare-cv');
+    el.classList.toggle('site-nav-item-active', !!isActive);
+  }}
+}})();
+</script>""",
+        height=0,
+    )
+
     # User section: FlowCV-style dropdown when logged in, Sign In button when not.
     _ICON_FEEDBACK = (
         '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24"'
@@ -185,44 +324,41 @@ def render_site_header(show_theme_toggle: bool = True, current_page: str = "uplo
         '<polyline points="16 17 21 12 16 7"/>'
         '<line x1="21" y1="12" x2="9" y2="12"/></svg>'
     )
-    _ICON_COMPARISONS = (
-        '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24"'
-        ' fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"'
-        ' stroke-linejoin="round" class="site-user-item-icon" aria-hidden="true">'
-        '<rect x="3" y="3" width="7" height="18" rx="1"/>'
-        '<rect x="14" y="3" width="7" height="11" rx="1"/></svg>'
-    )
-
     if _user:
         raw_full_name = str(_user.get("full_name", "")).strip()
         name_tokens = [token for token in raw_full_name.replace(",", " ").split() if token.strip()]
         first_name = (name_tokens[0] if name_tokens else "User")[:18]
 
         def _dropdown_link(page_key: str, icon: str, label: str, extra_class: str = "") -> str:
-            """Build a dropdown <a> that routes through the in-app bridge button.
-
-            Falls back to a normal navigation if the bridge button can't be
-            found (e.g. theme toggle removed the header for some reason).
-            """
-            href = _build_page_href(page_key)
-            onclick = (
-                "try{var w=window.parent&&window.parent!==window?window.parent:window;"
-                f"var b=w.document.querySelector('.{_nav_action_css_class(page_key)} button');"
-                "if(b){event.preventDefault();event.stopPropagation();b.click();return false;}}catch(_e){}"
-            )
+            """Build a dropdown <a> that routes through the global nav-action bridge."""
+            # Special case: modal-only dropdown items (give-feedback, support)
+            # aren't real pages — point the fallback href at home with the right
+            # open_* flag so app.py auto-opens the modal on landing.
+            if page_key == "give-feedback":
+                href = _build_page_href("home") + "&open_feedback=1"
+            elif page_key == "support":
+                href = _build_page_href("home") + "&open_support=1"
+            else:
+                href = _build_page_href(page_key)
+            # The bridge button can be missing from DOM for a noticeable
+            # window after Streamlit tears down a dialog with st.rerun() — up
+            # to a second in practice. Retry generously (20 × 100ms = 2s)
+            # before falling back to URL nav, and trigger the click via a
+            # full MouseEvent dispatch (more reliable than .click() for
+            # React's synthetic event system, which sometimes ignores .click()
+            # invocations on freshly remounted widgets).
             cls = f"site-user-item{(' ' + extra_class) if extra_class else ''}"
             return (
                 f'<a href="{href}" target="_self" class="{cls}" '
-                f'data-nav-action="{page_key}" onclick="{onclick}">{icon}{label}</a>'
+                f'data-nav-action="{page_key}">{icon}{label}</a>'
             )
 
         user_section_html = (
             '<details class="site-user-dropdown">'
             f'<summary class="site-user-trigger">Hi, {first_name}<span class="site-user-caret">&#9662;</span></summary>'
             '<div class="site-user-panel">'
-            + _dropdown_link("my-comparisons", _ICON_COMPARISONS, "My Comparisons")
-            + _dropdown_link("contact", _ICON_FEEDBACK, "Give Feedback")
-            + _dropdown_link("contact", _ICON_SUPPORT, "Support")
+            + _dropdown_link("give-feedback", _ICON_FEEDBACK, "Give Feedback")
+            + _dropdown_link("support", _ICON_SUPPORT, "Support")
             + _dropdown_link("settings", _ICON_SETTINGS, "Settings")
             # Logout intentionally keeps a hard nav: the ``?_logout=1`` query
             # param is handled in main() before any page render to clear the
@@ -258,6 +394,24 @@ def render_site_header(show_theme_toggle: bool = True, current_page: str = "uplo
         # <a> tags' onclick handler can find a Streamlit button to click,
         # keeping the click in-app instead of triggering a hard reload.
         for page_key in DROPDOWN_NAV_ITEMS:
+            # Modal-only items: bridge button fires a dedicated callback that
+            # flips a session flag, instead of queuing a page navigation.
+            if page_key == "give-feedback":
+                st.button(
+                    " ",
+                    key=_nav_action_button_key(page_key),
+                    help="Internal trigger for the feedback modal",
+                    on_click=_open_feedback_dialog,
+                )
+                continue
+            if page_key == "support":
+                st.button(
+                    " ",
+                    key=_nav_action_button_key(page_key),
+                    help="Internal trigger for the support modal",
+                    on_click=_open_support_dialog,
+                )
+                continue
             if st.button(
                 " ",
                 key=_nav_action_button_key(page_key),
@@ -266,6 +420,15 @@ def render_site_header(show_theme_toggle: bool = True, current_page: str = "uplo
                 args=(page_key,),
             ):
                 nav_action = page_key
+
+    # Mutually exclusive — Streamlit can only render one dialog per script run.
+    # `elif` is a safety net in case both flags somehow ended up True (e.g. a
+    # callback path we didn't anticipate). Feedback takes precedence because it
+    # might be mid-submission with thank-you state worth preserving.
+    if st.session_state.get("feedback_dialog_open"):
+        _feedback_dialog()
+    elif st.session_state.get("support_dialog_open"):
+        _support_dialog()
 
     _render_html_block('<div class="site-header-rule"></div>')
     return nav_action

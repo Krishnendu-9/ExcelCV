@@ -300,13 +300,77 @@ def inject_list_page_css() -> None:
             background-color: rgba(239, 68, 68, 0.16) !important;
         }
 
-        /* ── Inline delete-confirm panel ────────────────────────── */
-        [data-testid="stAppViewContainer"] [class*="st-key-lp_confirm_"] {
+        /* ── Inline delete-confirm panel ──────────────────────────
+           Key is ``lp_confirm_panel_<...>`` specifically (not
+           ``lp_confirm_<...>``) so this rule doesn't also paint the
+           inner button containers (``lp_confirm_yes_<...>`` /
+           ``lp_confirm_no_<...>``), which would otherwise inherit the
+           pink wash and create a "box inside a box" effect. */
+        [data-testid="stAppViewContainer"] [class*="st-key-lp_confirm_panel_"] {
             background: linear-gradient(180deg, rgba(239,68,68,0.06), rgba(239,68,68,0.02));
             border: 1px solid rgba(239, 68, 68, 0.32);
             border-radius: 12px;
             padding: 0.85rem 1rem;
             margin-top: 0.6rem;
+        }
+        /* ── Confirm-panel buttons: outlined w/ destructive vs. safe hover ──
+           "Yes, delete" → red ink + red wash on hover (destructive).
+           "Cancel"      → neutral ink + green wash on hover (safe).
+           Specificity is doubled to outrank the global button rules in
+           base_theme.css.tpl (which would otherwise flatten both to the
+           default theme button look). */
+        [data-testid="stAppViewContainer"] [class*="st-key-lp_confirm_yes_"][class*="st-key-lp_confirm_yes_"] button,
+        [data-testid="stAppViewContainer"] [class*="st-key-lp_confirm_yes_"][class*="st-key-lp_confirm_yes_"] button:focus,
+        [data-testid="stAppViewContainer"] [class*="st-key-lp_confirm_yes_"][class*="st-key-lp_confirm_yes_"] [data-baseweb="button"] {
+            background: transparent !important;
+            background-color: transparent !important;
+            background-image: none !important;
+            color: #ef4444 !important;
+            border: 1px solid rgba(239, 68, 68, 0.45) !important;
+            box-shadow: none !important;
+            font-weight: 600 !important;
+        }
+        [data-testid="stAppViewContainer"] [class*="st-key-lp_confirm_yes_"][class*="st-key-lp_confirm_yes_"] button *,
+        [data-testid="stAppViewContainer"] [class*="st-key-lp_confirm_yes_"][class*="st-key-lp_confirm_yes_"] button p {
+            background: transparent !important;
+            color: #ef4444 !important;
+        }
+        [data-testid="stAppViewContainer"] [class*="st-key-lp_confirm_yes_"][class*="st-key-lp_confirm_yes_"] button:hover {
+            background: rgba(239, 68, 68, 0.12) !important;
+            background-color: rgba(239, 68, 68, 0.12) !important;
+            border-color: rgba(239, 68, 68, 0.65) !important;
+        }
+
+        [data-testid="stAppViewContainer"] [class*="st-key-lp_confirm_no_"][class*="st-key-lp_confirm_no_"] button,
+        [data-testid="stAppViewContainer"] [class*="st-key-lp_confirm_no_"][class*="st-key-lp_confirm_no_"] button:focus,
+        [data-testid="stAppViewContainer"] [class*="st-key-lp_confirm_no_"][class*="st-key-lp_confirm_no_"] [data-baseweb="button"] {
+            background: transparent !important;
+            background-color: transparent !important;
+            background-image: none !important;
+            color: var(--text-primary) !important;
+            border: 1px solid var(--border-color) !important;
+            box-shadow: none !important;
+            font-weight: 600 !important;
+        }
+        [data-testid="stAppViewContainer"] [class*="st-key-lp_confirm_no_"][class*="st-key-lp_confirm_no_"] button *,
+        [data-testid="stAppViewContainer"] [class*="st-key-lp_confirm_no_"][class*="st-key-lp_confirm_no_"] button p {
+            background: transparent !important;
+            color: var(--text-primary) !important;
+        }
+        [data-testid="stAppViewContainer"] [class*="st-key-lp_confirm_no_"][class*="st-key-lp_confirm_no_"] button:hover {
+            background: rgba(34, 197, 94, 0.12) !important;
+            background-color: rgba(34, 197, 94, 0.12) !important;
+            border-color: rgba(34, 197, 94, 0.55) !important;
+            color: #15803d !important;
+        }
+        [data-testid="stAppViewContainer"] [class*="st-key-lp_confirm_no_"][class*="st-key-lp_confirm_no_"] button:hover *,
+        [data-testid="stAppViewContainer"] [class*="st-key-lp_confirm_no_"][class*="st-key-lp_confirm_no_"] button:hover p {
+            color: #15803d !important;
+        }
+        body.theme-dark [data-testid="stAppViewContainer"] [class*="st-key-lp_confirm_no_"][class*="st-key-lp_confirm_no_"] button:hover,
+        body.theme-dark [data-testid="stAppViewContainer"] [class*="st-key-lp_confirm_no_"][class*="st-key-lp_confirm_no_"] button:hover *,
+        body.theme-dark [data-testid="stAppViewContainer"] [class*="st-key-lp_confirm_no_"][class*="st-key-lp_confirm_no_"] button:hover p {
+            color: #4ade80 !important;
         }
         .lp-confirm-text {
             display: flex;
@@ -619,7 +683,7 @@ def render_delete_confirm(
     Caller is responsible for guarding the call with the corresponding session
     flag (so the panel only appears after the user clicks the trigger).
     """
-    with st.container(key=f"lp_confirm_{key}"):
+    with st.container(key=f"lp_confirm_panel_{key}"):
         st.markdown(
             f"""
             <div class="lp-confirm-text">

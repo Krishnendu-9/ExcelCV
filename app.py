@@ -222,6 +222,20 @@ def _inject_theme_persistence(theme: str) -> None:
         var normalized = String(action || "").toLowerCase().replace(/[^a-z0-9]/g, "_");
         return ".st-key-nav_action_" + normalized + " button";
     }}
+    function _modalFallbackHref(action, currentHref) {{
+        try {{
+            var u = new URL(currentHref, w.location.origin);
+            var a = String(action || "").toLowerCase();
+            if (a === "give-feedback") {{
+                u.searchParams.set("open_feedback", "1");
+            }} else if (a === "support") {{
+                u.searchParams.set("open_support", "1");
+            }}
+            return u.toString();
+        }} catch (_e) {{
+            return currentHref;
+        }}
+    }}
     doc.addEventListener('click', function(e) {{
         if (e.defaultPrevented) return;
         if (typeof e.button === "number" && e.button !== 0) return;
@@ -231,13 +245,32 @@ def _inject_theme_persistence(theme: str) -> None:
         try {{
             var navAction = a.getAttribute("data-nav-action");
             if (navAction) {{
-                var btn = doc.querySelector(_navButtonClass(navAction));
-                if (btn) {{
-                    e.preventDefault();
-                    e.stopPropagation();
-                    btn.click();
-                    return;
-                }}
+                e.preventDefault();
+                e.stopPropagation();
+                var fallbackHref = _modalFallbackHref(navAction, a.href);
+                var tryBridge = function(remaining) {{
+                    var btn = doc.querySelector(_navButtonClass(navAction));
+                    if (btn) {{
+                        try {{
+                            var evt = new w.MouseEvent('click', {{
+                                bubbles: true,
+                                cancelable: true,
+                                view: w,
+                                button: 0
+                            }});
+                            btn.dispatchEvent(evt);
+                        }} catch (_evtErr) {{}}
+                        try {{ btn.click(); }} catch (_clickErr) {{}}
+                        return;
+                    }}
+                    if (remaining > 0) {{
+                        setTimeout(function() {{ tryBridge(remaining - 1); }}, 80);
+                        return;
+                    }}
+                    w.location.href = fallbackHref;
+                }};
+                tryBridge(25);
+                return;
             }}
             var u = new URL(a.href, w.location.origin);
             if (u.hostname !== w.location.hostname) return;
@@ -258,12 +291,21 @@ def _inject_url_and_anchor_cleanup(current_page: str = "home", report_snapshot_i
     """Keep URL clean, prevent hash-based reload jumps, and collapse invisible injection wrappers."""
     desired_page_js = json.dumps(str(current_page or "home"))
     desired_rid_js = json.dumps(str(report_snapshot_id or ""))
+    run_token_js = json.dumps(uuid4().hex)
     script = """<script>
 (function () {
     var w = window.parent && window.parent !== window ? window.parent : window;
     var doc = w.document;
     var desiredPage = __DESIRED_PAGE__;
     var desiredRid = __DESIRED_RID__;
+    var runToken = __RUN_TOKEN__;
+
+    w.__excelcvUrlSyncRunToken = runToken;
+    function _isCurrentRun() {
+        return w.__excelcvUrlSyncRunToken === runToken;
+    }
+
+    if (!_isCurrentRun()) return;
 
     try {
         var styleId = "excelcv-hide-heading-anchors";
@@ -276,6 +318,7 @@ def _inject_url_and_anchor_cleanup(current_page: str = "home", report_snapshot_i
     } catch (e) {}
 
     try {
+        if (!_isCurrentRun()) return;
         var u = new URL(w.location.href);
         var page = (u.searchParams.get("page") || "").toLowerCase();
         var isHome = page === "home" || (page === "" && !u.searchParams.has("next"));
@@ -323,6 +366,7 @@ def _inject_url_and_anchor_cleanup(current_page: str = "home", report_snapshot_i
 
     // Sync URL to the current in-app route without triggering an extra Streamlit rerun.
     try {
+        if (!_isCurrentRun()) return;
         var target = new URL(w.location.href);
         var normalizedDesired = String(desiredPage || "home").toLowerCase();
         var homeLike = new Set(["home", "upload", "upload-cv"]);
@@ -366,6 +410,7 @@ def _inject_url_and_anchor_cleanup(current_page: str = "home", report_snapshot_i
     // Runs after a short delay to ensure all sibling injection iframes have already
     // loaded and executed their scripts before we hide their containers.
     setTimeout(function () {
+        if (!_isCurrentRun()) return;
         try {
             // Hide style-only wrappers (st.markdown('<style>...')) — <style> still applies.
             var styleEls = doc.querySelectorAll('[data-testid="stElementContainer"]:has(style)');
@@ -387,7 +432,11 @@ def _inject_url_and_anchor_cleanup(current_page: str = "home", report_snapshot_i
 
 })();
 </script>"""
-    script = script.replace("__DESIRED_PAGE__", desired_page_js).replace("__DESIRED_RID__", desired_rid_js)
+    script = (
+        script.replace("__DESIRED_PAGE__", desired_page_js)
+        .replace("__DESIRED_RID__", desired_rid_js)
+        .replace("__RUN_TOKEN__", run_token_js)
+    )
     components.html(script, height=0)
 
 
@@ -584,6 +633,7 @@ def main() -> None:
     _handle_oauth_callback()
     _handle_reset_token()
 
+
     if 'theme' not in st.session_state:
         raw_theme = st.query_params.get('_t') or st.query_params.get('theme')
         st.session_state['theme'] = raw_theme if raw_theme in ('light', 'dark') else 'light'
@@ -606,6 +656,8 @@ def main() -> None:
 
     url_page = st.query_params.get("page")
     url_rid = st.query_params.get("rid")
+    open_feedback = str(st.query_params.get("open_feedback") or "").strip().lower()
+    open_support = str(st.query_params.get("open_support") or "").strip().lower()
     is_unauth_protected = url_page in PROTECTED_PAGES and not get_session_user()
     if is_unauth_protected:
         intended = str(url_page)
@@ -614,6 +666,26 @@ def main() -> None:
         st.session_state["page"] = str(url_page)
     if url_rid:
         st.session_state["report_snapshot_id"] = str(url_rid)
+    if open_feedback in {"1", "true", "yes"}:
+        st.session_state["support_dialog_open"] = False
+        st.session_state["feedback_dialog_open"] = True
+        st.session_state.pop("feedback_sent", None)
+        try:
+            del st.query_params["open_feedback"]
+        except Exception:
+            pass
+        try:
+            del st.query_params["open_support"]
+        except Exception:
+            pass
+    elif open_support in {"1", "true", "yes"}:
+        st.session_state["feedback_dialog_open"] = False
+        st.session_state.pop("feedback_sent", None)
+        st.session_state["support_dialog_open"] = True
+        try:
+            del st.query_params["open_support"]
+        except Exception:
+            pass
 
     if st.session_state.get('page') == 'auth' or st.query_params.get('page') == 'auth':
         if get_session_user():
@@ -661,6 +733,15 @@ def main() -> None:
         st.session_state['scroll_to_compare_anchor'] = True
         st.session_state[HOME_COMPARE_FOCUS_KEY] = True
         current_page = 'home'
+
+    # Defensive cleanup: stale compare-focus/nav-action state from a previous
+    # page can leak into the first Resume Builder paint and briefly mark
+    # "Compare Resumes" as active.
+    if current_page == 'resume-builder':
+        st.session_state[HOME_COMPARE_FOCUS_KEY] = False
+        st.session_state.pop('scroll_to_compare_anchor', None)
+        if str(st.session_state.get('nav_action_pending', '')).strip() == 'compare-anchor':
+            st.session_state.pop('nav_action_pending', None)
     active_nav_label = NAV_ACTIVE_LABELS.get(current_page, "Analyze CV")
     if current_page in ("home", "upload", "upload-cv") and st.session_state.get(HOME_COMPARE_FOCUS_KEY):
         active_nav_label = "Compare Resumes"

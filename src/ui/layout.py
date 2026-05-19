@@ -331,13 +331,11 @@ def render_site_header(show_theme_toggle: bool = True, current_page: str = "uplo
 
         def _dropdown_link(page_key: str, icon: str, label: str, extra_class: str = "") -> str:
             """Build a dropdown <a> that routes through the global nav-action bridge."""
-            # Special case: modal-only dropdown items (give-feedback, support)
-            # aren't real pages — point the fallback href at home with the right
-            # open_* flag so app.py auto-opens the modal on landing.
+            # Modal-only items should never hard-navigate.
             if page_key == "give-feedback":
-                href = _build_page_href("home") + "&open_feedback=1"
+                href = "#"
             elif page_key == "support":
-                href = _build_page_href("home") + "&open_support=1"
+                href = "#"
             else:
                 href = _build_page_href(page_key)
             # The bridge button can be missing from DOM for a noticeable

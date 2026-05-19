@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import uuid
 from datetime import date, datetime
 
@@ -854,6 +855,53 @@ def _cached_generate_cv_pdf(
     except Exception as exc:
         return None, str(exc)
 
+
+def _pdf_request_payload(
+    cv_data: dict,
+    template: str,
+    accent_color: str | None,
+    font_family: str | None,
+    font_size: int,
+    line_height: float,
+    entry_spacing: int,
+    show_icons: bool,
+    preview_dark: bool,
+    section_visibility: dict[str, bool],
+    section_order: list[str],
+) -> tuple[str, tuple]:
+    data_json = json.dumps(cv_data, sort_keys=True)
+    section_visibility_json = json.dumps(section_visibility, sort_keys=True)
+    section_order_json = json.dumps(section_order)
+    payload = {
+        "data_json": data_json,
+        "template": template,
+        "accent_color": accent_color,
+        "font_family": font_family,
+        "font_size": font_size,
+        "line_height": line_height,
+        "entry_spacing": entry_spacing,
+        "show_icons": show_icons,
+        "preview_dark": preview_dark,
+        "section_visibility_json": section_visibility_json,
+        "section_order_json": section_order_json,
+    }
+    payload_hash = hashlib.sha256(
+        json.dumps(payload, sort_keys=True, default=str, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    return payload_hash, (
+        data_json,
+        template,
+        accent_color,
+        font_family,
+        font_size,
+        line_height,
+        entry_spacing,
+        show_icons,
+        preview_dark,
+        section_visibility_json,
+        section_order_json,
+    )
+
 def _get_backup_json() -> str:
     data = {k: v for k, v in st.session_state.items() if k.startswith("cvb_")}
     return json.dumps(data, indent=2, default=str)
@@ -1047,18 +1095,30 @@ def _inject_realtime_js() -> None:
   }
 
   function getWidgetKey(node) {
+    function normKey(raw) {
+      var key = String(raw || '').trim();
+      if (!key) return '';
+      if (key.indexOf('st-key-') === 0) key = key.slice(7);
+      if (key.indexOf('cvb-') === 0) key = key.replace(/-/g, '_');
+      return key.indexOf('cvb_') === 0 ? key : '';
+    }
+
     var el = node;
-    for (var depth = 0; el && depth < 50; depth++, el = el.parentElement) {
+    for (var depth = 0; el && depth < 120; depth++, el = el.parentElement) {
       if (!el) break;
       var classes = String(el.className || '').split(/\\s+/);
       for (var i = 0; i < classes.length; i++) {
-        var cls = classes[i];
-        if (!cls || cls.indexOf('st-key-') !== 0) continue;
-        var key = cls.slice(7);
-        if (!key) continue;
-        if (key.indexOf('cvb_') === 0) return key;
-        if (key.indexOf('cvb-') === 0) return key.replace(/-/g, '_');
+        var key = normKey(classes[i]);
+        if (key) return key;
       }
+    }
+    if (node && node.getAttribute) {
+      var keyFromId = normKey(node.getAttribute('id'));
+      if (keyFromId) return keyFromId;
+      var keyFromName = normKey(node.getAttribute('name'));
+      if (keyFromName) return keyFromName;
+      var keyFromData = normKey(node.getAttribute('data-testid'));
+      if (keyFromData) return keyFromData;
     }
     return '';
   }
@@ -1424,18 +1484,19 @@ def _inject_realtime_js() -> None:
       if (t === 'hidden' || t === 'button' || t === 'submit' || t === 'reset') continue;
       var c = input.closest('[data-testid="stTextInput"], [data-testid="stTextArea"], [data-testid="stSelectbox"], [data-testid="stNumberInput"]')
         || input.closest('[class*="st-key-"]');
-      if (!c) continue;
-      var lt = getLabelText(c, input);
-      var widgetKey = getWidgetKey(c) || '';
+      var lt = getLabelText(c || null, input);
+      var widgetKey = getWidgetKey(c || input) || getWidgetKey(input) || '';
       if (!lt && widgetKey) lt = widgetKey;
 
       if (widgetKey) {
-        broadcast({ type: 'cv-rt-widget', key: widgetKey, label: lt || widgetKey, value: input.value || '' });
+        var vWidget = String(input.value || '');
+        broadcast({ type: 'cv-rt-widget', key: widgetKey, label: lt || widgetKey, value: vWidget });
       }
 
       var field = FIELD_BY_LABEL[lt] || FIELD_BY_KEY[widgetKey];
       if (field) {
-        broadcast({ type: 'cv-rt-update', field: field, value: input.value || '' });
+        var vField = String(input.value || '');
+        broadcast({ type: 'cv-rt-update', field: field, value: vField });
       }
     }
   }
@@ -1448,24 +1509,30 @@ def _inject_realtime_js() -> None:
     if (tag !== 'INPUT' && tag !== 'TEXTAREA' && tag !== 'SELECT') return;
     var middle = doc.querySelector('.st-key-cvb-middle-scroll-native');
     if (!middle || !middle.contains(input)) return;
-    broadcast({ type: 'cv-rt-user-mode' });
     var CARD = '.st-key-cvb-middle-scroll-native';
     var c = input.closest('[data-testid="stTextInput"], [data-testid="stTextArea"], [data-testid="stSelectbox"], [data-testid="stNumberInput"]')
       || input.closest('[class*="st-key-"]');
-    if (!c) return;
-    var lt = getLabelText(c, input);
-    var widgetKey = getWidgetKey(c) || '';
+    var lt = getLabelText(c || null, input);
+    var widgetKey = getWidgetKey(c || input) || getWidgetKey(input) || '';
     if (!lt && widgetKey) lt = widgetKey;
-    if (!lt && !widgetKey) return;
-    if (widgetKey) {
-      broadcast({ type: 'cv-rt-widget', key: widgetKey, label: lt, value: input.value || '' });
+    if (!lt && !widgetKey) {
+      syncAllPersonalFields(CARD);
+      return;
     }
+    // Enter user-mode once we have a resolvable source field, so the first
+    // keystroke switches to user-only formatting immediately.
+    broadcast({ type: 'cv-rt-user-mode' });
     var field = FIELD_BY_LABEL[lt] || FIELD_BY_KEY[widgetKey];
-    if (!field) return;
+    if (widgetKey) {
+      var widgetVal = String(input.value || '');
+      broadcast({ type: 'cv-rt-widget', key: widgetKey, label: lt, value: widgetVal });
+    }
     if (field) {
-      broadcast({ type: 'cv-rt-update', field: field, value: input.value });
+      var fieldVal = String(input.value || '');
+      broadcast({ type: 'cv-rt-update', field: field, value: fieldVal });
     }
     syncAllPersonalFields(CARD);
+    scheduleFullRealtimeSync();
   }
 
   function handleClick(e) {
@@ -1474,7 +1541,19 @@ def _inject_realtime_js() -> None:
     var middle = doc.querySelector('.st-key-cvb-middle-scroll-native');
     if (!middle || !middle.contains(t)) return;
     if (!t.closest('button, [role="button"]')) return;
-    broadcast({ type: 'cv-rt-user-mode' });
+    // Non-input button clicks should not force user-mode; doing so can clear
+    // the preview before a usable field payload is emitted.
+    syncInlineLinkIcons();
+    scheduleFullRealtimeSync();
+  }
+
+  var __rtFullSyncTimer = null;
+  function scheduleFullRealtimeSync() {
+    if (__rtFullSyncTimer) clearTimeout(__rtFullSyncTimer);
+    __rtFullSyncTimer = setTimeout(function() {
+      broadcastAllMiddleFields();
+      __rtFullSyncTimer = null;
+    }, 40);
   }
 
   var KEY_INPUT = '__excalcv_rt_input__';
@@ -1495,12 +1574,11 @@ def _inject_realtime_js() -> None:
     var middle = doc.querySelector(CARD);
     if (!middle) return;
     if (!hasAnyMiddleInputValue(middle) && !hasAnyPersonalInput(CARD)) return;
-    broadcast({ type: 'cv-rt-user-mode' });
     syncAllPersonalFields(CARD);
     broadcastAllMiddleFields();
   }
 
-  [60, 180, 420, 900, 1500].forEach(function(ms) {
+  [80, 220, 420, 900, 1500, 2500].forEach(function(ms) {
     setTimeout(bootstrapSync, ms);
     setTimeout(syncInlineLinkIcons, ms);
   });
@@ -2699,6 +2777,8 @@ def _inject_chevron_hider_js() -> None:
     whose text is exactly a chevron glyph name and hide them. The flex wrappers around
     them collapse naturally when empty.
     """
+    # Custom section cards replaced st.expander, so this legacy observer is no longer needed.
+    return
     components.html("""<script>
 (function() {
   var w = window.parent && window.parent !== window ? window.parent : window;
@@ -2851,6 +2931,16 @@ def _inject_builder_css_native(is_dark: bool) -> None:
     toolbar_hover_color = "#bfdbfe" if is_dark else "#0d5ec0"
     toolbar_save_hover_bg = "rgba(16,185,129,0.18)" if is_dark else "#ebf8f1"
     toolbar_save_hover_color = "#6ee7b7" if is_dark else "#0f8a4c"
+    # Segmented control surrounding Import / Backup / Save
+    segment_bg = "#1e293b" if is_dark else "#ffffff"
+    segment_brd = "#475569" if is_dark else "#d7e1ec"
+    segment_divider = "#334155" if is_dark else "#e4ebf3"
+    segment_shadow = "0 1px 2px rgba(0,0,0,0.35)" if is_dark else "0 1px 2px rgba(15,23,42,0.04)"
+    # Reset (destructive) button
+    reset_color = "#cbd5e1" if is_dark else "#64748b"
+    reset_hover_bg = "rgba(239,68,68,0.14)" if is_dark else "#fef2f2"
+    reset_hover_color = "#fca5a5" if is_dark else "#dc2626"
+    reset_hover_brd = "rgba(239,68,68,0.45)" if is_dark else "#fecaca"
     middle_panel_bg = "#0f172a" if is_dark else "#f3f5f8"
     right_panel_bg = "#0b1220" if is_dark else "#f6f7f9"
     left_panel_bg = "#0f172a" if is_dark else "#f7f9fc"
@@ -3125,7 +3215,45 @@ body.cvb-reset-open .st-key-cvb-reset-float-native {{
   background-color: rgba(239, 68, 68, 0.12) !important;
   border-color: rgba(239, 68, 68, 0.65) !important;
 }}
-.st-key-cvb-toolbar-actions-native .cvb-reset-open-native,
+.st-key-cvb-toolbar-actions-native .cvb-reset-open-native {{
+  appearance: none !important;
+  border: 1px solid transparent !important;
+  background: transparent !important;
+  color: {reset_color} !important;
+  border-radius: 8px !important;
+  min-height: 36px !important;
+  height: 36px !important;
+  padding: 0 12px !important;
+  font-size: 13.5px !important;
+  font-weight: 500 !important;
+  cursor: pointer !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  transition: background-color .16s ease, color .16s ease, border-color .16s ease !important;
+}}
+.st-key-cvb-toolbar-actions-native .cvb-reset-open-native::before {{
+  content: "";
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  background-color: currentColor;
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  -webkit-mask-size: 14px 14px;
+  mask-repeat: no-repeat;
+  mask-position: center;
+  mask-size: 14px 14px;
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23000' stroke-width='2'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M3 12a9 9 0 1 0 3-6.7L3 8'/%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M3 3v5h5'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23000' stroke-width='2'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M3 12a9 9 0 1 0 3-6.7L3 8'/%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M3 3v5h5'/%3E%3C/svg%3E");
+}}
+.st-key-cvb-toolbar-actions-native .cvb-reset-open-native:hover,
+.st-key-cvb-toolbar-actions-native .cvb-reset-open-native:focus-visible {{
+  background: {reset_hover_bg} !important;
+  border-color: {reset_hover_brd} !important;
+  color: {reset_hover_color} !important;
+}}
 .st-key-cvb-reset-float-native .cvb-reset-cancel-native {{
   appearance: none !important;
   border: 1px solid #d1d5db !important;
@@ -3139,8 +3267,6 @@ body.cvb-reset-open .st-key-cvb-reset-float-native {{
   font-weight: 600 !important;
   cursor: pointer !important;
 }}
-.st-key-cvb-toolbar-actions-native .cvb-reset-open-native:hover,
-.st-key-cvb-toolbar-actions-native .cvb-reset-open-native:focus-visible,
 .st-key-cvb-reset-float-native .cvb-reset-cancel-native:hover,
 .st-key-cvb-reset-float-native .cvb-reset-cancel-native:focus-visible {{
   background: rgba(34, 197, 94, 0.12) !important;
@@ -3191,8 +3317,9 @@ body.cvb-reset-open .st-key-cvb-reset-float-native {{
 .cvb-saved-ts-native {{
   display:inline-flex;
   align-items:center;
-  min-height: 24px;
-  padding: 3px 11px;
+  gap: 6px;
+  min-height: 26px;
+  padding: 3px 12px;
   border-radius:999px;
   background: {saved_bg};
   color:{saved_color};
@@ -3201,9 +3328,23 @@ body.cvb-reset-open .st-key-cvb-reset-float-native {{
   line-height: 1;
   border:1px solid {saved_brd};
   white-space:nowrap;
+  margin-left: auto !important;
 }}
+.cvb-saved-ts-native::before {{
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: {saved_color};
+  box-shadow: 0 0 0 2px {saved_bg};
+  flex-shrink: 0;
+}}
+/* Title input width is now controlled in the inline meta group below */
 .st-key-cvb_toolbar_title_native {{
   min-width: 260px !important;
+  max-width: 280px !important;
+  width: 280px !important;
+  flex: 0 0 auto !important;
 }}
 .st-key-cvb_toolbar_title_native label {{
   display: none !important;
@@ -3222,9 +3363,16 @@ body.cvb-reset-open .st-key-cvb-reset-float-native {{
 .st-key-cvb-toolbar-actions-native [data-testid="stHorizontalBlock"] {{
   align-items: center !important;
   justify-content: flex-end !important;
-  gap: 8px !important;
+  gap: 0 !important;
   flex-wrap: nowrap !important;
   white-space: nowrap !important;
+}}
+/* Spacing between the segment (cols 1-3), Download PDF (col 4), and Reset (col 5) */
+.st-key-cvb-toolbar-actions-native [data-testid="stHorizontalBlock"] > [data-testid="column"]:nth-child(4) {{
+  margin-left: 14px !important;
+}}
+.st-key-cvb-toolbar-actions-native [data-testid="stHorizontalBlock"] > [data-testid="column"]:nth-child(5) {{
+  margin-left: 8px !important;
 }}
 .st-key-cvb-toolbar-actions-native {{
   display: block !important;
@@ -3268,38 +3416,42 @@ body.cvb-reset-open .st-key-cvb-reset-float-native {{
   text-orientation: mixed !important;
   word-break: normal !important;
   overflow-wrap: normal !important;
-  width: auto !important;
-  min-width: auto !important;
+  width: 100% !important;
+  min-width: 0 !important;
   max-width: none !important;
   height: 36px !important;
-  padding: 0 12px !important;
-  border-radius: 8px !important;
-  border: none !important;
+  padding: 0 14px !important;
   outline: none !important;
-  border: none !important;
-  background: transparent !important;
+  background: {segment_bg} !important;
   color: {toolbar_btn_color} !important;
   box-shadow: none !important;
-  font-size: 14px !important;
+  font-size: 13.5px !important;
   font-weight: 500 !important;
   flex-direction: row !important;
   cursor: pointer !important;
   transition: background-color .16s ease, color .16s ease, box-shadow .16s ease !important;
+  position: relative !important;
 }}
+/* Segment: shared border, dividers between, rounded only on outer corners */
 .st-key-cvb-toolbar-actions-native .st-key-cvb_toolbar_import button {{
-  width: 88px !important;
-  min-width: 88px !important;
-  max-width: 88px !important;
+  border: 1px solid {segment_brd} !important;
+  border-right: 1px solid {segment_divider} !important;
+  border-radius: 8px 0 0 8px !important;
+  box-shadow: {segment_shadow} !important;
 }}
 .st-key-cvb-toolbar-actions-native .st-key-cvb_toolbar_backup button {{
-  width: 93px !important;
-  min-width: 93px !important;
-  max-width: 93px !important;
+  border-top: 1px solid {segment_brd} !important;
+  border-bottom: 1px solid {segment_brd} !important;
+  border-left: 0 !important;
+  border-right: 1px solid {segment_divider} !important;
+  border-radius: 0 !important;
+  box-shadow: {segment_shadow} !important;
 }}
 .st-key-cvb-toolbar-actions-native .st-key-cvb_toolbar_save button {{
-  width: 84px !important;
-  min-width: 84px !important;
-  max-width: 84px !important;
+  border: 1px solid {segment_brd} !important;
+  border-left: 0 !important;
+  border-radius: 0 8px 8px 0 !important;
+  box-shadow: {segment_shadow} !important;
 }}
 .st-key-cvb-toolbar-actions-native .st-key-cvb_toolbar_import button::before,
 .st-key-cvb-toolbar-actions-native .st-key-cvb_toolbar_backup button::before,
@@ -3338,11 +3490,13 @@ body.cvb-reset-open .st-key-cvb-reset-float-native {{
 .st-key-cvb-toolbar-actions-native .st-key-cvb_toolbar_backup button:focus-visible {{
   background: {toolbar_hover_bg} !important;
   color: {toolbar_hover_color} !important;
+  z-index: 2 !important;
 }}
 .st-key-cvb-toolbar-actions-native .st-key-cvb_toolbar_save button:hover,
 .st-key-cvb-toolbar-actions-native .st-key-cvb_toolbar_save button:focus-visible {{
   background: {toolbar_save_hover_bg} !important;
   color: {toolbar_save_hover_color} !important;
+  z-index: 2 !important;
 }}
 .st-key-cvb-toolbar-actions-native .st-key-cvb_toolbar_download button[kind="primary"],
 .st-key-cvb-toolbar-actions-native .st-key-cvb_toolbar_download button[data-testid="baseButton-primary"] {{
@@ -3653,80 +3807,12 @@ body.cvb-reset-open .st-key-cvb-reset-float-native {{
 .st-key-cvb-right-scroll-native > [data-testid="stVerticalBlock"]::-webkit-scrollbar-thumb:hover {{
   background: {scroll_thumb_hover} !important;
 }}
-.st-key-cvb-middle-scroll-native [data-testid="stExpander"] {{
-  margin: 0 0 12px !important;
-}}
-.st-key-cvb-middle-scroll-native [data-testid="stExpander"] details {{
-  background: {expander_card_bg} !important;
-  border: 1px solid {expander_border} !important;
-  border-radius: 14px !important;
-  overflow: hidden !important;
-  box-shadow: {card_shadow} !important;
-}}
-.st-key-cvb-middle-scroll-native [data-testid="stExpander"] summary {{
-  min-height: 52px !important;
-  padding: 0 48px 0 18px !important;
-  background: {expander_header_bg} !important;
-  display: flex !important;
-  align-items: center !important;
-  gap: 8px !important;
-  cursor: pointer !important;
-  list-style: none !important;
-  position: relative !important;
-}}
-/* Hide browser default disclosure markers */
-.st-key-cvb-middle-scroll-native [data-testid="stExpander"] summary::-webkit-details-marker {{
-  display: none !important;
-}}
-.st-key-cvb-middle-scroll-native [data-testid="stExpander"] summary::marker {{
-  content: "" !important;
-}}
 /* The chevron itself is hidden by JavaScript (_inject_chevron_hider_js) — it walks the
    DOM, finds Material Icon spans with text "keyboard_arrow_down" / "keyboard_arrow_up",
    and hides only their wrapper. CSS can't reliably target it because the wrapping
    structure varies across Streamlit versions. */
 /* Custom chevron drawn on the right via ::after — rotates when expanded */
-.st-key-cvb-middle-scroll-native [data-testid="stExpander"] summary::after {{
-  content: "" !important;
-  position: absolute !important;
-  right: 18px !important;
-  top: 50% !important;
-  width: 14px !important;
-  height: 14px !important;
-  margin-top: -7px !important;
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23{chevron_stroke}' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>") !important;
-  background-size: contain !important;
-  background-repeat: no-repeat !important;
-  background-position: center !important;
-  transform: rotate(-90deg) !important;
-  transition: transform 0.2s ease !important;
-  pointer-events: none !important;
-}}
-.st-key-cvb-middle-scroll-native [data-testid="stExpander"] details[open] summary::after {{
-  transform: rotate(0deg) !important;
-}}
 /* Embedded section icon inside the label — blue, vertically centered */
-.st-key-cvb-middle-scroll-native [data-testid="stExpander"] summary p svg,
-.st-key-cvb-middle-scroll-native [data-testid="stExpander"] summary [data-testid="stMarkdownContainer"] svg {{
-  color: {section_icon} !important;
-  fill: {section_icon} !important;
-  vertical-align: middle !important;
-  margin-right: 6px !important;
-  flex-shrink: 0 !important;
-}}
-.st-key-cvb-middle-scroll-native [data-testid="stExpander"] summary p {{
-  color: {section_header_text} !important;
-  font-size: 15px !important;
-  font-weight: 700 !important;
-  margin: 0 !important;
-  display: inline-flex !important;
-  align-items: center !important;
-}}
-.st-key-cvb-middle-scroll-native [data-testid="stExpander"] details > div {{
-  background: {expander_content_bg} !important;
-  border-top: 1px solid {expander_divider} !important;
-  padding: 14px 18px 20px !important;
-}}
 
 /* ─── Custom section card (CVReviewer-style: icon+label LEFT, chevron RIGHT) ─── */
 /* Outer card */
@@ -4240,7 +4326,7 @@ body.cvb-reset-open .st-key-cvb-reset-float-native {{
   display: flex !important;
   align-items: center !important;
   justify-content: flex-end !important;
-  gap: 8px !important;
+  gap: 0 !important;
 }}
 .st-key-cvb-toolbar-actions-native [data-testid="stHorizontalBlock"] > [data-testid="column"] {{
   display: flex !important;
@@ -4250,15 +4336,41 @@ body.cvb-reset-open .st-key-cvb-reset-float-native {{
   padding: 0 !important;
   margin: 0 !important;
 }}
-[data-testid="stElementContainer"].st-key-cvb_toolbar_import [data-testid="stButton"] > button,
-[data-testid="stElementContainer"].st-key-cvb_toolbar_backup [data-testid="stButton"] > button,
+.st-key-cvb-toolbar-actions-native [data-testid="stHorizontalBlock"] > [data-testid="column"]:nth-child(4) {{
+  margin-left: 14px !important;
+}}
+.st-key-cvb-toolbar-actions-native [data-testid="stHorizontalBlock"] > [data-testid="column"]:nth-child(5) {{
+  margin-left: 8px !important;
+}}
+[data-testid="stElementContainer"].st-key-cvb_toolbar_import [data-testid="stButton"] > button {{
+  height: 36px !important;
+  min-height: 36px !important;
+  max-height: 36px !important;
+  width: 96px !important;
+  min-width: 96px !important;
+  padding: 0 12px !important;
+  line-height: 1 !important;
+  border-radius: 8px 0 0 8px !important;
+}}
+[data-testid="stElementContainer"].st-key-cvb_toolbar_backup [data-testid="stButton"] > button {{
+  height: 36px !important;
+  min-height: 36px !important;
+  max-height: 36px !important;
+  width: 96px !important;
+  min-width: 96px !important;
+  padding: 0 12px !important;
+  line-height: 1 !important;
+  border-radius: 0 !important;
+}}
 [data-testid="stElementContainer"].st-key-cvb_toolbar_save [data-testid="stButton"] > button {{
   height: 36px !important;
   min-height: 36px !important;
   max-height: 36px !important;
+  width: 96px !important;
+  min-width: 96px !important;
   padding: 0 12px !important;
   line-height: 1 !important;
-  border-radius: 8px !important;
+  border-radius: 0 8px 8px 0 !important;
 }}
 [data-testid="stElementContainer"].st-key-cvb_toolbar_download [data-testid="stDownloadButton"] > button {{
   height: 36px !important;
@@ -4283,6 +4395,243 @@ body.cvb-reset-open .st-key-cvb-reset-float-native {{
 .st-key-cvb-toolbar-actions-native .cvb-reset-open-native {{
   margin: 0 !important;
   line-height: 1 !important;
+}}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   NUCLEAR FINAL OVERRIDES (keep last) — beats base_theme.css.tpl button rules.
+   These selectors are prefixed with [data-testid="stAppViewContainer"] so they
+   have higher specificity than any earlier global button rule.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* ── META GROUP (left): Saved chip + Title input displayed INLINE on one row ── */
+[data-testid="stAppViewContainer"] .st-key-cvb-toolbar-meta-native,
+[data-testid="stAppViewContainer"] .st-key-cvb-toolbar-meta-native > [data-testid="stVerticalBlock"] {{
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 14px !important;
+  flex-wrap: nowrap !important;
+  width: 100% !important;
+}}
+[data-testid="stAppViewContainer"] .st-key-cvb-toolbar-meta-native [data-testid="stElementContainer"] {{
+  flex: 0 0 auto !important;
+  width: auto !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}}
+[data-testid="stAppViewContainer"] .st-key-cvb-toolbar-meta-native .st-key-cvb_toolbar_title_native {{
+  flex: 0 0 280px !important;
+  width: 280px !important;
+  min-width: 280px !important;
+  max-width: 280px !important;
+}}
+[data-testid="stAppViewContainer"] .cvb-saved-ts-native {{
+  margin: 0 !important;
+}}
+/* Two-column outer layout: meta-left | actions-right (actions pulled inward to tighten middle gap) */
+[data-testid="stAppViewContainer"] .st-key-cvb-toolbar-native [data-testid="stHorizontalBlock"] > [data-testid="column"]:last-child {{
+  display: flex !important;
+  justify-content: flex-end !important;
+  align-items: center !important;
+  padding-right: 120px !important;
+}}
+/* Also nudge the meta group inward from the left edge for visual balance */
+[data-testid="stAppViewContainer"] .st-key-cvb-toolbar-native [data-testid="stHorizontalBlock"] > [data-testid="column"]:first-child {{
+  padding-left: 8px !important;
+}}
+
+/* Comfortable spacing between flat buttons */
+[data-testid="stAppViewContainer"] .st-key-cvb-toolbar-actions-native [data-testid="stHorizontalBlock"] {{
+  gap: 4px !important;
+  column-gap: 4px !important;
+  row-gap: 0 !important;
+}}
+[data-testid="stAppViewContainer"] .st-key-cvb-toolbar-actions-native [data-testid="stHorizontalBlock"] > [data-testid="column"] {{
+  margin: 0 !important;
+  padding: 0 !important;
+  flex: 0 0 auto !important;
+  width: auto !important;
+}}
+[data-testid="stAppViewContainer"] .st-key-cvb-toolbar-actions-native [data-testid="stElementContainer"],
+[data-testid="stAppViewContainer"] .st-key-cvb-toolbar-actions-native [data-testid="stButton"],
+[data-testid="stAppViewContainer"] .st-key-cvb-toolbar-actions-native [data-testid="stDownloadButton"] {{
+  margin: 0 !important;
+  padding: 0 !important;
+}}
+/* Extra breathing room before Download PDF (the primary CTA) and Reset */
+[data-testid="stAppViewContainer"] .st-key-cvb-toolbar-actions-native [data-testid="stHorizontalBlock"] > [data-testid="column"]:nth-child(4) {{
+  margin-left: 10px !important;
+}}
+[data-testid="stAppViewContainer"] .st-key-cvb-toolbar-actions-native [data-testid="stHorizontalBlock"] > [data-testid="column"]:nth-child(5) {{
+  margin-left: 6px !important;
+}}
+
+/* ── FLAT TEXT+ICON BUTTONS (CVReviewer style): Import / Backup / Save ──
+   No borders, no card backgrounds; subtle pill highlight on hover only. */
+[data-testid="stAppViewContainer"] .st-key-cvb-toolbar-actions-native [data-testid="stElementContainer"].st-key-cvb_toolbar_import button,
+[data-testid="stAppViewContainer"] .st-key-cvb-toolbar-actions-native [data-testid="stElementContainer"].st-key-cvb_toolbar_backup button,
+[data-testid="stAppViewContainer"] .st-key-cvb-toolbar-actions-native [data-testid="stElementContainer"].st-key-cvb_toolbar_save button {{
+  height: 40px !important;
+  min-height: 40px !important;
+  max-height: 40px !important;
+  width: auto !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  padding: 0 14px !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  border: 0 !important;
+  border-top: 0 !important;
+  border-right: 0 !important;
+  border-bottom: 0 !important;
+  border-left: 0 !important;
+  border-radius: 8px !important;
+  -webkit-border-radius: 8px !important;
+  color: #6b7280 !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  line-height: 1 !important;
+  letter-spacing: 0 !important;
+  box-shadow: none !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 8px !important;
+  cursor: pointer !important;
+  transition: background-color .16s ease, color .16s ease !important;
+}}
+/* Bigger Lucide-style icons (18px) to match CVReviewer */
+[data-testid="stAppViewContainer"] .st-key-cvb-toolbar-actions-native [data-testid="stElementContainer"].st-key-cvb_toolbar_import button::before,
+[data-testid="stAppViewContainer"] .st-key-cvb-toolbar-actions-native [data-testid="stElementContainer"].st-key-cvb_toolbar_backup button::before,
+[data-testid="stAppViewContainer"] .st-key-cvb-toolbar-actions-native [data-testid="stElementContainer"].st-key-cvb_toolbar_save button::before {{
+  width: 18px !important;
+  height: 18px !important;
+  margin-right: 0 !important;
+  -webkit-mask-size: 18px 18px !important;
+  mask-size: 18px 18px !important;
+  background-color: currentColor !important;
+}}
+/* Lucide "upload" — up-arrow into open tray */
+[data-testid="stAppViewContainer"] .st-key-cvb-toolbar-actions-native [data-testid="stElementContainer"].st-key-cvb_toolbar_import button::before {{
+  -webkit-mask-image: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4'/%3E%3Cpolyline points='17 8 12 3 7 8'/%3E%3Cline x1='12' x2='12' y1='3' y2='15'/%3E%3C/svg%3E") !important;
+  mask-image: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4'/%3E%3Cpolyline points='17 8 12 3 7 8'/%3E%3Cline x1='12' x2='12' y1='3' y2='15'/%3E%3C/svg%3E") !important;
+}}
+/* Lucide "file-text" — document with text lines */
+[data-testid="stAppViewContainer"] .st-key-cvb-toolbar-actions-native [data-testid="stElementContainer"].st-key-cvb_toolbar_backup button::before {{
+  -webkit-mask-image: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z'/%3E%3Cpolyline points='14 2 14 8 20 8'/%3E%3Cline x1='16' x2='8' y1='13' y2='13'/%3E%3Cline x1='16' x2='8' y1='17' y2='17'/%3E%3Cline x1='10' x2='8' y1='9' y2='9'/%3E%3C/svg%3E") !important;
+  mask-image: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z'/%3E%3Cpolyline points='14 2 14 8 20 8'/%3E%3Cline x1='16' x2='8' y1='13' y2='13'/%3E%3Cline x1='16' x2='8' y1='17' y2='17'/%3E%3Cline x1='10' x2='8' y1='9' y2='9'/%3E%3C/svg%3E") !important;
+}}
+/* Lucide "save" — floppy disk */
+[data-testid="stAppViewContainer"] .st-key-cvb-toolbar-actions-native [data-testid="stElementContainer"].st-key-cvb_toolbar_save button::before {{
+  -webkit-mask-image: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z'/%3E%3Cpolyline points='17 21 17 13 7 13 7 21'/%3E%3Cpolyline points='7 3 7 8 15 8'/%3E%3C/svg%3E") !important;
+  mask-image: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z'/%3E%3Cpolyline points='17 21 17 13 7 13 7 21'/%3E%3Cpolyline points='7 3 7 8 15 8'/%3E%3C/svg%3E") !important;
+}}
+/* Hover: subtle pill */
+[data-testid="stAppViewContainer"] .st-key-cvb-toolbar-actions-native [data-testid="stElementContainer"].st-key-cvb_toolbar_import button:hover,
+[data-testid="stAppViewContainer"] .st-key-cvb-toolbar-actions-native [data-testid="stElementContainer"].st-key-cvb_toolbar_backup button:hover {{
+  background: {toolbar_hover_bg} !important;
+  background-color: {toolbar_hover_bg} !important;
+  border: 0 !important;
+  color: {toolbar_hover_color} !important;
+}}
+[data-testid="stAppViewContainer"] .st-key-cvb-toolbar-actions-native [data-testid="stElementContainer"].st-key-cvb_toolbar_save button:hover {{
+  background: {toolbar_save_hover_bg} !important;
+  background-color: {toolbar_save_hover_bg} !important;
+  border: 0 !important;
+  color: {toolbar_save_hover_color} !important;
+}}
+/* Button text/children inherit color, no bg of their own */
+[data-testid="stAppViewContainer"] .st-key-cvb-toolbar-actions-native [data-testid="stElementContainer"].st-key-cvb_toolbar_import button *,
+[data-testid="stAppViewContainer"] .st-key-cvb-toolbar-actions-native [data-testid="stElementContainer"].st-key-cvb_toolbar_backup button *,
+[data-testid="stAppViewContainer"] .st-key-cvb-toolbar-actions-native [data-testid="stElementContainer"].st-key-cvb_toolbar_save button * {{
+  background: transparent !important;
+  background-color: transparent !important;
+  color: inherit !important;
+}}
+
+/* ── Download PDF: primary blue CTA (CVReviewer style: vibrant blue, larger icon) ── */
+[data-testid="stAppViewContainer"] .st-key-cvb-toolbar-actions-native [data-testid="stElementContainer"].st-key-cvb_toolbar_download button {{
+  height: 40px !important;
+  min-height: 40px !important;
+  max-height: 40px !important;
+  width: auto !important;
+  min-width: 150px !important;
+  max-width: none !important;
+  padding: 0 18px !important;
+  background: #2563eb !important;
+  background-color: #2563eb !important;
+  border: 0 !important;
+  border-radius: 8px !important;
+  color: #ffffff !important;
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  line-height: 1 !important;
+  letter-spacing: 0 !important;
+  box-shadow: 0 1px 2px rgba(37, 99, 235, 0.18) !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 8px !important;
+  cursor: pointer !important;
+  transition: background-color .16s ease, box-shadow .16s ease !important;
+}}
+[data-testid="stAppViewContainer"] .st-key-cvb-toolbar-actions-native [data-testid="stElementContainer"].st-key-cvb_toolbar_download button * {{
+  color: #ffffff !important;
+  background: transparent !important;
+}}
+[data-testid="stAppViewContainer"] .st-key-cvb-toolbar-actions-native [data-testid="stElementContainer"].st-key-cvb_toolbar_download button::before {{
+  width: 18px !important;
+  height: 18px !important;
+  margin-right: 0 !important;
+  background-color: #ffffff !important;
+  -webkit-mask-size: 18px 18px !important;
+  mask-size: 18px 18px !important;
+  -webkit-mask-image: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4'/%3E%3Cpolyline points='7 10 12 15 17 10'/%3E%3Cline x1='12' x2='12' y1='15' y2='3'/%3E%3C/svg%3E") !important;
+  mask-image: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4'/%3E%3Cpolyline points='7 10 12 15 17 10'/%3E%3Cline x1='12' x2='12' y1='15' y2='3'/%3E%3C/svg%3E") !important;
+}}
+[data-testid="stAppViewContainer"] .st-key-cvb-toolbar-actions-native [data-testid="stElementContainer"].st-key-cvb_toolbar_download button:hover {{
+  background: #1d4ed8 !important;
+  background-color: #1d4ed8 !important;
+  border: 0 !important;
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.32) !important;
+}}
+
+/* ── Reset: flat text+icon (matches Import/Backup/Save) with red hover ── */
+[data-testid="stAppViewContainer"] .st-key-cvb-toolbar-actions-native .cvb-reset-open-native {{
+  height: 40px !important;
+  min-height: 40px !important;
+  padding: 0 14px !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  border: 0 !important;
+  border-radius: 8px !important;
+  color: #6b7280 !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  line-height: 1 !important;
+  letter-spacing: 0 !important;
+  box-shadow: none !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 8px !important;
+  cursor: pointer !important;
+  transition: background-color .16s ease, color .16s ease !important;
+}}
+[data-testid="stAppViewContainer"] .st-key-cvb-toolbar-actions-native .cvb-reset-open-native::before {{
+  width: 18px !important;
+  height: 18px !important;
+  background-color: currentColor !important;
+  -webkit-mask-size: 18px 18px !important;
+  mask-size: 18px 18px !important;
+}}
+[data-testid="stAppViewContainer"] .st-key-cvb-toolbar-actions-native .cvb-reset-open-native:hover,
+[data-testid="stAppViewContainer"] .st-key-cvb-toolbar-actions-native .cvb-reset-open-native:focus-visible {{
+  background: {reset_hover_bg} !important;
+  background-color: {reset_hover_bg} !important;
+  border: 0 !important;
+  color: {reset_hover_color} !important;
 }}
 </style>""",
         unsafe_allow_html=True,
@@ -4947,7 +5296,7 @@ def render_cv_builder_page() -> None:
     _inject_middle_section_exact_css(is_dark)
 
     ss        = st.session_state
-    cv_data   = collect_cv_data()
+    cv_data_snapshot = collect_cv_data()
     template  = _normalize_template(ss.get("cvb_template", "classic"))
     accent    = ss.get("cvb_accent_color") or None
     font      = FONT_OPTIONS.get(ss.get("cvb_font", "System Sans"))
@@ -4959,9 +5308,8 @@ def render_cv_builder_page() -> None:
     sec_order = _normalize_section_order(ss.get("cvb_section_order"))
     ss["cvb_section_visibility"] = sec_vis
     ss["cvb_section_order"] = sec_order
-
-    pdf_bytes, pdf_error = _cached_generate_cv_pdf(
-        json.dumps(cv_data, sort_keys=True),
+    pdf_hash, pdf_args = _pdf_request_payload(
+        cv_data_snapshot,
         template,
         accent,
         font,
@@ -4970,33 +5318,41 @@ def render_cv_builder_page() -> None:
         spacing,
         show_icons,
         is_dark,
-        json.dumps(sec_vis, sort_keys=True),
-        json.dumps(sec_order),
+        sec_vis,
+        sec_order,
     )
+
+    if ss.get("cvb_pdf_hash", "") != pdf_hash:
+        ss["cvb_pdf_bytes"] = None
+        ss["cvb_pdf_error"] = ""
+        ss["cvb_pdf_hash"] = pdf_hash
+
+    pdf_bytes = ss.get("cvb_pdf_bytes")
+    pdf_error = str(ss.get("cvb_pdf_error", "") or "")
 
     with st.container(key="cvb-page-native"):
         with st.container(key="cvb-toolbar-native"):
-            col_left, col_title, col_right = st.columns([1.25, 2.25, 4.5], vertical_alignment="center")
-            with col_left:
-                last_saved = ss.get("cvb_last_saved")
-                saved_txt = f"Saved {last_saved}" if last_saved else "Saved --:--:--"
-                st.markdown(f"<span class='cvb-saved-ts-native'>{saved_txt}</span>", unsafe_allow_html=True)
-            with col_title:
-                current_title = (ss.get("cvb_cv_title", "My Resume") or "My Resume").strip()
-                if ss.get("cvb_toolbar_title_native", "") != current_title:
-                    ss["cvb_toolbar_title_native"] = current_title
-                st.text_input(
-                    "Resume title",
-                    key="cvb_toolbar_title_native",
-                    label_visibility="collapsed",
-                    placeholder="My Resume",
-                )
-                title_from_toolbar = st.session_state.get("cvb_toolbar_title_native", "").strip()
-                if title_from_toolbar and title_from_toolbar != ss.get("cvb_cv_title", ""):
-                    ss["cvb_cv_title"] = title_from_toolbar
-            with col_right:
+            col_meta, col_actions = st.columns([1.0, 1.0], vertical_alignment="center")
+            with col_meta:
+                with st.container(key="cvb-toolbar-meta-native"):
+                    last_saved = ss.get("cvb_last_saved")
+                    saved_txt = f"Saved {last_saved}" if last_saved else "Saved --:--:--"
+                    st.markdown(f"<span class='cvb-saved-ts-native'>{saved_txt}</span>", unsafe_allow_html=True)
+                    current_title = (ss.get("cvb_cv_title", "My Resume") or "My Resume").strip()
+                    if ss.get("cvb_toolbar_title_native", "") != current_title:
+                        ss["cvb_toolbar_title_native"] = current_title
+                    st.text_input(
+                        "Resume title",
+                        key="cvb_toolbar_title_native",
+                        label_visibility="collapsed",
+                        placeholder="My Resume",
+                    )
+                    title_from_toolbar = st.session_state.get("cvb_toolbar_title_native", "").strip()
+                    if title_from_toolbar and title_from_toolbar != ss.get("cvb_cv_title", ""):
+                        ss["cvb_cv_title"] = title_from_toolbar
+            with col_actions:
                 with st.container(key="cvb-toolbar-actions-native"):
-                    a1, a2, a3, a4, a5 = st.columns([0.95, 0.95, 0.85, 1.35, 0.9], gap="small")
+                    a1, a2, a3, a4, a5 = st.columns([0.95, 0.95, 0.85, 1.45, 0.85], gap="small")
                     with a1:
                         if st.button("Import", key="cvb_toolbar_import"):
                             ss["cvb_show_import"] = not ss.get("cvb_show_import", False)
@@ -5017,7 +5373,13 @@ def render_cv_builder_page() -> None:
                                 on_click="ignore",
                             )
                         else:
-                            st.button("Download PDF", key="cvb_toolbar_download_disabled", disabled=True)
+                            if st.button("Download PDF", key="cvb_toolbar_download_prepare", type="primary"):
+                                with st.spinner("Preparing PDF..."):
+                                    bytes_out, err_out = _cached_generate_cv_pdf(*pdf_args)
+                                ss["cvb_pdf_hash"] = pdf_hash
+                                ss["cvb_pdf_bytes"] = bytes_out
+                                ss["cvb_pdf_error"] = err_out
+                                st.rerun()
                     with a5:
                         st.markdown(
                             "<div role='button' tabindex='0' class='cvb-reset-open-native'>Reset</div>",
@@ -5075,7 +5437,6 @@ def render_cv_builder_page() -> None:
     _inject_realtime_js()
     _inject_reset_popup_native_js()
     _inject_sections_relay_js()
-    _inject_chevron_hider_js()
     _inject_builder_final_alignment_overrides()
     return
 
@@ -5085,11 +5446,11 @@ def _summary_section() -> None:
             "Professional Summary",
             key="cvb_summary",
             height=130,
-            max_chars=500,
             placeholder="Write a short summary of your experience and strengths.",
         )
-        char_count = len(st.session_state.get("cvb_summary", ""))
-        st.markdown(f"<div class='cvb-summary-counter'>{char_count}/500</div>", unsafe_allow_html=True)
+        summary_val = str(st.session_state.get("cvb_summary", "") or "")
+        char_count = len(summary_val)
+        st.markdown(f"<div class='cvb-summary-counter'>{char_count}</div>", unsafe_allow_html=True)
 
 def _education_section() -> None:
     edu_ids = list(st.session_state.get("cvb_edu_ids", []))
@@ -6053,6 +6414,8 @@ def generate_cv_html(
     elif tpl == "creative":
         selected_body = creative_body
 
+    live_section_order = json.dumps([sid for sid in order if sid != "personal"])
+
     primary = cfg["primary"]
     primary_soft = f"{primary}1A"
     link_color = cfg["link"]
@@ -6194,6 +6557,13 @@ function setRealtimeIcons(on) {{
   }}
 }}
 
+var __liveSectionOrder = {live_section_order};
+var __liveSectionRank = (function() {{
+  var out = {{}};
+  for (var i = 0; i < __liveSectionOrder.length; i++) out[__liveSectionOrder[i]] = i;
+  return out;
+}})();
+
 function updateClassicSeps() {{
   var rows = document.querySelectorAll('#cv-contact .cv-contact-row');
   for (var r = 0; r < rows.length; r++) {{
@@ -6330,37 +6700,30 @@ function __liveSectionTitle(key, label) {{
   return (label || 'DETAILS').toUpperCase();
 }}
 
+function __liveSectionIdForKey(key) {{
+  if (key.indexOf('cvb_exp_') === 0) return 'experience';
+  if (key.indexOf('cvb_edu_') === 0) return 'education';
+  if (key.indexOf('cvb_skill_') === 0) return 'skills';
+  if (key.indexOf('cvb_proj_') === 0) return 'projects';
+  if (key.indexOf('cvb_lang_') === 0) return 'languages';
+  if (key.indexOf('cvb_cert_') === 0) return 'certifications';
+  if (key.indexOf('cvb_interest_') === 0 || key.indexOf('cvb_interests') === 0) return 'interests';
+  if (key === 'cvb_summary') return 'summary';
+  return '';
+}}
+
 function __liveTargetRoot(paper) {{
   return paper.querySelector('.modern-right, .creative-right') || paper;
 }}
 
-function __liveEnterUserMode() {{
+function __liveEnterUserMode(clearDemo) {{
   var paper = document.querySelector('.cv-paper');
   if (!paper) return null;
-  if (!paper.dataset.liveUserMode) {{
+  if (!paper.dataset.liveUserMode && clearDemo) {{
     var demoSections = paper.querySelectorAll('.cv-sec, .cv-sec-compact');
     for (var i = 0; i < demoSections.length; i++) demoSections[i].remove();
-    var nameEl = document.getElementById('cv-name');
-    if (nameEl) {{
-      nameEl.textContent = '';
-      nameEl.style.display = 'none';
-    }}
-    var titleEl = document.getElementById('cv-title');
-    if (titleEl) {{
-      titleEl.textContent = '';
-      titleEl.style.display = 'none';
-    }}
-    setContactField('email', '');
-    setContactField('phone', '');
-    setContactField('location', '');
-    setContactLink('website', '');
-    setContactLink('linkedin', '');
-    setContactLink('github', '');
-    setContactField('website', '');
-    setContactField('linkedin', '');
-    setContactField('github', '');
-    paper.dataset.liveUserMode = '1';
   }}
+  if (!paper.dataset.liveUserMode) paper.dataset.liveUserMode = '1';
   var target = __liveTargetRoot(paper);
   var root = target.querySelector('#cv-live-root');
   if (!root) {{
@@ -6387,16 +6750,31 @@ function __liveUpsertField(key, label, value) {{
   }};
   if (personalKeys[key]) return;
 
-  var root = __liveEnterUserMode();
+  var root = __liveEnterUserMode(true);
   if (!root) return;
+  var sectionId = __liveSectionIdForKey(key);
+  var rank = (sectionId && Object.prototype.hasOwnProperty.call(__liveSectionRank, sectionId))
+    ? __liveSectionRank[sectionId]
+    : 999;
   var secId = __liveSectionTitle(key, label).toLowerCase().replace(/[^a-z0-9]+/g, '-');
   var sec = root.querySelector('[data-live-sec="' + secId + '"]');
   if (!sec) {{
     sec = document.createElement('section');
     sec.className = 'cv-sec';
     sec.setAttribute('data-live-sec', secId);
+    sec.setAttribute('data-live-rank', String(rank));
     sec.innerHTML = "<h2 class='cv-sec-h'>" + __liveSectionTitle(key, label) + "</h2><div class='cv-live-lines'></div>";
-    root.appendChild(sec);
+    var inserted = false;
+    var children = root.querySelectorAll('[data-live-sec]');
+    for (var ci = 0; ci < children.length; ci++) {{
+      var childRank = parseInt(children[ci].getAttribute('data-live-rank') || '999', 10);
+      if (rank < childRank) {{
+        root.insertBefore(sec, children[ci]);
+        inserted = true;
+        break;
+      }}
+    }}
+    if (!inserted) root.appendChild(sec);
   }}
   var lines = sec.querySelector('.cv-live-lines');
   if (!lines) return;
@@ -6424,7 +6802,7 @@ window.addEventListener('message', function(ev) {{
   var d = ev.data;
   if (!d) return;
   if (d.type === 'cv-rt-user-mode') {{
-    __liveEnterUserMode();
+    __liveEnterUserMode(true);
     return;
   }}
   if (d.type === 'cv-rt-widget') {{

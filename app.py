@@ -216,8 +216,6 @@ def _inject_theme_persistence(theme: str) -> None:
         url.searchParams.delete('_t');
         w.history.replaceState(null, '', url.toString());
     }}
-    if (w._ecvThemeHooked) return;
-    w._ecvThemeHooked = true;
     function _navButtonClass(action) {{
         var normalized = String(action || "").toLowerCase().replace(/[^a-z0-9]/g, "_");
         return ".st-key-nav_action_" + normalized + " button";
@@ -236,8 +234,8 @@ def _inject_theme_persistence(theme: str) -> None:
             return currentHref;
         }}
     }}
-    doc.addEventListener('click', function(e) {{
-        if (e.defaultPrevented) return;
+    var NAV_HANDLER_KEY = "__excelcv_nav_action_click__";
+    function handleNavActionClick(e) {{
         if (typeof e.button === "number" && e.button !== 0) return;
         if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
         var a = e.target && e.target.closest ? e.target.closest('a[href]') : null;
@@ -247,6 +245,8 @@ def _inject_theme_persistence(theme: str) -> None:
             if (navAction) {{
                 e.preventDefault();
                 e.stopPropagation();
+                var navActionNorm = String(navAction || "").toLowerCase();
+                var isModalAction = navActionNorm === "give-feedback" || navActionNorm === "support";
                 var fallbackHref = _modalFallbackHref(navAction, a.href);
                 var tryBridge = function(remaining) {{
                     var btn = doc.querySelector(_navButtonClass(navAction));
@@ -267,11 +267,16 @@ def _inject_theme_persistence(theme: str) -> None:
                         setTimeout(function() {{ tryBridge(remaining - 1); }}, 80);
                         return;
                     }}
+                    if (isModalAction) {{
+                        // Never hard-navigate for modal-only actions.
+                        return;
+                    }}
                     w.location.href = fallbackHref;
                 }};
                 tryBridge(25);
                 return;
             }}
+            if (e.defaultPrevented) return;
             var u = new URL(a.href, w.location.origin);
             if (u.hostname !== w.location.hostname) return;
             // Always read theme from localStorage (the live mirror) \u2014 the
@@ -280,7 +285,12 @@ def _inject_theme_persistence(theme: str) -> None:
             var t = w.localStorage.getItem('excelcv_theme');
             if (t) {{ u.searchParams.set('_t', t); a.href = u.toString(); }}
         }} catch(ex) {{}}
-    }}, true);
+    }}
+    if (doc[NAV_HANDLER_KEY]) {{
+        doc.removeEventListener('click', doc[NAV_HANDLER_KEY], true);
+    }}
+    doc[NAV_HANDLER_KEY] = handleNavActionClick;
+    doc.addEventListener('click', handleNavActionClick, true);
 }})();
 </script>""",
         height=0,

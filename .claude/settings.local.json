@@ -88,7 +88,8 @@
       "Bash(py -c \"import ast; ast.parse\\(open\\('src/email_utils.py', encoding='utf-8'\\).read\\(\\)\\); print\\('OK'\\)\")",
       "Bash(py -c \"import ast; [ast.parse\\(open\\(p, encoding='utf-8'\\).read\\(\\)\\) for p in ['src/email_utils.py', 'src/ui/layout.py', 'src/ui/static_pages.py']]; print\\('OK'\\)\")",
       "Bash(py -c \"import ast; [ast.parse\\(open\\(p, encoding='utf-8'\\).read\\(\\)\\) for p in ['app.py', 'src/ui/layout.py', 'src/ui/static_pages.py']]; print\\('OK'\\)\")",
-      "Bash(py -c \"import ast; [ast.parse\\(open\\(p, encoding='utf-8'\\).read\\(\\)\\) for p in ['app.py', 'src/ui/layout.py']]; print\\('OK'\\)\")"
+      "Bash(py -c \"import ast; [ast.parse\\(open\\(p, encoding='utf-8'\\).read\\(\\)\\) for p in ['app.py', 'src/ui/layout.py']]; print\\('OK'\\)\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('src/ui/cv_builder_page.py', encoding='utf-8'\\).read\\(\\)\\); print\\('OK'\\)\")"
     ],
     "additionalDirectories": [
       "E:\\Academic\\minor-project\\cv-review"

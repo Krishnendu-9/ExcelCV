@@ -224,11 +224,99 @@ Link rendering rule:
 - If only display text exists and no explicit URL, text is shown without hyperlink.
 
 ## Toolbar
-- Import
-- Backup
-- Save
-- Download PDF
-- Reset
+
+Two-zone horizontal area at the top of the workspace (route container `cvb-toolbar-native`).
+Visual style follows CVReviewer's pattern: metadata clustered on the left, action buttons
+clustered on the right, with deliberate breathing room in the middle. The container is
+**transparent with no borders** — chip and actions appear to float on the page background
+rather than sit inside a distinct toolbar bar. This matches CVReviewer's placement, where
+the toolbar reads as two floating zones, not a unified strip.
+
+### Layout
+
+Top-level columns: `[col_meta, col_actions]` (ratio `[1.0, 1.0]`, vertical-center aligned).
+
+```
+[Saved chip] [My Resume input]                   [Import][Backup][Save][Download PDF][Reset]
+       └────── col_meta ──────┘                  └─────────────── col_actions ──────────────┘
+```
+
+- `col_meta` contains a single inner container (`cvb-toolbar-meta-native`) whose direct
+  children are rendered **inline on one row** via CSS (`display: flex; flex-direction: row`),
+  overriding Streamlit's default vertical stacking.
+- `col_actions` is right-aligned (`justify-content: flex-end`) and pulled inward from
+  the toolbar's right edge by `padding-right: 120px` so the middle gap doesn't read as
+  empty wasted space on wide displays.
+
+### Meta group (left)
+
+| Element | Source | Notes |
+|---|---|---|
+| Saved chip | `<span class='cvb-saved-ts-native'>` | Pill with live-state dot; reads `Saved <last_saved>` or `Saved --:--:--`. |
+| Title input | `st.text_input(key='cvb_toolbar_title_native')` | Pinned to `280px` wide. Two-way bound to `ss['cvb_cv_title']`. |
+
+### Action cluster (right)
+
+| Button | Key | Style |
+|---|---|---|
+| Import | `cvb_toolbar_import` | Flat text+icon, transparent bg, blue-tinted hover pill. Toggles `cvb_show_import`. |
+| Backup | `cvb_toolbar_backup` | Flat text+icon, blue-tinted hover. Downloads current builder state as JSON. |
+| Save | `cvb_toolbar_save` | Flat text+icon, **green**-tinted hover (success affordance). Persists to DB. |
+| Download PDF | `cvb_toolbar_download` / `cvb_toolbar_download_prepare` | **Primary CTA** — solid `#2563eb` background, white text + Lucide `download` icon. Two variants share identical styling (see note below). |
+| Reset | `cvb-reset-open-native` (HTML `<div>`, not `st.button`) | Flat text+icon, **red**-tinted hover. Opens floating confirm popover. |
+
+### Visual contract
+
+- Flat buttons share: `40px` height, `14px` horizontal padding, `8px` icon-text gap,
+  `18px` Lucide-style mask-image icons, slate-500 (`#6b7280`) text/icon color, transparent
+  background by default, soft pill background on hover.
+- Download PDF is the only colored button (CTA), styled distinctly to draw the eye.
+- All button styling lives in the nuclear-final-override CSS block at the end of
+  `_inject_builder_css_native(...)`. Selectors are prefixed with
+  `[data-testid="stAppViewContainer"]` so they beat the global button rules from
+  `base_theme.css.tpl` on specificity, not just declaration order.
+
+### ⚠️ Gotcha: `column` vs `stColumn` testid
+
+Streamlit renamed `data-testid="column"` → `data-testid="stColumn"` in a recent
+release. The codebase still uses the legacy `column` testid in many older selectors,
+but the **current rendered DOM uses `stColumn`**. Any new selector that targets
+column children **must list both** with comma-separation, e.g.:
+
+```css
+[data-testid="stHorizontalBlock"] > [data-testid="column"]:last-child,
+[data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:last-child {
+  ...
+}
+```
+
+A single-selector rule using only `column` will silently fail to apply on current
+Streamlit — looking like a CSS-specificity issue when really it's a selector miss.
+This was the blocker behind multiple toolbar-layout regressions; see the toolbar's
+column-padding rules in `_inject_builder_css_native(...)` for the dual-selector
+pattern. `base_theme.css.tpl` already follows this convention (e.g. hero-visual
+column rules) — match that pattern in any new toolbar/column CSS.
+
+### Functional behavior
+
+- **Import** — toggles a JSON file uploader below the toolbar (`cvb_show_import`).
+  Selected file is parsed by `_import_from_json(...)` and rehydrates builder state.
+- **Backup** — serializes current `collect_cv_data()` payload to JSON and offers it
+  via the backup fragment (`_render_backup_button_fragment`).
+- **Save** — persists current CV to the `cvs` table (creates new on first save,
+  updates same row thereafter). Renders inline success/error notice (`cvb_toolbar_save_notice`).
+- **Download PDF** — lazy-generated. When cached `pdf_bytes` exist for the current
+  state hash, renders an `st.download_button` (key `cvb_toolbar_download`) that
+  serves the bytes immediately. Otherwise renders an `st.button` (key
+  `cvb_toolbar_download_prepare`) that runs `_cached_generate_cv_pdf(...)` on
+  click, stores the result under `cvb_pdf_bytes` / `cvb_pdf_hash`, then reruns.
+  **Both keys must be styled together** — the CSS selector list explicitly
+  covers both so the button looks identical regardless of cache state. Forgetting
+  to add the `_prepare` variant to any styling rule will cause the button to fall
+  through to `base_theme.css.tpl`'s global button rules (resulting in a faded/white
+  appearance instead of the blue CTA).
+- **Reset** — opens the floating popover (`cvb-reset-float-native`, toggled by
+  `body.cvb-reset-open`). "Yes, Reset" calls `_reset_all()`; "Cancel" closes it.
 
 ## Data Contract (`collect_cv_data()`)
 Returns:

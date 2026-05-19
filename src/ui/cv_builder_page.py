@@ -3107,12 +3107,12 @@ section[data-testid="stMain"]:has(.st-key-cvb-page-native) .block-container {{
   display: flex !important;
   align-items: center !important;
   flex-shrink: 0 !important;
-  background: {toolbar_bg} !important;
-  border-top:1px solid {toolbar_brd} !important;
-  border-bottom:1px solid {toolbar_brd} !important;
-  border-radius:0;
-  padding:0 20px !important;
-  margin:0 !important;
+  background: transparent !important;
+  border-top: 0 !important;
+  border-bottom: 0 !important;
+  border-radius: 0;
+  padding: 0 20px !important;
+  margin: 0 !important;
 }}
 .st-key-cvb-page-native [data-testid="stElementContainer"]:has(.st-key-cvb-reset-float-native) {{
   margin: 0 !important;
@@ -4419,6 +4419,29 @@ body.cvb-reset-open .st-key-cvb-reset-float-native {{
   width: auto !important;
   margin: 0 !important;
   padding: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+}}
+/* Saved chip wrapper-chain alignment: span lives inside stMarkdown, whose default
+   baseline metrics offset it slightly above center vs the text_input next to it.
+   Force every wrapper to flex-center the chip so it sits on the same row baseline. */
+[data-testid="stAppViewContainer"] .st-key-cvb-toolbar-meta-native [data-testid="stElementContainer"]:has(.cvb-saved-ts-native),
+[data-testid="stAppViewContainer"] .st-key-cvb-toolbar-meta-native [data-testid="stMarkdown"]:has(.cvb-saved-ts-native),
+[data-testid="stAppViewContainer"] .st-key-cvb-toolbar-meta-native [data-testid="stMarkdownContainer"]:has(.cvb-saved-ts-native) {{
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  height: 40px !important;
+  min-height: 40px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  line-height: 1 !important;
+}}
+[data-testid="stAppViewContainer"] .cvb-saved-ts-native {{
+  align-self: center !important;
+  vertical-align: middle !important;
+  margin: 0 !important;
 }}
 [data-testid="stAppViewContainer"] .st-key-cvb-toolbar-meta-native .st-key-cvb_toolbar_title_native {{
   flex: 0 0 280px !important;
@@ -4429,15 +4452,23 @@ body.cvb-reset-open .st-key-cvb-reset-float-native {{
 [data-testid="stAppViewContainer"] .cvb-saved-ts-native {{
   margin: 0 !important;
 }}
-/* Two-column outer layout: meta-left | actions-right (actions pulled inward to tighten middle gap) */
-[data-testid="stAppViewContainer"] .st-key-cvb-toolbar-native [data-testid="stHorizontalBlock"] > [data-testid="column"]:last-child {{
+/* Two-column outer layout: meta-left | actions-right.
+   Actions hug the right edge of the page (matches CVReviewer's placement — their Reset
+   button sits ~60px from viewport right edge). Toolbar's natural 20px right padding +
+   page padding already gives that breathing room, so no extra padding-right is needed here.
+   ⚠️ Streamlit renamed data-testid="column" → "stColumn" in newer versions, so we target BOTH.
+   Without the "stColumn" variant, none of these rules apply on current Streamlit, which was
+   the silent blocker preventing the layout/padding/alignment changes from taking effect. */
+[data-testid="stAppViewContainer"] .st-key-cvb-toolbar-native [data-testid="stHorizontalBlock"] > [data-testid="column"]:last-child,
+[data-testid="stAppViewContainer"] .st-key-cvb-toolbar-native [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:last-child {{
   display: flex !important;
   justify-content: flex-end !important;
   align-items: center !important;
-  padding-right: 120px !important;
+  padding-right: 0 !important;
 }}
 /* Also nudge the meta group inward from the left edge for visual balance */
-[data-testid="stAppViewContainer"] .st-key-cvb-toolbar-native [data-testid="stHorizontalBlock"] > [data-testid="column"]:first-child {{
+[data-testid="stAppViewContainer"] .st-key-cvb-toolbar-native [data-testid="stHorizontalBlock"] > [data-testid="column"]:first-child,
+[data-testid="stAppViewContainer"] .st-key-cvb-toolbar-native [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:first-child {{
   padding-left: 8px !important;
 }}
 
@@ -4447,7 +4478,8 @@ body.cvb-reset-open .st-key-cvb-reset-float-native {{
   column-gap: 4px !important;
   row-gap: 0 !important;
 }}
-[data-testid="stAppViewContainer"] .st-key-cvb-toolbar-actions-native [data-testid="stHorizontalBlock"] > [data-testid="column"] {{
+[data-testid="stAppViewContainer"] .st-key-cvb-toolbar-actions-native [data-testid="stHorizontalBlock"] > [data-testid="column"],
+[data-testid="stAppViewContainer"] .st-key-cvb-toolbar-actions-native [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {{
   margin: 0 !important;
   padding: 0 !important;
   flex: 0 0 auto !important;
@@ -4460,10 +4492,12 @@ body.cvb-reset-open .st-key-cvb-reset-float-native {{
   padding: 0 !important;
 }}
 /* Extra breathing room before Download PDF (the primary CTA) and Reset */
-[data-testid="stAppViewContainer"] .st-key-cvb-toolbar-actions-native [data-testid="stHorizontalBlock"] > [data-testid="column"]:nth-child(4) {{
+[data-testid="stAppViewContainer"] .st-key-cvb-toolbar-actions-native [data-testid="stHorizontalBlock"] > [data-testid="column"]:nth-child(4),
+[data-testid="stAppViewContainer"] .st-key-cvb-toolbar-actions-native [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:nth-child(4) {{
   margin-left: 10px !important;
 }}
-[data-testid="stAppViewContainer"] .st-key-cvb-toolbar-actions-native [data-testid="stHorizontalBlock"] > [data-testid="column"]:nth-child(5) {{
+[data-testid="stAppViewContainer"] .st-key-cvb-toolbar-actions-native [data-testid="stHorizontalBlock"] > [data-testid="column"]:nth-child(5),
+[data-testid="stAppViewContainer"] .st-key-cvb-toolbar-actions-native [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:nth-child(5) {{
   margin-left: 6px !important;
 }}
 
@@ -4550,8 +4584,13 @@ body.cvb-reset-open .st-key-cvb-reset-float-native {{
   color: inherit !important;
 }}
 
-/* ── Download PDF: primary blue CTA (CVReviewer style: vibrant blue, larger icon) ── */
-[data-testid="stAppViewContainer"] .st-key-cvb-toolbar-actions-native [data-testid="stElementContainer"].st-key-cvb_toolbar_download button {{
+/* ── Download PDF: primary blue CTA (CVReviewer style: vibrant blue, larger icon) ──
+   Covers BOTH variants:
+   - cvb_toolbar_download         → real download button (PDF bytes ready)
+   - cvb_toolbar_download_prepare → "Prepare PDF" button (lazy generation fallback)
+   Both must look identical so the toolbar is visually stable regardless of cache state. */
+[data-testid="stAppViewContainer"] .st-key-cvb-toolbar-actions-native [data-testid="stElementContainer"].st-key-cvb_toolbar_download button,
+[data-testid="stAppViewContainer"] .st-key-cvb-toolbar-actions-native [data-testid="stElementContainer"].st-key-cvb_toolbar_download_prepare button {{
   height: 40px !important;
   min-height: 40px !important;
   max-height: 40px !important;
@@ -4576,32 +4615,60 @@ body.cvb-reset-open .st-key-cvb-reset-float-native {{
   cursor: pointer !important;
   transition: background-color .16s ease, box-shadow .16s ease !important;
 }}
-[data-testid="stAppViewContainer"] .st-key-cvb-toolbar-actions-native [data-testid="stElementContainer"].st-key-cvb_toolbar_download button * {{
+[data-testid="stAppViewContainer"] .st-key-cvb-toolbar-actions-native [data-testid="stElementContainer"].st-key-cvb_toolbar_download button *,
+[data-testid="stAppViewContainer"] .st-key-cvb-toolbar-actions-native [data-testid="stElementContainer"].st-key-cvb_toolbar_download_prepare button * {{
   color: #ffffff !important;
   background: transparent !important;
 }}
-[data-testid="stAppViewContainer"] .st-key-cvb-toolbar-actions-native [data-testid="stElementContainer"].st-key-cvb_toolbar_download button::before {{
+[data-testid="stAppViewContainer"] .st-key-cvb-toolbar-actions-native [data-testid="stElementContainer"].st-key-cvb_toolbar_download button::before,
+[data-testid="stAppViewContainer"] .st-key-cvb-toolbar-actions-native [data-testid="stElementContainer"].st-key-cvb_toolbar_download_prepare button::before {{
+  content: "" !important;
+  display: inline-flex !important;
   width: 18px !important;
   height: 18px !important;
   margin-right: 0 !important;
   background-color: #ffffff !important;
+  -webkit-mask-repeat: no-repeat !important;
+  -webkit-mask-position: center !important;
   -webkit-mask-size: 18px 18px !important;
+  mask-repeat: no-repeat !important;
+  mask-position: center !important;
   mask-size: 18px 18px !important;
   -webkit-mask-image: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4'/%3E%3Cpolyline points='7 10 12 15 17 10'/%3E%3Cline x1='12' x2='12' y1='15' y2='3'/%3E%3C/svg%3E") !important;
   mask-image: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4'/%3E%3Cpolyline points='7 10 12 15 17 10'/%3E%3Cline x1='12' x2='12' y1='15' y2='3'/%3E%3C/svg%3E") !important;
 }}
-[data-testid="stAppViewContainer"] .st-key-cvb-toolbar-actions-native [data-testid="stElementContainer"].st-key-cvb_toolbar_download button:hover {{
+[data-testid="stAppViewContainer"] .st-key-cvb-toolbar-actions-native [data-testid="stElementContainer"].st-key-cvb_toolbar_download button:hover,
+[data-testid="stAppViewContainer"] .st-key-cvb-toolbar-actions-native [data-testid="stElementContainer"].st-key-cvb_toolbar_download_prepare button:hover {{
   background: #1d4ed8 !important;
   background-color: #1d4ed8 !important;
   border: 0 !important;
   box-shadow: 0 2px 6px rgba(37, 99, 235, 0.32) !important;
 }}
 
-/* ── Reset: flat text+icon (matches Import/Backup/Save) with red hover ── */
+/* ── Reset: flat text+icon (matches Import/Backup/Save) with red hover ──
+   The Reset element is an HTML <div role='button'> rendered inside stMarkdown,
+   while Import/Backup/Save are <button> inside stButton. Those two wrapper chains
+   align children differently by default, which pushes Reset a few pixels lower than
+   the row. The parent-chain rule below forces Reset's wrappers to flex-center-align
+   so it sits on the same baseline as the buttons. */
+[data-testid="stAppViewContainer"] .st-key-cvb-toolbar-actions-native [data-testid="stElementContainer"]:has(.cvb-reset-open-native),
+[data-testid="stAppViewContainer"] .st-key-cvb-toolbar-actions-native [data-testid="stMarkdown"]:has(.cvb-reset-open-native),
+[data-testid="stAppViewContainer"] .st-key-cvb-toolbar-actions-native [data-testid="stMarkdownContainer"]:has(.cvb-reset-open-native) {{
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: center !important;
+  height: 40px !important;
+  min-height: 40px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  line-height: 1 !important;
+}}
 [data-testid="stAppViewContainer"] .st-key-cvb-toolbar-actions-native .cvb-reset-open-native {{
   height: 40px !important;
   min-height: 40px !important;
   padding: 0 14px !important;
+  margin: 0 !important;
   background: transparent !important;
   background-color: transparent !important;
   border: 0 !important;
@@ -4616,6 +4683,8 @@ body.cvb-reset-open .st-key-cvb-reset-float-native {{
   align-items: center !important;
   justify-content: center !important;
   gap: 8px !important;
+  vertical-align: middle !important;
+  align-self: center !important;
   cursor: pointer !important;
   transition: background-color .16s ease, color .16s ease !important;
 }}

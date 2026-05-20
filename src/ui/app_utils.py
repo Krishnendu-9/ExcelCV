@@ -35,6 +35,13 @@ APP_PAGES: Dict[str, str] = {
     "how-it-works": "How It Works",
     "interview-prep": "Interview Prep",
     "resume-tips": "Resume Tips",
+    "guide-why-75-rejected": "Why 75% of Resumes Are Rejected",
+    "guide-pass-ats-scanner-2026": "How to Pass an ATS Scanner in 2026",
+    "guide-pdf-vs-docx": "PDF vs DOCX Resume",
+    "guide-ats-friendly-templates": "ATS-Friendly Resume Templates",
+    "guide-keywords-software-engineers": "ATS Keywords for Software Engineers",
+    "guide-resume-no-experience": "Resume with No Experience",
+    "guide-ai-hiring-tools-2026": "AI Hiring Tools in 2026",
     "cover-letter-guide": "Cover Letter Guide",
     "privacy-policy": "Privacy Policy",
     "terms-of-service": "Terms of Service",
@@ -53,6 +60,7 @@ def _build_page_href(page: str, include_rid: bool = False, next_page: str | None
         if rid:
             params["rid"] = str(rid)
     return f"/?{urlencode(params)}"
+
 
 def _sanitize_cv_filename(raw_name: str) -> str:
     """Return a safe single-segment filename for display and downloads."""
@@ -197,7 +205,8 @@ def _build_report_snapshot() -> Dict[str, Any]:
     return {
         "analysis": st.session_state.get("analysis"),
         "cv_text": st.session_state.get("cv_text"),
-        "job_description": st.session_state.get("job_description") or st.session_state.get("jd", ""),
+        "job_description": st.session_state.get("job_description")
+        or st.session_state.get("jd", ""),
         "cv_name": st.session_state.get("cv_name", "CV"),
         "cv_file_size": st.session_state.get("cv_file_size", 0),
         "issues": st.session_state.get("issues"),

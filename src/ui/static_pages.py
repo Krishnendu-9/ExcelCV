@@ -20,7 +20,11 @@ def _render_info_page_header(title: str, subtitle: str = "") -> None:
 def render_static_page(page: str) -> None:
     """Render informational pages for navigation/footer sections."""
     page_key = str(page or "home")
-    analysis = st.session_state.get("analysis", {}) if isinstance(st.session_state.get("analysis"), dict) else {}
+    analysis = (
+        st.session_state.get("analysis", {})
+        if isinstance(st.session_state.get("analysis"), dict)
+        else {}
+    )
 
     if page_key == "career-blog":
         _render_info_page_header(
@@ -47,7 +51,6 @@ def render_static_page(page: str) -> None:
     if page_key == "cover-letter":
         render_cover_letter_page()
         return
-
 
     if page_key == "ats-insights":
         _render_info_page_header(
@@ -229,7 +232,9 @@ def render_static_page(page: str) -> None:
                     st.query_params["rid"] = str(rid)
                 st.rerun()
         else:
-            st.info("No report found in the current session. Upload a resume on the home page to generate one.")
+            st.info(
+                "No report found in the current session. Upload a resume on the home page to generate one."
+            )
         return
 
     if page_key == "evaluation-toolkit":
@@ -334,45 +339,11 @@ def render_static_page(page: str) -> None:
         return
 
     if page_key == "resume-tips":
-        _render_info_page_header(
-            "Resume Tips",
-            "Practical, ATS-friendly resume writing guidance — what recruiters and parsers actually look for.",
-        )
-        st.markdown("### Structure That Works")
-        st.markdown(
-            "- Use a single-column layout — tables, text boxes, and multi-column designs break ATS parsers.\n"
-            "- Stick to standard section headings: **Summary**, **Experience**, **Education**, **Skills**, **Projects**.\n"
-            "- Keep file format to PDF or DOCX. Avoid scanned images or PDFs exported from design tools.\n"
-            "- Aim for 1 page (early career) or 2 pages (5+ years experience). Cutting filler beats padding."
-        )
-        st.markdown("### Write Bullets That Land")
-        st.markdown(
-            "- Lead with a strong action verb: *built, shipped, reduced, automated, led, designed*.\n"
-            "- Quantify impact whenever possible — numbers, percentages, time saved, dollars, scale.\n"
-            "- Show the result, not just the task. *\"Migrated billing service to Kafka, cutting end-to-end latency 38%\"* beats *\"Worked on billing service migration.\"*\n"
-            "- Vary your action verbs across bullets so the resume doesn't read as repetitive."
-        )
-        st.markdown("### Tailor to the Job Description")
-        st.markdown(
-            "- Read the JD twice. Highlight role-specific keywords (tools, methodologies, seniority cues).\n"
-            "- Mirror those keywords naturally in your Summary and Experience — don't keyword-stuff.\n"
-            "- If a must-have skill is missing from your resume but you do have it, add it explicitly.\n"
-            "- Reorder bullets within a role so the JD-relevant ones appear first."
-        )
-        st.markdown("### Common Mistakes to Avoid")
-        st.markdown(
-            "- Generic objective statements (*\"Looking for a challenging role…\"*) — replace with a 2-line summary of your impact.\n"
-            "- Listing responsibilities instead of accomplishments.\n"
-            "- Inconsistent date formats, tense, or punctuation across entries.\n"
-            "- Using graphics, icons, or photos — they break parsing and rarely help.\n"
-            "- Outdated contact info or a non-professional email address."
-        )
-        st.markdown("### Before You Send")
-        st.markdown(
-            "- Run your resume through **Analyze CV** with the actual JD to catch gaps before a recruiter does.\n"
-            "- Read it out loud — awkward phrasing surfaces fast.\n"
-            "- Ask one peer in your target field for a 5-minute review."
-        )
+        # Pillar page for the Resume Tips hub. The redesigned hub + sub-guide
+        # articles live in src/ui/guides.py; this branch just dispatches to it.
+        from src.ui.guides import render_resume_tips_pillar
+
+        render_resume_tips_pillar()
         return
 
     if page_key == "cover-letter-guide":
@@ -393,13 +364,13 @@ def render_static_page(page: str) -> None:
             "product, mission, or technical bet the company is making that you care about.\n"
             "- **Middle (1–2 short paragraphs):** Pick the strongest story from your resume that "
             "matches the role's top requirement. Explain *what*, *how*, and *result* in plain language.\n"
-            "- **Close (2–3 lines):** A clear next step (*\"I'd welcome the chance to discuss…\"*) and a thank-you.\n"
+            '- **Close (2–3 lines):** A clear next step (*"I\'d welcome the chance to discuss…"*) and a thank-you.\n'
             "- Keep the whole thing to **250–350 words**. Recruiters skim — long letters lose them."
         )
         st.markdown("### Tone and Voice")
         st.markdown(
             "- Write the way you'd speak in a first interview — professional, but not stiff.\n"
-            "- Avoid clichés (*\"team player,\" \"results-driven,\" \"passionate about\"*). Show, don't claim.\n"
+            '- Avoid clichés (*"team player," "results-driven," "passionate about"*). Show, don\'t claim.\n'
             "- Match the company's vocabulary — read their About page, latest blog post, or product copy.\n"
             "- Use the hiring manager's name if you can find it. *\"Dear Hiring Team\"* is fine when you can't."
         )
@@ -412,7 +383,7 @@ def render_static_page(page: str) -> None:
         st.markdown("### Common Mistakes")
         st.markdown(
             "- Re-stating the resume bullet-by-bullet. The letter is context, not a summary.\n"
-            "- Vague enthusiasm without evidence (*\"I'm very excited about this opportunity\"*).\n"
+            '- Vague enthusiasm without evidence (*"I\'m very excited about this opportunity"*).\n'
             "- Mentioning skills you don't have — recruiters notice and it costs trust.\n"
             "- Forgetting to update the company name when reusing a draft. (It happens. Proofread.)"
         )
@@ -447,7 +418,9 @@ def render_static_page(page: str) -> None:
         return
 
     if page_key == "privacy-policy":
-        _render_info_page_header("Privacy Policy", f"Last updated: {datetime.now().strftime('%B %d, %Y')}")
+        _render_info_page_header(
+            "Privacy Policy", f"Last updated: {datetime.now().strftime('%B %d, %Y')}"
+        )
         st.markdown("### 1. Introduction")
         st.write(
             "ExcelCV is designed for educational and portfolio use. We respect user privacy and keep data handling minimal."
@@ -464,19 +437,27 @@ def render_static_page(page: str) -> None:
             "Guest sessions keep analysis data only for the current browser session."
         )
         st.markdown("### 4. Security")
-        st.write("Reasonable safeguards are applied for processing within the app runtime environment.")
+        st.write(
+            "Reasonable safeguards are applied for processing within the app runtime environment."
+        )
         st.markdown("### 5. Contact")
         st.write("For privacy-related questions, use the Contact page.")
         return
 
     if page_key == "terms-of-service":
-        _render_info_page_header("Terms of Service", f"Last updated: {datetime.now().strftime('%B %d, %Y')}")
+        _render_info_page_header(
+            "Terms of Service", f"Last updated: {datetime.now().strftime('%B %d, %Y')}"
+        )
         st.markdown("### 1. Acceptance")
-        st.write("By using ExcelCV, you agree to these terms for this educational demo application.")
+        st.write(
+            "By using ExcelCV, you agree to these terms for this educational demo application."
+        )
         st.markdown("### 2. Intended Use")
         st.write("The service provides resume feedback and does not guarantee hiring outcomes.")
         st.markdown("### 3. User Responsibility")
-        st.write("Users are responsible for uploaded content and ensuring they have rights to submit it.")
+        st.write(
+            "Users are responsible for uploaded content and ensuring they have rights to submit it."
+        )
         st.markdown("### 4. Prohibited Use")
         st.markdown(
             "- Uploading unlawful or malicious content\n"
@@ -605,7 +586,10 @@ def render_static_page(page: str) -> None:
                     """,
                     unsafe_allow_html=True,
                 )
-                st.markdown('<p class="support-section-title" style="margin-top:14px;">Typical topics</p>', unsafe_allow_html=True)
+                st.markdown(
+                    '<p class="support-section-title" style="margin-top:14px;">Typical topics</p>',
+                    unsafe_allow_html=True,
+                )
                 st.markdown(
                     """
                     <ul class="support-list">
@@ -618,7 +602,9 @@ def render_static_page(page: str) -> None:
                 )
         with right:
             with st.container(key="support_form_card"):
-                st.markdown('<p class="support-section-title">Send a message</p>', unsafe_allow_html=True)
+                st.markdown(
+                    '<p class="support-section-title">Send a message</p>', unsafe_allow_html=True
+                )
                 st.markdown(
                     '<p class="support-body-copy">Fill all required fields and we will get back to you.</p>',
                     unsafe_allow_html=True,
@@ -631,7 +617,9 @@ def render_static_page(page: str) -> None:
                         ["General Inquiry", "Technical Support", "Feedback / Suggestion"],
                     )
                     subject = st.text_input("Subject", placeholder="How can we help?")
-                    message = st.text_area("Message", height=140, placeholder="Write your message...")
+                    message = st.text_area(
+                        "Message", height=140, placeholder="Write your message..."
+                    )
                     sent = st.form_submit_button("Send Message", width="stretch")
                 if sent:
                     if not name.strip() or not email.strip() or not message.strip():
@@ -651,6 +639,7 @@ def render_static_page(page: str) -> None:
                             # background thread so the success banner shows
                             # immediately without waiting for a second SMTP send.
                             import threading as _threading
+
                             _threading.Thread(
                                 target=send_acknowledgement_email,
                                 args=(email.strip(), name.strip(), inquiry, message.strip()),
@@ -664,10 +653,11 @@ def render_static_page(page: str) -> None:
                             )
                     else:
                         st.success(f"Thanks, {name.strip()}! Your message has been received.")
-                        st.caption("Email delivery is not configured in this deployment; contact `support@excelcv.app` directly.")
+                        st.caption(
+                            "Email delivery is not configured in this deployment; contact `support@excelcv.app` directly."
+                        )
         return
 
     # Fallback for unknown routes.
     _render_info_page_header("Page Not Found")
     st.warning("The requested page is unavailable. Use the navigation links to continue.")
-

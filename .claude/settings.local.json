@@ -90,7 +90,20 @@
       "Bash(py -c \"import ast; [ast.parse\\(open\\(p, encoding='utf-8'\\).read\\(\\)\\) for p in ['app.py', 'src/ui/layout.py', 'src/ui/static_pages.py']]; print\\('OK'\\)\")",
       "Bash(py -c \"import ast; [ast.parse\\(open\\(p, encoding='utf-8'\\).read\\(\\)\\) for p in ['app.py', 'src/ui/layout.py']]; print\\('OK'\\)\")",
       "Bash(python -c \"import ast; ast.parse\\(open\\('src/ui/cv_builder_page.py', encoding='utf-8'\\).read\\(\\)\\); print\\('OK'\\)\")",
-      "Bash(py -c \"import ast; ast.parse\\(open\\('src/ui/settings_page.py', encoding='utf-8'\\).read\\(\\)\\); print\\('OK'\\)\")"
+      "Bash(py -c \"import ast; ast.parse\\(open\\('src/ui/settings_page.py', encoding='utf-8'\\).read\\(\\)\\); print\\('OK'\\)\")",
+      "Bash(python -c \"import streamlit; print\\(streamlit.__version__\\)\")",
+      "Bash(where py *)",
+      "Bash(py -m streamlit run app.py --server.port 8501 --server.headless true)",
+      "Bash(netstat -ano)",
+      "Bash(findstr :8501)",
+      "Bash(curl -s \"http://localhost:8501/?page=resume-tips\" -o \"C:\\\\Temp\\\\resume_tips.html\")",
+      "Read(//c/Temp/**)",
+      "Bash(py -c \"import ast; ast.parse\\(open\\('src/ui/guides.py', encoding='utf-8'\\).read\\(\\)\\); print\\('OK'\\)\")",
+      "Bash(findstr LISTENING)",
+      "Bash(taskkill /PID 20624 /F)",
+      "PowerShell(Stop-Process -Id 20624 -Force)",
+      "PowerShell(netstat -ano)",
+      "Bash(py -c \"from src.ui import theme; print\\('import OK'\\)\")"
     ],
     "additionalDirectories": [
       "E:\\Academic\\minor-project\\cv-review"

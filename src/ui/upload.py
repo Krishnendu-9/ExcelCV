@@ -516,7 +516,9 @@ def render_upload_landing_sections() -> None:
     )
 
 
-def _comparison_input_signature(job_description: str, uploaded_cvs: list[object]) -> tuple[str, tuple[tuple[str, int], ...]]:
+def _comparison_input_signature(
+    job_description: str, uploaded_cvs: list[object]
+) -> tuple[str, tuple[tuple[str, int], ...]]:
     """Build a stable signature for comparison inputs to detect stale results."""
     normalized_jd = (job_description or "").strip().lower()
     file_tokens: list[tuple[str, int]] = []
@@ -809,7 +811,11 @@ def _render_selected_compare_files(staged_files: list[dict[str, object]]) -> int
                             )
                         with action_col:
                             with st.container(key=f"compare_file_delete_btn_{idx}"):
-                                if st.button(":material/delete:", key=f"compare_delete_{idx}", type="tertiary"):
+                                if st.button(
+                                    ":material/delete:",
+                                    key=f"compare_delete_{idx}",
+                                    type="tertiary",
+                                ):
                                     deleted_index = idx
     return deleted_index
 
@@ -874,7 +880,6 @@ def _render_compare_form_card(current_user) -> None:
         return
 
     with st.container(key="compare_form_box"):
-
         if "compare_jd" not in st.session_state and st.session_state.get("jd"):
             st.session_state["compare_jd"] = st.session_state.get("jd", "")
         if "compare_selected_files" not in st.session_state:
@@ -888,7 +893,9 @@ def _render_compare_form_card(current_user) -> None:
             height=50,
             placeholder="Paste the role description once and compare multiple resumes.",
         )
-        compare_uploader_key = f"compare_cvs_input_{int(st.session_state.get('compare_cvs_rev', 0))}"
+        compare_uploader_key = (
+            f"compare_cvs_input_{int(st.session_state.get('compare_cvs_rev', 0))}"
+        )
         newly_uploaded = st.file_uploader(
             "Upload 2-5 resumes (PDF or DOCX)",
             type=["pdf", "docx"],
@@ -897,7 +904,9 @@ def _render_compare_form_card(current_user) -> None:
             help=f"Maximum {MAX_FILE_MB}MB per file. We will rank resumes by final score.",
         )
 
-        staged_files: list[dict[str, object]] = list(st.session_state.get("compare_selected_files", []))
+        staged_files: list[dict[str, object]] = list(
+            st.session_state.get("compare_selected_files", [])
+        )
         if newly_uploaded:
             seen_signatures = {str(item.get("signature", "")) for item in staged_files}
             duplicate_names: list[str] = []
@@ -975,7 +984,9 @@ def _render_compare_form_card(current_user) -> None:
             # file made it through. If everything failed to read, leave the
             # widget key untouched so the user's selection isn't silently wiped.
             if had_progress:
-                st.session_state["compare_cvs_rev"] = int(st.session_state.get("compare_cvs_rev", 0)) + 1
+                st.session_state["compare_cvs_rev"] = (
+                    int(st.session_state.get("compare_cvs_rev", 0)) + 1
+                )
             st.rerun()
 
         staged_files = list(st.session_state.get("compare_selected_files", []))
@@ -1038,15 +1049,15 @@ def _run_comparison_with_progress(
     status_lines: list[str] = []
     icon_by_status = {
         "running": "&#9203;",  # ⏳
-        "done": "&#9989;",     # ✅
-        "error": "&#10060;",   # ❌
+        "done": "&#9989;",  # ✅
+        "error": "&#10060;",  # ❌
         "skipped": "&#9888;&#65039;",  # ⚠️
     }
 
     def _render_progress(current_idx: int, current_total: int) -> None:
         header = (
             f'<div class="compare-progress-header">Analyzing resume '
-            f'<strong>{current_idx}</strong> of <strong>{current_total}</strong>…</div>'
+            f"<strong>{current_idx}</strong> of <strong>{current_total}</strong>…</div>"
         )
         body = "".join(
             f'<li class="compare-progress-item compare-progress-item--{cls}">'
@@ -1102,6 +1113,7 @@ def _run_comparison_with_progress(
     # Failure is silent — autosave is a convenience, not a critical path.
     if rows:
         from src.ui.compare_report import _autosave_comparison
+
         _autosave_comparison(rows, compare_jd, run_errors, run_warnings)
     # Always navigate to the dedicated report page once a comparison was
     # attempted — even when every file failed. The report page's empty
@@ -1222,7 +1234,10 @@ def render_upload_page(compare_mode: bool = False) -> None:
             height=0,
         )
 
-    st.markdown('<div id="compare-section-anchor"></div>', unsafe_allow_html=True)
+    st.markdown(
+        '<div id="compare-section-anchor" style="scroll-margin-top: 130px;"></div>',
+        unsafe_allow_html=True,
+    )
     with st.container(key="compare_section_shell"):
         if compare_mode:
             st.markdown(
@@ -1341,10 +1356,19 @@ def render_upload_page(compare_mode: bool = False) -> None:
             unsafe_allow_html=True,
         )
 
+    # Marker for the end of the Compare Resumes section. The scroll-spy uses
+    # this to know when the user has scrolled past both top-of-page sections
+    # so it can clear both Analyze CV and Compare Resumes nav highlights.
+    st.markdown('<div id="compare-section-end"></div>', unsafe_allow_html=True)
+
     render_upload_landing_sections()
 
-    # Scroll-spy: toggle the top-nav active highlight between Analyze CV and
-    # Compare Resumes based on where the compare section sits in the viewport.
+    # Scroll-spy: three states keyed off where the viewport's reference line
+    # (top + 130px, matching the compare anchor's scroll-margin-top) sits
+    # relative to the start/end markers of the Compare section.
+    #   - reference line above compare-section-anchor  → Analyze CV active
+    #   - between compare-section-anchor and compare-section-end → Compare Resumes active
+    #   - below compare-section-end → neither active (user has scrolled past both)
     components.html(
         """
         <script>
@@ -1353,36 +1377,48 @@ def render_upload_page(compare_mode: bool = False) -> None:
             var doc = target.document;
             var attempts = 0;
             var attach = function() {
-                var anchor = doc.getElementById("compare-section-anchor");
+                var startAnchor = doc.getElementById("compare-section-anchor");
+                var endAnchor = doc.getElementById("compare-section-end");
                 var analyzeItem = doc.querySelector('a.site-nav-item[data-nav-action="upload-cv"]');
                 var compareItem = doc.querySelector('a.site-nav-item[data-nav-action="compare-anchor"]');
-                if (!anchor || !analyzeItem || !compareItem) {
+                if (!startAnchor || !endAnchor || !analyzeItem || !compareItem) {
                     if (attempts++ < 30) setTimeout(attach, 200);
                     return;
                 }
                 if (target.__excelcv_compare_spy_observer__) {
                     try { target.__excelcv_compare_spy_observer__.disconnect(); } catch (_e) {}
+                    target.__excelcv_compare_spy_observer__ = null;
                 }
-                var setActive = function(isPastCompare) {
-                    if (isPastCompare) {
-                        compareItem.classList.add('site-nav-item-active');
-                        analyzeItem.classList.remove('site-nav-item-active');
-                    } else {
-                        analyzeItem.classList.add('site-nav-item-active');
-                        compareItem.classList.remove('site-nav-item-active');
-                    }
+                if (target.__excelcv_compare_spy_scroll__) {
+                    try { target.removeEventListener('scroll', target.__excelcv_compare_spy_scroll__, true); } catch (_e) {}
+                    try { target.removeEventListener('resize', target.__excelcv_compare_spy_scroll__, true); } catch (_e) {}
+                    target.__excelcv_compare_spy_scroll__ = null;
+                }
+                // Reference line: 130px below viewport top — matches the
+                // scroll-margin-top of compare-section-anchor so the active
+                // state flips exactly when the heading lands at its anchored
+                // resting position.
+                var REF_OFFSET = 130;
+                var apply = function() {
+                    var refY = REF_OFFSET;
+                    var startTop = startAnchor.getBoundingClientRect().top;
+                    var endTop = endAnchor.getBoundingClientRect().top;
+                    var inAnalyze = startTop > refY;
+                    var inCompare = !inAnalyze && endTop > refY;
+                    analyzeItem.classList.toggle('site-nav-item-active', inAnalyze);
+                    compareItem.classList.toggle('site-nav-item-active', inCompare);
                 };
-                var observer = new IntersectionObserver(function(entries) {
-                    entries.forEach(function(entry) {
-                        var mid = (target.innerHeight || 800) / 2;
-                        setActive(entry.boundingClientRect.top <= mid);
+                var onScroll = function() {
+                    if (target.__excelcv_compare_spy_raf__) return;
+                    target.__excelcv_compare_spy_raf__ = target.requestAnimationFrame(function() {
+                        target.__excelcv_compare_spy_raf__ = 0;
+                        apply();
                     });
-                }, { threshold: 0, rootMargin: '-50% 0px 0px 0px' });
-                observer.observe(anchor);
-                target.__excelcv_compare_spy_observer__ = observer;
-                // Initial sync in case the anchor starts outside the observer's root.
-                var rect = anchor.getBoundingClientRect();
-                setActive(rect.top <= (target.innerHeight || 800) / 2);
+                };
+                target.addEventListener('scroll', onScroll, true);
+                target.addEventListener('resize', onScroll, true);
+                target.__excelcv_compare_spy_scroll__ = onScroll;
+                apply();
             };
             attach();
         })();
@@ -1390,6 +1426,27 @@ def render_upload_page(compare_mode: bool = False) -> None:
         """,
         height=0,
     )
+
+    # Scroll-to-top trigger: when the user clicks "Analyze CV" while already
+    # on the home page, app.py sets this flag so we smooth-scroll back to the
+    # top of the page (which IS the Analyze CV section). Without this, the
+    # nav click would be a visible no-op when the user is scrolled down.
+    if st.session_state.pop("scroll_to_analyze_top", False):
+        components.html(
+            """
+            <script>
+            (function() {
+                var target = window.parent && window.parent !== window ? window.parent : window;
+                var tryScroll = function() {
+                    try { target.scrollTo({ top: 0, behavior: "auto" }); }
+                    catch (_e) { target.scrollTo(0, 0); }
+                };
+                [0, 50, 150, 400].forEach(function(ms) { setTimeout(tryScroll, ms); });
+            })();
+            </script>
+            """,
+            height=0,
+        )
 
     # ── Run the submitted analysis last ───────────────────────────────────────
     # Doing it here — after the whole page is rendered and every `with` layout
@@ -1416,4 +1473,3 @@ def render_upload_page(compare_mode: bool = False) -> None:
             st.query_params["rid"] = snapshot_id
             _autosave_analysis(safe_cv_name, jd, analysis)
             st.rerun()
-

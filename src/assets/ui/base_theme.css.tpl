@@ -1,5 +1,5 @@
             {theme_base_css}
-            
+
             {css_variables}
 
             /* App-level scrollbar baseline. */
@@ -24,7 +24,7 @@
                 --excelcv-scrollbar-thumb: #7f8b99;
                 --excelcv-scrollbar-thumb-hover: #9aa6b5;
             }
-            
+
             /* Keep layout defaults intact; page-level modules can opt-in to custom overflow rules. */
             [data-testid="stHorizontalBlock"] {{
                 align-items: flex-start !important;
@@ -42,20 +42,20 @@
                 color: var(--placeholder-color) !important;
                 opacity: 1 !important;
             }}
-            
+
             /* Textarea and Dropzone Styling */
             {textarea_css}
             {dropzone_css}
-            
+
             /* Label Styling */
             {label_css}
-            
+
             /* Theme Button Styling */
             {theme_button_css}
-            
+
             /* Button Hover Effects */
             {button_hover_css}
-            
+
             /* BUTTONS: variable-based so visible in light/dark without body class */
             .stButton > button,
             .stButton button,
@@ -248,12 +248,12 @@
                 margin-top: 10px !important;
                 padding-top: 0 !important;
             }}
-            
+
             /* Hide Streamlit's default file size limit text */
             .stFileUploader > div > div > small {{
                 display: none !important;
             }}
-            
+
             /* Remove ALL top and bottom blank: zero padding/margin on every container */
             [data-testid="stAppViewContainer"] {{
                 padding-top: 0 !important;
@@ -327,14 +327,14 @@
                 flex-direction: column;
                 gap: 2px;
             }}
-            .brand-title {{ 
-                font-weight: 700; 
-                font-size: 1.1rem; 
-                color: var(--text-primary); 
+            .brand-title {{
+                font-weight: 700;
+                font-size: 1.1rem;
+                color: var(--text-primary);
             }}
-            .brand-subtitle {{ 
-                color: var(--text-secondary); 
-                font-size: 0.85rem; 
+            .brand-subtitle {{
+                color: var(--text-secondary);
+                font-size: 0.85rem;
             }}
             .site-brand {{
                 display: flex;
@@ -408,6 +408,20 @@
                 font-weight: 700;
                 line-height: 1;
                 white-space: nowrap;
+            }}
+            /* Theme-switch performance: avoid animating structural header controls. */
+            .site-nav-item,
+            .site-logo-shell,
+            .site-user-trigger {{
+                transition: none !important;
+            }}
+            .st-key-hero_wrapper .stTextArea textarea,
+            .st-key-hero_wrapper .stFileUploader,
+            .st-key-hero_wrapper .stFileUploader [data-testid="stFileUploaderDropzone"],
+            .st-key-hero_wrapper .stFileUploader button,
+            .st-key-hero_wrapper .stFileUploader [data-baseweb="button"],
+            .st-key-hero_wrapper .stButton button {{
+                transition: none !important;
             }}
             .st-key-site_nav_action_bridge {{
                 position: absolute !important;
@@ -536,7 +550,7 @@
                 background-color: var(--bg-card) !important;
                 color: var(--text-primary) !important;
             }}
-            
+
             /* Fix selectbox container and all nested elements */
             .stSelectbox > div > div {{
                 background-color: var(--bg-card) !important;
@@ -550,7 +564,7 @@
                 background-color: var(--bg-card) !important;
                 color: var(--text-primary) !important;
             }}
-            
+
             /* Force all baseweb select elements */
             [data-baseweb="select"] {{
                 background-color: var(--bg-card) !important;
@@ -563,7 +577,7 @@
                 background-color: var(--bg-card) !important;
                 color: var(--text-primary) !important;
             }}
-            
+
             /* Style selectbox (Mode dropdown) to match theme */
             .stSelectbox label {{
                 color: var(--text-primary) !important;
@@ -594,7 +608,7 @@
             body.theme-dark [data-testid="stCheckbox"] [data-testid="stMarkdownContainer"] p {{
                 color: #f9fafb !important;
             }}
-            
+
             /* Fix selectbox dropdown background and text */
             div[data-baseweb="select"] > div {{
                 background-color: var(--bg-card) !important;
@@ -616,9 +630,9 @@
             div[data-baseweb="popover"] li:hover {{
                 background-color: var(--bg-secondary) !important;
             }}
-            
+
             /* (Button styles above use CSS variables; no body.theme-* override) */
-            
+
             /* Style text area */
             .stTextArea textarea {{
                 background: var(--bg-card) !important;
@@ -627,7 +641,7 @@
                 color: var(--text-primary) !important;
                 padding: 12px 16px !important;
                 font-size: 0.95rem !important;
-                transition: all 0.2s ease !important;
+                transition: border-color 0.12s ease, box-shadow 0.12s ease !important;
                 box-shadow: none !important;
             }}
             .stTextArea textarea:hover {{
@@ -789,14 +803,14 @@
             body.theme-dark [data-testid="stAlert"] {{
                 border-color: rgba(250, 204, 21, 0.25) !important;
             }}
-            
+
             /* Style file uploader (Upload PDF/browse file) - LIGHT MODE */
             body.theme-light .stFileUploader {{
                 border: 1px solid rgba(0, 0, 0, 0.1) !important;
                 border-radius: 14px !important;
                 padding: 0;
                 background: #f9fafb !important;
-                transition: all 0.2s ease;
+                transition: border-color 0.12s ease, box-shadow 0.12s ease !important;
             }}
             /* Removed .stFileUploader:hover - only dropzone should glow, not the container */
             /* Style file uploader label - Professional styling matching Job description - Multiple selectors */
@@ -831,7 +845,7 @@
                 padding-bottom: 0 !important;
                 margin-bottom: 0 !important;
             }}
-            
+
             /* Style file uploader - DARK MODE */
             body.theme-dark .stFileUploader {{
                 border: 1px solid rgba(255, 255, 255, 0.1) !important;
@@ -857,12 +871,12 @@
                 font-size: inherit !important;
                 font-weight: inherit !important;
             }}
-            
+
             /* Fix file uploader inner elements and buttons */
             .stFileUploader > div {{
                 background-color: transparent !important;
             }}
-            
+
             /* Uploaded file display - theme-aware (light: white card, dark: dark card) */
             .stFileUploader .uploadedFile,
             .stFileUploader [data-testid="stFileUploaderFile"],
@@ -897,9 +911,9 @@
                 background-color: transparent !important;
                 color: var(--text-primary) !important;
             }}
-            
+
             /* (Browse Files uses variable-based button rules above) */
-            
+
             /* Style form elements */
             .stForm {{
                 border: none;
@@ -1946,6 +1960,10 @@
             html {{
                 overflow-y: scroll !important;
                 scrollbar-gutter: stable !important;
+                scroll-behavior: smooth;
+            }}
+            [data-testid="stAppViewContainer"] {{
+                scroll-behavior: smooth;
             }}
             body {{
                 overflow-y: visible !important;
@@ -2043,7 +2061,7 @@
                 box-shadow: 0 20px 60px var(--shadow);
                 border: 1px solid var(--border-light);
             }}
-            
+
             /* Ensure preview card text is visible in both themes */
             .preview-card * {{
                 color: var(--text-primary) !important;
@@ -2073,12 +2091,12 @@
                 gap: 6px;
                 font-weight: 700;
             }}
-            .preview-score .num {{ 
-                color: var(--accent); 
-                font-size: 1.8rem; 
+            .preview-score .num {{
+                color: var(--accent);
+                font-size: 1.8rem;
             }}
-            .preview-score .den {{ 
-                color: var(--text-secondary); 
+            .preview-score .den {{
+                color: var(--text-secondary);
             }}
             .pill-row {{
                 display: flex;
@@ -2117,14 +2135,14 @@
                 border-bottom: 1px solid var(--border-color);
                 background-color: transparent !important;
             }}
-            .list-row:last-child {{ 
-                border-bottom: none; 
+            .list-row:last-child {{
+                border-bottom: none;
             }}
-            .list-row span {{ 
-                font-size: 0.95rem; 
-                color: var(--text-primary) !important; 
+            .list-row span {{
+                font-size: 0.95rem;
+                color: var(--text-primary) !important;
             }}
-            
+
             /* Fix preview card list items to match theme */
             .preview-card .list-row {{
                 background-color: transparent !important;
@@ -2133,13 +2151,13 @@
             .preview-card .list-row span {{
                 color: var(--text-primary) !important;
             }}
-            
+
             /* Ensure icons in list rows are visible and properly colored */
             .list-row span:last-child {{
                 font-weight: 700;
                 font-size: 1.1rem;
             }}
-            
+
             /* Make sure all text in preview card is visible */
             .preview-card,
             .preview-card * {{
@@ -2211,10 +2229,10 @@
                 justify-content: space-between;
                 gap: 12px;
             }}
-            .report-file-title {{ 
-                margin: 0; 
-                font-size: 2rem; 
-                color: var(--text-primary); 
+            .report-file-title {{
+                margin: 0;
+                font-size: 2rem;
+                color: var(--text-primary);
                 line-height: 1.12;
                 word-break: break-word;
                 flex: 1;
@@ -2412,8 +2430,8 @@
                 border-top: 1px solid var(--border-light);
                 padding: 12px 0;
             }}
-            .category:first-of-type {{ 
-                border-top: none; 
+            .category:first-of-type {{
+                border-top: none;
             }}
             .category-head {{
                 display: flex;
@@ -2467,17 +2485,17 @@
                 font-weight: 700;
                 font-size: 0.95rem;
             }}
-            .score-good {{ 
-                background: rgba(16,185,129,0.12); 
-                color: #34d399; 
+            .score-good {{
+                background: rgba(16,185,129,0.12);
+                color: #34d399;
             }}
-            .score-medium {{ 
-                background: rgba(234,179,8,0.15); 
-                color: #fbbf24; 
+            .score-medium {{
+                background: rgba(234,179,8,0.15);
+                color: #fbbf24;
             }}
-            .score-low {{ 
-                background: rgba(239,68,68,0.16); 
-                color: #f87171; 
+            .score-low {{
+                background: rgba(239,68,68,0.16);
+                color: #f87171;
             }}
             .subitem {{
                 display: flex;
@@ -2534,17 +2552,17 @@
                 font-size: 0.8rem;
                 font-weight: 700;
             }}
-            .badge-ok {{ 
-                background: rgba(16,185,129,0.18); 
-                color: #34d399; 
+            .badge-ok {{
+                background: rgba(16,185,129,0.18);
+                color: #34d399;
             }}
-            .badge-warn {{ 
-                background: rgba(239,68,68,0.18); 
-                color: #f87171; 
+            .badge-warn {{
+                background: rgba(239,68,68,0.18);
+                color: #f87171;
             }}
-            .badge-lock {{ 
-                background: rgba(148,163,184,0.15); 
-                color: var(--text-secondary); 
+            .badge-lock {{
+                background: rgba(148,163,184,0.15);
+                color: var(--text-secondary);
             }}
             body.theme-light .badge,
             .theme-light .badge {{
@@ -2644,8 +2662,8 @@
                 cursor: pointer;
                 user-select: none;
             }}
-            .detail-head h3 {{ 
-                margin: 0; 
+            .detail-head h3 {{
+                margin: 0;
                 display: inline-flex;
                 align-items: center;
                 gap: 10px;
@@ -2878,17 +2896,17 @@
                 margin-bottom: 6px;
                 font-size: 0.9rem;
             }}
-            .text-primary {{ 
-                color: var(--text-primary); 
+            .text-primary {{
+                color: var(--text-primary);
             }}
-            .text-secondary {{ 
-                color: var(--text-secondary); 
+            .text-secondary {{
+                color: var(--text-secondary);
             }}
-            .text-muted {{ 
-                color: var(--text-secondary); 
+            .text-muted {{
+                color: var(--text-secondary);
             }}
-            .text-description {{ 
-                color: var(--text-secondary); 
+            .text-description {{
+                color: var(--text-secondary);
             }}
             .download-row {{
                 display: grid;
@@ -2896,7 +2914,7 @@
                 gap: 12px;
                 margin-top: 12px;
             }}
-            
+
             /* Ensure download buttons are clickable */
             .report-sidebar button,
             .report-main button {{
@@ -2904,7 +2922,7 @@
                 z-index: 10;
                 pointer-events: auto !important;
             }}
-            
+
             /* Report area buttons (Download Reports, etc.) use theme colors - light in light mode */
             .report-main .stButton > button,
             .report-main .stButton button,
@@ -2979,14 +2997,14 @@
                 background-color: transparent !important;
                 color: var(--button-text) !important;
             }}
-            
+
             /* Ensure no overlay blocks buttons */
             .report-main,
             .report-group {{
                 position: relative;
                 z-index: 1;
             }}
-        
+
 
             /* ===== Upload Landing Refresh (v2) ===== */
             .hero-copy {{

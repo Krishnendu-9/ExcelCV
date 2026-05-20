@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import inspect
 import json
 import uuid
 from datetime import date, datetime
@@ -54,6 +55,15 @@ from src.ui.cv_builder_value_utils import (
 )
 
 # ─── Constants ────────────────────────────────────────────────────────────────
+
+
+try:
+    _POPOVER_PARAMS = inspect.signature(st.popover).parameters
+except Exception:
+    _POPOVER_PARAMS = {}
+
+_SUPPORTS_POPOVER_KEY = "key" in _POPOVER_PARAMS
+_SUPPORTS_POPOVER_ON_CHANGE = "on_change" in _POPOVER_PARAMS
 
 
 def _normalize_builder_tuning_state() -> None:
@@ -768,17 +778,37 @@ def _date_field(
     ss = st.session_state
     month_key = f"{storage_key}__month"
     year_key = f"{storage_key}__year"
+    current_prev_key = f"{storage_key}__current_prev"
+    popover_state_key = f"{storage_key}__popover_open"
+    popover_close_request_key = f"{storage_key}__popover_close_requested"
+    popover_nonce_key = f"{storage_key}__popover_nonce"
     token = abs(hash(storage_key)) % 1000000
     pop_wrap_key = f"cvb-date-popover-{token}"
     year_scroll_key = f"cvb-date-year-scroll-{token}"
 
     if allow_present and current_key and current_key not in ss:
         ss[current_key] = False
+    if allow_present and current_key and current_prev_key not in ss:
+        ss[current_prev_key] = bool(ss.get(current_key, False))
 
     if month_key not in ss or year_key not in ss:
         parsed_month, parsed_year = _parse_month_year(ss.get(storage_key, ""))
         ss[month_key] = parsed_month
         ss[year_key] = parsed_year
+
+    if popover_state_key not in ss:
+        ss[popover_state_key] = False
+    if popover_nonce_key not in ss:
+        ss[popover_nonce_key] = 0
+    if ss.pop(popover_close_request_key, False):
+        if _SUPPORTS_POPOVER_KEY:
+            ss[popover_state_key] = False
+        else:
+            ss[popover_nonce_key] = int(ss.get(popover_nonce_key, 0)) + 1
+
+    def _close_date_popover() -> None:
+        ss[popover_close_request_key] = True
+        st.rerun()
 
     is_current = bool(ss.get(current_key, False)) if (allow_present and current_key) else False
     raw_value = str(ss.get(storage_key, "") or "").strip()
@@ -791,14 +821,37 @@ def _date_field(
         st.text_input(label, value=display_value, disabled=True, label_visibility="collapsed")
         return
 
-    with st.popover(display_value, width="stretch"):
+    popover_kwargs: dict[str, object] = {"width": "stretch"}
+    if _SUPPORTS_POPOVER_KEY:
+        popover_kwargs["key"] = popover_state_key
+    if _SUPPORTS_POPOVER_ON_CHANGE:
+        popover_kwargs["on_change"] = "rerun"
+
+    popover_host = st
+    if not _SUPPORTS_POPOVER_KEY:
+        # Legacy fallback: render popover in alternating host containers.
+        # Moving the widget to a different host forces remount and closes any open popover.
+        slot_a = st.container()
+        slot_b = st.container()
+        if int(ss.get(popover_nonce_key, 0)) % 2 == 0:
+            popover_host = slot_a
+            slot_b.empty()
+        else:
+            popover_host = slot_b
+            slot_a.empty()
+
+    with popover_host.popover(display_value, **popover_kwargs):
         with st.container(key=pop_wrap_key):
             if allow_present and current_key:
-                st.toggle("Present (Current)", key=current_key)
-                if ss.get(current_key, False):
+                was_current = bool(ss.get(current_prev_key, False))
+                now_current = st.toggle("Present (Current)", key=current_key)
+                ss[current_prev_key] = now_current
+                if now_current:
                     ss[month_key] = None
                     ss[year_key] = None
                     _set_month_year_storage(storage_key, None, None)
+                    if not was_current:
+                        _close_date_popover()
                     return
 
             selected_month = ss.get(month_key)
@@ -820,6 +873,8 @@ def _date_field(
                                 ss[month_key] = m
                                 selected_month = m
                                 _set_month_year_storage(storage_key, selected_month, selected_year)
+                                if selected_month and selected_year:
+                                    _close_date_popover()
 
             with year_col:
                 st.caption("Year")
@@ -847,13 +902,17 @@ def _date_field(
                                     _set_month_year_storage(
                                         storage_key, selected_month, selected_year
                                     )
+                                    if selected_month and selected_year:
+                                        _close_date_popover()
 
             if st.button("Clear", key=f"{storage_key}__clear"):
                 if allow_present and current_key:
                     ss[current_key] = False
+                    ss[current_prev_key] = False
                 ss[month_key] = None
                 ss[year_key] = None
                 _set_month_year_storage(storage_key, None, None)
+                _close_date_popover()
 
 
 def _save_cv(cv_data: dict, title: str, template: str) -> bool:
@@ -2044,7 +2103,7 @@ def _inject_middle_section_exact_css(is_dark: bool = False) -> None:
   font-weight: 500;
   color: #64748b;
   line-height: 1.25;
-  margin: 2px 0 8px;
+  margin: 2px 0 11px;
   padding-left: 1px;
   display: block;
 }
@@ -2178,11 +2237,9 @@ def _inject_middle_section_exact_css(is_dark: bool = False) -> None:
   gap: 4px !important;
   row-gap: 4px !important;
 }
-.st-key-cvb-middle-scroll-native [class*="st-key-cvb-exp-date-start-"] [data-testid="stPopover"],
-.st-key-cvb-middle-scroll-native [class*="st-key-cvb-exp-date-end-"] [data-testid="stPopover"],
-.st-key-cvb-middle-scroll-native [class*="st-key-cvb-edu-date-start-"] [data-testid="stPopover"],
-.st-key-cvb-middle-scroll-native [class*="st-key-cvb-edu-date-end-"] [data-testid="stPopover"] {
-  margin-top: 2px !important;
+.st-key-cvb-middle-scroll-native [class*="st-key-cvb-exp-date-row-"],
+.st-key-cvb-middle-scroll-native [class*="st-key-cvb-edu-date-row-"] {
+  padding-top: 10px !important;
 }
 
 .st-key-cvb-middle-scroll-native [class*="st-key-cvb-personal-inner-card"],
@@ -5739,18 +5796,19 @@ def _education_section() -> None:
             with c2:
                 st.text_input("Location", key=f"cvb_edu_loc_{eid}", placeholder="City, Country")
 
-            c3, c4 = st.columns(2)
-            with c3:
-                with st.container(key=f"cvb-edu-date-start-{eid}"):
-                    _date_field("Start Date", f"cvb_edu_start_{eid}")
-            with c4:
-                with st.container(key=f"cvb-edu-date-end-{eid}"):
-                    _date_field(
-                        "End Date",
-                        f"cvb_edu_end_{eid}",
-                        allow_present=True,
-                        current_key=f"cvb_edu_curr_{eid}",
-                    )
+            with st.container(key=f"cvb-edu-date-row-{eid}"):
+                c3, c4 = st.columns(2)
+                with c3:
+                    with st.container(key=f"cvb-edu-date-start-{eid}"):
+                        _date_field("Start Date", f"cvb_edu_start_{eid}")
+                with c4:
+                    with st.container(key=f"cvb-edu-date-end-{eid}"):
+                        _date_field(
+                            "End Date",
+                            f"cvb_edu_end_{eid}",
+                            allow_present=True,
+                            current_key=f"cvb_edu_curr_{eid}",
+                        )
 
             st.text_area(
                 "Description / Details",
@@ -6195,17 +6253,22 @@ def _experience_section() -> None:
             with c2:
                 st.text_input("Company", key=f"cvb_exp_company_{eid}", placeholder="Enter company")
 
-            c3, c4, c5 = st.columns([1.05, 1.05, 1.3])
-            with c3:
-                with st.container(key=f"cvb-exp-date-start-{eid}"):
-                    _date_field("Start Date", f"cvb_exp_start_{eid}")
-            with c4:
-                curr_key = f"cvb_exp_curr_{eid}"
-                end_key = f"cvb_exp_end_{eid}"
-                with st.container(key=f"cvb-exp-date-end-{eid}"):
-                    _date_field("End Date", end_key, allow_present=True, current_key=curr_key)
-            with c5:
-                st.text_input("Location", key=f"cvb_exp_loc_{eid}", placeholder="City, Country")
+            with st.container(key=f"cvb-exp-date-row-{eid}"):
+                c3, c4 = st.columns(2)
+                with c3:
+                    with st.container(key=f"cvb-exp-date-start-{eid}"):
+                        _date_field("Start Date", f"cvb_exp_start_{eid}")
+                with c4:
+                    curr_key = f"cvb_exp_curr_{eid}"
+                    end_key = f"cvb_exp_end_{eid}"
+                    with st.container(key=f"cvb-exp-date-end-{eid}"):
+                        _date_field(
+                            "End Date",
+                            end_key,
+                            allow_present=True,
+                            current_key=curr_key,
+                        )
+            st.text_input("Location", key=f"cvb_exp_loc_{eid}", placeholder="City, Country")
 
             st.text_area(
                 "Description",

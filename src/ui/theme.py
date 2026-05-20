@@ -5,6 +5,7 @@ Theme and base style injection utilities.
 import json
 from functools import lru_cache
 from pathlib import Path
+from uuid import uuid4
 
 import streamlit.components.v1 as components
 
@@ -40,8 +41,6 @@ def _load_ui_markup_template(name: str) -> str:
         str(template_path),
         template_path.stat().st_mtime_ns,
     )
-
-
 
 
 def _render_ui_markup_template(name: str, replacements: dict[str, str]) -> str:
@@ -92,7 +91,6 @@ def inject_back_button_sync() -> None:
     )
 
 
-
 def inject_base_css(theme: str = "light") -> None:
     """
     Inject custom CSS for the refreshed dual-page experience with manual theme support.
@@ -137,16 +135,49 @@ def inject_base_css(theme: str = "light") -> None:
     }
     css_markup = _render_ui_markup_template("base_theme.css.tpl", replacements)
 
-    # Inject CSS via JS into the parent document's <head>.
-    # json.dumps safely escapes the CSS string for use as a JS string literal,
-    # avoiding any issues with Streamlit's markdown renderer treating <style>
-    # blocks as visible text.
+    # Single-channel deterministic injection.
+    #
+    # ROOT CAUSE
+    # ----------
+    # A brief split-screen state could appear because theme CSS was applied via
+    # two channels with different timing characteristics:
+    #   1) Streamlit-body style injection
+    #   2) Parent-head style mutation from a component iframe script
+    # During reruns, those channels can momentarily disagree, which surfaces as
+    # a fraction-of-a-second mixed theme.
+    #
+    # FIX
+    # ---
+    # Use one canonical style tag in the parent document head
+    # (id: ``excelcv-base-theme``). Script content carries a per-run nonce so
+    # Streamlit treats each injection as fresh and re-executes reliably.
     css_json = json.dumps(css_markup)
+    safe_theme_class = "theme-dark" if theme == "dark" else "theme-light"
+    theme_class_json = json.dumps(safe_theme_class)
+    nonce = uuid4().hex
     components.html(
         f"""<script>
+/* nonce: {nonce} */
 (function() {{
     var w = window.parent && window.parent !== window ? window.parent : window;
     var doc = w.document;
+    var themeClass = {theme_class_json};
+
+    function _syncThemeClass() {{
+        var targets = [
+            doc.body,
+            doc.documentElement,
+            doc.querySelector('.stApp'),
+            doc.querySelector('[data-testid="stAppViewContainer"]'),
+        ];
+        for (var i = 0; i < targets.length; i++) {{
+            var el = targets[i];
+            if (!el || !el.classList) continue;
+            el.classList.remove('theme-light', 'theme-dark');
+            el.classList.add(themeClass);
+        }}
+    }}
+    _syncThemeClass();
 
     var styleId = 'excelcv-base-theme';
     var existing = doc.getElementById(styleId);
@@ -164,5 +195,3 @@ def inject_base_css(theme: str = "light") -> None:
 </script>""",
         height=0,
     )
-
-

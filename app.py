@@ -765,6 +765,19 @@ def main() -> None:
         HOME_COMPARE_FOCUS_KEY
     ):
         active_nav_label = "Compare Resumes"
+
+    # Inject layout-critical CSS BEFORE the header and page content render.
+    # Streamlit streams its response to the browser top-to-bottom; if these
+    # `<style>` blocks come after the header markup (as they used to), the
+    # browser shows the unstyled header for the duration of the rerun, then
+    # snaps into shape once the styles arrive. Putting them first eliminates
+    # the FOUC. The DOM-dependent JS injections (header layout override,
+    # fixed top bar, footer full width) still run at the bottom — they need
+    # the elements they target to exist before they execute.
+    inject_base_css(st.session_state["theme"])
+    inject_compact_header_css()
+    inject_file_uploader_spacing_css()
+
     nav_action = render_top_nav(active_nav_label)
     if nav_action:
         target_page = NAV_ACTION_TO_PAGE.get(nav_action, "home")
@@ -778,6 +791,12 @@ def main() -> None:
             # auto-scroll from the previous compare session.
             st.session_state[HOME_COMPARE_FOCUS_KEY] = False
             st.session_state.pop("scroll_to_compare_anchor", None)
+            # If the user is already on home, scrolling to the top IS the nav
+            # action (the Analyze CV section sits at the top of the page).
+            # Without this, clicking Analyze CV from a scrolled-down position
+            # is a visible no-op.
+            if current_page in ("home", "upload", "upload-cv"):
+                st.session_state["scroll_to_analyze_top"] = True
         elif target_page not in ("home", "upload", "upload-cv"):
             st.session_state[HOME_COMPARE_FOCUS_KEY] = False
         if not get_session_user() and target_page in PROTECTED_PAGES:
@@ -814,13 +833,21 @@ def main() -> None:
     elif current_page == "settings":
         _require_auth("settings")
         render_settings_page()
+    elif current_page.startswith("guide-"):
+        # Resume Tips sub-guide articles (see src/ui/guides.py). Each guide is
+        # a separate APP_PAGES entry routed by slug here; the pillar page
+        # (resume-tips) is handled by render_static_page below.
+        from src.ui.guides import render_guide_article
+
+        render_guide_article(current_page)
     else:
         render_static_page(current_page)
 
     _inject_theme_persistence(st.session_state["theme"])
-    inject_base_css(st.session_state["theme"])
-    inject_file_uploader_spacing_css()
-    inject_compact_header_css()
+    # Layout-critical CSS (inject_base_css, inject_compact_header_css,
+    # inject_file_uploader_spacing_css) is now injected BEFORE render_top_nav
+    # to eliminate FOUC during cross-page navigation. The injections below are
+    # JS-based and must run AFTER the DOM they target exists.
     inject_header_layout_override()
     inject_fixed_top_bar()
     inject_dropdown_outside_click()

@@ -171,6 +171,17 @@ def _render_html_block(html: str) -> None:
     st.markdown(html, unsafe_allow_html=True)
 
 
+def _toggle_theme() -> None:
+    """Flip the active theme.
+
+    Bound as a Streamlit widget callback so the new theme is written before the
+    script reruns. This guarantees early CSS injection in app.py sees the fresh
+    theme value on the same click.
+    """
+    current_theme = st.session_state.get("theme", "light")
+    st.session_state["theme"] = "dark" if current_theme == "light" else "light"
+
+
 def render_theme_toggle(standalone: bool = True, key: str = "theme_toggle") -> None:
     """Render the theme switch button. If standalone=False, only the button (for use inside a column)."""
     if standalone:
@@ -181,16 +192,12 @@ def render_theme_toggle(standalone: bool = True, key: str = "theme_toggle") -> N
     with container:
         current_theme = st.session_state.get("theme", "light")
         theme_icon = "\U0001f319" if current_theme == "light" else "\u2600\ufe0f"
-        if st.button(
+        st.button(
             theme_icon,
             key=key,
             width="stretch" if standalone else "content",
-        ):
-            new_theme = "dark" if current_theme == "light" else "light"
-            st.session_state["theme"] = new_theme
-            # The button click itself triggers a Streamlit rerun — no explicit st.rerun()
-            # needed. Calling st.rerun() here stops execution before the form widgets
-            # below are processed, causing typed values to be lost.
+            on_click=_toggle_theme,
+        )
 
 
 def render_site_header(show_theme_toggle: bool = True, current_page: str = "upload") -> str | None:
@@ -243,6 +250,12 @@ def render_site_header(show_theme_toggle: bool = True, current_page: str = "uplo
     elif pending_action in {item[1] for item in nav_items}:
         active_page = pending_action
 
+    # If the user is already on the home page, clicking Analyze CV / Compare
+    # Resumes can be handled entirely client-side with a smooth scroll — no
+    # Streamlit rerun, no full repaint. The bridge-button path is still used
+    # for cross-page nav (e.g. Resume Builder → Compare Resumes) where the
+    # server has to swap pages first.
+    is_home_page = current_page in ("upload-cv", "compare-cv", "home", "upload")
     nav_links: List[str] = []
     for label, page_key in nav_items:
         is_active = page_key == active_page or (
@@ -255,11 +268,47 @@ def render_site_header(show_theme_toggle: bool = True, current_page: str = "uplo
             href = _build_page_href("auth", next_page=page_key)
         else:
             href = _build_page_href(page_key)
+
+        if is_home_page and page_key == "upload-cv":
+            # Already on home — smooth-scroll to the top instead of triggering
+            # a Streamlit rerun. Streamlit has TWO candidate scrollers (the
+            # <html> element and [data-testid="stAppViewContainer"]); the
+            # visible scroll lives on whichever has overflow at the moment, so
+            # we scroll both. CSS `scroll-behavior: smooth` on both elements
+            # handles the animation — passing behavior:'smooth' explicitly here
+            # would be redundant but doesn't hurt.
+            onclick_js = (
+                "try{var w=window.parent&&window.parent!==window?window.parent:window;"
+                "var d=w.document;"
+                "event.preventDefault();event.stopPropagation();"
+                "try{w.history.replaceState(null,'',w.location.pathname+w.location.search);}catch(_e){}"
+                "try{w.scrollTo({top:0,left:0,behavior:'smooth'});}catch(_e2){w.scrollTo(0,0);}"
+                "var m=d.querySelector('[data-testid=\\'stAppViewContainer\\']');"
+                "if(m){try{m.scrollTo({top:0,left:0,behavior:'smooth'});}catch(_e3){m.scrollTop=0;}}"
+                "return false;}catch(_e){}"
+            )
+        elif is_home_page and page_key == "compare-anchor":
+            # Already on home — smooth-scroll to the compare anchor. The anchor
+            # carries scroll-margin-top: 130px, which scrollIntoView honors, so
+            # the heading lands at the same resting position as a hash navigation.
+            # scrollIntoView finds the nearest scrollable ancestor on its own,
+            # so we don't need to dual-target like the scroll-to-top case.
+            onclick_js = (
+                "try{var w=window.parent&&window.parent!==window?window.parent:window;"
+                "var a=w.document.getElementById('compare-section-anchor');"
+                "if(a){event.preventDefault();event.stopPropagation();"
+                "try{w.history.replaceState(null,'',w.location.pathname+w.location.search+'#compare-section-anchor');}catch(_e){}"
+                "a.scrollIntoView({behavior:'smooth',block:'start'});return false;}}catch(_e){}"
+            )
+        else:
+            onclick_js = (
+                "try{var w=window.parent&&window.parent!==window?window.parent:window;"
+                f"var b=w.document.querySelector('.{_nav_action_css_class(page_key)} button');"
+                "if(b){event.preventDefault();event.stopPropagation();b.click();return false;}}catch(_e){}"
+            )
+
         nav_links.append(
-            f'<a href="{href}" target="_self" '
-            f'onclick="try{{var w=window.parent&&window.parent!==window?window.parent:window;'
-            f"var b=w.document.querySelector('.{_nav_action_css_class(page_key)} button');"
-            f'if(b){{event.preventDefault();event.stopPropagation();b.click();return false;}}}}catch(_e){{}}" '
+            f'<a href="{href}" target="_self" onclick="{onclick_js}" '
             f'class="site-nav-item{active_cls}" data-nav-action="{page_key}" style="text-decoration:none;">{label}</a>'
         )
 
@@ -467,6 +516,11 @@ def render_site_footer() -> None:
         else '<div class="site-footer-brand-title">ExcelCV</div>'
     )
     is_guest = not get_session_user()
+    # When the user is already on the home page, the Analyze CV / Compare
+    # Resumes footer links should smooth-scroll client-side (no hard reload).
+    # Anywhere else, they navigate normally via href.
+    current_page = str(st.session_state.get("page", "")).lower()
+    is_home_page = current_page in ("home", "upload", "upload-cv", "compare-cv")
     # Product footer links act like deliberate deep-nav: route guests through
     # the auth gate (with a `next` hint so they bounce back) instead of letting
     # them land on the home/cover-letter page and see a guest shell.
@@ -497,6 +551,16 @@ def render_site_footer() -> None:
         "terms_of_service": _build_page_href("terms-of-service"),
         "contact": _build_page_href("contact"),
     }
+    # When on home, footer links for Analyze CV / Compare Resumes get a data
+    # attribute that a delegated click listener (injected below) intercepts to
+    # smooth-scroll client-side instead of doing a full hard reload. Off-home,
+    # the data attribute is omitted and the link navigates normally via href.
+    if is_home_page and not is_guest:
+        analyze_cv_attr = ' data-smooth-scroll="top"'
+        compare_resumes_attr = ' data-smooth-scroll="#compare-section-anchor"'
+    else:
+        analyze_cv_attr = ""
+        compare_resumes_attr = ""
 
     footer_html = f"""
     <footer class="site-footer-band {footer_theme_cls}" role="contentinfo" aria-label="Website footer">
@@ -512,9 +576,9 @@ def render_site_footer() -> None:
                     <div class="site-footer-link-col site-footer-link-col--wide">
                         <h4>Product</h4>
                         <div class="site-footer-link-grid-2col">
-                            <a href="{footer_links["analyze_cv"]}" target="_self">Analyze CV</a>
+                            <a href="{footer_links["analyze_cv"]}" target="_self"{analyze_cv_attr}>Analyze CV</a>
                             <a href="{footer_links["resume_builder"]}" target="_self">Resume Builder</a>
-                            <a href="{footer_links["compare_resumes"]}" target="_self">Compare Resumes</a>
+                            <a href="{footer_links["compare_resumes"]}" target="_self"{compare_resumes_attr}>Compare Resumes</a>
                             <a href="{footer_links["my_cvs"]}" target="_self">My CVs</a>
                             <a href="{footer_links["cover_letter"]}" target="_self">Cover Letter</a>
                             <a href="{footer_links["my_analyses"]}" target="_self">My Analyses</a>
@@ -527,7 +591,7 @@ def render_site_footer() -> None:
                         <a href="{footer_links["how_it_works"]}" target="_self">How It Works</a>
                     </div>
                     <div class="site-footer-link-col">
-                        <h4>Legal</h4>
+                        <h4>About</h4>
                         <a href="{footer_links["privacy_policy"]}" target="_self">Privacy Policy</a>
                         <a href="{footer_links["terms_of_service"]}" target="_self">Terms of Service</a>
                         <a href="{footer_links["contact"]}" target="_self">Contact Us</a>
@@ -543,3 +607,48 @@ def render_site_footer() -> None:
     </footer>
     """
     st.markdown(footer_html, unsafe_allow_html=True)
+
+    # Delegated click handler for footer (and any other) links carrying
+    # data-smooth-scroll. Centralizing here avoids fragile inline onclick
+    # attributes inside long HTML strings (escape/quote bugs, sanitizer
+    # surprises) and gives us one place to debug if scrolling regresses.
+    # `data-smooth-scroll="top"` scrolls to top of page; any other value is
+    # treated as a DOM id (with optional leading `#`) and scrollIntoView'd.
+    components.html(
+        """
+        <script>
+        (function() {
+            var w = window.parent && window.parent !== window ? window.parent : window;
+            var doc = w.document;
+            if (doc.__excelcv_smooth_scroll_bound__) return;
+            doc.__excelcv_smooth_scroll_bound__ = true;
+            doc.addEventListener('click', function(ev) {
+                var el = ev.target;
+                while (el && el !== doc && !(el.getAttribute && el.getAttribute('data-smooth-scroll'))) {
+                    el = el.parentNode;
+                }
+                if (!el || el === doc) return;
+                var raw = String(el.getAttribute('data-smooth-scroll') || '').trim();
+                if (!raw) return;
+                ev.preventDefault();
+                ev.stopPropagation();
+                if (raw === 'top') {
+                    try { w.history.replaceState(null, '', w.location.pathname + w.location.search); } catch (_e) {}
+                    try { w.scrollTo({ top: 0, left: 0, behavior: 'smooth' }); } catch (_e2) { w.scrollTo(0, 0); }
+                    var main = doc.querySelector('[data-testid="stAppViewContainer"]');
+                    if (main) {
+                        try { main.scrollTo({ top: 0, left: 0, behavior: 'smooth' }); } catch (_e3) { main.scrollTop = 0; }
+                    }
+                    return;
+                }
+                var id = raw.charAt(0) === '#' ? raw.slice(1) : raw;
+                var target = doc.getElementById(id);
+                if (!target) return;
+                try { w.history.replaceState(null, '', w.location.pathname + w.location.search + '#' + id); } catch (_e4) {}
+                try { target.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (_e5) { target.scrollIntoView(true); }
+            }, true);
+        })();
+        </script>
+        """,
+        height=0,
+    )

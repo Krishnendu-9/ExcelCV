@@ -31,13 +31,13 @@ def generate_theme_base_css(is_light: bool, bg_color: str, text_color: str) -> s
                 background: {bg_color} !important;
                 color: {text_color} !important;
             }}
-            
+
             .main,
             .block-container {{
                 background-color: transparent !important;
                 background: transparent !important;
             }}
-            
+
             body.theme-light,
             body.theme-light .stApp,
             .stApp.theme-light,
@@ -48,7 +48,7 @@ def generate_theme_base_css(is_light: bool, bg_color: str, text_color: str) -> s
                 background: #ffffff !important;
                 color: #111827 !important;
             }}
-            
+
             body.theme-dark,
             body.theme-dark .stApp,
             .stApp.theme-dark,
@@ -133,7 +133,7 @@ def generate_textarea_css() -> str:
                 color: var(--text-primary) !important;
                 padding: 12px 16px !important;
                 font-size: 0.95rem !important;
-                transition: all 0.2s ease !important;
+                transition: border-color 0.12s ease, box-shadow 0.12s ease !important;
                 box-shadow: none !important;
             }}
             .stTextArea textarea:hover {{
@@ -151,8 +151,12 @@ def generate_textarea_css() -> str:
 
 def generate_dropzone_css(is_light: bool) -> str:
     """Generate CSS for file uploader dropzone."""
-    light_mode_text_color = '.stFileUploader [data-testid="stFileUploaderDropzone"], .stFileUploader [data-testid="stFileUploaderDropzone"] * { color: #374151 !important; }' if is_light else ''
-    
+    light_mode_text_color = (
+        '.stFileUploader [data-testid="stFileUploaderDropzone"], .stFileUploader [data-testid="stFileUploaderDropzone"] * { color: #374151 !important; }'
+        if is_light
+        else ""
+    )
+
     return f"""
             .stFileUploader [data-testid="stFileUploaderDropzone"],
             .stFileUploader [data-testid="stFileUploaderDropzone"] *,
@@ -166,7 +170,7 @@ def generate_dropzone_css(is_light: bool) -> str:
                 box-shadow: none !important;
             }}
             {light_mode_text_color}
-            
+
             .stFileUploader [data-testid="stFileUploaderDropzone"] {{
                 background: var(--bg-card) !important;
                 border: 1px solid var(--border-color) !important;
@@ -174,7 +178,7 @@ def generate_dropzone_css(is_light: bool) -> str:
                 color: var(--text-primary) !important;
                 padding: 12px 16px !important;
                 font-size: 0.95rem !important;
-                transition: all 0.2s ease !important;
+                transition: border-color 0.12s ease, box-shadow 0.12s ease !important;
                 box-shadow: none !important;
             }}
             .stFileUploader [data-testid="stFileUploaderDropzone"]:hover {{
@@ -248,7 +252,7 @@ def generate_theme_button_css() -> str:
                 gap: 6px;
                 font-size: 0.85rem;
                 color: var(--text-primary);
-                transition: all 0.2s ease;
+                transition: background-color 0.12s ease, border-color 0.12s ease, color 0.12s ease;
             }}
             {selectors}:hover,
             {selectors}:focus,
@@ -287,7 +291,7 @@ def generate_button_hover_css() -> str:
                 background-color: transparent !important;
                 background: transparent !important;
             }}
-            
+
             .report-main .stButton > button:hover,
             .report-main .stButton button:hover,
             .report-main button:hover,

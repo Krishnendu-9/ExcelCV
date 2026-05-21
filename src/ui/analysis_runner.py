@@ -17,12 +17,7 @@ from src.ui.common import issue_count
 def _is_quota_message(message: str) -> bool:
     """Detect Gemini rate-limit / quota signatures in an error string."""
     text = (message or "").lower()
-    return (
-        "429" in text
-        or "rate limit" in text
-        or "quota" in text
-        or "resource exhausted" in text
-    )
+    return "429" in text or "rate limit" in text or "quota" in text or "resource exhausted" in text
 
 
 def _uploaded_file_sha256(uploaded_cv: Any) -> str:
@@ -262,9 +257,7 @@ def run_multi_resume_comparison(
         row["Rank"] = idx
 
     if skipped_duplicates:
-        warnings.append(
-            "Skipped duplicate file selections: " + ", ".join(skipped_duplicates)
-        )
+        warnings.append("Skipped duplicate file selections: " + ", ".join(skipped_duplicates))
     return {"rows": rows, "errors": errors, "warnings": warnings}
 
 
@@ -276,6 +269,7 @@ def _autosave_analysis(cv_name: str, job_description: str, analysis: Dict[str, A
     try:
         from src.database import Analysis as AnalysisModel
         from src.database import get_db as _get_db
+
         match_score = float(analysis.get("match_score", 0))
         db = _get_db()
         try:

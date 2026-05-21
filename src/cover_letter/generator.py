@@ -33,7 +33,7 @@ def _extract_response_text(response: Any) -> str:
     collected: List[str] = []
     for candidate in getattr(response, "candidates", []) or []:
         content = getattr(candidate, "content", None)
-        for part in (getattr(content, "parts", []) if content is not None else []):
+        for part in getattr(content, "parts", []) if content is not None else []:
             part_text = getattr(part, "text", "") or ""
             if part_text.strip():
                 collected.append(part_text.strip())
@@ -78,7 +78,9 @@ def _generate_json(model_name: str, prompt: str) -> Dict[str, Any]:
                 ),
             )
             raw = _extract_response_text(response)
-            parsed = json.loads(raw if raw.strip().startswith("{") else _extract_json_from_text(raw))
+            parsed = json.loads(
+                raw if raw.strip().startswith("{") else _extract_json_from_text(raw)
+            )
             if isinstance(parsed, dict):
                 return parsed
             raise ValueError("Invalid non-object JSON returned by model.")

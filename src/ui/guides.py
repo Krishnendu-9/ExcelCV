@@ -1281,7 +1281,7 @@ def render_resume_tips_pillar() -> None:
                 f'<div class="excelcv-guide-card-title">{meta["title"]}</div>'
                 f'<div class="excelcv-guide-card-summary">{meta["summary"]}</div>'
                 f'<div class="excelcv-guide-card-meta">'
-                f'<span>{meta["read_time"]}</span>'
+                f"<span>{meta['read_time']}</span>"
                 f'<span class="dot">·</span>'
                 f'<span class="excelcv-guide-card-cta">Read guide →</span>'
                 f"</div></a>"

@@ -50,7 +50,9 @@ def build_recruiter_snapshot(analysis: Dict[str, Any], resume_name: str) -> Dict
     }
 
 
-def build_priority_action_plan(analysis: Dict[str, Any], max_items: int = 8) -> List[Dict[str, str]]:
+def build_priority_action_plan(
+    analysis: Dict[str, Any], max_items: int = 8
+) -> List[Dict[str, str]]:
     """Build a prioritized action plan from detected weaknesses."""
     content = analysis.get("content_metrics", {}) or {}
     quant_score = int((content.get("quantifying_impact", {}) or {}).get("score", 0))
@@ -227,9 +229,9 @@ def build_portfolio_checklist(analysis: Dict[str, Any]) -> Dict[str, List[str]]:
 
     sections = (analysis.get("sections_metrics", {}) or {}).get("details", {}) or {}
     contact = analysis.get("contact_info", {}) or {}
-    header_links = ((analysis.get("ats_essentials_metrics", {}) or {}).get("details", {}) or {}).get(
-        "header_links", {}
-    ) or {}
+    header_links = (
+        (analysis.get("ats_essentials_metrics", {}) or {}).get("details", {}) or {}
+    ).get("header_links", {}) or {}
     suggestions = _normalize_items(analysis.get("suggestions", []), limit=6)
 
     if sections.get("has_experience"):

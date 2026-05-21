@@ -131,14 +131,11 @@ def render_my_comparisons_page() -> None:
                             st.session_state[f"confirm_delete_cmp_{comparison.id}"] = True
 
                 if st.session_state.get(f"confirm_delete_cmp_{comparison.id}"):
+
                     def _delete_cmp(target_id=comparison.id):
                         db2 = get_db()
                         try:
-                            rec = (
-                                db2.query(Comparison)
-                                .filter(Comparison.id == target_id)
-                                .first()
-                            )
+                            rec = db2.query(Comparison).filter(Comparison.id == target_id).first()
                             if rec:
                                 db2.delete(rec)
                                 db2.commit()

@@ -69,4 +69,3 @@ def validate_draft_quality(
     full_body = "\n".join(paragraphs)
     if contains_placeholder_text(subject) or contains_placeholder_text(full_body):
         raise ValueError("Generated letter contains unresolved placeholders. Please try again.")
-

@@ -844,7 +844,7 @@ def _base_css(t: dict) -> str:
 
     /* Google OAuth button — rendered as an <a class="google-btn"> inside
        st.markdown. The default Streamlit markdown link styles win over a
-       plain `.google-btn { ... }` rule (higher specificity on
+       plain `.google-btn {...}` rule (higher specificity on
        `[data-testid="stMarkdown"] a`), so we use the stAppViewContainer
        prefix and !important to anchor the styling. */
     [data-testid="stAppViewContainer"] a.google-btn,
@@ -1094,11 +1094,15 @@ def _render_sign_in_register(col, t: dict) -> None:
                     # their password. URL flips auth_view via query param —
                     # already handled at the top of render_auth_page().
                     forgot_href = _build_page_href("auth", next_page=_resolve_post_login_target())
-                    forgot_href = forgot_href + ("&" if "?" in forgot_href else "?") + "auth_view=forgot_password"
+                    forgot_href = (
+                        forgot_href
+                        + ("&" if "?" in forgot_href else "?")
+                        + "auth_view=forgot_password"
+                    )
                     st.markdown(
                         f'<div class="auth-forgot-row">'
                         f'<a href="{forgot_href}" target="_self" class="auth-forgot-link">'
-                        f'Forgot your password?</a></div>',
+                        f"Forgot your password?</a></div>",
                         unsafe_allow_html=True,
                     )
                     submitted = st.form_submit_button("Sign In", width="stretch", type="primary")
@@ -1121,7 +1125,9 @@ def _render_sign_in_register(col, t: dict) -> None:
             with tab_register:
                 with st.form("register_form"):
                     full_name = st.text_input("Full Name", placeholder="Your Name")
-                    reg_email = st.text_input("Email", placeholder="you@example.com", key="reg_email")
+                    reg_email = st.text_input(
+                        "Email", placeholder="you@example.com", key="reg_email"
+                    )
                     reg_pass = st.text_input(
                         "Password (min. 8 chars)",
                         type="password",
@@ -1239,7 +1245,9 @@ def _render_reset_password_form(col, reset_token: str, t: dict) -> None:
                     placeholder="********",
                     key="rp_confirm",
                 )
-                reset_btn = st.form_submit_button("Set new password", width="stretch", type="primary")
+                reset_btn = st.form_submit_button(
+                    "Set new password", width="stretch", type="primary"
+                )
 
             if reset_btn:
                 if not new_pass or not confirm_pass:
@@ -1258,5 +1266,3 @@ def _render_reset_password_form(col, reset_token: str, t: dict) -> None:
                         st.error(err)
                         if "expired" in err.lower() or "invalid" in err.lower():
                             st.session_state.pop("reset_token", None)
-
-

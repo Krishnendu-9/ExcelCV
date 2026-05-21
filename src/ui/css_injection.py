@@ -119,15 +119,9 @@ def inject_compact_header_css() -> None:
     toggle_icon_color = "#f8fafc" if is_dark else "#0f172a"
     nav_active_color = "#38bdf8" if is_dark else "#1667d9"
     header_filter = (
-        "blur(12px) saturate(120%)"
-        if is_dark
-        else "blur(12px) saturate(108%) brightness(1.04)"
+        "blur(12px) saturate(120%)" if is_dark else "blur(12px) saturate(108%) brightness(1.04)"
     )
-    header_shadow = (
-        "0 4px 16px rgba(2, 6, 23, 0.20)"
-        if is_dark
-        else "none"
-    )
+    header_shadow = "0 4px 16px rgba(2, 6, 23, 0.20)" if is_dark else "none"
     compare_box_border = "rgba(56, 189, 248, 0.24)" if is_dark else "rgba(148, 163, 184, 0.42)"
     compare_box_bg = (
         "radial-gradient(200px 130px at 78% 10%, rgba(45, 212, 191, 0.09), transparent 70%), "
@@ -136,13 +130,13 @@ def inject_compact_header_css() -> None:
         else "linear-gradient(180deg, rgba(248, 250, 252, 0.98), rgba(241, 245, 249, 0.98))"
     )
     compare_box_shadow = (
-        "0 12px 24px rgba(2, 6, 23, 0.32)"
-        if is_dark
-        else "0 10px 20px rgba(15, 23, 42, 0.12)"
+        "0 12px 24px rgba(2, 6, 23, 0.32)" if is_dark else "0 10px 20px rgba(15, 23, 42, 0.12)"
     )
     compare_label_color = "#e2e8f0" if is_dark else "#1e293b"
     compare_textarea_bg = "rgba(30, 41, 59, 0.62)" if is_dark else "rgba(255, 255, 255, 0.98)"
-    compare_textarea_border = "rgba(100, 116, 139, 0.55)" if is_dark else "rgba(148, 163, 184, 0.62)"
+    compare_textarea_border = (
+        "rgba(100, 116, 139, 0.55)" if is_dark else "rgba(148, 163, 184, 0.62)"
+    )
     compare_textarea_text = "#e2e8f0" if is_dark else "#0f172a"
     compare_placeholder = "#94a3b8" if is_dark else "#64748b"
     compare_dropzone_bg = "rgba(30, 41, 59, 0.56)" if is_dark else "rgba(248, 250, 252, 0.98)"
@@ -152,9 +146,7 @@ def inject_compact_header_css() -> None:
     compare_hover_bg = "rgba(37, 99, 235, 0.16)" if is_dark else "rgba(239, 246, 255, 0.98)"
     compare_hover_border = "rgba(56, 189, 248, 0.65)" if is_dark else "rgba(37, 99, 235, 0.62)"
     compare_hover_shadow = (
-        "0 0 0 3px rgba(56, 189, 248, 0.14)"
-        if is_dark
-        else "0 0 0 3px rgba(37, 99, 235, 0.14)"
+        "0 0 0 3px rgba(56, 189, 248, 0.14)" if is_dark else "0 0 0 3px rgba(37, 99, 235, 0.14)"
     )
     guest_title_color = "#e2e8f0" if is_dark else "#0f172a"
     guest_body_color = "#94a3b8" if is_dark else "#64748b"
@@ -3087,6 +3079,3 @@ def inject_logo_home_click_behavior() -> None:
         """,
         height=0,
     )
-
-
-

@@ -1,4 +1,4 @@
-﻿"""
+"""
 Scoring Module - Programmatic score calculations for CV analysis.
 
 This module contains all scoring calculation functions that analyze CV text
@@ -56,10 +56,10 @@ from src.services.scoring_constants import (
 def normalize_score(value: Any) -> int:
     """
     Normalize a score value to 0-100 range.
-    
+
     Args:
         value: Score value (can be int, float, or string)
-    
+
     Returns:
         Integer score clamped to 0-100 range
     """
@@ -73,12 +73,12 @@ def normalize_score(value: Any) -> int:
 def get_metric_status(score: int, ok_min: int = 80, warn_min: int = 60) -> str:
     """
     Convert score to status: ok, warn, or error.
-    
+
     Args:
         score: The score value (0-100)
         ok_min: Minimum score for "ok" status
         warn_min: Minimum score for "warn" status
-    
+
     Returns:
         Status string: "ok", "warn", or "error"
     """
@@ -93,15 +93,15 @@ def get_metric_status(score: int, ok_min: int = 80, warn_min: int = 60) -> str:
 def calculate_ats_parse_rate(cv_text: str) -> int:
     """
     Calculate ATS parse rate based on CV text quality (deterministic).
-    
+
     Args:
         cv_text: The extracted CV text
-    
+
     Returns:
         ATS parse rate score (0-100)
     """
     text_length = len(cv_text.strip())
-    
+
     # Base score from text extraction quality
     if text_length >= ATS_PARSE_TEXT_LENGTH_GOOD:
         base_score = ATS_PARSE_BASE_SCORE_GOOD
@@ -111,7 +111,7 @@ def calculate_ats_parse_rate(cv_text: str) -> int:
         base_score = ATS_PARSE_BASE_SCORE_POOR
     else:
         base_score = ATS_PARSE_BASE_SCORE_VERY_POOR
-    
+
     # Check for common ATS-friendly indicators
     cv_lower = cv_text.lower()
     has_sections = any(
@@ -120,7 +120,7 @@ def calculate_ats_parse_rate(cv_text: str) -> int:
     )
     if has_sections:
         base_score = min(MAX_SCORE, base_score + ATS_PARSE_SECTION_BONUS)
-    
+
     return base_score
 
 
@@ -192,11 +192,7 @@ def _extract_experience_sections(cv_text: str) -> str:
     for idx, (start_line, is_exp) in enumerate(section_starts):
         if not is_exp:
             continue
-        end_line = (
-            section_starts[idx + 1][0]
-            if idx + 1 < len(section_starts)
-            else len(lines)
-        )
+        end_line = section_starts[idx + 1][0] if idx + 1 < len(section_starts) else len(lines)
         chunk = "\n".join(lines[start_line + 1 : end_line])
         chunks.append(chunk)
 
@@ -612,11 +608,13 @@ def calculate_repetition(cv_text: str) -> Tuple[int, Dict]:
     for word, count in sorted(verb_counts.items(), key=lambda x: -x[1]):
         if count < REPETITION_VERB_REPEAT_THRESHOLD:
             continue
-        flagged.append({
-            "word": word,
-            "count": count,
-            "suggestions": WORD_SYNONYMS[word][:3],
-        })
+        flagged.append(
+            {
+                "word": word,
+                "count": count,
+                "suggestions": WORD_SYNONYMS[word][:3],
+            }
+        )
 
     # â”€â”€ Scoring â”€â”€
     # Start at 100; deduct for each extra repeat beyond (threshold âˆ’ 1).
@@ -627,13 +625,10 @@ def calculate_repetition(cv_text: str) -> Tuple[int, Dict]:
     score = max(MIN_SCORE, min(MAX_SCORE, 100 - penalty))
 
     top_names = [f["word"] for f in flagged[:3]]
-    details = (
-        f"Checked {len(verb_counts)} action verbs across {total} words. "
-        + (
-            f"Consider varying: {', '.join(top_names)}."
-            if top_names
-            else "Good variety in action verbs."
-        )
+    details = f"Checked {len(verb_counts)} action verbs across {total} words. " + (
+        f"Consider varying: {', '.join(top_names)}."
+        if top_names
+        else "Good variety in action verbs."
     )
 
     return score, {
@@ -679,66 +674,65 @@ def calculate_spelling_grammar(cv_text: str) -> Tuple[int, Dict]:
     # not be reported as formatting errors.
     double_count = len(re.findall(r"(?<!\s)  (?!\s)", text))
     if double_count > 0:
-        double_matches = re.findall(
-            r".{0,20}(?<!\s)  (?!\s).{0,20}", text
-        )
+        double_matches = re.findall(r".{0,20}(?<!\s)  (?!\s).{0,20}", text)
         deduction = min(
             SPELLING_DOUBLE_SPACE_MAX_PENALTY,
             double_count * SPELLING_DOUBLE_SPACE_PENALTY_PER_INSTANCE,
         )
         score -= deduction
         issue_labels.append("multiple consecutive spaces")
-        issues_list.append({
-            "type": "double_space",
-            "label": "Multiple consecutive spaces",
-            "count": double_count,
-            "examples": [m.strip() for m in double_matches[:3]],
-        })
+        issues_list.append(
+            {
+                "type": "double_space",
+                "label": "Multiple consecutive spaces",
+                "count": double_count,
+                "examples": [m.strip() for m in double_matches[:3]],
+            }
+        )
 
     # â”€â”€ 2. Excessive all-caps words (skip tech acronyms & section headers) â”€â”€
-    long_caps = re.findall(
-        rf"\b[A-Z]{{{SPELLING_ALL_CAPS_MIN_LENGTH},}}\b", text
-    )
+    long_caps = re.findall(rf"\b[A-Z]{{{SPELLING_ALL_CAPS_MIN_LENGTH},}}\b", text)
     non_tech_caps = [w for w in long_caps if w not in TECH_ACRONYMS]
     if len(non_tech_caps) > SPELLING_ALL_CAPS_THRESHOLD:
         score -= min(SPELLING_ALL_CAPS_MAX_PENALTY, len(non_tech_caps))
         issue_labels.append("excessive all-caps words")
-        issues_list.append({
-            "type": "all_caps",
-            "label": "Excessive all-caps words",
-            "count": len(non_tech_caps),
-            "examples": list(dict.fromkeys(non_tech_caps))[:5],
-        })
+        issues_list.append(
+            {
+                "type": "all_caps",
+                "label": "Excessive all-caps words",
+                "count": len(non_tech_caps),
+                "examples": list(dict.fromkeys(non_tech_caps))[:5],
+            }
+        )
 
     # â”€â”€ 3. Inconsistent bullet-point characters â”€â”€
-    bullet_chars = re.findall(
-        r"^[\s]*([â€¢Â·â–ªâ–¸â–ºâž¤\-\*])", text, re.MULTILINE
-    )
+    bullet_chars = re.findall(r"^[\s]*([â€¢Â·â–ªâ–¸â–ºâž¤\-\*])", text, re.MULTILINE)
     unique_bullets = set(bullet_chars)
     if len(unique_bullets) > 2:
-        issues_list.append({
-            "type": "inconsistent_bullets",
-            "label": "Inconsistent bullet point characters",
-            "count": len(unique_bullets),
-            "examples": list(unique_bullets),
-        })
+        issues_list.append(
+            {
+                "type": "inconsistent_bullets",
+                "label": "Inconsistent bullet point characters",
+                "count": len(unique_bullets),
+                "examples": list(unique_bullets),
+            }
+        )
 
     # â”€â”€ 4. Bullet points missing ending punctuation â”€â”€
     # Use PDF-line rejoining so we check *complete* bullets, not fragments.
     real_bullets = list(_cached_experience_bullets(text))
-    bullets_no_period = [
-        b for b in real_bullets if b and b.rstrip()[-1:] not in ".!?:;"
-    ]
+    bullets_no_period = [b for b in real_bullets if b and b.rstrip()[-1:] not in ".!?:;"]
     if len(bullets_no_period) > 2:
-        issues_list.append({
-            "type": "missing_period",
-            "label": "Bullet points missing ending punctuation",
-            "count": len(bullets_no_period),
-            "examples": [
-                b[:80] + ("..." if len(b) > 80 else "")
-                for b in bullets_no_period[:3]
-            ],
-        })
+        issues_list.append(
+            {
+                "type": "missing_period",
+                "label": "Bullet points missing ending punctuation",
+                "count": len(bullets_no_period),
+                "examples": [
+                    b[:80] + ("..." if len(b) > 80 else "") for b in bullets_no_period[:3]
+                ],
+            }
+        )
 
     score = max(MIN_SCORE, min(MAX_SCORE, score))
 
@@ -778,9 +772,21 @@ def calculate_contact_info(cv_text: str) -> Dict[str, Any]:
         return {
             "found": [],
             "missing": [
-                {"type": "phone", "label": "Phone number", "message": "No phone number found in your resume."},
-                {"type": "email", "label": "Email address", "message": "No email address found in your resume."},
-                {"type": "linkedin", "label": "LinkedIn", "message": "No LinkedIn profile found in your resume."},
+                {
+                    "type": "phone",
+                    "label": "Phone number",
+                    "message": "No phone number found in your resume.",
+                },
+                {
+                    "type": "email",
+                    "label": "Email address",
+                    "message": "No email address found in your resume.",
+                },
+                {
+                    "type": "linkedin",
+                    "label": "LinkedIn",
+                    "message": "No LinkedIn profile found in your resume.",
+                },
             ],
             "score": 0,
         }
@@ -836,22 +842,26 @@ def calculate_contact_info(cv_text: str) -> Dict[str, Any]:
     if phone_match:
         found.append({"type": "phone", "label": "Phone number", "value": phone_match})
     else:
-        missing.append({
-            "type": "phone",
-            "label": "Phone number",
-            "message": "No phone number found. Include a professional contact number.",
-        })
+        missing.append(
+            {
+                "type": "phone",
+                "label": "Phone number",
+                "message": "No phone number found. Include a professional contact number.",
+            }
+        )
 
     # â”€â”€ Email address â”€â”€
     email_match = re.search(r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}", cleaned)
     if email_match:
         found.append({"type": "email", "label": "Email address", "value": email_match.group()})
     else:
-        missing.append({
-            "type": "email",
-            "label": "Email address",
-            "message": "No email address found. Include a professional email.",
-        })
+        missing.append(
+            {
+                "type": "email",
+                "label": "Email address",
+                "message": "No email address found. Include a professional email.",
+            }
+        )
 
     # â”€â”€ LinkedIn â”€â”€
     # Standard URL format
@@ -868,15 +878,21 @@ def calculate_contact_info(cv_text: str) -> Dict[str, Any]:
         li_icon_match = re.search(r"linkedin[\-_]?in\s*([\w\-]+)", cleaned, re.I)
         if li_icon_match:
             username = li_icon_match.group(1)
-            found.append({"type": "linkedin", "label": "LinkedIn", "value": f"linkedin.com/in/{username}"})
+            found.append(
+                {"type": "linkedin", "label": "LinkedIn", "value": f"linkedin.com/in/{username}"}
+            )
         elif re.search(r"linkedin", cleaned, re.I):
-            found.append({"type": "linkedin", "label": "LinkedIn", "value": "(detected but URL not parsed)"})
+            found.append(
+                {"type": "linkedin", "label": "LinkedIn", "value": "(detected but URL not parsed)"}
+            )
         else:
-            missing.append({
-                "type": "linkedin",
-                "label": "LinkedIn",
-                "message": "You are either not using an ATS friendly template, or you are missing your LinkedIn in your resume.",
-            })
+            missing.append(
+                {
+                    "type": "linkedin",
+                    "label": "LinkedIn",
+                    "message": "You are either not using an ATS friendly template, or you are missing your LinkedIn in your resume.",
+                }
+            )
 
     # â”€â”€ GitHub â”€â”€
     github_match = re.search(
@@ -892,9 +908,13 @@ def calculate_contact_info(cv_text: str) -> Dict[str, Any]:
         if gh_icon_match:
             username = gh_icon_match.group(1)
             if username.lower() not in ("com", "io"):
-                found.append({"type": "github", "label": "GitHub", "value": f"github.com/{username}"})
+                found.append(
+                    {"type": "github", "label": "GitHub", "value": f"github.com/{username}"}
+                )
         elif re.search(r"github", cleaned, re.I):
-            found.append({"type": "github", "label": "GitHub", "value": "(detected but URL not parsed)"})
+            found.append(
+                {"type": "github", "label": "GitHub", "value": "(detected but URL not parsed)"}
+            )
 
     # â”€â”€ Portfolio / Website â”€â”€
     website_match = re.search(
@@ -904,7 +924,14 @@ def calculate_contact_info(cv_text: str) -> Dict[str, Any]:
     if website_match:
         val = website_match.group()
         # Filter out common non-portfolio domains
-        skip_domains = ["gmail.com", "yahoo.com", "hotmail.com", "outlook.com", "email.com", "google.com"]
+        skip_domains = [
+            "gmail.com",
+            "yahoo.com",
+            "hotmail.com",
+            "outlook.com",
+            "email.com",
+            "google.com",
+        ]
         if not any(d in val.lower() for d in skip_domains):
             found.append({"type": "website", "label": "Portfolio/Website", "value": val})
 
@@ -916,7 +943,9 @@ def calculate_contact_info(cv_text: str) -> Dict[str, Any]:
     for pattern in location_patterns:
         loc_match = re.search(pattern, cleaned, re.I)
         if loc_match:
-            found.append({"type": "location", "label": "Location", "value": loc_match.group(1).strip()[:60]})
+            found.append(
+                {"type": "location", "label": "Location", "value": loc_match.group(1).strip()[:60]}
+            )
             break
 
     # Score: based on how many essential items are found
@@ -936,22 +965,28 @@ def calculate_contact_info(cv_text: str) -> Dict[str, Any]:
 def calculate_sections(cv_text: str) -> Tuple[int, Dict[str, Any]]:
     """
     Score 0-100 based on presence of standard resume sections.
-    
+
     Args:
         cv_text: The CV text to analyze
-    
+
     Returns:
         Tuple of (score, details_dict)
     """
     text = (cv_text or "").strip().lower()
     if not text:
         return 0, {
-            "missing_sections": ["Contact", "Experience", "Education", "Skills", "Summary/Objective"]
+            "missing_sections": [
+                "Contact",
+                "Experience",
+                "Education",
+                "Skills",
+                "Summary/Objective",
+            ]
         }
-    
+
     found = {}
     missing = []
-    
+
     for name, keywords in SECTION_KEYWORDS.items():
         found[name] = any(kw in text for kw in keywords)
         if not found[name]:
@@ -965,11 +1000,11 @@ def calculate_sections(cv_text: str) -> Tuple[int, Dict[str, Any]]:
                 .title()
             )
             missing.append(display_name)
-    
+
     # Score: points per section present
     n = sum(1 for v in found.values() if v)
     score = min(SECTIONS_MAX_SCORE, n * SECTIONS_SCORE_PER_SECTION)
-    
+
     details = {
         "has_contact": found.get("contact", False),
         "has_experience": found.get("experience", False),
@@ -986,23 +1021,55 @@ def calculate_sections(cv_text: str) -> Tuple[int, Dict[str, Any]]:
 # Header phrases used to locate where each section starts in the extracted text.
 _SECTION_HEADER_PHRASES: Dict[str, list] = {
     "summary": [
-        "summary", "professional summary", "career summary", "executive summary",
-        "profile", "professional profile", "objective", "career objective", "about me", "about",
+        "summary",
+        "professional summary",
+        "career summary",
+        "executive summary",
+        "profile",
+        "professional profile",
+        "objective",
+        "career objective",
+        "about me",
+        "about",
     ],
     "experience": [
-        "experience", "work experience", "professional experience", "work history",
-        "employment history", "employment", "career history", "professional background",
-        "relevant experience", "industry experience",
+        "experience",
+        "work experience",
+        "professional experience",
+        "work history",
+        "employment history",
+        "employment",
+        "career history",
+        "professional background",
+        "relevant experience",
+        "industry experience",
     ],
     "education": [
-        "education", "educational background", "academic background", "academic qualifications",
-        "academic history", "education and training", "academics",
+        "education",
+        "educational background",
+        "academic background",
+        "academic qualifications",
+        "academic history",
+        "education and training",
+        "academics",
     ],
     "skills": [
-        "skills", "technical skills", "key skills", "core skills", "core competencies",
-        "competencies", "areas of expertise", "technologies",
+        "skills",
+        "technical skills",
+        "key skills",
+        "core skills",
+        "core competencies",
+        "competencies",
+        "areas of expertise",
+        "technologies",
     ],
-    "projects": ["projects", "personal projects", "academic projects", "key projects", "selected projects"],
+    "projects": [
+        "projects",
+        "personal projects",
+        "academic projects",
+        "key projects",
+        "selected projects",
+    ],
 }
 
 _ENTRY_LEVEL_RE = re.compile(
@@ -1140,13 +1207,61 @@ def calculate_sections_order(cv_text: str) -> Tuple[int, Dict[str, Any]]:
 # ── File Name Check ───────────────────────────────────────────────────────────
 # Generic / filler tokens that shouldn't be in a professional resume file name.
 _FILE_NAME_FILLER = {
-    "resume", "resumes", "cv", "cvs", "curriculum", "vitae", "final", "finalized",
-    "draft", "drafts", "updated", "update", "latest", "newest", "new", "old",
-    "copy", "version", "ver", "rev", "doc", "docx", "pdf", "document", "untitled",
-    "myresume", "mycv", "the", "for", "of", "and",
-    "jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "sept", "oct", "nov", "dec",
-    "january", "february", "march", "april", "june", "july", "august", "september",
-    "october", "november", "december",
+    "resume",
+    "resumes",
+    "cv",
+    "cvs",
+    "curriculum",
+    "vitae",
+    "final",
+    "finalized",
+    "draft",
+    "drafts",
+    "updated",
+    "update",
+    "latest",
+    "newest",
+    "new",
+    "old",
+    "copy",
+    "version",
+    "ver",
+    "rev",
+    "doc",
+    "docx",
+    "pdf",
+    "document",
+    "untitled",
+    "myresume",
+    "mycv",
+    "the",
+    "for",
+    "of",
+    "and",
+    "jan",
+    "feb",
+    "mar",
+    "apr",
+    "may",
+    "jun",
+    "jul",
+    "aug",
+    "sep",
+    "sept",
+    "oct",
+    "nov",
+    "dec",
+    "january",
+    "february",
+    "march",
+    "april",
+    "june",
+    "july",
+    "august",
+    "september",
+    "october",
+    "november",
+    "december",
 }
 
 
@@ -1187,8 +1302,7 @@ def calculate_file_name_quality(file_name: str) -> Tuple[int, Dict[str, Any]]:
     raw_tokens = [t for t in re.split(r"[\s_\-.]+", stem) if t]
     sub_tokens = [s for t in raw_tokens for s in _split_camel(t)]
     name_tokens = [
-        s for s in sub_tokens
-        if s.isalpha() and len(s) > 1 and s.lower() not in _FILE_NAME_FILLER
+        s for s in sub_tokens if s.isalpha() and len(s) > 1 and s.lower() not in _FILE_NAME_FILLER
     ]
     has_filler = any(s.isalpha() and s.lower() in _FILE_NAME_FILLER for s in sub_tokens)
 
@@ -1198,7 +1312,9 @@ def calculate_file_name_quality(file_name: str) -> Tuple[int, Dict[str, Any]]:
     if "." in stem:
         issues.append("Has extra periods — use a single dot only, before the file extension.")
     if re.search(r"[^A-Za-z0-9_\-.]", stem):
-        issues.append("Has spaces or special characters — stick to letters, hyphens, or underscores.")
+        issues.append(
+            "Has spaces or special characters — stick to letters, hyphens, or underscores."
+        )
     if has_filler:
         issues.append('Contains generic words like "resume" or "final" — they add no value.')
     if len(name_tokens) < 2:
@@ -1230,7 +1346,9 @@ def calculate_file_name_quality(file_name: str) -> Tuple[int, Dict[str, Any]]:
     }
 
 
-def calculate_ats_essentials(cv_text: str, file_name: str = "", file_size_bytes: int = 0) -> Tuple[int, Dict[str, Any]]:
+def calculate_ats_essentials(
+    cv_text: str, file_name: str = "", file_size_bytes: int = 0
+) -> Tuple[int, Dict[str, Any]]:
     """
     Score 0-100: section headers, text-based format, no obvious format issues.
     Also checks file format, email professionalism, and header links.
@@ -1324,8 +1442,20 @@ def calculate_ats_essentials(cv_text: str, file_name: str = "", file_size_bytes:
     email_str = email_match.group() if email_match else ""
     # Check email professionalism (not generic/unprofessional prefixes)
     unprofessional_prefixes = [
-        "sexy", "hot", "babe", "cool", "dude", "party", "gamer",
-        "xxx", "420", "love", "cute", "angel", "devil", "ninja",
+        "sexy",
+        "hot",
+        "babe",
+        "cool",
+        "dude",
+        "party",
+        "gamer",
+        "xxx",
+        "420",
+        "love",
+        "cute",
+        "angel",
+        "devil",
+        "ninja",
     ]
     is_professional = True
     if email_str:
@@ -1453,18 +1583,104 @@ def calculate_tailoring(cv_text: str, job_desc: str) -> Tuple[int, Dict[str, Any
     cv_words = set(re.findall(r"[a-z][a-z0-9\+\#\.]*(?:[a-z0-9\+\#])", cv))
 
     # Remove stop words and very short words
-    extra_stop = {"the", "and", "for", "are", "but", "not", "you", "all", "can", "had",
-                  "her", "was", "one", "our", "out", "has", "with", "this", "that", "from",
-                  "they", "been", "have", "will", "each", "make", "like", "long", "look",
-                  "many", "some", "them", "than", "its", "over", "such", "into", "other",
-                  "more", "very", "your", "what", "when", "which", "their", "about", "would",
-                  "there", "could", "should", "these", "where", "being", "those", "after",
-                  "most", "also", "made", "well", "back", "just", "know", "take", "come",
-                  "only", "work", "need", "part", "must", "role", "join", "able", "team",
-                  "good", "great", "strong", "experience", "required", "preferred",
-                  "including", "working", "ability", "responsible", "responsibilities",
-                  "requirements", "qualifications", "looking", "opportunity", "company",
-                  "position", "ideal", "candidate", "years", "minimum", "plus", "etc"}
+    extra_stop = {
+        "the",
+        "and",
+        "for",
+        "are",
+        "but",
+        "not",
+        "you",
+        "all",
+        "can",
+        "had",
+        "her",
+        "was",
+        "one",
+        "our",
+        "out",
+        "has",
+        "with",
+        "this",
+        "that",
+        "from",
+        "they",
+        "been",
+        "have",
+        "will",
+        "each",
+        "make",
+        "like",
+        "long",
+        "look",
+        "many",
+        "some",
+        "them",
+        "than",
+        "its",
+        "over",
+        "such",
+        "into",
+        "other",
+        "more",
+        "very",
+        "your",
+        "what",
+        "when",
+        "which",
+        "their",
+        "about",
+        "would",
+        "there",
+        "could",
+        "should",
+        "these",
+        "where",
+        "being",
+        "those",
+        "after",
+        "most",
+        "also",
+        "made",
+        "well",
+        "back",
+        "just",
+        "know",
+        "take",
+        "come",
+        "only",
+        "work",
+        "need",
+        "part",
+        "must",
+        "role",
+        "join",
+        "able",
+        "team",
+        "good",
+        "great",
+        "strong",
+        "experience",
+        "required",
+        "preferred",
+        "including",
+        "working",
+        "ability",
+        "responsible",
+        "responsibilities",
+        "requirements",
+        "qualifications",
+        "looking",
+        "opportunity",
+        "company",
+        "position",
+        "ideal",
+        "candidate",
+        "years",
+        "minimum",
+        "plus",
+        "etc",
+    }
     all_stop = STOP_WORDS | extra_stop
     jd_key = {w for w in jd_words if w not in all_stop and len(w) >= TAILORING_MIN_WORD_LENGTH}
 
@@ -1512,7 +1728,9 @@ def calculate_tailoring(cv_text: str, job_desc: str) -> Tuple[int, Dict[str, Any
     experience_relevance = int((keyword_match_rate + skill_match) / 2)
 
     # Final alignment score: weighted combination
-    alignment_score = int(keyword_match_rate * 0.4 + skill_match * 0.35 + experience_relevance * 0.25)
+    alignment_score = int(
+        keyword_match_rate * 0.4 + skill_match * 0.35 + experience_relevance * 0.25
+    )
     alignment_score = max(MIN_SCORE, min(MAX_SCORE, alignment_score))
 
     # Build readable lists (top keywords only, min 3 chars)
@@ -1534,17 +1752,17 @@ def calculate_tailoring(cv_text: str, job_desc: str) -> Tuple[int, Dict[str, Any
 def blend_scores(programmatic_score: int, ai_score: Optional[int]) -> int:
     """
     Blend programmatic and AI scores by averaging them.
-    
+
     Args:
         programmatic_score: Score calculated programmatically
         ai_score: Optional AI-provided score
-    
+
     Returns:
         Blended score (0-100)
     """
     if ai_score is None:
         return programmatic_score
-    
+
     ai_normalized = normalize_score(ai_score)
     return int((programmatic_score + ai_normalized) / 2)
 
@@ -1787,4 +2005,3 @@ def generate_section_rewrite_recommendations(
         )
 
     return recommendations
-

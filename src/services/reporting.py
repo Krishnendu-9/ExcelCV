@@ -31,7 +31,9 @@ def build_report_pdf_bytes(name: str, analysis: Dict[str, Any]) -> bytes:
         from reportlab.lib.pagesizes import A4
         from reportlab.pdfgen import canvas
     except ImportError as exc:
-        raise RuntimeError("PDF export requires reportlab. Install it from requirements.txt.") from exc
+        raise RuntimeError(
+            "PDF export requires reportlab. Install it from requirements.txt."
+        ) from exc
 
     def _normalize_lines(title: str, items: Any) -> List[str]:
         values = items if isinstance(items, list) else []
@@ -66,7 +68,9 @@ def build_report_pdf_bytes(name: str, analysis: Dict[str, Any]) -> bytes:
     content_lines.append("")
     content_lines.extend(_normalize_lines("Missing Skills", analysis.get("missing_skills", [])))
     content_lines.append("")
-    content_lines.extend(_normalize_lines("Missing Keywords (ATS)", analysis.get("missing_keywords", [])))
+    content_lines.extend(
+        _normalize_lines("Missing Keywords (ATS)", analysis.get("missing_keywords", []))
+    )
     content_lines.append("")
     content_lines.extend(_normalize_lines("Suggestions", analysis.get("suggestions", [])))
 
@@ -84,4 +88,3 @@ def build_report_pdf_bytes(name: str, analysis: Dict[str, Any]) -> bytes:
 
     pdf.save()
     return buffer.getvalue()
-

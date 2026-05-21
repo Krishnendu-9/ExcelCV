@@ -663,8 +663,10 @@ def render_static_page(page: str) -> None:
                         unsafe_allow_html=True,
                     )
                     inquiry = st.selectbox(
-                        "Inquiry type",
-                        ["General Inquiry", "Technical Support", "Feedback / Suggestion"],
+                        "Inquiry type *",
+                        options=["General Inquiry", "Technical Support", "Feedback / Suggestion"],
+                        index=None,
+                        placeholder="Choose an inquiry type…",
                     )
                     subject = st.text_input("Subject *", placeholder="How can we help?")
                     message = st.text_area(
@@ -682,6 +684,8 @@ def render_static_page(page: str) -> None:
                         st.error("Please fill in your name, email, and message.")
                     elif "@" not in email or "." not in email.split("@", 1)[-1]:
                         st.error("Enter a valid email address so we can reply to you.")
+                    elif not inquiry:
+                        st.error("Please choose an inquiry type.")
                     elif is_email_configured():
                         ok = send_contact_email(
                             name.strip(),

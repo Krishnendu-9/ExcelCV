@@ -1,4 +1,5 @@
 """Generates professional CVs as PDFs from structured JSON data."""
+
 from io import BytesIO
 from typing import Any
 from xml.sax.saxutils import escape as _esc
@@ -50,9 +51,9 @@ def generate_cv_pdf(
     buffer = BytesIO()
 
     # Scale PDF body font size from HTML px: HTML 11px ≈ PDF 9pt (base)
-    body_pt  = max(7, font_size - 2)
+    body_pt = max(7, font_size - 2)
     small_pt = max(6, font_size - 3)
-    leading  = round(body_pt * line_height) + 1
+    leading = round(body_pt * line_height) + 1
     spacer_h = max(2, round(entry_spacing * 0.6))
 
     doc = SimpleDocTemplate(
@@ -69,18 +70,70 @@ def generate_cv_pdf(
     link_color = colors.HexColor(cfg["link"])
     rule_color = colors.HexColor(cfg["rule"])
     base_font = _pdf_base_font(font_family or "")
-    base_font_bold = base_font.replace("Roman", "Bold") if "Times" in base_font else base_font + "-Bold"
+    base_font_bold = (
+        base_font.replace("Roman", "Bold") if "Times" in base_font else base_font + "-Bold"
+    )
 
-    name_s    = ParagraphStyle("name",    fontSize=22, leading=28, fontName=base_font_bold, alignment=TA_CENTER, textColor=primary, spaceAfter=3)
-    contact_s = ParagraphStyle("contact", fontSize=small_pt,  fontName=base_font,      alignment=TA_CENTER, textColor=accent,  spaceAfter=10)
-    section_s = ParagraphStyle("section", fontSize=body_pt,   fontName=base_font_bold, textColor=primary,   spaceBefore=spacer_h+2, spaceAfter=2)
-    title_s   = ParagraphStyle("title",   fontSize=body_pt,   fontName=base_font_bold, spaceAfter=1, leading=leading)
-    sub_s     = ParagraphStyle("sub",     fontSize=small_pt,  fontName=base_font,      textColor=accent, spaceAfter=2, leading=leading-1)
-    body_s    = ParagraphStyle("body",    fontSize=body_pt,   fontName=base_font,      spaceAfter=3, leading=leading)
-    bullet_s  = ParagraphStyle("bullet",  fontSize=small_pt,  fontName=base_font,      leftIndent=10, spaceAfter=1, leading=leading-1)
-    date_s    = ParagraphStyle("date",    fontSize=small_pt,  fontName=base_font,      alignment=TA_RIGHT, textColor=accent)
-    skill_s   = ParagraphStyle("skill",   fontSize=body_pt,   fontName=base_font,      spaceAfter=3, leading=leading)
-    link_s    = ParagraphStyle("link",    fontSize=max(6,small_pt-1), fontName=base_font, textColor=link_color, spaceAfter=2)
+    name_s = ParagraphStyle(
+        "name",
+        fontSize=22,
+        leading=28,
+        fontName=base_font_bold,
+        alignment=TA_CENTER,
+        textColor=primary,
+        spaceAfter=3,
+    )
+    contact_s = ParagraphStyle(
+        "contact",
+        fontSize=small_pt,
+        fontName=base_font,
+        alignment=TA_CENTER,
+        textColor=accent,
+        spaceAfter=10,
+    )
+    section_s = ParagraphStyle(
+        "section",
+        fontSize=body_pt,
+        fontName=base_font_bold,
+        textColor=primary,
+        spaceBefore=spacer_h + 2,
+        spaceAfter=2,
+    )
+    title_s = ParagraphStyle(
+        "title", fontSize=body_pt, fontName=base_font_bold, spaceAfter=1, leading=leading
+    )
+    sub_s = ParagraphStyle(
+        "sub",
+        fontSize=small_pt,
+        fontName=base_font,
+        textColor=accent,
+        spaceAfter=2,
+        leading=leading - 1,
+    )
+    body_s = ParagraphStyle(
+        "body", fontSize=body_pt, fontName=base_font, spaceAfter=3, leading=leading
+    )
+    bullet_s = ParagraphStyle(
+        "bullet",
+        fontSize=small_pt,
+        fontName=base_font,
+        leftIndent=10,
+        spaceAfter=1,
+        leading=leading - 1,
+    )
+    date_s = ParagraphStyle(
+        "date", fontSize=small_pt, fontName=base_font, alignment=TA_RIGHT, textColor=accent
+    )
+    skill_s = ParagraphStyle(
+        "skill", fontSize=body_pt, fontName=base_font, spaceAfter=3, leading=leading
+    )
+    link_s = ParagraphStyle(
+        "link",
+        fontSize=max(6, small_pt - 1),
+        fontName=base_font,
+        textColor=link_color,
+        spaceAfter=2,
+    )
 
     story: list = []
     personal = data.get("personal", {})
@@ -90,22 +143,43 @@ def generate_cv_pdf(
 
     if template == "modern":
         # Colored banner header — matches the HTML preview's blue header block
-        name_white_s    = ParagraphStyle("name_w",    fontSize=22,       leading=28,         fontName=base_font_bold, alignment=TA_CENTER, textColor=colors.white,                spaceAfter=0)
-        contact_light_s = ParagraphStyle("contact_l", fontSize=small_pt, fontName=base_font, alignment=TA_CENTER,     textColor=colors.HexColor("#bfdbfe"), spaceAfter=0)
+        name_white_s = ParagraphStyle(
+            "name_w",
+            fontSize=22,
+            leading=28,
+            fontName=base_font_bold,
+            alignment=TA_CENTER,
+            textColor=colors.white,
+            spaceAfter=0,
+        )
+        contact_light_s = ParagraphStyle(
+            "contact_l",
+            fontSize=small_pt,
+            fontName=base_font,
+            alignment=TA_CENTER,
+            textColor=colors.HexColor("#bfdbfe"),
+            spaceAfter=0,
+        )
         banner_rows = [[Paragraph(_esc(personal.get("full_name") or "Your Name"), name_white_s)]]
         if contact_parts:
-            banner_rows.append([Paragraph(" · ".join(_esc(p) for p in contact_parts), contact_light_s)])
+            banner_rows.append(
+                [Paragraph(" · ".join(_esc(p) for p in contact_parts), contact_light_s)]
+            )
         content_w = A4[0] - margin_lr * mm * 2
         banner = Table(banner_rows, colWidths=[content_w])
-        banner.setStyle(TableStyle([
-            ("BACKGROUND",    (0, 0), (-1, -1), primary),
-            ("ALIGN",         (0, 0), (-1, -1), "CENTER"),
-            ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
-            ("TOPPADDING",    (0, 0), (-1, -1), 16),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 16),
-            ("LEFTPADDING",   (0, 0), (-1, -1), 20),
-            ("RIGHTPADDING",  (0, 0), (-1, -1), 20),
-        ]))
+        banner.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, -1), primary),
+                    ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                    ("TOPPADDING", (0, 0), (-1, -1), 16),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 16),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 20),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 20),
+                ]
+            )
+        )
         story.append(banner)
         story.append(Spacer(1, 10))
     else:
@@ -124,13 +198,17 @@ def generate_cv_pdf(
     def role_date_row(left: str, right: str) -> None:
         row = [[Paragraph(left, title_s), Paragraph(right, date_s)]]
         t = Table(row, colWidths=["75%", "25%"])
-        t.setStyle(TableStyle([
-            ("VALIGN", (0, 0), (-1, -1), "TOP"),
-            ("LEFTPADDING", (0, 0), (-1, -1), 0),
-            ("RIGHTPADDING", (0, 0), (-1, -1), 0),
-            ("TOPPADDING", (0, 0), (-1, -1), 0),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
-        ]))
+        t.setStyle(
+            TableStyle(
+                [
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                    ("TOPPADDING", (0, 0), (-1, -1), 0),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+                ]
+            )
+        )
         story.append(t)
 
     summary = personal.get("summary", "")
@@ -147,7 +225,9 @@ def generate_cv_pdf(
             date_range = f"{start} – {end}" if start else end
             role_date_row(f"<b>{_esc(exp.get('role', ''))}</b>", date_range)
             loc = exp.get("location", "")
-            story.append(Paragraph(f"{_esc(exp.get('company', ''))}{', ' + _esc(loc) if loc else ''}", sub_s))
+            story.append(
+                Paragraph(f"{_esc(exp.get('company', ''))}{', ' + _esc(loc) if loc else ''}", sub_s)
+            )
             for b in exp.get("bullets", []):
                 if b.strip():
                     story.append(Paragraph(f"• {_esc(b)}", bullet_s))
@@ -177,7 +257,12 @@ def generate_cv_pdf(
         for cat in categories:
             items = cat.get("items", [])
             if items:
-                story.append(Paragraph(f"<b>{_esc(cat.get('name', ''))}:</b> {', '.join(_esc(i) for i in items)}", skill_s))
+                story.append(
+                    Paragraph(
+                        f"<b>{_esc(cat.get('name', ''))}:</b> {', '.join(_esc(i) for i in items)}",
+                        skill_s,
+                    )
+                )
 
     projects = data.get("projects", [])
     if projects:

@@ -45,4 +45,3 @@ def preferred_models() -> List[Optional[str]]:
         seen.add(model)
         unique_models.append(model)
     return unique_models
-

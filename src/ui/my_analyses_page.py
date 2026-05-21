@@ -71,9 +71,7 @@ def _delete_ids(ids: Iterable[str]) -> int:
     db = get_db()
     try:
         deleted = (
-            db.query(Analysis)
-            .filter(Analysis.id.in_(id_list))
-            .delete(synchronize_session=False)
+            db.query(Analysis).filter(Analysis.id.in_(id_list)).delete(synchronize_session=False)
         )
         db.commit()
         return int(deleted or 0)
@@ -86,8 +84,7 @@ def _matches_search(analysis: Analysis, needle: str) -> bool:
         return True
     needle = needle.lower().strip()
     haystack = " ".join(
-        str(getattr(analysis, attr, "") or "")
-        for attr in ("cv_name", "job_description")
+        str(getattr(analysis, attr, "") or "") for attr in ("cv_name", "job_description")
     ).lower()
     return needle in haystack
 
@@ -189,6 +186,7 @@ def _render_card_actions(analysis: Analysis) -> None:
                 st.session_state[f"confirm_delete_analysis_{analysis.id}"] = True
 
     if st.session_state.get(f"confirm_delete_analysis_{analysis.id}"):
+
         def _do_delete(target_id=str(analysis.id)):
             _delete_ids([target_id])
             st.session_state.pop(f"confirm_delete_analysis_{target_id}", None)
@@ -295,6 +293,7 @@ def _render_group_card(
                             st.session_state[f"confirm_delete_group_{group_id}"] = True
 
                 if st.session_state.get(f"confirm_delete_group_{group_id}"):
+
                     def _do_group_delete(target_ids=tuple(str(r.id) for r in runs), gid=group_id):
                         n = _delete_ids(target_ids)
                         st.session_state.pop(f"confirm_delete_group_{gid}", None)
@@ -339,8 +338,11 @@ def _render_group_expansion(runs: Sequence[Analysis], *, select_mode: bool) -> N
         score = float(getattr(run, "match_score", 0) or 0)
         safe_time = html.escape(fmt_dt(run.created_at))
         with st.container(key=f"lp_subrun_{run.id}"):
-            cols = st.columns([0.08, 4, 1, 1.2, 0.55], gap="small") if not select_mode \
+            cols = (
+                st.columns([0.08, 4, 1, 1.2, 0.55], gap="small")
+                if not select_mode
                 else st.columns([0.08, 4, 1, 1.2, 0.55], gap="small")
+            )
             with cols[0]:
                 if select_mode:
                     _render_select_checkbox(str(run.id))
@@ -370,6 +372,7 @@ def _render_group_expansion(runs: Sequence[Analysis], *, select_mode: bool) -> N
                             st.session_state[f"confirm_delete_analysis_{run.id}"] = True
 
         if st.session_state.get(f"confirm_delete_analysis_{run.id}"):
+
             def _do_delete(target_id=str(run.id)):
                 _delete_ids([target_id])
                 st.session_state.pop(f"confirm_delete_analysis_{target_id}", None)
@@ -485,6 +488,7 @@ def render_my_analyses_page() -> None:
             )
 
             if confirm_pending:
+
                 def _do_bulk_delete():
                     ids = list(st.session_state.get(_SS_SELECTED) or [])
                     n = _delete_ids(ids)

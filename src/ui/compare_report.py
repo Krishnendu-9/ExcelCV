@@ -28,11 +28,13 @@ def _autosave_comparison(
     so users can revisit the same ranked output without re-uploading files.
     """
     from src.auth_utils import get_session_user
+
     user = get_session_user()
     if not user or not rows:
         return None
     try:
         from src.database import Comparison, get_db
+
         top_row = rows[0] if rows else {}
         top_score = float(top_row.get("Final Score", 0) or 0)
         top_name = str(top_row.get("Resume", "") or "")
@@ -61,11 +63,13 @@ def _autosave_comparison(
 def _load_saved_comparison_into_session(comparison_id: str) -> bool:
     """Hydrate session_state from a saved comparison record. Returns True on success."""
     from src.auth_utils import get_session_user
+
     user = get_session_user()
     if not user:
         return False
     try:
         from src.database import Comparison, get_db
+
         db = get_db()
         try:
             record = (
@@ -167,22 +171,22 @@ def _build_top_match_card_html(best: dict[str, object]) -> str:
         '<div class="compare-top-card__score">'
         f'<span class="compare-top-card__score-value">{best_score}</span>'
         '<span class="compare-top-card__score-total">/100</span>'
-        '</div>'
-        '</div>'
+        "</div>"
+        "</div>"
         '<div class="compare-top-card__bar">'
         f'<div class="compare-top-card__bar-fill" style="width: {best_score}%;"></div>'
-        '</div>'
+        "</div>"
         '<div class="compare-top-card__metrics">'
         f'<span class="compare-top-card__metric">JD Alignment <strong>{jd}</strong></span>'
         f'<span class="compare-top-card__metric">ATS Parse <strong>{ats}</strong></span>'
         f'<span class="compare-top-card__metric">Sections <strong>{sections}</strong></span>'
         f'<span class="compare-top-card__metric">Issues <strong>{issues}</strong></span>'
-        '</div>'
+        "</div>"
         '<div class="compare-top-card__skills">'
         f'<span class="compare-top-card__skills-label">{skills_label}</span>'
-        f'{missing_chips_html}'
-        '</div>'
-        '</div>'
+        f"{missing_chips_html}"
+        "</div>"
+        "</div>"
     )
 
 
@@ -196,7 +200,9 @@ def _render_resume_drilldowns(rows: list[dict[str, Any]]) -> None:
     """
     if not rows:
         return
-    st.markdown('<div class="compare-drilldown-title">Per-resume details</div>', unsafe_allow_html=True)
+    st.markdown(
+        '<div class="compare-drilldown-title">Per-resume details</div>', unsafe_allow_html=True
+    )
     for row in rows:
         rank = int(row.get("Rank", 0) or 0)
         name = str(row.get("Resume", ""))
@@ -232,13 +238,17 @@ def _render_resume_drilldowns(rows: list[dict[str, Any]]) -> None:
                     unsafe_allow_html=True,
                 )
 
-            suggestions = [str(s).strip() for s in (analysis.get("suggestions") or []) if str(s).strip()]
+            suggestions = [
+                str(s).strip() for s in (analysis.get("suggestions") or []) if str(s).strip()
+            ]
             if suggestions:
                 st.markdown("**Suggestions**")
                 for tip in suggestions[:6]:
                     st.markdown(f"- {tip}")
 
-            missing_keywords = [str(k).strip() for k in (analysis.get("missing_keywords") or []) if str(k).strip()]
+            missing_keywords = [
+                str(k).strip() for k in (analysis.get("missing_keywords") or []) if str(k).strip()
+            ]
             if missing_keywords:
                 st.markdown("**Missing keywords**: " + ", ".join(missing_keywords[:12]))
 
@@ -394,6 +404,7 @@ def _build_comparison_pdf_bytes(
     don't re-invoke ReportLab. Cache key is the full args tuple — different
     sort = different rows order = fresh PDF, which is what we want."""
     from src.services.comparison_pdf import generate_comparison_pdf
+
     return generate_comparison_pdf(
         rows=rows,
         job_description=job_description,
@@ -485,10 +496,10 @@ def _render_comparison_table_html(
                 f'<div class="compare-meter">'
                 f'<div class="compare-meter__track">'
                 f'<div class="compare-meter__fill" style="width:{val}%;"></div>'
-                f'</div>'
+                f"</div>"
                 f'<span class="compare-meter__val">{val}</span>'
-                f'</div>'
-                f'</td>'
+                f"</div>"
+                f"</td>"
             )
 
         issues = int(row.get("Issues", 0) or 0)
@@ -506,8 +517,8 @@ def _render_comparison_table_html(
     st.markdown(
         '<div class="compare-table-wrap">'
         f'<table class="compare-table"><thead><tr>{head}</tr></thead>'
-        f'<tbody>{"".join(body_rows)}</tbody></table>'
-        '</div>',
+        f"<tbody>{''.join(body_rows)}</tbody></table>"
+        "</div>",
         unsafe_allow_html=True,
     )
 
@@ -599,7 +610,7 @@ def render_compare_report_page() -> None:
                 f'<span class="hero-chip">&#10003; {resumes_compared} {resume_word} compared</span>'
                 f'<span class="hero-chip">&#10003; Top score {top_score}</span>'
                 f'<span class="hero-chip">&#10003; Average {avg_score}</span>'
-                '</div>'
+                "</div>"
             )
             chip_cols = st.columns([2.4, 1.4], gap="small")
             with chip_cols[0]:

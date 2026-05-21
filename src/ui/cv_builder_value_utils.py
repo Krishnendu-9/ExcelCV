@@ -1,4 +1,5 @@
 """Pure value normalization and escaping helpers for CV builder."""
+
 from __future__ import annotations
 
 from src.ui.cv_builder_constants import (
@@ -46,7 +47,7 @@ def _coerce_bool(value: object, default: bool = False) -> bool:
 
 def _normalize_section_order(order: list | None) -> list[str]:
     normalized: list[str] = []
-    for item in (order or []):
+    for item in order or []:
         sid = _section_id(str(item))
         if sid and sid not in normalized:
             normalized.append(sid)

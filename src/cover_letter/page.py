@@ -73,12 +73,7 @@ def _load_user_saved_cvs(user_id: str) -> list[CV]:
         return []
     db = get_db()
     try:
-        return (
-            db.query(CV)
-            .filter(CV.user_id == user_id)
-            .order_by(CV.updated_at.desc())
-            .all()
-        )
+        return db.query(CV).filter(CV.user_id == user_id).order_by(CV.updated_at.desc()).all()
     finally:
         db.close()
 
@@ -655,6 +650,8 @@ def render_cover_letter_page() -> None:
                 pick = st.selectbox(
                     "Pick a saved CV",
                     options=list(cv_labels.keys()),
+                    index=None,
+                    placeholder="Choose a saved CV…",
                     key="cover_letter_saved_cv_pick",
                 )
                 chosen_saved_cv_id = cv_labels.get(pick, "")
@@ -802,17 +799,14 @@ def render_cover_letter_page() -> None:
                 "Additional Information (Optional)",
                 key="cover_letter_additional_info",
                 height=120,
-                placeholder=(
-                    "Specific achievements, projects, or tone notes you want emphasised."
-                ),
+                placeholder=("Specific achievements, projects, or tone notes you want emphasised."),
             )
 
             # Disable Generate until both required fields and a CV are present.
             # Server-side validate_form_inputs() is still the source of truth —
             # this is just a UX guard so the user doesn't waste a click.
-            cv_present = (
-                (source_choice == _RESUME_SOURCE_UPLOAD and uploaded_cv is not None)
-                or (source_choice == _RESUME_SOURCE_SAVED and bool(chosen_saved_cv_id))
+            cv_present = (source_choice == _RESUME_SOURCE_UPLOAD and uploaded_cv is not None) or (
+                source_choice == _RESUME_SOURCE_SAVED and bool(chosen_saved_cv_id)
             )
             can_submit = bool(job_title.strip()) and bool(company_name.strip()) and cv_present
             if can_submit:
@@ -888,11 +882,15 @@ def render_cover_letter_page() -> None:
                             application_source=application_source,
                         )
                     st.session_state[_STATE_RESULT] = result
-                    st.session_state[_STATE_SUCCESS] = "Cover letter generated successfully! Download is ready."
+                    st.session_state[_STATE_SUCCESS] = (
+                        "Cover letter generated successfully! Download is ready."
+                    )
                 except (RuntimeError, ValueError) as exc:
                     st.session_state[_STATE_ERROR] = str(exc)
                 except Exception:
-                    st.session_state[_STATE_ERROR] = "Something went wrong while generating the cover letter."
+                    st.session_state[_STATE_ERROR] = (
+                        "Something went wrong while generating the cover letter."
+                    )
 
         # ── Result + tips (kept inside the shell so scoped CSS hits) ──
         error_msg = str(st.session_state.get(_STATE_ERROR, "") or "")

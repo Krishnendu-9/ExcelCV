@@ -71,13 +71,14 @@ DARK_PLACEHOLDER = "#9ca3af"
 # CSS Selectors
 THEME_BUTTON_SELECTORS = [
     'button[key="theme_toggle"]',
-    '.theme-toggle',
+    ".theme-toggle",
     '[data-testid="stAppViewContainer"] button[key="theme_toggle"]',
     '.stButton button[key="theme_toggle"]',
     'button[data-baseweb="button"][key="theme_toggle"]',
     '[data-testid="baseButton-secondary"][key="theme_toggle"]',
     'button:has([data-testid="baseButton-secondary"])[key="theme_toggle"]',
 ]
+
 
 def get_theme_colors(is_light: bool) -> Dict[str, str]:
     """Get theme-specific color dictionary."""

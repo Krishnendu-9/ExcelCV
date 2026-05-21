@@ -284,6 +284,7 @@ def logout_user() -> None:
 
 # ── Google OAuth ──────────────────────────────────────────────────────────────
 
+
 def get_or_create_google_user(google_info: dict) -> Optional[dict]:
     """Find or create a user from Google userinfo payload.
 
@@ -324,6 +325,7 @@ def get_or_create_google_user(google_info: dict) -> Optional[dict]:
 
 # ── Password Reset ────────────────────────────────────────────────────────────
 
+
 def create_password_reset_token(email: str) -> Optional[str]:
     """Generate a password-reset token for *email* and persist its hash.
 
@@ -360,9 +362,9 @@ def use_password_reset_token(raw_token: str, new_password: str) -> tuple[bool, s
     db = get_db()
     try:
         token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
-        record = db.query(PasswordResetToken).filter(
-            PasswordResetToken.token_hash == token_hash
-        ).first()
+        record = (
+            db.query(PasswordResetToken).filter(PasswordResetToken.token_hash == token_hash).first()
+        )
         if not record:
             return False, "Invalid or expired reset link. Please request a new one."
         exp = record.expires_at

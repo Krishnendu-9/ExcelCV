@@ -1,4 +1,5 @@
 """Preview/demo data helpers for the CV builder."""
+
 from __future__ import annotations
 
 
@@ -86,7 +87,12 @@ def _get_demo_cv_data() -> dict:
         ],
         "certifications": [
             {"name": "AWS Solutions Architect", "issuer": "Amazon", "date": "Apr 2023", "link": ""},
-            {"name": "Google Cloud Professional Developer", "issuer": "Google", "date": "Aug 2022", "link": ""},
+            {
+                "name": "Google Cloud Professional Developer",
+                "issuer": "Google",
+                "date": "Aug 2022",
+                "link": "",
+            },
         ],
         "languages": [
             {"language": "English", "proficiency": "Native"},
@@ -160,7 +166,9 @@ def _build_preview_data_with_demo_defaults(user_data: dict) -> dict:
             cleaned_uitems.append({"name": str(item.get("name", "")).strip()})
     if cleaned_uitems:
         out["skills"]["items"] = cleaned_uitems
-        out["skills"]["categories"] = [{"id": "primary", "name": "Skills", "items": [s["name"] for s in cleaned_uitems]}]
+        out["skills"]["categories"] = [
+            {"id": "primary", "name": "Skills", "items": [s["name"] for s in cleaned_uitems]}
+        ]
     else:
         out["skills"] = demo.get("skills", {"items": [], "categories": []})
 

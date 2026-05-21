@@ -141,12 +141,9 @@ _ICON_GEAR = (
     "1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 "
     "0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z'/>"
 )
-_ICON_USER = (
-    "<path d='M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2'/>" "<circle cx='12' cy='7' r='4'/>"
-)
+_ICON_USER = "<path d='M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2'/><circle cx='12' cy='7' r='4'/>"
 _ICON_BELL = (
-    "<path d='M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9'/>"
-    "<path d='M13.73 21a2 2 0 0 1-3.46 0'/>"
+    "<path d='M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9'/><path d='M13.73 21a2 2 0 0 1-3.46 0'/>"
 )
 _ICON_SLIDERS = (
     "<line x1='4' x2='4' y1='21' y2='14'/><line x1='4' x2='4' y1='10' y2='3'/>"
@@ -155,8 +152,7 @@ _ICON_SLIDERS = (
     "<line x1='2' x2='6' y1='14' y2='14'/><line x1='10' x2='14' y1='8' y2='8'/><line x1='18' x2='22' y1='16' y2='16'/>"
 )
 _ICON_LOCK = (
-    "<rect width='18' height='11' x='3' y='11' rx='2' ry='2'/>"
-    "<path d='M7 11V7a5 5 0 0 1 10 0v4'/>"
+    "<rect width='18' height='11' x='3' y='11' rx='2' ry='2'/><path d='M7 11V7a5 5 0 0 1 10 0v4'/>"
 )
 _ICON_TRASH = (
     "<polyline points='3 6 5 6 21 6'/>"
@@ -743,15 +739,15 @@ def render_settings_page() -> None:
                     </div>
                     <div class="settings-profile-stats">
                         <div class="settings-profile-stat">
-                            <span class="settings-profile-stat-num">{stats['cvs']}</span>
+                            <span class="settings-profile-stat-num">{stats["cvs"]}</span>
                             <span class="settings-profile-stat-label">Saved CVs</span>
                         </div>
                         <div class="settings-profile-stat">
-                            <span class="settings-profile-stat-num">{stats['analyses']}</span>
+                            <span class="settings-profile-stat-num">{stats["analyses"]}</span>
                             <span class="settings-profile-stat-label">Analyses</span>
                         </div>
                         <div class="settings-profile-stat">
-                            <span class="settings-profile-stat-num">{stats['comparisons']}</span>
+                            <span class="settings-profile-stat-num">{stats["comparisons"]}</span>
                             <span class="settings-profile-stat-label">Comparisons</span>
                         </div>
                     </div>

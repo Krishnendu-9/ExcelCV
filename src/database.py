@@ -44,31 +44,45 @@ class User(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
-    hashed_password: Mapped[str] = mapped_column(String(255), nullable=False, default="GOOGLE_OAUTH")
+    hashed_password: Mapped[str] = mapped_column(
+        String(255), nullable=False, default="GOOGLE_OAUTH"
+    )
     full_name: Mapped[str] = mapped_column(String(255), nullable=False)
-    google_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True, unique=True, index=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+    google_id: Mapped[Optional[str]] = mapped_column(
+        String(255), nullable=True, unique=True, index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=lambda: datetime.now(timezone.utc)
+    )
 
 
 class PasswordResetToken(Base):
     __tablename__ = "password_reset_tokens"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
     token_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
     expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=lambda: datetime.now(timezone.utc)
+    )
 
 
 class CV(Base):
     __tablename__ = "cvs"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
     title: Mapped[str] = mapped_column(String(255), nullable=False, default="My Resume")
     template: Mapped[str] = mapped_column(String(50), nullable=False, default="classic")
     data: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=lambda: datetime.now(timezone.utc)
+    )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,
         default=lambda: datetime.now(timezone.utc),
@@ -80,12 +94,16 @@ class Analysis(Base):
     __tablename__ = "analyses"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
     cv_name: Mapped[str] = mapped_column(String(255), nullable=False)
     job_description: Mapped[str] = mapped_column(Text, nullable=False)
     result: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
     match_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=lambda: datetime.now(timezone.utc)
+    )
 
 
 class Comparison(Base):
@@ -101,7 +119,9 @@ class Comparison(Base):
     __tablename__ = "comparisons"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
     job_description: Mapped[str] = mapped_column(Text, nullable=False)
     rows: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
     errors: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
@@ -109,7 +129,9 @@ class Comparison(Base):
     resume_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     top_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     top_resume_name: Mapped[str] = mapped_column(String(255), nullable=False, default="")
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=lambda: datetime.now(timezone.utc)
+    )
 
 
 def _migrate() -> None:

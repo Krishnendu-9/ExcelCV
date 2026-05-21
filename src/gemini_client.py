@@ -127,18 +127,18 @@ def _extract_json_from_text(text: str) -> str:
     """Extract JSON from text that might be wrapped in markdown code blocks or have extra text."""
     if not text:
         return ""
-    
+
     # Remove markdown code blocks (```json ... ``` or ``` ... ```)
-    text = re.sub(r'```(?:json)?\s*\n?(.*?)\n?```', r'\1', text, flags=re.DOTALL)
-    
+    text = re.sub(r"```(?:json)?\s*\n?(.*?)\n?```", r"\1", text, flags=re.DOTALL)
+
     # Try to find JSON object boundaries
     # Look for first { and last }
-    first_brace = text.find('{')
-    last_brace = text.rfind('}')
-    
+    first_brace = text.find("{")
+    last_brace = text.rfind("}")
+
     if first_brace != -1 and last_brace != -1 and last_brace > first_brace:
-        text = text[first_brace:last_brace + 1]
-    
+        text = text[first_brace : last_brace + 1]
+
     return text.strip()
 
 
@@ -171,14 +171,14 @@ def _normalize_model_name(model: Optional[str]) -> Optional[str]:
     """Ensure model name has the 'models/' prefix if it's a valid model identifier."""
     if not model:
         return None
-    
+
     model = model.strip()
     # If it doesn't start with 'models/', add it (unless it's already a full path)
-    if not model.startswith('models/') and '/' not in model:
+    if not model.startswith("models/") and "/" not in model:
         # Check if it looks like a model name (e.g., "gemini-2.0-flash-exp")
-        if model.startswith('gemini-'):
+        if model.startswith("gemini-"):
             return f"models/{model}"
-    
+
     return model
 
 
@@ -187,7 +187,9 @@ def _as_dict(value: Any) -> Dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
 
-def _generate_with_retry(model: genai.GenerativeModel, prompt: str, generation_config: Dict[str, Any]) -> Any:
+def _generate_with_retry(
+    model: genai.GenerativeModel, prompt: str, generation_config: Dict[str, Any]
+) -> Any:
     """Generate content with a short retry on transient errors."""
     attempts = 2
     for attempt in range(attempts):
@@ -346,7 +348,7 @@ CV:
         "temperature": 0.0,
         "top_p": 1.0,
     }
-    
+
     for candidate in preferred:
         if not candidate:
             continue
@@ -384,15 +386,25 @@ CV:
 
     # Try to extract and parse JSON
     json_text = _extract_json_from_text(raw_text)
-    
+
     if not json_text:
-        logger.warning("Gemini response JSON extraction failed. tried_models=%s raw_preview=%r", tried, raw_text[:800])
+        logger.warning(
+            "Gemini response JSON extraction failed. tried_models=%s raw_preview=%r",
+            tried,
+            raw_text[:800],
+        )
         raise ValueError("AI response was not in expected JSON format.")
-    
+
     try:
         parsed = json.loads(json_text)
     except json.JSONDecodeError as exc:
-        logger.warning("Gemini response JSON parse failed. tried_models=%s json_preview=%r raw_preview=%r error=%s", tried, json_text[:800], raw_text[:800], exc)
+        logger.warning(
+            "Gemini response JSON parse failed. tried_models=%s json_preview=%r raw_preview=%r error=%s",
+            tried,
+            json_text[:800],
+            raw_text[:800],
+            exc,
+        )
         raise ValueError("AI response was not in expected JSON format.") from exc
 
     if not isinstance(parsed, dict):
@@ -512,7 +524,9 @@ CV:
     match_score = score_breakdown.get("final_score", normalize_score(parsed.get("match_score", 0)))
 
     # Final-project enhancement layer (deterministic and safe).
-    recruiter_snapshot = build_recruiter_snapshot(parsed | {"match_score": match_score}, file_name or "Resume")
+    recruiter_snapshot = build_recruiter_snapshot(
+        parsed | {"match_score": match_score}, file_name or "Resume"
+    )
     priority_action_plan = build_priority_action_plan(
         {
             "match_score": match_score,
@@ -559,7 +573,9 @@ CV:
         "missing_keywords": _as_list(parsed.get("missing_keywords", [])),
         "subscores": {
             "skills_alignment": normalize_score(subscores.get("skills_alignment", match_score)),
-            "experience_alignment": normalize_score(subscores.get("experience_alignment", match_score)),
+            "experience_alignment": normalize_score(
+                subscores.get("experience_alignment", match_score)
+            ),
             "ats_readiness": normalize_score(subscores.get("ats_readiness", match_score)),
         },
         "content_metrics": {
@@ -659,5 +675,3 @@ def suggest_cv_bullets(role: str, company: str, context: str = "") -> List[str]:
         raise
 
     return []
-
-

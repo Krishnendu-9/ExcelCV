@@ -201,4 +201,3 @@ def parse_confidence_chip(cv_text: str, file_ext: str = ".pdf") -> tuple[str, st
     if len(cv_text.strip()) >= _MIN_PARSE_TEXT_CHARS:
         return (f"Parse: text extracted ({source})", "chip")
     return (f"Parse: low text extraction (check {source})", "chip chip-warn")
-

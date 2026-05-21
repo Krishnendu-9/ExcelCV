@@ -31,8 +31,7 @@ def score_badge_html(score: float, suffix: str = "%") -> str:
         tier = "low"
     label = f"{value:.0f}{suffix}"
     return (
-        f'<span class="lp-score lp-score--{tier}">'
-        f'<span class="lp-score-dot"></span>{label}</span>'
+        f'<span class="lp-score lp-score--{tier}"><span class="lp-score-dot"></span>{label}</span>'
     )
 
 
@@ -698,7 +697,9 @@ def render_delete_confirm(
         )
         c1, c2, _ = st.columns([1.3, 1, 2])
         with c1:
-            if st.button(confirm_label, key=f"lp_confirm_yes_{key}", type="primary", width="stretch"):
+            if st.button(
+                confirm_label, key=f"lp_confirm_yes_{key}", type="primary", width="stretch"
+            ):
                 on_confirm()
         with c2:
             if st.button("Cancel", key=f"lp_confirm_no_{key}", width="stretch"):

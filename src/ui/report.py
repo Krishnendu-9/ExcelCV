@@ -26,8 +26,8 @@ def _build_sidebar_html(
     cv_name: str = "",
 ) -> str:
     """Build the entire sidebar as one complete HTML string."""
-    issues_cls = 'clickable' if issues > 0 else ''
-    issues_attr = 'data-section-id="suggestions"' if issues > 0 else ''
+    issues_cls = "clickable" if issues > 0 else ""
+    issues_attr = 'data-section-id="suggestions"' if issues > 0 else ""
     breakdown_html = _build_score_breakdown_html(score_breakdown or {})
 
     score_int = int(score) if isinstance(score, (int, float)) else 0
@@ -66,8 +66,8 @@ def _build_sidebar_html(
         badge_cls = get_score_color_class(safe_score)
         category_id = title.lower().replace(" ", "-")
         has_items = len(items) > 0
-        cursor = 'cursor:pointer;' if has_items else ''
-        chevron = '<span class="category-chevron">&#9660;</span>' if has_items else ''
+        cursor = "cursor:pointer;" if has_items else ""
+        chevron = '<span class="category-chevron">&#9660;</span>' if has_items else ""
 
         html += f"""
         <div class="category">
@@ -84,9 +84,12 @@ def _build_sidebar_html(
             for item in items:
                 item_label, status = item[0], item[1]
                 score_val = item[2] if len(item) > 2 else None
-                badge_class = {"ok": "badge badge-ok", "warn": "badge badge-warn",
-                               "error": "badge badge-warn", "lock": "badge badge-lock"
-                               }.get(status, "badge badge-warn")
+                badge_class = {
+                    "ok": "badge badge-ok",
+                    "warn": "badge badge-warn",
+                    "error": "badge badge-warn",
+                    "lock": "badge badge-lock",
+                }.get(status, "badge badge-warn")
 
                 # Content category metrics always show a percentage score, not an issue count.
                 is_content_metric = item_label in (
@@ -96,7 +99,7 @@ def _build_sidebar_html(
                     "Spelling & Grammar",
                     "Bullets Consistency",
                 )
-                
+
                 if is_content_metric:
                     # Always show percentage for content metrics
                     if score_val is not None and isinstance(score_val, (int, float)):
@@ -106,13 +109,21 @@ def _build_sidebar_html(
                 elif status in ("warn", "error"):
                     # For other metrics, show issue count if available
                     if score_val is not None and isinstance(score_val, (int, float)):
-                        badge_text = f"{int(score_val)} {'issue' if int(score_val) == 1 else 'issues'}"
+                        badge_text = (
+                            f"{int(score_val)} {'issue' if int(score_val) == 1 else 'issues'}"
+                        )
                     else:
                         badge_text = "Review"
                 else:
                     badge_text = {"ok": "No issues", "lock": "Locked"}.get(status, "Review")
 
-                section_id = item_label.lower().replace(" & ", "-").replace(" ", "-").replace("--", "-").strip("-")
+                section_id = (
+                    item_label.lower()
+                    .replace(" & ", "-")
+                    .replace(" ", "-")
+                    .replace("--", "-")
+                    .strip("-")
+                )
                 icon_cls = "icon-ok" if status == "ok" else "icon-warn"
                 icon = "&#10003;" if status == "ok" else "&#10005;"
                 clickable = "clickable" if status != "lock" else ""
@@ -126,15 +137,14 @@ def _build_sidebar_html(
                     </span>
                     <span class="{badge_class}">{badge_text}</span>
                 </div>"""
-            html += '</div>'  # close category-items
+            html += "</div>"  # close category-items
 
-        html += '</div>'  # close category
+        html += "</div>"  # close category
 
-    html += '</div>'  # close report-sidebar
+    html += "</div>"  # close report-sidebar
     # Collapse to a continuous HTML block: strip leading whitespace and drop blank lines
     # so st.markdown never treats an indented / blank-prefixed line as a code block.
     return "\n".join(line.lstrip() for line in html.splitlines() if line.strip())
-
 
 
 def _escape_html(value: Any) -> str:
@@ -144,7 +154,9 @@ def _escape_html(value: Any) -> str:
 
 def _build_ats_parse_rate_html(ats_val: int) -> str:
     ats_badge_cls = "badge-ok" if ats_val >= 80 else "badge-warn"
-    ats_badge_txt = "Excellent" if ats_val >= 80 else ("Good" if ats_val >= 60 else "Needs Improvement")
+    ats_badge_txt = (
+        "Excellent" if ats_val >= 80 else ("Good" if ats_val >= 60 else "Needs Improvement")
+    )
     ats_msg = (
         f"Great! We parsed {ats_val}% of your resume successfully."
         if ats_val >= 80
@@ -280,14 +292,14 @@ def _build_quantifying_impact_html(quant_impact: Dict[str, Any]) -> str:
                     <div class="issue-desc">{q_count} of {q_total} bullet points contain numbers. The following need quantification:</div>"""
         for line in q_non_quant:
             quant_html += f'<div class="issue-item"><span class="issue-x">&#10005;</span><span>{_escape_html(line)}</span></div>'
-        quant_html += '</div>'
+        quant_html += "</div>"
     elif q_status == "ok":
         quant_html += """
                 <div class="issue-card good-card" style="margin-top:14px;">
                     <div class="issue-heading">Great job! Your achievements are well quantified.</div>
                 </div>"""
 
-    quant_html += '</div></div>'
+    quant_html += "</div></div>"
     return quant_html
 
 
@@ -325,15 +337,15 @@ def _build_repetition_html(repetition: Dict[str, Any]) -> str:
                 rep_html += '<span class="repeat-label">try replacing with</span>'
                 for suggestion in suggestions:
                     rep_html += f'<span class="repeat-suggestion">{suggestion}</span>'
-            rep_html += '</div>'
-        rep_html += '</div>'
+            rep_html += "</div>"
+        rep_html += "</div>"
     elif r_status == "ok":
         rep_html += """
                 <div class="issue-card good-card" style="margin-top:14px;">
                     <div class="issue-heading">Good variety in language and phrasing throughout the resume.</div>
                 </div>"""
 
-    rep_html += '</div></div>'
+    rep_html += "</div></div>"
     return rep_html
 
 
@@ -369,14 +381,14 @@ def _build_spelling_grammar_html(spelling_grammar: Dict[str, Any]) -> str:
             if examples:
                 for ex in examples[:2]:
                     spell_html += f'<div class="issue-item"><span class="issue-x">&#10005;</span><span style="font-family:monospace;font-size:0.85rem;">{_escape_html(ex)}</span></div>'
-        spell_html += '</div>'
+        spell_html += "</div>"
     elif s_status == "ok":
         spell_html += """
                 <div class="issue-card good-card" style="margin-top:14px;">
                     <div class="issue-heading">No significant spelling or grammar errors detected.</div>
                 </div>"""
 
-    spell_html += '</div></div>'
+    spell_html += "</div></div>"
     return spell_html
 
 
@@ -421,9 +433,9 @@ def _build_bullets_consistency_html(bullets_consistency: Dict[str, Any]) -> str:
             issue = _escape_html(item.get("issue", ""))
             html += (
                 f'<div class="issue-item"><span class="issue-x">&#10005;</span>'
-                f'<span><strong>{words} words ({issue})</strong> &mdash; {line}</span></div>'
+                f"<span><strong>{words} words ({issue})</strong> &mdash; {line}</span></div>"
             )
-        html += '</div>'
+        html += "</div>"
     elif has_data and b_status == "ok":
         html += f"""
                 <div class="issue-card good-card" style="margin-top:14px;">
@@ -434,7 +446,7 @@ def _build_bullets_consistency_html(bullets_consistency: Dict[str, Any]) -> str:
                 <div class="issue-card" style="margin-top:14px;">
                     <div class="issue-heading">Not enough bullet points were detected to assess length consistency.</div>
                 </div>"""
-    html += '</div></div>'
+    html += "</div></div>"
     return html
 
 
@@ -480,7 +492,9 @@ def _build_essential_sections_html(sections_details: Dict[str, Any]) -> str:
     return es_html
 
 
-def _build_contact_information_html(contact_found: List[Dict[str, Any]], contact_missing: List[Dict[str, Any]]) -> str:
+def _build_contact_information_html(
+    contact_found: List[Dict[str, Any]], contact_missing: List[Dict[str, Any]]
+) -> str:
     ci_badge = "ok" if not contact_missing else "warn"
     ci_label = "All found" if not contact_missing else f"{len(contact_missing)} missing"
 
@@ -589,7 +603,9 @@ def _build_file_format_size_html(file_format_info: Dict[str, Any]) -> str:
     ff_all_good = ff_is_supported and ff_size_ok
     ff_badge = "ok" if ff_all_good else "warn"
     ff_badge_txt = "No issues" if ff_all_good else "Issues found"
-    ff_ext = ff_name.rsplit(".", 1)[-1].upper() if "." in ff_name else ("DOCX" if ff_is_docx else "PDF")
+    ff_ext = (
+        ff_name.rsplit(".", 1)[-1].upper() if "." in ff_name else ("DOCX" if ff_is_docx else "PDF")
+    )
 
     ff_html = f"""
         <div class="detail-card section-anchor" id="file-format-size">
@@ -642,7 +658,9 @@ def _build_email_address_html(email_check_info: Dict[str, Any]) -> str:
     em_email = email_check_info.get("email", "")
     em_prof = email_check_info.get("is_professional", True)
     em_badge = "ok" if (em_found and em_prof) else "warn"
-    em_badge_txt = "No issues" if (em_found and em_prof) else ("Unprofessional" if em_found else "Not found")
+    em_badge_txt = (
+        "No issues" if (em_found and em_prof) else ("Unprofessional" if em_found else "Not found")
+    )
 
     em_html = f"""
         <div class="detail-card section-anchor" id="email-address">
@@ -717,7 +735,7 @@ def _build_header_links_html(header_links_info: Dict[str, Any]) -> str:
                         <span class="contact-icon found">&#10003;</span>
                         <span class="contact-value">{_escape_html(link)}</span>
                     </div>"""
-            hl_html += '</div>'
+            hl_html += "</div>"
     elif hl_has:
         hl_html += """
                 <div class="issue-card" style="margin-top:10px;text-align:center;">
@@ -820,7 +838,7 @@ def _build_list_card(
             safe_item = _markdown_inline_to_html(item)
             html += f"""
                     <div class="contact-row" style="align-items:flex-start;">
-                        <span class="contact-icon {'found' if badge_type == 'ok' else 'missing'}">{icon}</span>
+                        <span class="contact-icon {"found" if badge_type == "ok" else "missing"}">{icon}</span>
                         <span class="contact-value" style="line-height:1.5;">{safe_item}</span>
                     </div>"""
         html += "</div>"
@@ -846,7 +864,7 @@ def _render_download_buttons(name: str, analysis: Dict[str, Any]) -> None:
 
     with col1:
         st.download_button(
-            "\U0001F4C4 Download PDF Report",
+            "\U0001f4c4 Download PDF Report",
             data=pdf_bytes,
             file_name=f"{name}-analysis.pdf",
             mime="application/pdf",
@@ -856,7 +874,7 @@ def _render_download_buttons(name: str, analysis: Dict[str, Any]) -> None:
         )
     with col2:
         st.download_button(
-            "\U0001F9FE Download JSON Export",
+            "\U0001f9fe Download JSON Export",
             data=json.dumps(analysis, indent=2),
             file_name=f"{name}-analysis.json",
             mime="application/json",
@@ -865,7 +883,6 @@ def _render_download_buttons(name: str, analysis: Dict[str, Any]) -> None:
         )
     if pdf_error:
         st.caption(pdf_error)
-
 
 
 def _build_sidebar_js() -> str:
@@ -1262,13 +1279,12 @@ def _build_sidebar_js() -> str:
     """
     return js
 
+
 def _build_group_card(title: str, group_id: str, issues_found: int, body_html: str) -> str:
     """Wrap detail cards in a report section block."""
     issue_text = "No issues found" if issues_found <= 0 else f"{issues_found} issues found"
     normalized_body = "\n".join(
-        line.strip()
-        for line in str(body_html).splitlines()
-        if line.strip()
+        line.strip() for line in str(body_html).splitlines() if line.strip()
     )
     return (
         f'<div class="report-group section-anchor" id="{group_id}">'
@@ -1303,18 +1319,34 @@ def render_report_page(analysis: Dict[str, Any], name: str = "CV") -> None:
     # Older analyses won't have bullets_consistency — only fold it in when present.
     if bullets_consistency.get("score") is not None:
         content_items.append(bullets_consistency["score"])
-    content_score = int(sum(content_items) / len(content_items)) if content_items else subs.get("ats_readiness", score)
+    content_score = (
+        int(sum(content_items) / len(content_items))
+        if content_items
+        else subs.get("ats_readiness", score)
+    )
 
     # Build Content category items: (label, status, score)
     content_items_list = [
-        ("ATS Parse Rate", "ok" if ats_parse_rate >= 80 else "warn" if ats_parse_rate >= 60 else "error", ats_parse_rate),
+        (
+            "ATS Parse Rate",
+            "ok" if ats_parse_rate >= 80 else "warn" if ats_parse_rate >= 60 else "error",
+            ats_parse_rate,
+        ),
         ("Quantifying Impact", quant_impact.get("status", "ok"), quant_impact.get("score", 0)),
         ("Repetition", repetition.get("status", "ok"), repetition.get("score", 0)),
-        ("Spelling & Grammar", spelling_grammar.get("status", "ok"), spelling_grammar.get("score", 0)),
+        (
+            "Spelling & Grammar",
+            spelling_grammar.get("status", "ok"),
+            spelling_grammar.get("score", 0),
+        ),
     ]
     if bullets_consistency:
         content_items_list.append(
-            ("Bullets Consistency", bullets_consistency.get("status", "ok"), bullets_consistency.get("score"))
+            (
+                "Bullets Consistency",
+                bullets_consistency.get("status", "ok"),
+                bullets_consistency.get("score"),
+            )
         )
 
     # Extract other category metrics
@@ -1344,11 +1376,17 @@ def render_report_page(analysis: Dict[str, Any], name: str = "CV") -> None:
 
     if section_order:
         sections_items_list.append(
-            ("Sections Order", "warn" if section_order_flagged else "ok", 1 if section_order_flagged else None)
+            (
+                "Sections Order",
+                "warn" if section_order_flagged else "ok",
+                1 if section_order_flagged else None,
+            )
         )
 
     ats_essentials_metrics = analysis.get("ats_essentials_metrics", {}) or {}
-    ats_essentials_score = ats_essentials_metrics.get("score", subs.get("ats_readiness", score)) or 0
+    ats_essentials_score = (
+        ats_essentials_metrics.get("score", subs.get("ats_readiness", score)) or 0
+    )
     ats_essentials_details = ats_essentials_metrics.get("details", {}) or {}
 
     # Extract ATS sub-section details
@@ -1386,7 +1424,11 @@ def render_report_page(analysis: Dict[str, Any], name: str = "CV") -> None:
 
     if file_name_check:
         ats_items_list.append(
-            ("File Name Check", "warn" if file_name_flagged else "ok", len(file_name_issues) if file_name_flagged else None)
+            (
+                "File Name Check",
+                "warn" if file_name_flagged else "ok",
+                len(file_name_issues) if file_name_flagged else None,
+            )
         )
 
     # Build Insights category items
@@ -1396,10 +1438,26 @@ def render_report_page(analysis: Dict[str, Any], name: str = "CV") -> None:
     suggestions_list = analysis.get("suggestions", [])
 
     insights_items_list = [
-        ("Strengths", "ok" if strengths_list else "warn", len(strengths_list) if strengths_list else None),
-        ("Missing Skills", "warn" if missing_skills_list else "ok", len(missing_skills_list) if missing_skills_list else None),
-        ("Missing Keywords", "warn" if missing_keywords_list else "ok", len(missing_keywords_list) if missing_keywords_list else None),
-        ("Suggestions", "ok" if suggestions_list else "warn", len(suggestions_list) if suggestions_list else None),
+        (
+            "Strengths",
+            "ok" if strengths_list else "warn",
+            len(strengths_list) if strengths_list else None,
+        ),
+        (
+            "Missing Skills",
+            "warn" if missing_skills_list else "ok",
+            len(missing_skills_list) if missing_skills_list else None,
+        ),
+        (
+            "Missing Keywords",
+            "warn" if missing_keywords_list else "ok",
+            len(missing_keywords_list) if missing_keywords_list else None,
+        ),
+        (
+            "Suggestions",
+            "ok" if suggestions_list else "warn",
+            len(suggestions_list) if suggestions_list else None,
+        ),
     ]
 
     # Insights category % = share of the insight areas that are clean.
@@ -1479,7 +1537,9 @@ def render_report_page(analysis: Dict[str, Any], name: str = "CV") -> None:
         if bullets_consistency.get("status", "ok") != "ok":
             content_issue_count += max(1, len(bullets_consistency.get("out_of_range", [])))
 
-        sections_issue_count = len(missing_sections) + len(contact_missing) + (1 if section_order_flagged else 0)
+        sections_issue_count = (
+            len(missing_sections) + len(contact_missing) + (1 if section_order_flagged else 0)
+        )
 
         ats_issue_count = 0
         if not ff_ok:
@@ -1547,7 +1607,7 @@ def render_report_page(analysis: Dict[str, Any], name: str = "CV") -> None:
             f'<div class="report-group-wrap">{sections_group_html}</div>'
             f'<div class="report-group-wrap">{ats_group_html}</div>'
             f'<div class="report-group-wrap">{insights_group_html}</div>'
-            '</div>'
+            "</div>"
         )
         st.markdown(report_main_html, unsafe_allow_html=True)
 
@@ -1568,7 +1628,9 @@ def render_evaluation_toolkit(analysis: Dict[str, Any], resume_name: str) -> Non
             value=75,
             step=1,
         )
-        notes = st.text_input("Reviewer notes (optional)", placeholder="Example: strong projects, weak impact metrics")
+        notes = st.text_input(
+            "Reviewer notes (optional)", placeholder="Example: strong projects, weak impact metrics"
+        )
         add_record = st.form_submit_button("Add benchmark record")
 
     if add_record:

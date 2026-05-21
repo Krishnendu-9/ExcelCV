@@ -6,16 +6,17 @@ Run:
 Output:
     docs/submission/Minor_Project_Report.docx
 """
+
 from __future__ import annotations
 
 from pathlib import Path
 
 from docx import Document
 from docx.enum.table import WD_ALIGN_VERTICAL
-from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_BREAK
+from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
-from docx.shared import Cm, Inches, Pt, RGBColor
+from docx.shared import Inches, Pt, RGBColor
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _OUT_DIR = _REPO_ROOT / "docs" / "submission"
@@ -79,8 +80,14 @@ def set_cell_border(cell, **kwargs):
             tcBorders.append(tag)
 
 
-def add_para(text: str, bold: bool = False, italic: bool = False,
-             size: int = 11, align=WD_ALIGN_PARAGRAPH.LEFT, space_after: int = 6):
+def add_para(
+    text: str,
+    bold: bool = False,
+    italic: bool = False,
+    size: int = 11,
+    align=WD_ALIGN_PARAGRAPH.LEFT,
+    space_after: int = 6,
+):
     p = doc.add_paragraph()
     p.alignment = align
     p.paragraph_format.space_after = Pt(space_after)
@@ -166,10 +173,20 @@ def page_break():
 # ════════════════════════════════════════════════════════════════════
 # TITLE PAGE
 # ════════════════════════════════════════════════════════════════════
-add_para("ExcelCV: GenAI-Powered Vibecoded CV Reviewer",
-         bold=True, size=20, align=WD_ALIGN_PARAGRAPH.CENTER, space_after=4)
-add_para("(An Intelligent Resume Evaluation, Comparison, and Authoring Platform)",
-         italic=True, size=12, align=WD_ALIGN_PARAGRAPH.CENTER, space_after=18)
+add_para(
+    "ExcelCV: GenAI-Powered Vibecoded CV Reviewer",
+    bold=True,
+    size=20,
+    align=WD_ALIGN_PARAGRAPH.CENTER,
+    space_after=4,
+)
+add_para(
+    "(An Intelligent Resume Evaluation, Comparison, and Authoring Platform)",
+    italic=True,
+    size=12,
+    align=WD_ALIGN_PARAGRAPH.CENTER,
+    space_after=18,
+)
 add_para("Submitted by,", italic=True, align=WD_ALIGN_PARAGRAPH.CENTER, space_after=8)
 
 team = [
@@ -187,35 +204,44 @@ add_para("Dr. Manas Ghosh", bold=True, size=13, align=WD_ALIGN_PARAGRAPH.CENTER,
 add_para("Dept. of Master of Computer Applications", align=WD_ALIGN_PARAGRAPH.CENTER, space_after=2)
 add_para("RCC Institute of Information Technology", align=WD_ALIGN_PARAGRAPH.CENTER, space_after=18)
 
-add_para("PROJECT REPORT SUBMITTED IN PARTIAL FULFILLMENT OF",
-         align=WD_ALIGN_PARAGRAPH.CENTER, space_after=2)
-add_para("THE REQUIREMENTS FOR THE DEGREE OF",
-         align=WD_ALIGN_PARAGRAPH.CENTER, space_after=2)
-add_para("MASTER’S OF COMPUTER APPLICATION",
-         align=WD_ALIGN_PARAGRAPH.CENTER, space_after=2)
-add_para("RCC INSTITUTE OF INFORMATION TECHNOLOGY",
-         align=WD_ALIGN_PARAGRAPH.CENTER, space_after=24)
+add_para(
+    "PROJECT REPORT SUBMITTED IN PARTIAL FULFILLMENT OF",
+    align=WD_ALIGN_PARAGRAPH.CENTER,
+    space_after=2,
+)
+add_para("THE REQUIREMENTS FOR THE DEGREE OF", align=WD_ALIGN_PARAGRAPH.CENTER, space_after=2)
+add_para("MASTER’S OF COMPUTER APPLICATION", align=WD_ALIGN_PARAGRAPH.CENTER, space_after=2)
+add_para("RCC INSTITUTE OF INFORMATION TECHNOLOGY", align=WD_ALIGN_PARAGRAPH.CENTER, space_after=24)
 
 add_para("DEPARTMENT OF MCA", bold=True, align=WD_ALIGN_PARAGRAPH.CENTER, space_after=2)
-add_para("RCC INSTITUTE OF INFORMATION TECHNOLOGY",
-         align=WD_ALIGN_PARAGRAPH.CENTER, space_after=2)
-add_para("[Affiliated to West Bengal University of Technology]",
-         italic=True, align=WD_ALIGN_PARAGRAPH.CENTER, space_after=2)
-add_para("CANAL SOUTH ROAD, BELIAGHATA, KOLKATA-700015",
-         align=WD_ALIGN_PARAGRAPH.CENTER)
+add_para("RCC INSTITUTE OF INFORMATION TECHNOLOGY", align=WD_ALIGN_PARAGRAPH.CENTER, space_after=2)
+add_para(
+    "[Affiliated to West Bengal University of Technology]",
+    italic=True,
+    align=WD_ALIGN_PARAGRAPH.CENTER,
+    space_after=2,
+)
+add_para("CANAL SOUTH ROAD, BELIAGHATA, KOLKATA-700015", align=WD_ALIGN_PARAGRAPH.CENTER)
 
 # ════════════════════════════════════════════════════════════════════
 # RECOMMENDATION
 # ════════════════════════════════════════════════════════════════════
 page_break()
 add_para("DEPARTMENT OF MCA", bold=True, size=13, align=WD_ALIGN_PARAGRAPH.CENTER)
-add_para("RCC INSTITUTE OF INFORMATION TECHNOLOGY",
-         bold=True, size=12, align=WD_ALIGN_PARAGRAPH.CENTER, space_after=24)
-add_para("TO WHOM IT MAY CONCERN", bold=True, size=13,
-         align=WD_ALIGN_PARAGRAPH.CENTER, space_after=18)
+add_para(
+    "RCC INSTITUTE OF INFORMATION TECHNOLOGY",
+    bold=True,
+    size=12,
+    align=WD_ALIGN_PARAGRAPH.CENTER,
+    space_after=24,
+)
+add_para(
+    "TO WHOM IT MAY CONCERN", bold=True, size=13, align=WD_ALIGN_PARAGRAPH.CENTER, space_after=18
+)
 
-add_para("I hereby recommend that the Project entitled", align=WD_ALIGN_PARAGRAPH.CENTER,
-         space_after=10)
+add_para(
+    "I hereby recommend that the Project entitled", align=WD_ALIGN_PARAGRAPH.CENTER, space_after=10
+)
 p = doc.add_paragraph()
 p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
 p.paragraph_format.space_after = Pt(12)
@@ -239,8 +265,7 @@ run.font.size = Pt(11)
 run.font.name = "Times New Roman"
 
 add_para("", space_after=36)
-add_para("…………………………………….",
-         align=WD_ALIGN_PARAGRAPH.RIGHT, space_after=0)
+add_para("…………………………………….", align=WD_ALIGN_PARAGRAPH.RIGHT, space_after=0)
 add_para("Project Supervisor", align=WD_ALIGN_PARAGRAPH.RIGHT, space_after=0)
 add_para("Department of MCA", align=WD_ALIGN_PARAGRAPH.RIGHT, space_after=0)
 add_para("RCC Institute of Information Technology", align=WD_ALIGN_PARAGRAPH.RIGHT, space_after=36)
@@ -256,8 +281,9 @@ add_para("Kolkata—700015")
 # CERTIFICATE OF APPROVAL
 # ════════════════════════════════════════════════════════════════════
 page_break()
-add_para("CERTIFICATE OF APPROVAL", bold=True, size=14,
-         align=WD_ALIGN_PARAGRAPH.CENTER, space_after=18)
+add_para(
+    "CERTIFICATE OF APPROVAL", bold=True, size=14, align=WD_ALIGN_PARAGRAPH.CENTER, space_after=18
+)
 p = doc.add_paragraph()
 p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
 run = p.add_run(
@@ -282,8 +308,7 @@ add_para("(Signature of Examiners)", bold=True, align=WD_ALIGN_PARAGRAPH.RIGHT)
 # ACKNOWLEDGEMENT
 # ════════════════════════════════════════════════════════════════════
 page_break()
-add_para("ACKNOWLEDGEMENT", bold=True, size=18,
-         align=WD_ALIGN_PARAGRAPH.CENTER, space_after=36)
+add_para("ACKNOWLEDGEMENT", bold=True, size=18, align=WD_ALIGN_PARAGRAPH.CENTER, space_after=36)
 
 p = doc.add_paragraph()
 p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
@@ -445,8 +470,9 @@ add_table(["Symbol", "Meaning"], symbols, col_widths=[1.3, 4.5])
 # LIST OF ABBREVIATIONS
 # ════════════════════════════════════════════════════════════════════
 page_break()
-add_para("LIST OF ABBREVIATIONS", bold=True, size=18,
-         align=WD_ALIGN_PARAGRAPH.CENTER, space_after=18)
+add_para(
+    "LIST OF ABBREVIATIONS", bold=True, size=18, align=WD_ALIGN_PARAGRAPH.CENTER, space_after=18
+)
 abbrev = [
     ["AI", "Artificial Intelligence"],
     ["ATS", "Applicant Tracking System"],
@@ -540,7 +566,6 @@ intro_paragraphs = [
     "platform that closes this loop — from analysis and shortlisting through to drafting "
     "and authoring — powered by a hybrid of Google Gemini’s semantic reasoning and a "
     "deterministic, explainable scoring engine.",
-
     "Unlike a one-shot resume scanner, ExcelCV is structured as a multi-feature web "
     "application with five integrated modules. The Analyze CV module evaluates a single "
     "resume against a job description and produces a weighted final score with four "
@@ -553,7 +578,6 @@ intro_paragraphs = [
     "AI bullet suggestions, and one-click PDF export. All four are gated by a full "
     "authentication system (email/password and Google OAuth) with per-user persistence — "
     "saved resumes, analyses, and comparisons survive logout via a SQLite database.",
-
     "The deterministic scoring engine computes eleven metrics: ATS Parse Rate, Quantifying "
     "Impact, Repetition, Spelling & Grammar, Bullets Consistency, Sections Completeness, "
     "Sections Order, Contact Completeness, ATS Essentials, File Name Quality, and "
@@ -564,7 +588,6 @@ intro_paragraphs = [
     "resume independently; the system then reports MAE, RMSE, and Pearson correlation "
     "between human and model scores — providing a measurable benchmark for the AI’s "
     "reliability.",
-
     "On the engineering side, the platform supports both PDF and DOCX input (≤ 2 MB), "
     "with text extraction via PyPDF2 / pypdf and python-docx. Reports are exported as PDF "
     "(ReportLab) or JSON; cover letters as DOCX; comparison results as CSV or PDF. "
@@ -572,7 +595,6 @@ intro_paragraphs = [
     "quota errors (with a per-file short-circuit so remaining files in a multi-resume run "
     "are marked ‘skipped’ rather than burning more quota), model fallback chains, and a "
     "first-interaction Streamlit hydration race for uploaded files.",
-
     "The target users span individual job seekers optimizing for specific roles, career "
     "coaches providing data-driven feedback to clients, recruiters wanting a quick shortlist "
     "view across applicants, and students authoring their first professional resume. Average "
@@ -594,36 +616,50 @@ add_heading("1.2  Literature Review", 2)
 add_para("Table 1.1: Literature Review Summary", bold=True, size=11, space_after=6)
 
 lit = [
-    ["Devlin, J. et al.", "2018",
-     "Introduced BERT, a transformer-based model that learns bidirectional contextual "
-     "representations of text. Significantly improved performance across NLP benchmarks.",
-     "Requires large computational resources and high memory; fine-tuning on "
-     "domain-specific data (e.g. resumes) needed for optimal performance."],
-    ["Chandra, A. & Kaur, R.", "2022",
-     "Applied contextual NLP models to resume screening; demonstrated improved accuracy "
-     "over traditional keyword-based ATS systems.",
-     "Performance highly dependent on quality and size of labeled datasets; limited focus "
-     "on real-time feedback or actionable resume improvement suggestions."],
-    ["Kumar, P. & Gupta, S.", "2022",
-     "Used machine-learning classifiers (SVM, Naïve Bayes, Decision Trees) for candidate "
-     "ranking; improved automation in resume shortlisting compared to manual screening.",
-     "Performance dependent on labeled training data; classifier scores are opaque — "
-     "limited explainability and no actionable rewrite suggestions for the candidate."],
-    ["Miller, T. & Bhattacharya, I.", "2024",
-     "Proposed hybrid AI systems combining generative AI with rule-based scoring; "
-     "improved interpretability and reliability of AI-generated evaluations.",
-     "Increased system complexity due to multiple evaluation layers; integration and "
-     "maintenance are technically challenging."],
-    ["This work (ExcelCV)", "2026",
-     "Hybrid Gemini + 11-metric deterministic scoring; weighted explainable final score; "
-     "extends beyond analysis into comparison, cover-letter authoring, and a resume "
-     "builder — closing the optimize→author loop in a single platform with per-user "
-     "persistence and a human-vs-AI evaluation toolkit.",
-     "Sequential Gemini calls in compare-mode for quota safety (bounded parallelism is "
-     "future work); report snapshots are in-memory (not yet DB-backed)."],
+    [
+        "Devlin, J. et al.",
+        "2018",
+        "Introduced BERT, a transformer-based model that learns bidirectional contextual "
+        "representations of text. Significantly improved performance across NLP benchmarks.",
+        "Requires large computational resources and high memory; fine-tuning on "
+        "domain-specific data (e.g. resumes) needed for optimal performance.",
+    ],
+    [
+        "Chandra, A. & Kaur, R.",
+        "2022",
+        "Applied contextual NLP models to resume screening; demonstrated improved accuracy "
+        "over traditional keyword-based ATS systems.",
+        "Performance highly dependent on quality and size of labeled datasets; limited focus "
+        "on real-time feedback or actionable resume improvement suggestions.",
+    ],
+    [
+        "Kumar, P. & Gupta, S.",
+        "2022",
+        "Used machine-learning classifiers (SVM, Naïve Bayes, Decision Trees) for candidate "
+        "ranking; improved automation in resume shortlisting compared to manual screening.",
+        "Performance dependent on labeled training data; classifier scores are opaque — "
+        "limited explainability and no actionable rewrite suggestions for the candidate.",
+    ],
+    [
+        "Miller, T. & Bhattacharya, I.",
+        "2024",
+        "Proposed hybrid AI systems combining generative AI with rule-based scoring; "
+        "improved interpretability and reliability of AI-generated evaluations.",
+        "Increased system complexity due to multiple evaluation layers; integration and "
+        "maintenance are technically challenging.",
+    ],
+    [
+        "This work (ExcelCV)",
+        "2026",
+        "Hybrid Gemini + 11-metric deterministic scoring; weighted explainable final score; "
+        "extends beyond analysis into comparison, cover-letter authoring, and a resume "
+        "builder — closing the optimize→author loop in a single platform with per-user "
+        "persistence and a human-vs-AI evaluation toolkit.",
+        "Sequential Gemini calls in compare-mode for quota safety (bounded parallelism is "
+        "future work); report snapshots are in-memory (not yet DB-backed).",
+    ],
 ]
-add_table(["Author", "Year", "Contribution", "Limitation"], lit,
-          col_widths=[1.4, 0.6, 2.6, 2.0])
+add_table(["Author", "Year", "Contribution", "Limitation"], lit, col_widths=[1.4, 0.6, 2.6, 2.0])
 
 # ════════════════════════════════════════════════════════════════════
 # CHAPTER 2
@@ -645,8 +681,7 @@ add_heading("2.1.1  Sign-In / Registration Flow", 3)
 sign_in_steps = [
     "User lands on the public home page (“Is your resume good enough?”) with a sample "
     "preview card.",
-    "Clicking “Sign In” opens the auth page (email/password form + “Continue with "
-    "Google”).",
+    "Clicking “Sign In” opens the auth page (email/password form + “Continue with Google”).",
     "On Google OAuth: redirect to Google → consent → token exchange via "
     "src/oauth_utils.py → create or fetch User → set HMAC-signed session cookie.",
     "On email/password: bcrypt verify → same session bootstrap.",
@@ -764,8 +799,13 @@ for r_idx, row in enumerate(dfd_rows):
             shading.set(qn("w:fill"), "D9E1F2")
             cell._tc.get_or_add_tcPr().append(shading)
 
-add_para("Fig 2.1: Level 0 Data Flow Diagram — ExcelCV Platform",
-         bold=True, align=WD_ALIGN_PARAGRAPH.CENTER, size=10, space_after=18)
+add_para(
+    "Fig 2.1: Level 0 Data Flow Diagram — ExcelCV Platform",
+    bold=True,
+    align=WD_ALIGN_PARAGRAPH.CENTER,
+    size=10,
+    space_after=18,
+)
 
 # 2.2 METHODOLOGIES
 page_break()
@@ -907,47 +947,71 @@ add_para(
 )
 
 add_heading("2.2.9  Deterministic Scoring Engine — Eleven Metrics", 3)
-add_para("Table 2.1: Eleven Programmatic Scoring Metrics",
-         bold=True, size=11, space_after=6)
+add_para("Table 2.1: Eleven Programmatic Scoring Metrics", bold=True, size=11, space_after=6)
 metrics_rows = [
-    ["ATS Parse Rate",
-     "Text-extraction quality + section-header presence. Programmatic + optional AI blend.",
-     "calculate_ats_parse_rate"],
-    ["Quantifying Impact",
-     "Share of experience bullets containing numbers, %, $, or measurable language.",
-     "calculate_quantifying_impact"],
-    ["Repetition",
-     "Word-frequency / unique-ratio penalty; flags heavily repeated verbs and suggests "
-     "synonyms.",
-     "calculate_repetition"],
-    ["Spelling & Grammar",
-     "Heuristic formatting check: double spaces, punctuation spacing, excessive all-caps.",
-     "calculate_spelling_grammar"],
-    ["Bullets Consistency",
-     "Flags experience bullets outside the 15–45-word band; fails soft when too few bullets.",
-     "calculate_bullets_consistency"],
-    ["Sections Completeness",
-     "Detects Contact, Experience, Education, Skills, Summary / Objective via keyword cues.",
-     "calculate_sections"],
-    ["Sections Order",
-     "Experience-level-aware ordering check (lead with Education for entry-level, Experience "
-     "for experienced).",
-     "calculate_sections_order"],
-    ["Contact Completeness",
-     "Phone, email, location, LinkedIn / GitHub / portfolio presence with hint messages.",
-     "calculate_contact_info"],
-    ["ATS Essentials",
-     "Section headers, text-based flag, keyword density, design issues, file-format/size.",
-     "calculate_ats_essentials"],
-    ["File Name Quality",
-     "Clean-name check (FirstNameLastName.pdf preferred; flags numbers/dates/spaces/special chars).",
-     "calculate_file_name_quality"],
-    ["Tailoring / JD Alignment",
-     "Keyword overlap between JD and CV (3+ letter alphabetic tokens, stop-words removed).",
-     "calculate_tailoring"],
+    [
+        "ATS Parse Rate",
+        "Text-extraction quality + section-header presence. Programmatic + optional AI blend.",
+        "calculate_ats_parse_rate",
+    ],
+    [
+        "Quantifying Impact",
+        "Share of experience bullets containing numbers, %, $, or measurable language.",
+        "calculate_quantifying_impact",
+    ],
+    [
+        "Repetition",
+        "Word-frequency / unique-ratio penalty; flags heavily repeated verbs and suggests "
+        "synonyms.",
+        "calculate_repetition",
+    ],
+    [
+        "Spelling & Grammar",
+        "Heuristic formatting check: double spaces, punctuation spacing, excessive all-caps.",
+        "calculate_spelling_grammar",
+    ],
+    [
+        "Bullets Consistency",
+        "Flags experience bullets outside the 15–45-word band; fails soft when too few bullets.",
+        "calculate_bullets_consistency",
+    ],
+    [
+        "Sections Completeness",
+        "Detects Contact, Experience, Education, Skills, Summary / Objective via keyword cues.",
+        "calculate_sections",
+    ],
+    [
+        "Sections Order",
+        "Experience-level-aware ordering check (lead with Education for entry-level, Experience "
+        "for experienced).",
+        "calculate_sections_order",
+    ],
+    [
+        "Contact Completeness",
+        "Phone, email, location, LinkedIn / GitHub / portfolio presence with hint messages.",
+        "calculate_contact_info",
+    ],
+    [
+        "ATS Essentials",
+        "Section headers, text-based flag, keyword density, design issues, file-format/size.",
+        "calculate_ats_essentials",
+    ],
+    [
+        "File Name Quality",
+        "Clean-name check (FirstNameLastName.pdf preferred; flags numbers/dates/spaces/special chars).",
+        "calculate_file_name_quality",
+    ],
+    [
+        "Tailoring / JD Alignment",
+        "Keyword overlap between JD and CV (3+ letter alphabetic tokens, stop-words removed).",
+        "calculate_tailoring",
+    ],
 ]
-add_table(["Metric", "Description", "Function (src/services/scoring.py)"],
-          metrics_rows, col_widths=[1.6, 3.2, 1.6])
+add_table(
+    ["Metric", "Description", "Function (src/services/scoring.py)"],
+    metrics_rows,
+    col_widths=[1.6, 3.2, 1.6],
+)
 
 add_para("", space_after=4)
 add_para("Table 2.2: Weighted Final-Score Formula", bold=True, size=11, space_after=6)
@@ -976,17 +1040,32 @@ add_para("Table 2.3: Database Schema (5 SQLite Tables)", bold=True, size=11, spa
 add_table(
     ["Table", "Purpose", "Notable Columns"],
     [
-        ["users", "User accounts (email/password + OAuth)",
-         "id (UUID), email, hashed_password, full_name, google_id, created_at"],
-        ["password_reset_tokens", "Single-use password reset links",
-         "id, user_id (FK), token_hash, expires_at, created_at"],
-        ["cvs", "Resume Builder saves",
-         "id, user_id, title, template, data (JSON), created_at, updated_at"],
-        ["analyses", "Auto-saved single-CV analyses",
-         "id, user_id, cv_name, job_description, result (JSON), match_score, created_at"],
-        ["comparisons", "Auto-saved multi-resume comparison runs",
-         "id, user_id, job_description, rows (JSON), errors (JSON), warnings (JSON), "
-         "resume_count, top_score, top_resume_name, created_at"],
+        [
+            "users",
+            "User accounts (email/password + OAuth)",
+            "id (UUID), email, hashed_password, full_name, google_id, created_at",
+        ],
+        [
+            "password_reset_tokens",
+            "Single-use password reset links",
+            "id, user_id (FK), token_hash, expires_at, created_at",
+        ],
+        [
+            "cvs",
+            "Resume Builder saves",
+            "id, user_id, title, template, data (JSON), created_at, updated_at",
+        ],
+        [
+            "analyses",
+            "Auto-saved single-CV analyses",
+            "id, user_id, cv_name, job_description, result (JSON), match_score, created_at",
+        ],
+        [
+            "comparisons",
+            "Auto-saved multi-resume comparison runs",
+            "id, user_id, job_description, rows (JSON), errors (JSON), warnings (JSON), "
+            "resume_count, top_score, top_resume_name, created_at",
+        ],
     ],
     col_widths=[1.2, 1.9, 3.2],
 )
@@ -1158,8 +1237,7 @@ for s in [
     "cover-letter, resume-builder, my-cvs, my-analyses, my-comparisons, settings, auth, "
     "plus static informational pages.",
     "Robust PDF + DOCX text extraction with validation and parse-confidence indicator.",
-    "Gemini integration for semantic analysis, AI bullet suggestions, and cover-letter "
-    "generation.",
+    "Gemini integration for semantic analysis, AI bullet suggestions, and cover-letter generation.",
     "Eleven programmatic scoring metrics with status thresholds and weighted final-score "
     "breakdown (calculate_final_score_breakdown).",
     "Hybrid evaluation: AI scores blended with programmatic where both exist; fail-soft on "
@@ -1167,8 +1245,7 @@ for s in [
     "Multi-resume comparison (2–5 files) with ranked table, 8 sort options, Top Match "
     "card, per-resume drill-downs, identity-locked ★ winner pill, CSV + PDF export, and "
     "auto-save to the comparisons table.",
-    "Cover Letter Generator with optional tone / company / role / source inputs and DOCX "
-    "download.",
+    "Cover Letter Generator with optional tone / company / role / source inputs and DOCX download.",
     "Resume Builder: three-panel workspace, three templates (Classic / Creative / Modern), "
     "drag-and-drop section reorder, AI bullet suggestions, accent color / font / spacing "
     "controls, real-time preview for Personal Details, save/load to DB, import/export "
@@ -1266,18 +1343,35 @@ add_para("Table 3.1.1: Input Validation Test Cases", bold=True, size=11, space_a
 add_table(
     ["Test ID", "Test Scenario", "Input Description", "Expected Outcome", "Result"],
     [
-        ["TC-01", "Empty Job Description", "JD field left blank, valid resume", "Validation error displayed", "Pass"],
+        [
+            "TC-01",
+            "Empty Job Description",
+            "JD field left blank, valid resume",
+            "Validation error displayed",
+            "Pass",
+        ],
         ["TC-02", "Missing Resume Upload", "JD provided, no resume", "Error message shown", "Pass"],
         ["TC-03", "File Size Limit", "File > 2 MB", "File size error message", "Pass"],
-        ["TC-04", "Invalid File Type", "Upload .txt / .png", "Upload restricted to PDF / DOCX", "Pass"],
+        [
+            "TC-04",
+            "Invalid File Type",
+            "Upload .txt / .png",
+            "Upload restricted to PDF / DOCX",
+            "Pass",
+        ],
         ["TC-05", "Corrupted PDF", "Encrypted / malformed PDF", "Extraction error message", "Pass"],
-        ["TC-06", "Hydration Retry", "First-upload empty bytes race", "Auto-retry (≤ 2 times); succeeds silently", "Pass"],
+        [
+            "TC-06",
+            "Hydration Retry",
+            "First-upload empty bytes race",
+            "Auto-retry (≤ 2 times); succeeds silently",
+            "Pass",
+        ],
     ],
     col_widths=[0.7, 1.5, 1.7, 1.7, 0.5],
 )
 
-add_para("Table 3.1.2: File Processing Test Cases (PDF + DOCX)",
-         bold=True, size=11, space_after=6)
+add_para("Table 3.1.2: File Processing Test Cases (PDF + DOCX)", bold=True, size=11, space_after=6)
 add_table(
     ["Test ID", "Test Scenario", "Input Description", "Expected Outcome", "Result"],
     [
@@ -1285,7 +1379,13 @@ add_table(
         ["TC-08", "Multi-page PDF", "Multiple text pages", "Text concatenated correctly", "Pass"],
         ["TC-09", "Scanned PDF", "Image-only PDF", "Low parse confidence warning", "Pass"],
         ["TC-10", "DOCX resume", "Valid .docx", "Extracted via python-docx", "Pass"],
-        ["TC-11", "DOCX with images", "Mixed content .docx", "Text-only extracted; images ignored", "Pass"],
+        [
+            "TC-11",
+            "DOCX with images",
+            "Mixed content .docx",
+            "Text-only extracted; images ignored",
+            "Pass",
+        ],
         ["TC-12", "Empty file", "0-byte file", "Validation error", "Pass"],
     ],
     col_widths=[0.7, 1.5, 1.7, 1.7, 0.5],
@@ -1300,7 +1400,13 @@ add_table(
         ["TC-15", "API Rate Limit", "Burst requests", "Quota warning shown", "Pass"],
         ["TC-16", "Model Fallback", "Primary model fails", "Alternate model used", "Pass"],
         ["TC-17", "JSON Parsing", "Markdown-wrapped response", "JSON extracted correctly", "Pass"],
-        ["TC-18", "Partial JSON", "Missing optional keys", "Missing keys fail soft (“Not assessed”)", "Pass"],
+        [
+            "TC-18",
+            "Partial JSON",
+            "Missing optional keys",
+            "Missing keys fail soft (“Not assessed”)",
+            "Pass",
+        ],
     ],
     col_widths=[0.7, 1.5, 1.7, 1.7, 0.5],
 )
@@ -1311,53 +1417,183 @@ add_table(
     [
         ["TC-19", "ATS Parse Rate", "Structured CV", "High score generated", "Pass"],
         ["TC-20", "Quantifying Impact", "Numeric achievements", "Improved score", "Pass"],
-        ["TC-21", "Repetition Detection", "Repeated verbs", "Score reduction + flagged words", "Pass"],
+        [
+            "TC-21",
+            "Repetition Detection",
+            "Repeated verbs",
+            "Score reduction + flagged words",
+            "Pass",
+        ],
         ["TC-22", "Spelling & Grammar", "Formatting issues", "Score penalty applied", "Pass"],
         ["TC-23", "Section Detection", "All sections present", "Maximum sections score", "Pass"],
-        ["TC-24", "Bullets Consistency", "Bullets outside 15–45 words", "Score penalty + flagged lines", "Pass"],
-        ["TC-25", "Weighted Final Score", "All metrics computed", "Final score = sum of weighted components", "Pass"],
-        ["TC-26", "No-JD Mode", "No job description provided", "Score formula uses no_jd weights", "Pass"],
+        [
+            "TC-24",
+            "Bullets Consistency",
+            "Bullets outside 15–45 words",
+            "Score penalty + flagged lines",
+            "Pass",
+        ],
+        [
+            "TC-25",
+            "Weighted Final Score",
+            "All metrics computed",
+            "Final score = sum of weighted components",
+            "Pass",
+        ],
+        [
+            "TC-26",
+            "No-JD Mode",
+            "No job description provided",
+            "Score formula uses no_jd weights",
+            "Pass",
+        ],
     ],
     col_widths=[0.7, 1.5, 1.7, 1.7, 0.5],
 )
 
 page_break()
-add_para("Table 3.1.5: Authentication & Persistence Test Cases",
-         bold=True, size=11, space_after=6)
+add_para("Table 3.1.5: Authentication & Persistence Test Cases", bold=True, size=11, space_after=6)
 add_table(
     ["Test ID", "Test Scenario", "Action", "Expected Outcome", "Result"],
     [
-        ["TC-27", "Email Sign-Up", "Register new email/password", "User created in DB; auto-login", "Pass"],
-        ["TC-28", "Email Sign-In", "Login with valid creds", "Session cookie set; redirect to next page", "Pass"],
-        ["TC-29", "Wrong Password", "Login with wrong password", "Login rejected with error", "Pass"],
-        ["TC-30", "Google OAuth", "Click “Continue with Google”", "Token exchange → user created → logged in", "Pass"],
-        ["TC-31", "Persistent Login", "Reload after sign-in", "Session restored from cookie", "Pass"],
+        [
+            "TC-27",
+            "Email Sign-Up",
+            "Register new email/password",
+            "User created in DB; auto-login",
+            "Pass",
+        ],
+        [
+            "TC-28",
+            "Email Sign-In",
+            "Login with valid creds",
+            "Session cookie set; redirect to next page",
+            "Pass",
+        ],
+        [
+            "TC-29",
+            "Wrong Password",
+            "Login with wrong password",
+            "Login rejected with error",
+            "Pass",
+        ],
+        [
+            "TC-30",
+            "Google OAuth",
+            "Click “Continue with Google”",
+            "Token exchange → user created → logged in",
+            "Pass",
+        ],
+        [
+            "TC-31",
+            "Persistent Login",
+            "Reload after sign-in",
+            "Session restored from cookie",
+            "Pass",
+        ],
         ["TC-32", "Logout", "Click Logout", "Cookie cleared; session_state wiped", "Pass"],
-        ["TC-33", "Protected Page Gate", "Visit /resume-builder when logged out", "Bounced to /auth then back", "Pass"],
-        ["TC-34", "Forgot Password", "Submit email → click email link", "Reset token issued + consumed", "Pass"],
-        ["TC-35", "Saved Analyses Survive Logout", "Logout, log back in", "My Analyses still lists past runs", "Pass"],
-        ["TC-36", "Delete Account", "Settings → Delete (confirm)", "User + cascade rows removed", "Pass"],
+        [
+            "TC-33",
+            "Protected Page Gate",
+            "Visit /resume-builder when logged out",
+            "Bounced to /auth then back",
+            "Pass",
+        ],
+        [
+            "TC-34",
+            "Forgot Password",
+            "Submit email → click email link",
+            "Reset token issued + consumed",
+            "Pass",
+        ],
+        [
+            "TC-35",
+            "Saved Analyses Survive Logout",
+            "Logout, log back in",
+            "My Analyses still lists past runs",
+            "Pass",
+        ],
+        [
+            "TC-36",
+            "Delete Account",
+            "Settings → Delete (confirm)",
+            "User + cascade rows removed",
+            "Pass",
+        ],
     ],
     col_widths=[0.7, 1.5, 1.7, 1.7, 0.5],
 )
 
-add_para("Table 3.1.6: Multi-Resume Comparison Test Cases",
-         bold=True, size=11, space_after=6)
+add_para("Table 3.1.6: Multi-Resume Comparison Test Cases", bold=True, size=11, space_after=6)
 add_table(
     ["Test ID", "Test Scenario", "Action", "Expected Outcome", "Result"],
     [
-        ["TC-37", "2-file Compare", "Upload 2 CVs + JD", "Ranked table rendered on compare-report", "Pass"],
+        [
+            "TC-37",
+            "2-file Compare",
+            "Upload 2 CVs + JD",
+            "Ranked table rendered on compare-report",
+            "Pass",
+        ],
         ["TC-38", "5-file Compare", "Upload 5 CVs + JD", "All 5 ranked correctly", "Pass"],
         ["TC-39", "1-file Compare", "Upload 1 CV", "Validation error (minimum 2)", "Pass"],
         ["TC-40", "Duplicate Upload", "Upload same file twice", "Dedup at form stage", "Pass"],
-        ["TC-41", "Sort Change", "Sort by JD Alignment asc", "Table re-orders, ranks renumbered", "Pass"],
-        ["TC-42", "★ Winner Glued", "Sort low→high", "★ still on true top match (not row 1)", "Pass"],
-        ["TC-43", "CSV Download", "Click Download CSV", "CSV with current sort, no _analysis leak", "Pass"],
-        ["TC-44", "PDF Download", "Click Download PDF", "ReportLab PDF with color-coded scores", "Pass"],
-        ["TC-45", "Gemini 429 mid-run", "Simulate 429 on file 2 of 4", "Files 3–4 marked skipped (rate limit)", "Pass"],
-        ["TC-46", "Open as Full Report", "Click drill-down button", "Snapshot saved, navigate to /report", "Pass"],
-        ["TC-47", "Autosave", "Run compare while signed in", "Row appended to comparisons table", "Pass"],
-        ["TC-48", "Browser Back", "Back from compare-report", "Lands on compare section, nav highlighted", "Pass"],
+        [
+            "TC-41",
+            "Sort Change",
+            "Sort by JD Alignment asc",
+            "Table re-orders, ranks renumbered",
+            "Pass",
+        ],
+        [
+            "TC-42",
+            "★ Winner Glued",
+            "Sort low→high",
+            "★ still on true top match (not row 1)",
+            "Pass",
+        ],
+        [
+            "TC-43",
+            "CSV Download",
+            "Click Download CSV",
+            "CSV with current sort, no _analysis leak",
+            "Pass",
+        ],
+        [
+            "TC-44",
+            "PDF Download",
+            "Click Download PDF",
+            "ReportLab PDF with color-coded scores",
+            "Pass",
+        ],
+        [
+            "TC-45",
+            "Gemini 429 mid-run",
+            "Simulate 429 on file 2 of 4",
+            "Files 3–4 marked skipped (rate limit)",
+            "Pass",
+        ],
+        [
+            "TC-46",
+            "Open as Full Report",
+            "Click drill-down button",
+            "Snapshot saved, navigate to /report",
+            "Pass",
+        ],
+        [
+            "TC-47",
+            "Autosave",
+            "Run compare while signed in",
+            "Row appended to comparisons table",
+            "Pass",
+        ],
+        [
+            "TC-48",
+            "Browser Back",
+            "Back from compare-report",
+            "Lands on compare section, nav highlighted",
+            "Pass",
+        ],
     ],
     col_widths=[0.7, 1.5, 1.7, 1.7, 0.5],
 )
@@ -1366,15 +1602,57 @@ add_para("Table 3.1.7: Resume Builder Test Cases", bold=True, size=11, space_aft
 add_table(
     ["Test ID", "Test Scenario", "Action", "Expected Outcome", "Result"],
     [
-        ["TC-49", "Template Switch", "Classic → Creative → Modern", "Preview + PDF layout updates", "Pass"],
-        ["TC-50", "Section Reorder", "Drag Skills above Experience", "Order persists across rerun", "Pass"],
-        ["TC-51", "Section Hide", "Toggle eye on Projects", "Project hidden in preview + PDF", "Pass"],
-        ["TC-52", "AI Bullet Suggestion", "Click “AI Suggest”", "Gemini-generated bullet inserted", "Pass"],
+        [
+            "TC-49",
+            "Template Switch",
+            "Classic → Creative → Modern",
+            "Preview + PDF layout updates",
+            "Pass",
+        ],
+        [
+            "TC-50",
+            "Section Reorder",
+            "Drag Skills above Experience",
+            "Order persists across rerun",
+            "Pass",
+        ],
+        [
+            "TC-51",
+            "Section Hide",
+            "Toggle eye on Projects",
+            "Project hidden in preview + PDF",
+            "Pass",
+        ],
+        [
+            "TC-52",
+            "AI Bullet Suggestion",
+            "Click “AI Suggest”",
+            "Gemini-generated bullet inserted",
+            "Pass",
+        ],
         ["TC-53", "Save to DB", "Click Save", "Row inserted into cvs table", "Pass"],
-        ["TC-54", "Load from DB", "Open from My CVs", "All fields + customisation restored", "Pass"],
+        [
+            "TC-54",
+            "Load from DB",
+            "Open from My CVs",
+            "All fields + customisation restored",
+            "Pass",
+        ],
         ["TC-55", "PDF Download", "Click Download PDF", "PDF matches selected template", "Pass"],
-        ["TC-56", "Live Preview — Name", "Type in Full Name field", "Preview updates without Enter", "Pass"],
-        ["TC-57", "Customisation Persist", "Change accent color, Save, reload", "Custom color restored on load", "Pass"],
+        [
+            "TC-56",
+            "Live Preview — Name",
+            "Type in Full Name field",
+            "Preview updates without Enter",
+            "Pass",
+        ],
+        [
+            "TC-57",
+            "Customisation Persist",
+            "Change accent color, Save, reload",
+            "Custom color restored on load",
+            "Pass",
+        ],
     ],
     col_widths=[0.7, 1.5, 1.7, 1.7, 0.5],
 )
@@ -1383,9 +1661,27 @@ add_para("Table 3.1.8: Cover Letter Test Cases", bold=True, size=11, space_after
 add_table(
     ["Test ID", "Test Scenario", "Action", "Expected Outcome", "Result"],
     [
-        ["TC-58", "Basic Generation", "Resume + JD only", "Markdown letter rendered + DOCX ready", "Pass"],
-        ["TC-59", "Optional Fields", "Add company + role + tone", "Generated letter reflects inputs", "Pass"],
-        ["TC-60", "DOCX Download", "Click Download DOCX", "Valid .docx with formatted content", "Pass"],
+        [
+            "TC-58",
+            "Basic Generation",
+            "Resume + JD only",
+            "Markdown letter rendered + DOCX ready",
+            "Pass",
+        ],
+        [
+            "TC-59",
+            "Optional Fields",
+            "Add company + role + tone",
+            "Generated letter reflects inputs",
+            "Pass",
+        ],
+        [
+            "TC-60",
+            "DOCX Download",
+            "Click Download DOCX",
+            "Valid .docx with formatted content",
+            "Pass",
+        ],
         ["TC-61", "Missing JD", "Resume only, no JD", "Validation error", "Pass"],
         ["TC-62", "Auth Gate", "Visit /cover-letter logged out", "Bounced to auth page", "Pass"],
     ],
@@ -1396,12 +1692,42 @@ add_para("Table 3.1.9: Edge Case Validation", bold=True, size=11, space_after=6)
 add_table(
     ["Test ID", "Test Scenario", "Input Description", "Expected Outcome", "Result"],
     [
-        ["TC-63", "Long Resume", "> 10,000 characters", "Text truncated to 6,000 for Gemini", "Pass"],
+        [
+            "TC-63",
+            "Long Resume",
+            "> 10,000 characters",
+            "Text truncated to 6,000 for Gemini",
+            "Pass",
+        ],
         ["TC-64", "Long JD", "> 5,000 characters", "JD truncated to 4,000 for Gemini", "Pass"],
-        ["TC-65", "Empty AI Output", "No structured JSON returned", "Programmatic fallback used", "Pass"],
-        ["TC-66", "Special Characters", "Emojis, symbols, unicode", "No crash; safely XML-escaped in PDF", "Pass"],
-        ["TC-67", "Concurrent Saves", "Save CV from two tabs", "Last write wins; no DB corruption", "Pass"],
-        ["TC-68", "Theme Switch Mid-Form", "Toggle dark mode while typing", "All form data preserved", "Pass"],
+        [
+            "TC-65",
+            "Empty AI Output",
+            "No structured JSON returned",
+            "Programmatic fallback used",
+            "Pass",
+        ],
+        [
+            "TC-66",
+            "Special Characters",
+            "Emojis, symbols, unicode",
+            "No crash; safely XML-escaped in PDF",
+            "Pass",
+        ],
+        [
+            "TC-67",
+            "Concurrent Saves",
+            "Save CV from two tabs",
+            "Last write wins; no DB corruption",
+            "Pass",
+        ],
+        [
+            "TC-68",
+            "Theme Switch Mid-Form",
+            "Toggle dark mode while typing",
+            "All form data preserved",
+            "Pass",
+        ],
     ],
     col_widths=[0.7, 1.5, 1.7, 1.7, 0.5],
 )
@@ -1417,33 +1743,45 @@ add_para(
 )
 
 screens = [
-    ("Figure 3.2.1: Home / Analyze CV — Upload Page with Hero Preview",
-     "The landing page shows the JD textarea and a PDF/DOCX uploader on the left, with an "
-     "animated sample preview card on the right featuring the horizontal score bar, "
-     "category meters (Content / Sections / ATS Essentials / Insights), and rotating tip "
-     "messages. Sign-in is required to upload."),
-    ("Figure 3.2.2: Comparison Results Page (Ranked Multi-Resume Shortlist)",
-     "The compare-report page renders a two-column primary section: ranked HTML table "
-     "(left) with inline meter bars and identity-locked ★ winner pill, and a Top Match "
-     "card (right) with the winner’s score, per-metric chips, and top missing skills. "
-     "Per-resume drill-down expanders sit below the primary section, followed by a "
-     "Clear / CSV / PDF action row."),
-    ("Figure 3.2.3: Single-Resume Analysis Report (Sidebar + Group Cards)",
-     "Sticky left sidebar with the score card (horizontal animated bar, issue count, "
-     "“How this score is calculated” breakdown, four-category accordion). Right pane "
-     "with four group cards (Content, Sections, ATS Essentials, Insights); each holds "
-     "collapsible detail cards per check."),
-    ("Figure 3.2.4: Resume Builder Three-Panel Workspace",
-     "Left rail: section list with eye / chevron / drag handles, template selector, style "
-     "controls. Middle: editable section cards. Right: zoomable HTML preview that mirrors "
-     "the chosen template (Classic / Creative / Modern)."),
-    ("Figure 3.2.5: Cover Letter Generator Page",
-     "Resume uploader + JD textarea on top; optional company / role / source / tone fields "
-     "below; generated cover letter rendered as Markdown with a “Download DOCX” button."),
-    ("Figure 3.2.6: My Comparisons / History Page",
-     "Per-user list of saved comparison runs with score chips, resume-count chips, JD "
-     "preview, and View / Delete actions. Logout-safe (rows persist in the comparisons "
-     "table)."),
+    (
+        "Figure 3.2.1: Home / Analyze CV — Upload Page with Hero Preview",
+        "The landing page shows the JD textarea and a PDF/DOCX uploader on the left, with an "
+        "animated sample preview card on the right featuring the horizontal score bar, "
+        "category meters (Content / Sections / ATS Essentials / Insights), and rotating tip "
+        "messages. Sign-in is required to upload.",
+    ),
+    (
+        "Figure 3.2.2: Comparison Results Page (Ranked Multi-Resume Shortlist)",
+        "The compare-report page renders a two-column primary section: ranked HTML table "
+        "(left) with inline meter bars and identity-locked ★ winner pill, and a Top Match "
+        "card (right) with the winner’s score, per-metric chips, and top missing skills. "
+        "Per-resume drill-down expanders sit below the primary section, followed by a "
+        "Clear / CSV / PDF action row.",
+    ),
+    (
+        "Figure 3.2.3: Single-Resume Analysis Report (Sidebar + Group Cards)",
+        "Sticky left sidebar with the score card (horizontal animated bar, issue count, "
+        "“How this score is calculated” breakdown, four-category accordion). Right pane "
+        "with four group cards (Content, Sections, ATS Essentials, Insights); each holds "
+        "collapsible detail cards per check.",
+    ),
+    (
+        "Figure 3.2.4: Resume Builder Three-Panel Workspace",
+        "Left rail: section list with eye / chevron / drag handles, template selector, style "
+        "controls. Middle: editable section cards. Right: zoomable HTML preview that mirrors "
+        "the chosen template (Classic / Creative / Modern).",
+    ),
+    (
+        "Figure 3.2.5: Cover Letter Generator Page",
+        "Resume uploader + JD textarea on top; optional company / role / source / tone fields "
+        "below; generated cover letter rendered as Markdown with a “Download DOCX” button.",
+    ),
+    (
+        "Figure 3.2.6: My Comparisons / History Page",
+        "Per-user list of saved comparison runs with score chips, resume-count chips, JD "
+        "preview, and View / Delete actions. Logout-safe (rows persist in the comparisons "
+        "table).",
+    ),
 ]
 for caption, body in screens:
     add_para(caption, bold=True, size=11, align=WD_ALIGN_PARAGRAPH.CENTER, space_after=4)
@@ -1465,8 +1803,7 @@ add_para(
     "averaged across 50+ test CVs against varied JDs.",
     space_after=8,
 )
-add_para("Table 3.3.1: Component-wise Response Time Analysis",
-         bold=True, size=11, space_after=6)
+add_para("Table 3.3.1: Component-wise Response Time Analysis", bold=True, size=11, space_after=6)
 add_table(
     ["Component", "Average (s)", "Minimum (s)", "Maximum (s)"],
     [
@@ -1485,8 +1822,7 @@ for s in [
     "Local processing (extraction + 11-metric scoring + JSON parsing) executes in well "
     "under one second.",
     "Total response time of ~5.4 s is acceptable for an interactive analysis workflow.",
-    "Multi-resume runs scale roughly linearly with file count (sequential by design — "
-    "see §2.2.6).",
+    "Multi-resume runs scale roughly linearly with file count (sequential by design — see §2.2.6).",
 ]:
     add_bullet(s)
 
@@ -1496,7 +1832,11 @@ add_table(
     ["Component", "Contribution (%)", "Impact Description"],
     [
         ["Gemini API Call", "~83%", "Network latency + external dependency"],
-        ["UI Rendering (Streamlit reruns)", "~9%", "Full-script rerun overhead on every interaction"],
+        [
+            "UI Rendering (Streamlit reruns)",
+            "~9%",
+            "Full-script rerun overhead on every interaction",
+        ],
         ["PDF / DOCX Extraction", "~6%", "File I/O and library parsing"],
         ["Scoring + JSON + everything else", "~2%", "Local CPU work, negligible"],
     ],
@@ -1512,8 +1852,7 @@ for s in [
 
 add_heading("3.3.3  Scalability Analysis", 3)
 add_para(
-    "Scalability measures how the system’s capacity changes with infrastructure or model "
-    "tier.",
+    "Scalability measures how the system’s capacity changes with infrastructure or model tier.",
     space_after=6,
 )
 add_para("Current Constraints:", bold=True, space_after=4)
@@ -1547,8 +1886,7 @@ for s in [
     add_bullet(s)
 
 add_heading("3.3.4  Resource Utilization Analysis", 3)
-add_para("Memory Usage (single-user, idle to active analysis):",
-         bold=True, space_after=4)
+add_para("Memory Usage (single-user, idle to active analysis):", bold=True, space_after=4)
 for s in [
     "Idle (page loaded, no analysis): ~80 MB.",
     "During single-CV analysis: peaks at ~110 MB.",
@@ -1576,20 +1914,32 @@ for s in [
     add_bullet(s)
 
 add_heading("3.3.5  Comparative Performance Analysis", 3)
-add_para("Table 3.3.4: Comparative Analysis — Traditional ATS vs. ExcelCV",
-         bold=True, size=11, space_after=6)
+add_para(
+    "Table 3.3.4: Comparative Analysis — Traditional ATS vs. ExcelCV",
+    bold=True,
+    size=11,
+    space_after=6,
+)
 add_table(
     ["Parameter", "Traditional ATS", "ExcelCV"],
     [
         ["Semantic Analysis", "Limited (keyword match)", "Advanced (Gemini-based)"],
-        ["Resume Feedback", "Rule-based, opaque", "Hybrid (AI + 11 metrics) + actionable suggestions"],
+        [
+            "Resume Feedback",
+            "Rule-based, opaque",
+            "Hybrid (AI + 11 metrics) + actionable suggestions",
+        ],
         ["Response Time", "Fast", "Moderate (≥5 s due to Gemini latency)"],
         ["Score Explainability", "Low (black box)", "High (weighted breakdown shown to user)"],
         ["Customisation", "Low", "High (themes, builder templates, customisation knobs)"],
         ["Adaptability", "Static rules", "Dynamic AI + tunable weights"],
         ["Output Artifacts", "Pass/fail", "Score + report (PDF/JSON) + cover letter + built CV"],
         ["Multi-Resume Shortlisting", "Internal only", "First-class feature with PDF/CSV export"],
-        ["Persistent History", "None for the candidate", "Per-user saved CVs / analyses / comparisons"],
+        [
+            "Persistent History",
+            "None for the candidate",
+            "Per-user saved CVs / analyses / comparisons",
+        ],
     ],
     col_widths=[2.0, 1.8, 2.4],
 )
@@ -1608,8 +1958,7 @@ for s in [
     "Programmatic scoring to reduce hard dependency on AI for every metric.",
     "Session-state reuse to avoid re-running Gemini on UI interactions (sort change, "
     "expander toggle, theme switch).",
-    "Cached PDF generation for the Resume Builder (@st.cache_data) — rebuilt only on "
-    "data change.",
+    "Cached PDF generation for the Resume Builder (@st.cache_data) — rebuilt only on data change.",
     "Cached comparison PDF builder (@st.cache_data, max_entries=20) — sort changes reuse "
     "the same bytes.",
     "Model fallback chain so a temporary failure on one Gemini variant degrades to "
@@ -1650,7 +1999,6 @@ for para in [
     "wrapping both in an authenticated, database-backed Streamlit application, the system "
     "addresses the full optimize→compare→author loop that job seekers and recruiters "
     "actually need.",
-
     "The platform demonstrates strong performance and reliability across all five modules "
     "(Analyze CV, Compare Resumes, Cover Letter, Resume Builder, and per-user history). The "
     "hybrid scoring methodology — averaging AI scores with programmatic scores where both "
@@ -1659,14 +2007,12 @@ for para in [
     "explainable weighted final-score formula (Content Quality 30%, JD Alignment 25%, "
     "Sections 15%, ATS Essentials 15%, Contact Completeness 15% in JD-aligned mode) makes "
     "the score legible to non-technical users and provides a clear lever for improvement.",
-
     "The multi-resume comparison module elevates ExcelCV from a personal optimisation tool "
     "to a candidate-shortlisting tool. Eight sort options, an identity-locked ★ winner "
     "pill, per-resume drill-down expanders, and CSV / PDF export turn what could be "
     "manual recruiter work into a one-page side-by-side view. The Cover Letter Generator "
     "and Resume Builder close the loop — the same platform that points out a missing "
     "keyword or weak bullet can also rewrite or rebuild that section.",
-
     "From a usability standpoint, the system delivers a modern, intuitive, and responsive "
     "interface backed by a light/dark theme that survives Streamlit reruns. The sticky "
     "report sidebar, horizontal animated score bar, color-coded score tiers, and "
@@ -1674,7 +2020,6 @@ for para in [
     "guided product. Auth (email/password + Google OAuth), per-user persistence (5 SQLite "
     "tables), and history pages for saved resumes / analyses / comparisons turn isolated "
     "interactions into a continuous personal career workspace.",
-
     "The architecture is modular and maintainable — src/ui/, src/services/, "
     "src/cover_letter/, and src/database.py are cleanly separated, and the recent split of "
     "the Resume Builder into focused modules (cv_builder_constants.py, cv_builder_pdf.py, "
@@ -1682,7 +2027,6 @@ for para in [
     "straightforward. Comprehensive error handling across input validation, file "
     "extraction, AI calls (with model fallback and quota short-circuit), JSON parsing, "
     "and database writes ensures the system fails soft rather than crashing.",
-
     "Performance evaluation indicates an end-to-end average analysis time of approximately "
     "5.4 seconds, with Gemini API latency contributing ~83% of that figure. Local "
     "processing (PDF/DOCX extraction, eleven-metric scoring, JSON parsing) all execute in "
@@ -1860,27 +2204,48 @@ add_para(
 
 add_heading("4.3.1  Short-Term Enhancements (1–3 Months)", 3)
 for n, title, body in [
-    ("1.", "Real-Time Preview Extension",
-     "Extend the postMessage JS bridge in the Resume Builder beyond Personal Details to "
-     "Experience, Education, Skills, Projects, and Certifications."),
-    ("2.", "Skeleton / Sample-Data First Load",
-     "Replace the blank preview on first builder load with a tasteful skeleton or sample "
-     "CV so users immediately see the layout of the chosen template."),
-    ("3.", "DB-Backed Report Snapshots",
-     "Move the in-memory @st.cache_resource snapshot store to a dedicated DB table so "
-     "?rid= permalinks survive a server restart."),
-    ("4.", "Shareable Comparison Permalinks",
-     "Add a snapshot-style URL for saved comparisons so a recruiter can share a shortlist "
-     "view via link."),
-    ("5.", "Heavier Spell / Grammar Checking",
-     "Optionally integrate pyspellchecker or LanguageTool for the Spelling & Grammar "
-     "metric, behind a config flag to avoid adding a hard dependency."),
-    ("6.", "Static-Page Content",
-     "Fill in real content for ATS Insights, Evaluation Toolkit, Project Notes, How It "
-     "Works, Interview Prep, Privacy Policy, Terms of Service."),
-    ("7.", "E2E Tests",
-     "Add Playwright-based E2E tests for the CV-builder JS bridge, multi-resume flow, "
-     "and auth gate."),
+    (
+        "1.",
+        "Real-Time Preview Extension",
+        "Extend the postMessage JS bridge in the Resume Builder beyond Personal Details to "
+        "Experience, Education, Skills, Projects, and Certifications.",
+    ),
+    (
+        "2.",
+        "Skeleton / Sample-Data First Load",
+        "Replace the blank preview on first builder load with a tasteful skeleton or sample "
+        "CV so users immediately see the layout of the chosen template.",
+    ),
+    (
+        "3.",
+        "DB-Backed Report Snapshots",
+        "Move the in-memory @st.cache_resource snapshot store to a dedicated DB table so "
+        "?rid= permalinks survive a server restart.",
+    ),
+    (
+        "4.",
+        "Shareable Comparison Permalinks",
+        "Add a snapshot-style URL for saved comparisons so a recruiter can share a shortlist "
+        "view via link.",
+    ),
+    (
+        "5.",
+        "Heavier Spell / Grammar Checking",
+        "Optionally integrate pyspellchecker or LanguageTool for the Spelling & Grammar "
+        "metric, behind a config flag to avoid adding a hard dependency.",
+    ),
+    (
+        "6.",
+        "Static-Page Content",
+        "Fill in real content for ATS Insights, Evaluation Toolkit, Project Notes, How It "
+        "Works, Interview Prep, Privacy Policy, Terms of Service.",
+    ),
+    (
+        "7.",
+        "E2E Tests",
+        "Add Playwright-based E2E tests for the CV-builder JS bridge, multi-resume flow, "
+        "and auth gate.",
+    ),
 ]:
     add_para(f"{n} {title}", bold=True, space_after=2)
     p = doc.add_paragraph(body)
@@ -1892,22 +2257,40 @@ for n, title, body in [
 
 add_heading("4.3.2  Medium-Term Enhancements (3–6 Months)", 3)
 for n, title, body in [
-    ("1.", "Industry-Specific Evaluation",
-     "Domain-based metric weighting (IT, Finance, Healthcare, etc.) plus role-specific "
-     "keyword recommendations and industry best-practice benchmarks."),
-    ("2.", "Historical Tracking",
-     "Track an individual user’s score over time across resume revisions, with trend "
-     "graphs and improvement diffs."),
-    ("3.", "Bounded Parallelism for Compare",
-     "Run 2 Gemini calls concurrently in compare mode with quota-aware batching so "
-     "wall-clock time drops without breaking the short-circuit guarantee."),
-    ("4.", "OCR Support",
-     "Integrate Tesseract or a hosted OCR service for scanned / image-only PDFs."),
-    ("5.", "Job-Portal Integration",
-     "Push tailored applications directly to LinkedIn / Indeed; pull JD text from a posted "
-     "link rather than requiring paste."),
-    ("6.", "Comparative Benchmarking",
-     "Anonymised peer-resume comparison (“your score vs. the average for this role”)."),
+    (
+        "1.",
+        "Industry-Specific Evaluation",
+        "Domain-based metric weighting (IT, Finance, Healthcare, etc.) plus role-specific "
+        "keyword recommendations and industry best-practice benchmarks.",
+    ),
+    (
+        "2.",
+        "Historical Tracking",
+        "Track an individual user’s score over time across resume revisions, with trend "
+        "graphs and improvement diffs.",
+    ),
+    (
+        "3.",
+        "Bounded Parallelism for Compare",
+        "Run 2 Gemini calls concurrently in compare mode with quota-aware batching so "
+        "wall-clock time drops without breaking the short-circuit guarantee.",
+    ),
+    (
+        "4.",
+        "OCR Support",
+        "Integrate Tesseract or a hosted OCR service for scanned / image-only PDFs.",
+    ),
+    (
+        "5.",
+        "Job-Portal Integration",
+        "Push tailored applications directly to LinkedIn / Indeed; pull JD text from a posted "
+        "link rather than requiring paste.",
+    ),
+    (
+        "6.",
+        "Comparative Benchmarking",
+        "Anonymised peer-resume comparison (“your score vs. the average for this role”).",
+    ),
 ]:
     add_para(f"{n} {title}", bold=True, space_after=2)
     p = doc.add_paragraph(body)
@@ -1919,24 +2302,42 @@ for n, title, body in [
 
 add_heading("4.3.3  Long-Term Vision (6–12 Months)", 3)
 for n, title, body in [
-    ("1.", "Enterprise Capabilities",
-     "Multi-user organisations with role-based access, admin dashboards, public REST API "
-     "for third-party integration, and white-label deployments."),
-    ("2.", "Mobile Apps",
-     "Native iOS / Android apps with camera-based resume scanning, offline analysis with "
-     "cloud sync, and push notifications when long compare runs complete."),
-    ("3.", "Advanced AI Career Assistance",
-     "Section-level rewrite suggestions applied in place, interview preparation drills "
-     "generated from the user’s gaps, career-growth pathing based on resume history."),
-    ("4.", "Custom ML Models",
-     "Train a domain-specific scoring model on labelled resume datasets to augment or "
-     "replace the deterministic engine. Continuous learning from user feedback."),
-    ("5.", "Community Features",
-     "Optional peer-review marketplace, expert review and mentoring integration, "
-     "moderated forums for industry-specific resume advice."),
-    ("6.", "Analytics and Market Intelligence",
-     "Job-market trend analysis, salary prediction based on resume profile, job-fit "
-     "scoring across industries."),
+    (
+        "1.",
+        "Enterprise Capabilities",
+        "Multi-user organisations with role-based access, admin dashboards, public REST API "
+        "for third-party integration, and white-label deployments.",
+    ),
+    (
+        "2.",
+        "Mobile Apps",
+        "Native iOS / Android apps with camera-based resume scanning, offline analysis with "
+        "cloud sync, and push notifications when long compare runs complete.",
+    ),
+    (
+        "3.",
+        "Advanced AI Career Assistance",
+        "Section-level rewrite suggestions applied in place, interview preparation drills "
+        "generated from the user’s gaps, career-growth pathing based on resume history.",
+    ),
+    (
+        "4.",
+        "Custom ML Models",
+        "Train a domain-specific scoring model on labelled resume datasets to augment or "
+        "replace the deterministic engine. Continuous learning from user feedback.",
+    ),
+    (
+        "5.",
+        "Community Features",
+        "Optional peer-review marketplace, expert review and mentoring integration, "
+        "moderated forums for industry-specific resume advice.",
+    ),
+    (
+        "6.",
+        "Analytics and Market Intelligence",
+        "Job-market trend analysis, salary prediction based on resume profile, job-fit "
+        "scoring across industries.",
+    ),
 ]:
     add_para(f"{n} {title}", bold=True, space_after=2)
     p = doc.add_paragraph(body)
@@ -1948,18 +2349,30 @@ for n, title, body in [
 
 add_heading("4.3.4  Research and Development Opportunities", 3)
 for n, title, body in [
-    ("1.", "Optical Character Recognition",
-     "Support for scanned and image-based resumes; handwritten resume processing; improved "
-     "accessibility for users with non-standard formats."),
-    ("2.", "Multilingual Resume Analysis",
-     "Non-English resume support with language-specific ATS compliance rules and automated "
-     "translation with semantic preservation."),
-    ("3.", "Video Resume Evaluation",
-     "Analysis of video-based introductions, communication and presentation-skill "
-     "assessment, non-verbal cue evaluation."),
-    ("4.", "Blockchain-Backed Credential Verification",
-     "Immutable storage of verified education and experience records; secure audit trails "
-     "for resume changes."),
+    (
+        "1.",
+        "Optical Character Recognition",
+        "Support for scanned and image-based resumes; handwritten resume processing; improved "
+        "accessibility for users with non-standard formats.",
+    ),
+    (
+        "2.",
+        "Multilingual Resume Analysis",
+        "Non-English resume support with language-specific ATS compliance rules and automated "
+        "translation with semantic preservation.",
+    ),
+    (
+        "3.",
+        "Video Resume Evaluation",
+        "Analysis of video-based introductions, communication and presentation-skill "
+        "assessment, non-verbal cue evaluation.",
+    ),
+    (
+        "4.",
+        "Blockchain-Backed Credential Verification",
+        "Immutable storage of verified education and experience records; secure audit trails "
+        "for resume changes.",
+    ),
 ]:
     add_para(f"{n} {title}", bold=True, space_after=2)
     p = doc.add_paragraph(body)
@@ -1977,39 +2390,28 @@ refs = [
     "[1] J. Devlin, M.-W. Chang, K. Lee, and K. Toutanova, “BERT: Pre-training of Deep "
     "Bidirectional Transformers for Language Understanding,” in Proc. NAACL-HLT, 2019, "
     "pp. 4171–4186.",
-
     "[2] A. Chandra and R. Kaur, “Contextual NLP Models for Automated Resume Screening,” "
     "International Journal of Computer Applications, vol. 184, no. 27, pp. 12–18, 2022.",
-
     "[3] P. Kumar and S. Gupta, “Machine Learning-Based Candidate Ranking System for "
     "Resume Shortlisting,” in Proc. International Conference on Artificial Intelligence "
     "and Smart Systems (ICAIS), 2022, pp. 845–852.",
-
     "[4] T. Miller and I. Bhattacharya, “Hybrid Generative-AI Systems with Rule-Based "
     "Scoring for Interpretable Document Evaluation,” Journal of Artificial Intelligence "
     "Research, vol. 79, pp. 1015–1044, 2024.",
-
     "[5] Streamlit Inc., “Streamlit Documentation,” 2024. [Online]. Available: "
     "https://docs.streamlit.io/",
-
     "[6] Google LLC, “Google Gemini API Documentation,” Google AI Developer Platform, "
     "2024. [Online]. Available: https://ai.google.dev/gemini-api/docs",
-
     "[7] M. Stamm and the pypdf maintainers, “pypdf Documentation,” 2024. [Online]. "
     "Available: https://pypdf.readthedocs.io/",
-
     "[8] M. Padberg, “python-docx Documentation,” 2024. [Online]. Available: "
     "https://python-docx.readthedocs.io/",
-
     "[9] ReportLab Inc., “ReportLab PDF Library User Guide,” 2024. [Online]. Available: "
     "https://www.reportlab.com/docs/reportlab-userguide.pdf",
-
     "[10] M. Bayer and the SQLAlchemy team, “SQLAlchemy 2.0 Documentation,” 2024. "
     "[Online]. Available: https://docs.sqlalchemy.org/en/20/",
-
     "[11] D. Beazley and B. K. Jones, Python Cookbook, 3rd ed. Sebastopol, CA: O’Reilly "
     "Media, 2013.",
-
     "[12] Python Software Foundation, “Python Language Reference,” 2024. [Online]. "
     "Available: https://docs.python.org/3/",
 ]

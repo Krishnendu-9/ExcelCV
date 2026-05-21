@@ -68,7 +68,9 @@ def create_oauth_state_token(next_page: str | None = None) -> str:
         payload_obj["next"] = next_value
     raw = json.dumps(payload_obj, separators=(",", ":"))
     payload = base64.urlsafe_b64encode(raw.encode("utf-8")).decode("ascii").rstrip("=")
-    sig = hmac.new(state_secret.encode("utf-8"), payload.encode("utf-8"), hashlib.sha256).hexdigest()
+    sig = hmac.new(
+        state_secret.encode("utf-8"), payload.encode("utf-8"), hashlib.sha256
+    ).hexdigest()
     return f"{payload}.{sig}"
 
 

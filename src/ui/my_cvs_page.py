@@ -50,12 +50,7 @@ def render_my_cvs_page() -> None:
     with st.container(key="lp_shell_mycvs"):
         db = get_db()
         try:
-            cvs = (
-                db.query(CV)
-                .filter(CV.user_id == user["id"])
-                .order_by(CV.updated_at.desc())
-                .all()
-            )
+            cvs = db.query(CV).filter(CV.user_id == user["id"]).order_by(CV.updated_at.desc()).all()
         finally:
             db.close()
 
@@ -139,6 +134,7 @@ def render_my_cvs_page() -> None:
                             st.session_state[f"confirm_delete_cv_{cv.id}"] = True
 
                 if st.session_state.get(f"confirm_delete_cv_{cv.id}"):
+
                     def _delete_cv(target_id=cv.id, target_title=str(cv.title)):
                         db2 = get_db()
                         try:

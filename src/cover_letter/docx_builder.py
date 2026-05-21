@@ -25,7 +25,9 @@ def build_cover_letter_docx(
         from docx.enum.text import WD_ALIGN_PARAGRAPH
         from docx.shared import Pt
     except Exception as exc:  # pragma: no cover
-        raise RuntimeError("DOCX generation requires python-docx. Please install dependencies.") from exc
+        raise RuntimeError(
+            "DOCX generation requires python-docx. Please install dependencies."
+        ) from exc
 
     document = Document()
     normal_style = document.styles["Normal"]
@@ -72,4 +74,3 @@ def build_cover_letter_docx(
     output = BytesIO()
     document.save(output)
     return output.getvalue()
-

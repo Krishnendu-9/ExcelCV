@@ -80,8 +80,13 @@ def generate_comparison_pdf(
             "Subtitle", fontName="Helvetica", fontSize=10, leading=13, textColor=_MUTED
         ),
         "h2": ParagraphStyle(
-            "H2", fontName="Helvetica-Bold", fontSize=12, leading=15,
-            textColor=_PRIMARY, spaceBefore=10, spaceAfter=4,
+            "H2",
+            fontName="Helvetica-Bold",
+            fontSize=12,
+            leading=15,
+            textColor=_PRIMARY,
+            spaceBefore=10,
+            spaceAfter=4,
         ),
         "body": ParagraphStyle(
             "Body", fontName="Helvetica", fontSize=9.5, leading=13, textColor=_TEXT
@@ -90,8 +95,12 @@ def generate_comparison_pdf(
             "Muted", fontName="Helvetica", fontSize=8.5, leading=11, textColor=_MUTED
         ),
         "meta_right": ParagraphStyle(
-            "MetaRight", fontName="Helvetica", fontSize=9, leading=12,
-            textColor=_MUTED, alignment=TA_RIGHT,
+            "MetaRight",
+            fontName="Helvetica",
+            fontSize=9,
+            leading=12,
+            textColor=_MUTED,
+            alignment=TA_RIGHT,
         ),
     }
 
@@ -137,15 +146,17 @@ def generate_comparison_pdf(
         # Truncate very long file names so the row doesn't overflow.
         if len(name) > 36:
             name = name[:33] + "…"
-        table_data.append([
-            f"#{rank}",
-            _esc(name),
-            str(final),
-            str(jd_align),
-            str(ats),
-            str(sections),
-            str(issues),
-        ])
+        table_data.append(
+            [
+                f"#{rank}",
+                _esc(name),
+                str(final),
+                str(jd_align),
+                str(ats),
+                str(sections),
+                str(issues),
+            ]
+        )
 
     col_widths = [14 * mm, 60 * mm, 18 * mm, 22 * mm, 22 * mm, 20 * mm, 18 * mm]
     table = Table(table_data, colWidths=col_widths, hAlign="LEFT", repeatRows=1)
@@ -193,7 +204,7 @@ def generate_comparison_pdf(
         rank = int(row.get("Rank", 0) or 0)
         name = str(row.get("Resume", "") or "")
         score = int(row.get("Final Score", 0) or 0)
-        header = f'<b>#{rank}  {_esc(name)}</b>  &nbsp;·&nbsp;  {score}/100'
+        header = f"<b>#{rank}  {_esc(name)}</b>  &nbsp;·&nbsp;  {score}/100"
         story.append(Paragraph(header, styles["body"]))
         if isinstance(analysis, dict):
             summary = str(analysis.get("summary", "") or "").strip()
@@ -201,12 +212,16 @@ def generate_comparison_pdf(
                 if len(summary) > 600:
                     summary = summary[:599].rstrip() + "…"
                 story.append(Paragraph(_esc(summary), styles["muted"]))
-            missing = [str(s).strip() for s in (analysis.get("missing_skills") or []) if str(s).strip()]
+            missing = [
+                str(s).strip() for s in (analysis.get("missing_skills") or []) if str(s).strip()
+            ]
             if missing:
-                story.append(Paragraph(
-                    "<b>Top missing skills:</b> " + _esc(", ".join(missing[:6])),
-                    styles["muted"],
-                ))
+                story.append(
+                    Paragraph(
+                        "<b>Top missing skills:</b> " + _esc(", ".join(missing[:6])),
+                        styles["muted"],
+                    )
+                )
             tips = [str(s).strip() for s in (analysis.get("suggestions") or []) if str(s).strip()]
             if tips:
                 bullet_html = "<br/>".join("• " + _esc(t) for t in tips[:4])
@@ -214,10 +229,12 @@ def generate_comparison_pdf(
         else:
             top_missing = str(row.get("Top Missing Skills", "") or "").strip()
             if top_missing and top_missing.lower() != "none":
-                story.append(Paragraph(
-                    "<b>Top missing skills:</b> " + _esc(top_missing),
-                    styles["muted"],
-                ))
+                story.append(
+                    Paragraph(
+                        "<b>Top missing skills:</b> " + _esc(top_missing),
+                        styles["muted"],
+                    )
+                )
         story.append(Spacer(1, 6))
         story.append(HRFlowable(width="100%", thickness=0.3, color=_RULE))
         story.append(Spacer(1, 6))

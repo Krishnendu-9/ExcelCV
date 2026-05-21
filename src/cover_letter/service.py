@@ -80,9 +80,8 @@ def _sanitize_email_with_name(email: str, candidate_name: str) -> str:
         name_joined = "".join(name_tokens)
         if name_tokens:
             strong_name_match = (
-                (name_joined and lowered_trimmed.startswith(name_joined[: min(len(name_joined), 6)]))
-                or any(lowered_trimmed.startswith(token) for token in name_tokens if len(token) >= 4)
-            )
+                name_joined and lowered_trimmed.startswith(name_joined[: min(len(name_joined), 6)])
+            ) or any(lowered_trimmed.startswith(token) for token in name_tokens if len(token) >= 4)
             weak_original_match = not (
                 (name_joined and lowered_local.startswith(name_joined[: min(len(name_joined), 6)]))
                 or any(lowered_local.startswith(token) for token in name_tokens if len(token) >= 4)

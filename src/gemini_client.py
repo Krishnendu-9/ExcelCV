@@ -7,7 +7,9 @@ It orchestrates AI analysis and blends it with programmatic scoring calculations
 
 import json
 import logging
+import os
 import re
+import threading
 import time
 from functools import lru_cache
 from typing import Any, Dict, List, Optional
@@ -47,6 +49,84 @@ from src.services.scoring_constants import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _env_int(name: str, default: int, minimum: int) -> int:
+    try:
+        value = int(str(os.environ.get(name, str(default))).strip() or str(default))
+    except Exception:
+        value = default
+    return max(minimum, value)
+
+
+_GEMINI_WINDOW_SECONDS = _env_int("GEMINI_RATE_WINDOW_SECONDS", 60, 10)
+_GEMINI_MAX_REQUESTS_PER_WINDOW = _env_int("GEMINI_MAX_REQUESTS_PER_WINDOW", 20, 1)
+_MAX_CV_INPUT_CHARS = _env_int("GEMINI_MAX_CV_CHARS", 120000, 2000)
+_MAX_JD_INPUT_CHARS = _env_int("GEMINI_MAX_JD_CHARS", 40000, 1000)
+_MAX_FILE_SIZE_BYTES = _env_int("GEMINI_MAX_FILE_SIZE_BYTES", 5 * 1024 * 1024, 1)
+_ANALYSIS_MAX_OUTPUT_TOKENS = _env_int("GEMINI_ANALYSIS_MAX_OUTPUT_TOKENS", 2400, 256)
+
+_REQUEST_LOCK = threading.Lock()
+_REQUEST_BUCKETS: dict[str, list[float]] = {}
+
+
+def _request_actor_key() -> str:
+    """Return a stable best-effort key for per-user/session rate limiting."""
+    try:
+        import streamlit as st
+
+        user = st.session_state.get("user")
+        user_id = str((user or {}).get("id", "")).strip() if isinstance(user, dict) else ""
+        if user_id:
+            return f"user:{user_id}"
+
+        guest_id = str(st.session_state.get("guest_session_id", "")).strip()
+        if guest_id:
+            return f"guest:{guest_id}"
+
+        headers = getattr(st.context, "headers", {}) or {}
+        forwarded = str(headers.get("X-Forwarded-For", "")).strip()
+        if forwarded:
+            return f"ip:{forwarded.split(',')[0].strip()}"
+    except Exception:
+        pass
+    return "global"
+
+
+def _enforce_gemini_rate_limit() -> None:
+    """Raise a user-facing error when request rate exceeds configured window."""
+    key = _request_actor_key()
+    now_ts = time.time()
+    with _REQUEST_LOCK:
+        timestamps = [
+            ts for ts in _REQUEST_BUCKETS.get(key, []) if now_ts - ts < _GEMINI_WINDOW_SECONDS
+        ]
+        if len(timestamps) >= _GEMINI_MAX_REQUESTS_PER_WINDOW:
+            retry_after = int(_GEMINI_WINDOW_SECONDS - (now_ts - min(timestamps)))
+            raise RuntimeError(
+                "AI request rate limit reached for this session. "
+                f"Please wait about {max(1, retry_after)} seconds and try again."
+            )
+        timestamps.append(now_ts)
+        _REQUEST_BUCKETS[key] = timestamps
+
+
+def _validate_analysis_inputs(cv_text: str, job_desc: str, file_size_bytes: int) -> None:
+    if len(cv_text) > _MAX_CV_INPUT_CHARS:
+        raise ValueError(
+            f"CV content is too large ({len(cv_text)} chars). "
+            f"Please keep it under {_MAX_CV_INPUT_CHARS} characters."
+        )
+    if len(job_desc or "") > _MAX_JD_INPUT_CHARS:
+        raise ValueError(
+            f"Job description is too large ({len(job_desc)} chars). "
+            f"Please keep it under {_MAX_JD_INPUT_CHARS} characters."
+        )
+    if file_size_bytes and file_size_bytes > _MAX_FILE_SIZE_BYTES:
+        raise ValueError(
+            f"Uploaded file is too large ({file_size_bytes} bytes). "
+            f"Maximum supported size is {_MAX_FILE_SIZE_BYTES} bytes."
+        )
 
 
 def _is_quota_error(exc: Exception) -> bool:
@@ -225,6 +305,8 @@ def analyze_cv_with_gemini(
     """Call Gemini to analyze CV vs job description and return JSON-friendly dict."""
     if not cv_text or not cv_text.strip():
         raise ValueError("CV text is empty. Please upload a readable PDF or DOCX CV.")
+    _validate_analysis_inputs(cv_text, job_desc, file_size_bytes)
+    _enforce_gemini_rate_limit()
 
     api_key = get_api_key()
     if not api_key:
@@ -347,6 +429,7 @@ CV:
     generation_config = {
         "temperature": 0.0,
         "top_p": 1.0,
+        "max_output_tokens": _ANALYSIS_MAX_OUTPUT_TOKENS,
     }
 
     for candidate in preferred:
@@ -637,13 +720,24 @@ CV:
 
 def suggest_cv_bullets(role: str, company: str, context: str = "") -> List[str]:
     """Return up to 5 ATS-optimised bullet points for the given role and company."""
+    role = (role or "").strip()
+    company = (company or "").strip()
+    context = (context or "").strip()
+    if not role or not company:
+        raise ValueError("Role and company are required for bullet suggestions.")
+    if len(role) > 120 or len(company) > 120:
+        raise ValueError("Role/company input is too long. Please keep each under 120 characters.")
+    if len(context) > 2000:
+        raise ValueError("Additional context is too long. Please keep it under 2000 characters.")
+    _enforce_gemini_rate_limit()
+
     api_key = get_api_key()
     if not api_key:
         raise RuntimeError("GOOGLE_API_KEY is not configured.")
 
     genai.configure(api_key=api_key)
 
-    context_line = f"\nAdditional context: {context.strip()}" if context.strip() else ""
+    context_line = f"\nAdditional context: {context}" if context else ""
     prompt = (
         f"You are an expert resume writer. Write exactly 4 strong, ATS-optimized resume bullet points "
         f"for a {role} role at {company}.{context_line}\n\n"

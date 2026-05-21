@@ -66,6 +66,31 @@ cp .env.example .env
 | `SESSION_SECRET` | HMAC key used to sign session cookies. **Change this in any non-local deployment.** Generate with `python -c "import secrets; print(secrets.token_hex(32))"`. | `excelcv-session-key-change-in-prod` |
 | `GEMINI_MODEL` | Override the default Gemini model preference order. | `models/gemini-2.0-flash` |
 
+### Optional - Production Safety Guardrails
+
+These env vars are optional. If unset, the app uses safe defaults.
+
+#### Auth throttling (login + forgot password)
+
+| Variable | Purpose | Default |
+|---|---|---|
+| `AUTH_LOGIN_WINDOW_SECONDS` | Time window for failed-login counting. | `600` |
+| `AUTH_LOGIN_MAX_ATTEMPTS` | Max failed logins in the window before temporary lockout. | `5` |
+| `AUTH_LOGIN_LOCK_SECONDS` | Temporary lockout duration after exceeding login limit. | `900` |
+| `AUTH_RESET_WINDOW_SECONDS` | Time window for forgot-password request counting. | `1800` |
+| `AUTH_RESET_MAX_ATTEMPTS` | Max reset requests in the window. | `3` |
+
+#### Gemini API usage guardrails
+
+| Variable | Purpose | Default |
+|---|---|---|
+| `GEMINI_RATE_WINDOW_SECONDS` | Rate-limit window for AI requests per user/session. | `60` |
+| `GEMINI_MAX_REQUESTS_PER_WINDOW` | Max AI requests allowed in the window. | `20` |
+| `GEMINI_MAX_CV_CHARS` | Hard cap on CV text length sent for analysis. | `120000` |
+| `GEMINI_MAX_JD_CHARS` | Hard cap on JD text length sent for analysis. | `40000` |
+| `GEMINI_MAX_FILE_SIZE_BYTES` | File-size cap enforced by Gemini guardrail checks. | `5242880` |
+| `GEMINI_ANALYSIS_MAX_OUTPUT_TOKENS` | Max output tokens requested for analysis response. | `2400` |
+
 ### Optional — Google OAuth ("Continue with Google" button)
 
 Skip this entire group if you only want email/password sign-in.
@@ -202,5 +227,5 @@ docs/
 
 ## 8) What's Not Set Up Yet
 
-- **Thin test coverage** — `tests/` exists with only `test_oauth_utils.py` and `test_scoring_sections_order.py`. Run with `py -3 -m unittest discover -s tests -p "test_*.py" -q`. Most UI, builder, comparison, and cover-letter logic is exercised only manually — adding Playwright / E2E coverage is on the backlog.
+- **Coverage is growing but still not complete** — `tests/` now covers auth/session helpers, scoring core, analysis runner paths, cover-letter pipeline, and compare/upload helper functions. Run with `py -3 -m unittest discover -s tests -p "test_*.py" -q`. Large UI flows are still mostly manual; adding Playwright / E2E coverage remains on the backlog.
 - **No production deployment config** — the app runs locally on port 8501. For deployment you'd need to set `SESSION_SECRET` to a strong random value, harden the SMTP / OAuth secrets handling, and put SQLite behind a proper backup story (or migrate to Postgres via SQLAlchemy's connection string).

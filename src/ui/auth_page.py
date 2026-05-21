@@ -11,11 +11,16 @@ import streamlit.components.v1 as components
 from src.auth_utils import (
     authenticate_user,
     build_session_cookie_header,
+    check_login_throttle,
+    check_password_reset_throttle,
+    clear_login_failures,
     create_password_reset_token,
     create_session_token,
     create_user,
     is_persistent_login_enabled,
     login_user,
+    record_login_failure,
+    record_password_reset_attempt,
     use_password_reset_token,
 )
 from src.email_utils import is_email_configured, send_password_reset_email
@@ -97,6 +102,14 @@ def _resolve_post_login_target() -> str:
     if page in APP_PAGES and page != "auth":
         return page
     return "home"
+
+
+def _format_wait_time(seconds: int) -> str:
+    seconds = max(1, int(seconds or 0))
+    minutes = seconds // 60
+    if minutes >= 1:
+        return f"{minutes} minute(s)"
+    return f"{seconds} second(s)"
 
 
 _DARK = {
@@ -1111,16 +1124,25 @@ def _render_sign_in_register(col, t: dict) -> None:
                     if not email or not password:
                         st.error("Please fill in all fields.")
                     else:
-                        user = authenticate_user(email, password)
-                        if user:
-                            st.session_state["ui_toast"] = {
-                                "message": "Signed in successfully.",
-                                "icon": "✅",
-                            }
-                            redirect_to = _resolve_post_login_target()
-                            _redirect_after_login(user, redirect_to)
+                        allowed, retry_after = check_login_throttle(email)
+                        if not allowed:
+                            st.error(
+                                "Too many failed sign-in attempts. "
+                                f"Please wait {_format_wait_time(retry_after)} and try again."
+                            )
                         else:
-                            st.error("Invalid email or password.")
+                            user = authenticate_user(email, password)
+                            if user:
+                                clear_login_failures(email)
+                                st.session_state["ui_toast"] = {
+                                    "message": "Signed in successfully.",
+                                    "icon": "✅",
+                                }
+                                redirect_to = _resolve_post_login_target()
+                                _redirect_after_login(user, redirect_to)
+                            else:
+                                record_login_failure(email)
+                                st.error("Invalid email or password.")
 
             with tab_register:
                 with st.form("register_form"):
@@ -1193,22 +1215,31 @@ def _render_forgot_password_form(col, t: dict) -> None:
             if send_btn:
                 if not fp_email:
                     st.error("Please enter your email address.")
-                elif not is_email_configured():
-                    st.warning(
-                        "Email is not configured on this server. "
-                        "Set SMTP_USER and SMTP_PASSWORD in .env (or .env.example for local fallback)."
-                    )
                 else:
-                    raw_token = create_password_reset_token(fp_email.strip())
-                    if raw_token:
-                        send_password_reset_email(fp_email.strip(), raw_token, _APP_URL)
-                    # Always show the same message to prevent email enumeration
-                    st.session_state["ui_toast"] = {
-                        "message": "If this email is registered, reset mail has been sent.",
-                        "icon": "📨",
-                    }
-                    st.session_state["reset_email_sent"] = True
-                    st.rerun()
+                    normalized_email = fp_email.strip()
+                    allowed, retry_after = check_password_reset_throttle(normalized_email)
+                    if not allowed:
+                        st.warning(
+                            "Too many reset requests. "
+                            f"Please wait {_format_wait_time(retry_after)} and try again."
+                        )
+                    elif not is_email_configured():
+                        st.warning(
+                            "Email is not configured on this server. "
+                            "Set SMTP_USER and SMTP_PASSWORD in .env (or .env.example for local fallback)."
+                        )
+                    else:
+                        record_password_reset_attempt(normalized_email)
+                        raw_token = create_password_reset_token(normalized_email)
+                        if raw_token:
+                            send_password_reset_email(normalized_email, raw_token, _APP_URL)
+                        # Always show the same message to prevent email enumeration
+                        st.session_state["ui_toast"] = {
+                            "message": "If this email is registered, reset mail has been sent.",
+                            "icon": "📨",
+                        }
+                        st.session_state["reset_email_sent"] = True
+                        st.rerun()
 
             if st.button("Back to Sign In", key="back_to_login", type="primary"):
                 st.session_state.pop("auth_view", None)

@@ -304,15 +304,21 @@ cv-review/
       upload.py
   tests/
     __init__.py
+    test_analysis_runner.py
+    test_auth_utils.py
+    test_compare_report_helpers.py
+    test_cover_letter_pipeline.py
     test_oauth_utils.py
+    test_scoring_core.py
     test_scoring_sections_order.py
+    test_upload_helpers.py
 ```
 
 ---
 
 ## 8) Known Current-State Gaps / Cleanup Candidates
 
-1. `tests/` ships only two test modules (`test_oauth_utils.py`, `test_scoring_sections_order.py`); coverage is thin relative to the surface area — most UI logic is exercised only manually.
+1. Test coverage improved (auth/session helpers, scoring core, analysis runner, cover-letter pipeline, compare/upload helper logic), but end-to-end UI coverage is still thin; many Streamlit flows are exercised manually.
 2. Some static-page text (for example privacy wording) may not be fully aligned with the actual persisted account/data model.
 3. `src/ui/cv_builder_page.py` is still large (~6.2k lines) even after the recent split into `cv_builder_constants.py` / `cv_builder_pdf.py` / `cv_builder_preview_data.py` / `cv_builder_value_utils.py`. Further extraction (preview HTML, per-section renderers) is possible.
 4. Report-page snapshots are in-memory (`@st.cache_resource` dict in `app_utils.py`) — shareable `?rid=` links survive Streamlit reruns but **not** a server restart. Production would want DB-backed snapshots.

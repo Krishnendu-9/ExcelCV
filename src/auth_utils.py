@@ -6,6 +6,7 @@ import hmac
 import json
 import os
 import secrets
+import threading
 import time
 from datetime import datetime, timedelta, timezone
 from http.cookies import SimpleCookie
@@ -21,6 +22,135 @@ from src.database import PasswordResetToken, User, get_db
 
 _SESSION_SECONDS = 3 * 24 * 3600  # 3 days
 _COOKIE_NAME = "excelcv_session"
+
+
+def _env_int(name: str, default: int, minimum: int) -> int:
+    try:
+        value = int(str(os.environ.get(name, str(default))).strip() or str(default))
+    except Exception:
+        value = default
+    return max(minimum, value)
+
+
+_LOGIN_WINDOW_SECONDS = _env_int("AUTH_LOGIN_WINDOW_SECONDS", 600, 60)
+_LOGIN_MAX_ATTEMPTS = _env_int("AUTH_LOGIN_MAX_ATTEMPTS", 5, 1)
+_LOGIN_LOCK_SECONDS = _env_int("AUTH_LOGIN_LOCK_SECONDS", 900, 60)
+_RESET_WINDOW_SECONDS = _env_int("AUTH_RESET_WINDOW_SECONDS", 1800, 60)
+_RESET_MAX_ATTEMPTS = _env_int("AUTH_RESET_MAX_ATTEMPTS", 3, 1)
+
+_THROTTLE_LOCK = threading.Lock()
+_LOGIN_FAILURES: dict[str, list[float]] = {}
+_LOGIN_LOCK_UNTIL: dict[str, float] = {}
+_RESET_REQUESTS: dict[str, list[float]] = {}
+
+
+def _normalized_email(email: str) -> str:
+    return (email or "").strip().lower()
+
+
+def _client_fingerprint() -> str:
+    """Best-effort client fingerprint for per-client throttling."""
+    try:
+        headers = getattr(st.context, "headers", {}) or {}
+        for header in ("CF-Connecting-IP", "True-Client-IP", "X-Real-IP"):
+            value = str(headers.get(header, "")).strip()
+            if value:
+                return value
+        forwarded = str(headers.get("X-Forwarded-For", "")).strip()
+        if forwarded:
+            return forwarded.split(",")[0].strip()
+    except Exception:
+        pass
+    try:
+        guest_id = str(st.session_state.get("guest_session_id", "")).strip()
+        if guest_id:
+            return f"guest:{guest_id}"
+    except Exception:
+        pass
+    return "unknown-client"
+
+
+def _login_throttle_keys(email: str) -> list[str]:
+    email_key = _normalized_email(email)
+    client_key = _client_fingerprint()
+    keys: list[str] = [f"client:{client_key}"]
+    if email_key:
+        keys.append(f"email:{email_key}")
+        keys.append(f"email+client:{email_key}|{client_key}")
+    return keys
+
+
+def _reset_throttle_keys(email: str) -> list[str]:
+    email_key = _normalized_email(email)
+    client_key = _client_fingerprint()
+    keys: list[str] = [f"client:{client_key}"]
+    if email_key:
+        keys.append(f"email:{email_key}")
+    return keys
+
+
+def _prune_window(values: list[float], window_seconds: int, now_ts: float) -> list[float]:
+    return [ts for ts in values if now_ts - ts < window_seconds]
+
+
+def check_login_throttle(email: str) -> tuple[bool, int]:
+    """Return (allowed, retry_after_seconds) for login attempts."""
+    now_ts = time.time()
+    retry_after = 0
+    with _THROTTLE_LOCK:
+        for key in _login_throttle_keys(email):
+            lock_until = _LOGIN_LOCK_UNTIL.get(key, 0.0)
+            if lock_until > now_ts:
+                retry_after = max(retry_after, int(lock_until - now_ts))
+    return retry_after <= 0, max(0, retry_after)
+
+
+def record_login_failure(email: str) -> None:
+    """Record failed login and apply temporary lockout when threshold is exceeded."""
+    now_ts = time.time()
+    with _THROTTLE_LOCK:
+        for key in _login_throttle_keys(email):
+            attempts = _prune_window(_LOGIN_FAILURES.get(key, []), _LOGIN_WINDOW_SECONDS, now_ts)
+            attempts.append(now_ts)
+            _LOGIN_FAILURES[key] = attempts
+            if len(attempts) >= _LOGIN_MAX_ATTEMPTS:
+                _LOGIN_LOCK_UNTIL[key] = now_ts + _LOGIN_LOCK_SECONDS
+                _LOGIN_FAILURES[key] = []
+
+
+def clear_login_failures(email: str) -> None:
+    """Clear login failure counters for the supplied principal/client after successful login."""
+    with _THROTTLE_LOCK:
+        for key in _login_throttle_keys(email):
+            _LOGIN_FAILURES.pop(key, None)
+            _LOGIN_LOCK_UNTIL.pop(key, None)
+
+
+def check_password_reset_throttle(email: str) -> tuple[bool, int]:
+    """Return (allowed, retry_after_seconds) for forgot-password requests."""
+    now_ts = time.time()
+    retry_after = 0
+    with _THROTTLE_LOCK:
+        for key in _reset_throttle_keys(email):
+            attempts = _prune_window(_RESET_REQUESTS.get(key, []), _RESET_WINDOW_SECONDS, now_ts)
+            _RESET_REQUESTS[key] = attempts
+            if len(attempts) >= _RESET_MAX_ATTEMPTS:
+                earliest = min(attempts) if attempts else now_ts
+                retry_after = max(
+                    retry_after,
+                    int(max(0.0, _RESET_WINDOW_SECONDS - (now_ts - earliest))),
+                )
+    return retry_after <= 0, max(0, retry_after)
+
+
+def record_password_reset_attempt(email: str) -> None:
+    """Record a forgot-password request attempt for throttling."""
+    now_ts = time.time()
+    with _THROTTLE_LOCK:
+        for key in _reset_throttle_keys(email):
+            attempts = _prune_window(_RESET_REQUESTS.get(key, []), _RESET_WINDOW_SECONDS, now_ts)
+            attempts.append(now_ts)
+            _RESET_REQUESTS[key] = attempts
 
 
 def _session_secret() -> str:

@@ -275,7 +275,7 @@ def render_upload_landing_sections() -> None:
                     </article>
                     <article class="landing-clean-card">
                         <h4>Do you store my resume data?</h4>
-                        <p>Resume content is processed in session and is not retained for long-term storage.</p>
+                        <p>Guest runs stay in-session; signed-in users can save analyses and comparisons to their account history.</p>
                     </article>
                     <article class="landing-clean-card">
                         <h4>How long does analysis take?</h4>

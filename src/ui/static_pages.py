@@ -1,11 +1,10 @@
 """Static / informational page renderers (blog, policy, contact, how-it-works …)."""
 
-from datetime import datetime
-
 import streamlit as st
 
 from src.cover_letter import render_cover_letter_page
 from src.email_utils import is_email_configured, send_acknowledgement_email, send_contact_email
+from src.ui.app_utils import _build_page_href
 from src.ui.report import render_evaluation_toolkit
 
 
@@ -325,7 +324,7 @@ def render_static_page(page: str) -> None:
         st.markdown("### Resume Builder")
         st.markdown(
             "Build a resume from scratch in a two-pane editor with a live preview. Pick from three "
-            "templates (Classic, Modern, Minimal), customize accent color and typography, and use "
+            "templates (Classic, Creative, Modern), customize accent color and typography, and use "
             "AI-suggested bullet points for experience entries. Save drafts to your account, reload "
             "them later, and export to PDF when ready."
         )
@@ -347,51 +346,9 @@ def render_static_page(page: str) -> None:
         return
 
     if page_key == "cover-letter-guide":
-        _render_info_page_header(
-            "Cover Letter Guide",
-            "How to write a short, specific cover letter that complements your resume instead of repeating it.",
-        )
-        st.markdown("### What a Cover Letter Should Actually Do")
-        st.markdown(
-            "A good cover letter answers three questions the resume can't:\n"
-            "1. **Why this role, specifically?** Not the field — this exact position at this company.\n"
-            "2. **What evidence from your background maps directly to it?** One or two concrete stories.\n"
-            "3. **What do you bring that isn't on the resume?** Context, motivation, soft signals."
-        )
-        st.markdown("### Recommended Structure")
-        st.markdown(
-            "- **Opening (2–3 lines):** State the role and one specific reason you're applying — a "
-            "product, mission, or technical bet the company is making that you care about.\n"
-            "- **Middle (1–2 short paragraphs):** Pick the strongest story from your resume that "
-            "matches the role's top requirement. Explain *what*, *how*, and *result* in plain language.\n"
-            '- **Close (2–3 lines):** A clear next step (*"I\'d welcome the chance to discuss…"*) and a thank-you.\n'
-            "- Keep the whole thing to **250–350 words**. Recruiters skim — long letters lose them."
-        )
-        st.markdown("### Tone and Voice")
-        st.markdown(
-            "- Write the way you'd speak in a first interview — professional, but not stiff.\n"
-            '- Avoid clichés (*"team player," "results-driven," "passionate about"*). Show, don\'t claim.\n'
-            "- Match the company's vocabulary — read their About page, latest blog post, or product copy.\n"
-            "- Use the hiring manager's name if you can find it. *\"Dear Hiring Team\"* is fine when you can't."
-        )
-        st.markdown("### Tailoring Quickly")
-        st.markdown(
-            "- Start from a base letter, then rewrite the opening and middle paragraph per application.\n"
-            "- The boilerplate that survives across applications is the close — everything before it should change.\n"
-            "- If you can't name a specific reason for *this* company within 30 seconds of thinking, it shows in the letter."
-        )
-        st.markdown("### Common Mistakes")
-        st.markdown(
-            "- Re-stating the resume bullet-by-bullet. The letter is context, not a summary.\n"
-            '- Vague enthusiasm without evidence (*"I\'m very excited about this opportunity"*).\n'
-            "- Mentioning skills you don't have — recruiters notice and it costs trust.\n"
-            "- Forgetting to update the company name when reusing a draft. (It happens. Proofread.)"
-        )
-        st.markdown("### Generate a Draft Quickly")
-        st.markdown(
-            "Use the **Cover Letter** generator in ExcelCV to produce a tailored first draft from your "
-            "saved CV and a job description, then refine the opening and close with your own voice."
-        )
+        from src.ui.guides import render_cover_letter_guide
+
+        render_cover_letter_guide()
         return
 
     if page_key == "interview-prep":
@@ -418,58 +375,48 @@ def render_static_page(page: str) -> None:
         return
 
     if page_key == "privacy-policy":
-        _render_info_page_header(
-            "Privacy Policy", f"Last updated: {datetime.now().strftime('%B %d, %Y')}"
-        )
-        st.markdown("### 1. Introduction")
-        st.write(
-            "ExcelCV is designed for educational and portfolio use. We respect user privacy and keep data handling minimal."
-        )
-        st.markdown("### 2. Data We Process")
-        st.markdown(
-            "- Job description text entered by the user\n"
-            "- Uploaded resume content for analysis\n"
-            "- Optional evaluation notes provided by the user"
-        )
-        st.markdown("### 3. Storage & Retention")
-        st.write(
-            "Signed-in accounts can persist CVs, analyses, and comparison history in the app database. "
-            "Guest sessions keep analysis data only for the current browser session."
-        )
-        st.markdown("### 4. Security")
-        st.write(
-            "Reasonable safeguards are applied for processing within the app runtime environment."
-        )
-        st.markdown("### 5. Contact")
-        st.write("For privacy-related questions, use the Contact page.")
+        from src.ui.guides import render_privacy_policy
+
+        render_privacy_policy()
         return
 
     if page_key == "terms-of-service":
-        _render_info_page_header(
-            "Terms of Service", f"Last updated: {datetime.now().strftime('%B %d, %Y')}"
-        )
-        st.markdown("### 1. Acceptance")
-        st.write(
-            "By using ExcelCV, you agree to these terms for this educational demo application."
-        )
-        st.markdown("### 2. Intended Use")
-        st.write("The service provides resume feedback and does not guarantee hiring outcomes.")
-        st.markdown("### 3. User Responsibility")
-        st.write(
-            "Users are responsible for uploaded content and ensuring they have rights to submit it."
-        )
-        st.markdown("### 4. Prohibited Use")
-        st.markdown(
-            "- Uploading unlawful or malicious content\n"
-            "- Attempting to disrupt or reverse-engineer the service"
-        )
-        st.markdown("### 5. Liability")
-        st.write("The service is provided as-is for educational purposes without warranty.")
-        st.markdown("### 6. Updates")
-        st.write("Terms may be revised as the project evolves.")
+        from src.ui.guides import render_terms_of_service
+
+        render_terms_of_service()
         return
 
     if page_key == "contact":
+        privacy_href = _build_page_href("privacy-policy")
+        how_it_works_href = _build_page_href("how-it-works")
+        resume_tips_href = _build_page_href("resume-tips")
+
+        # SVG icons inlined so we don't depend on an icon font. Kept compact —
+        # `currentColor` so they inherit the accent tint from the surrounding
+        # icon chip.
+        _MAIL_ICON = (
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+            'stroke-width="2" stroke-linecap="round" stroke-linejoin="round" '
+            'aria-hidden="true">'
+            '<rect x="2" y="4" width="20" height="16" rx="2"/>'
+            '<path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>'
+        )
+        _CLOCK_ICON = (
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+            'stroke-width="2" stroke-linecap="round" stroke-linejoin="round" '
+            'aria-hidden="true">'
+            '<circle cx="12" cy="12" r="10"/>'
+            '<polyline points="12 6 12 12 16 14"/></svg>'
+        )
+        _BOOK_ICON = (
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+            'stroke-width="2" stroke-linecap="round" stroke-linejoin="round" '
+            'aria-hidden="true">'
+            '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>'
+            '<path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>'
+            "</svg>"
+        )
+
         st.markdown(
             """
             <style>
@@ -477,73 +424,157 @@ def render_static_page(page: str) -> None:
                 margin-top: -72px !important;
                 display: flex !important;
                 flex-direction: column !important;
-                gap: 14px !important;
+                gap: 18px !important;
+                margin-bottom: 18px !important;
             }
-            [data-testid="stAppViewContainer"] .support-page-shell .landing-clean-tag {
-                display: none !important;
+            [data-testid="stAppViewContainer"] .support-page-shell .landing-clean-head {
+                text-align: center !important;
             }
-            [data-testid="stAppViewContainer"] .support-info-grid {
-                display: grid !important;
-                grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-                gap: 10px !important;
-            }
-            [data-testid="stAppViewContainer"] .support-mini-card {
-                border: 1px solid var(--border-color) !important;
-                border-radius: 14px !important;
-                background: var(--bg-card) !important;
-                padding: 14px !important;
-                box-shadow: 0 8px 18px var(--shadow) !important;
-            }
-            [data-testid="stAppViewContainer"] .support-mini-card h4 {
-                margin: 0 0 6px 0 !important;
+            [data-testid="stAppViewContainer"] .support-page-shell .landing-clean-title {
                 color: var(--text-primary) !important;
-                font-size: 1rem !important;
+                font-size: 2.25rem !important;
                 font-weight: 800 !important;
+                margin: 0 0 10px 0 !important;
+                letter-spacing: -0.01em !important;
             }
-            [data-testid="stAppViewContainer"] .support-mini-card p {
-                margin: 0 !important;
+            [data-testid="stAppViewContainer"] .support-page-shell .landing-clean-subtitle {
                 color: var(--text-secondary) !important;
-                font-size: 0.92rem !important;
-                line-height: 1.48 !important;
+                font-size: 1rem !important;
+                line-height: 1.55 !important;
+                max-width: 640px !important;
+                margin: 0 auto !important;
             }
+            /* Outer card containers (left info column + right form column) */
             [data-testid="stAppViewContainer"] .st-key-support_info_card,
             [data-testid="stAppViewContainer"] .st-key-support_form_card {
-                background: linear-gradient(160deg, var(--bg-card), var(--bg-secondary)) !important;
+                background: var(--bg-card) !important;
                 border: 1px solid var(--border-color) !important;
                 border-radius: 18px !important;
-                padding: 22px 24px !important;
+                padding: 26px 28px !important;
                 box-shadow: 0 12px 24px var(--shadow) !important;
-            }
-            [data-testid="stAppViewContainer"] .support-body-copy {
-                color: var(--text-secondary) !important;
-                font-size: 0.96rem !important;
-                line-height: 1.58 !important;
-                margin: 0 0 12px 0 !important;
             }
             [data-testid="stAppViewContainer"] .support-section-title {
                 color: var(--text-primary) !important;
-                font-size: 1.12rem !important;
+                font-size: 1.1rem !important;
                 font-weight: 800 !important;
-                margin: 0 0 8px 0 !important;
+                margin: 0 0 4px 0 !important;
             }
-            [data-testid="stAppViewContainer"] .support-list {
-                margin: 0 !important;
-                padding-left: 18px !important;
+            [data-testid="stAppViewContainer"] .support-section-sub {
                 color: var(--text-secondary) !important;
+                font-size: 0.92rem !important;
+                line-height: 1.55 !important;
+                margin: 0 0 18px 0 !important;
             }
-            [data-testid="stAppViewContainer"] .support-list li {
-                margin-bottom: 8px !important;
+            /* Three stacked contact "channel" rows in the left card */
+            [data-testid="stAppViewContainer"] .support-channel {
+                display: flex !important;
+                gap: 14px !important;
+                padding: 16px 0 !important;
+                border-top: 1px solid var(--border-color) !important;
+            }
+            [data-testid="stAppViewContainer"] .support-channel:first-of-type {
+                border-top: none !important;
+                padding-top: 4px !important;
+            }
+            [data-testid="stAppViewContainer"] .support-channel:last-of-type {
+                padding-bottom: 0 !important;
+            }
+            [data-testid="stAppViewContainer"] .support-channel-icon {
+                flex: 0 0 38px !important;
+                width: 38px !important;
+                height: 38px !important;
+                border-radius: 10px !important;
+                background: rgba(59, 130, 246, 0.12) !important;
+                color: #3b82f6 !important;
+                display: flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+            }
+            [data-testid="stAppViewContainer"] .support-channel-icon svg {
+                width: 18px !important;
+                height: 18px !important;
+            }
+            [data-testid="stAppViewContainer"] .support-channel-body {
+                flex: 1 1 auto !important;
+                min-width: 0 !important;
+            }
+            [data-testid="stAppViewContainer"] .support-channel-body h4 {
+                color: var(--text-primary) !important;
+                font-size: 0.98rem !important;
+                font-weight: 700 !important;
+                margin: 0 0 4px 0 !important;
+            }
+            [data-testid="stAppViewContainer"] .support-channel-body p {
+                color: var(--text-secondary) !important;
+                font-size: 0.88rem !important;
+                line-height: 1.5 !important;
+                margin: 0 0 4px 0 !important;
+            }
+            [data-testid="stAppViewContainer"] .support-channel-body p:last-child {
+                margin-bottom: 0 !important;
+            }
+            [data-testid="stAppViewContainer"] .support-channel-body a {
+                color: #3b82f6 !important;
+                text-decoration: none !important;
+            }
+            [data-testid="stAppViewContainer"] .support-channel-body a:hover {
+                text-decoration: underline !important;
+            }
+            [data-testid="stAppViewContainer"] .support-doc-list {
+                list-style: none !important;
+                padding: 0 !important;
+                margin: 6px 0 0 0 !important;
+            }
+            [data-testid="stAppViewContainer"] .support-doc-list li {
+                margin: 0 !important;
+                padding: 3px 0 !important;
+                color: var(--text-secondary) !important;
+                font-size: 0.88rem !important;
+            }
+            /* Form column — small caps section dividers between "your details"
+               and "your message" so the form scans as two phases, not one
+               long stack. */
+            [data-testid="stAppViewContainer"] .support-form-section-label {
+                color: var(--text-secondary) !important;
+                font-size: 0.74rem !important;
+                font-weight: 800 !important;
+                text-transform: uppercase !important;
+                letter-spacing: 0.08em !important;
+                margin: 18px 0 4px 0 !important;
+                padding-bottom: 6px !important;
+                border-bottom: 1px solid var(--border-color) !important;
+            }
+            [data-testid="stAppViewContainer"] .support-form-section-label.first {
+                margin-top: 4px !important;
+            }
+            /* Submit row — left-align so the button doesn't span the card */
+            [data-testid="stAppViewContainer"] .st-key-support_form_card div[data-testid="stFormSubmitButton"] button {
+                width: auto !important;
+                min-width: 160px !important;
+            }
+            [data-testid="stAppViewContainer"] .support-privacy-note {
+                color: var(--text-secondary) !important;
+                font-size: 0.82rem !important;
+                line-height: 1.5 !important;
+                margin: 14px 0 0 0 !important;
+            }
+            [data-testid="stAppViewContainer"] .support-privacy-note a {
+                color: #3b82f6 !important;
+                text-decoration: none !important;
+            }
+            [data-testid="stAppViewContainer"] .support-privacy-note a:hover {
+                text-decoration: underline !important;
             }
             @media (max-width: 900px) {
                 [data-testid="stAppViewContainer"] .support-page-shell {
                     margin-top: -38px !important;
                 }
-                [data-testid="stAppViewContainer"] .support-info-grid {
-                    grid-template-columns: 1fr !important;
+                [data-testid="stAppViewContainer"] .support-page-shell .landing-clean-title {
+                    font-size: 1.75rem !important;
                 }
                 [data-testid="stAppViewContainer"] .st-key-support_info_card,
                 [data-testid="stAppViewContainer"] .st-key-support_form_card {
-                    padding: 16px 14px !important;
+                    padding: 18px 16px !important;
                 }
             }
             </style>
@@ -554,73 +585,98 @@ def render_static_page(page: str) -> None:
             """
             <div class="support-page-shell">
                 <div class="landing-clean-head">
-                    <h2 class="landing-clean-title">Need help with ExcelCV?</h2>
+                    <h2 class="landing-clean-title">Get in touch</h2>
                     <p class="landing-clean-subtitle">
-                        Share your question, technical issue, or product feedback and we will review it quickly.
+                        Have a question, found a bug, or want to share feedback? Send us
+                        a message — we read every one. Most replies go out within
+                        2–3 business days.
                     </p>
                 </div>
             </div>
             """,
             unsafe_allow_html=True,
         )
-        left, right = st.columns([1.05, 1.95], gap="large")
+        left, right = st.columns([1.1, 1.9], gap="large")
         with left:
             with st.container(key="support_info_card"):
                 st.markdown('<p class="support-section-title">Reach us</p>', unsafe_allow_html=True)
                 st.markdown(
-                    '<p class="support-body-copy">Use the form to contact the team. For direct follow-up, use our support email.</p>',
+                    '<p class="support-section-sub">Pick the channel that fits your question best.</p>',
                     unsafe_allow_html=True,
                 )
                 st.markdown(
-                    """
-                    <div class="support-info-grid">
-                        <article class="support-mini-card">
+                    f"""
+                    <div class="support-channel">
+                        <div class="support-channel-icon">{_MAIL_ICON}</div>
+                        <div class="support-channel-body">
                             <h4>Email</h4>
-                            <p>support@excelcv.app</p>
-                        </article>
-                        <article class="support-mini-card">
-                            <h4>Project Type</h4>
-                            <p>Academic and portfolio demo</p>
-                        </article>
+                            <p><a href="mailto:support@excelcv.app">support@excelcv.app</a></p>
+                            <p>Best for account issues and urgent bugs.</p>
+                        </div>
                     </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
-                st.markdown(
-                    '<p class="support-section-title" style="margin-top:14px;">Typical topics</p>',
-                    unsafe_allow_html=True,
-                )
-                st.markdown(
-                    """
-                    <ul class="support-list">
-                        <li>Feature requests and UX suggestions</li>
-                        <li>Technical support and bug reports</li>
-                        <li>Resume scoring and report clarifications</li>
-                    </ul>
+                    <div class="support-channel">
+                        <div class="support-channel-icon">{_CLOCK_ICON}</div>
+                        <div class="support-channel-body">
+                            <h4>Response time</h4>
+                            <p>Within <strong>2–3 business days</strong>.</p>
+                            <p>Best effort — no SLA, since ExcelCV is a portfolio project.</p>
+                        </div>
+                    </div>
+                    <div class="support-channel">
+                        <div class="support-channel-icon">{_BOOK_ICON}</div>
+                        <div class="support-channel-body">
+                            <h4>Try the docs first</h4>
+                            <p>Most questions are answered in our guides:</p>
+                            <ul class="support-doc-list">
+                                <li>→ <a href="{how_it_works_href}" target="_self">How It Works</a></li>
+                                <li>→ <a href="{resume_tips_href}" target="_self">Resume Tips</a></li>
+                                <li>→ <a href="{privacy_href}" target="_self">Privacy Policy</a></li>
+                            </ul>
+                        </div>
+                    </div>
                     """,
                     unsafe_allow_html=True,
                 )
         with right:
             with st.container(key="support_form_card"):
                 st.markdown(
-                    '<p class="support-section-title">Send a message</p>', unsafe_allow_html=True
+                    '<p class="support-section-title">Send a message</p>',
+                    unsafe_allow_html=True,
                 )
                 st.markdown(
-                    '<p class="support-body-copy">Fill all required fields and we will get back to you.</p>',
+                    '<p class="support-section-sub">Fields marked * are required.</p>',
                     unsafe_allow_html=True,
                 )
                 with st.form("contact_page_form", clear_on_submit=True):
-                    name = st.text_input("Your Name", placeholder="Enter your name")
-                    email = st.text_input("Email Address", placeholder="you@example.com")
-                    inquiry = st.radio(
-                        "Inquiry Type",
+                    st.markdown(
+                        '<div class="support-form-section-label first">Your details</div>',
+                        unsafe_allow_html=True,
+                    )
+                    col_name, col_email = st.columns(2)
+                    with col_name:
+                        name = st.text_input("Your name *", placeholder="Enter your name")
+                    with col_email:
+                        email = st.text_input("Email address *", placeholder="you@example.com")
+
+                    st.markdown(
+                        '<div class="support-form-section-label">Your message</div>',
+                        unsafe_allow_html=True,
+                    )
+                    inquiry = st.selectbox(
+                        "Inquiry type",
                         ["General Inquiry", "Technical Support", "Feedback / Suggestion"],
                     )
-                    subject = st.text_input("Subject", placeholder="How can we help?")
+                    subject = st.text_input("Subject *", placeholder="How can we help?")
                     message = st.text_area(
-                        "Message", height=140, placeholder="Write your message..."
+                        "Message *",
+                        height=160,
+                        placeholder=(
+                            "Share as much detail as you can — what you were trying to "
+                            "do, what happened, and any error messages you saw."
+                        ),
                     )
-                    sent = st.form_submit_button("Send Message", width="stretch")
+                    sent = st.form_submit_button("Send message", type="primary")
+
                 if sent:
                     if not name.strip() or not email.strip() or not message.strip():
                         st.error("Please fill in your name, email, and message.")
@@ -645,17 +701,28 @@ def render_static_page(page: str) -> None:
                                 args=(email.strip(), name.strip(), inquiry, message.strip()),
                                 daemon=True,
                             ).start()
-                            st.success(f"Thanks, {name.strip()}! Your message has been sent.")
+                            st.success(
+                                f"Thanks, {name.strip()}! Your message has been sent — "
+                                "we'll reply within 2–3 business days."
+                            )
                         else:
                             st.warning(
                                 "Message could not be delivered right now. "
                                 "Please email us directly at `support@excelcv.app`."
                             )
                     else:
-                        st.success(f"Thanks, {name.strip()}! Your message has been received.")
-                        st.caption(
-                            "Email delivery is not configured in this deployment; contact `support@excelcv.app` directly."
+                        st.warning(
+                            "Email delivery is not configured in this deployment, so your "
+                            "message could not be sent. Please email `support@excelcv.app` "
+                            "directly and we'll get back to you."
                         )
+
+                st.markdown(
+                    f'<p class="support-privacy-note">Your message is sent to '
+                    f"<strong>support@excelcv.app</strong> and isn't shared with third "
+                    f'parties. See our <a href="{privacy_href}" target="_self">Privacy Policy</a>.</p>',
+                    unsafe_allow_html=True,
+                )
         return
 
     # Fallback for unknown routes.

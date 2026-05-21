@@ -834,14 +834,20 @@ def main() -> None:
         HOME_COMPARE_FOCUS_KEY
     ):
         active_nav_label = "Compare Resumes"
-    # Resume Tips pillar and any sub-guide article are NOT part of the top
-    # nav — none of the top-nav items should be highlighted when the reader
-    # is in the Resume Tips section. An empty label normalizes to a
-    # non-matching page key in render_top_nav, so no nav item gets the
-    # .site-nav-item-active class.
+    # Resume Tips pillar, any sub-guide article, and the Cover Letter Guide
+    # are NOT part of the top nav — none of the top-nav items should be
+    # highlighted when the reader is in one of those pages. An empty label
+    # normalizes to a non-matching page key in render_top_nav, so no nav item
+    # gets the .site-nav-item-active class.
     from src.ui.guides import GUIDES_META as _GUIDES_META
 
-    if current_page == "resume-tips" or current_page in _GUIDES_META:
+    if (
+        current_page == "resume-tips"
+        or current_page == "cover-letter-guide"
+        or current_page == "privacy-policy"
+        or current_page == "terms-of-service"
+        or current_page in _GUIDES_META
+    ):
         active_nav_label = ""
 
     # Inject layout-critical CSS BEFORE the header and page content render.

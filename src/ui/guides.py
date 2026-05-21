@@ -1058,6 +1058,82 @@ _GUIDE_NAV_DELEGATED_JS = """
 """
 
 
+# Dedicated handler for the article-page TOC sidebar (`[data-toc-target]` links).
+# Why this exists alongside the global `data-smooth-scroll` listener in
+# src/ui/layout.py:
+#   - The layout.py listener is injected from `render_site_footer`, which
+#     runs at the BOTTOM of the page. Streamlit `components.html` is an
+#     iframe whose script doesn't run until the iframe finishes loading,
+#     so the first TOC click can arrive before that listener is bound. The
+#     browser then does a native anchor jump, which (a) calls pushState
+#     (polluting history — the user needs an extra Back press to leave the
+#     article), and (b) tries to scroll `window`, but the real scroll
+#     container is `[data-testid="stAppViewContainer"]` — so nothing
+#     visibly moves.
+#   - Injecting this script at the TOP of `render_guide_article` shrinks
+#     the race window to a few milliseconds, and the trailing hash-scroll
+#     recovers the visual scroll if the user did manage to click before
+#     binding.
+# Inline `onclick` attributes were tried first but Streamlit's HTML
+# sanitizer strips event-handler attributes — only `data-*` survives.
+_GUIDE_TOC_DELEGATED_JS = """
+<script>
+(function() {
+    var w = window.parent && window.parent !== window ? window.parent : window;
+    var doc = w.document;
+    if (doc.__excelcv_guide_toc_click_bound__) return;
+    doc.__excelcv_guide_toc_click_bound__ = true;
+
+    var scrollToId = function(id) {
+        var target = doc.getElementById(id);
+        if (!target) return false;
+        try { target.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+        catch (_e) { target.scrollIntoView(true); }
+        return true;
+    };
+
+    doc.addEventListener('click', function(ev) {
+        var el = ev.target;
+        while (el && el !== doc && !(el.getAttribute && el.getAttribute('data-toc-target'))) {
+            el = el.parentNode;
+        }
+        if (!el || el === doc) return;
+        var id = String(el.getAttribute('data-toc-target') || '').trim();
+        if (!id) return;
+        if (!doc.getElementById(id)) return;
+        ev.preventDefault();
+        ev.stopPropagation();
+        scrollToId(id);
+        try {
+            w.history.replaceState(
+                null,
+                '',
+                w.location.pathname + w.location.search + '#' + id
+            );
+        } catch (_e2) {}
+    }, true);
+
+    // Fallback for the case where the user clicked a TOC link BEFORE this
+    // script bound: the browser's native anchor nav put a hash in the URL
+    // but didn't scroll the real overflow container. Recover the scroll
+    // here. (We can't unwind the resulting pushState — the History API
+    // doesn't expose removal of past entries — so back-button still needs
+    // one extra press in that narrow race. Subsequent clicks all use
+    // replaceState and behave correctly.)
+    if (w.location.hash && w.location.hash.length > 1) {
+        var hashId = w.location.hash.slice(1);
+        var attempts = 0;
+        var tryScroll = function() {
+            if (scrollToId(hashId)) return;
+            if (attempts++ < 20) setTimeout(tryScroll, 100);
+        };
+        setTimeout(tryScroll, 50);
+    }
+})();
+</script>
+"""
+
+
 def _load_guide_markdown(slug: str) -> str | None:
     """Return the markdown body for a guide, or None if the file is missing."""
     path = GUIDES_DIR / f"{slug}.md"
@@ -1115,9 +1191,25 @@ def _extract_toc_and_anchor_headings(md: str) -> Tuple[str, List[Dict[str, str]]
         used_slugs[base] = count
         slug = base if count == 1 else f"{base}-{count}"
         toc.append({"id": slug, "text": text})
-        # Blank lines around the raw HTML keep Streamlit's markdown parser from
-        # gluing it into surrounding paragraphs.
-        return f'\n\n<h2 id="{slug}">{text}</h2>\n\n'
+        # The anchor sits on a standalone <div> placed BEFORE the heading,
+        # NOT on the <h2> itself. Reason: Streamlit's markdown renderer can
+        # silently drop the `id` attribute from raw `<h2>` blocks (observed
+        # on the trailing H2 of the Cover Letter Guide — same construct as
+        # other headings on the page, only that one loses the id). A
+        # dedicated empty anchor element survives the sanitizer reliably
+        # and gives `getElementById` a stable target.
+        #
+        # Inline `scroll-margin-top` reproduces the offset the H2 used to
+        # carry via CSS, so the heading still lands clear of the sticky
+        # site header after a TOC click or browser anchor-jump.
+        #
+        # Blank lines around the raw HTML keep Streamlit's markdown parser
+        # from gluing it into surrounding paragraphs.
+        return (
+            f'\n\n<div id="{slug}" class="excelcv-guide-section-anchor" '
+            f'style="scroll-margin-top:110px" aria-hidden="true"></div>\n\n'
+            f"<h2>{text}</h2>\n\n"
+        )
 
     new_md = _H2_PATTERN.sub(_replace, md)
     return new_md, toc
@@ -1233,6 +1325,7 @@ def render_guide_article(slug: str) -> None:
     inject_guides_css()
     _emit_guide_nav_bridges()
     components.html(_GUIDE_NAV_DELEGATED_JS, height=0)
+    components.html(_GUIDE_TOC_DELEGATED_JS, height=0)
 
     meta = GUIDES_META.get(slug)
     if not meta:
@@ -1467,6 +1560,960 @@ def render_guide_article(slug: str) -> None:
                 behavior, and 2026 hiring trends to help job seekers land
                 interviews faster. We update these guides as ATS platforms
                 evolve.
+            </p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Cover Letter Guide
+# ---------------------------------------------------------------------------
+
+# Long-form guide content. H2 headings drive the sticky TOC rail via
+# _extract_toc_and_anchor_headings — keep them as ## (not ###).
+_COVER_LETTER_GUIDE_BODY_MD = """\
+A great cover letter doesn't repeat your resume — it explains the choices
+behind it. It's the one place you can speak directly to a hiring manager about
+*why this role*, *what you'd bring*, and *what you care about* — in your own
+voice, not in bullet points. This guide is the short, opinionated playbook for
+writing one that actually gets read.
+
+## What a Cover Letter Should Actually Do
+
+A resume tells someone *what* you've done. A cover letter answers the three
+questions a resume can't:
+
+1. **Why this role, specifically?** Not the field — *this exact position at
+   this company*. If you can't name one specific reason within 30 seconds of
+   thinking, the letter will read like template-filler.
+2. **What evidence from your background maps directly to it?** Pick one or two
+   concrete stories from your resume and tie them to the role's top
+   requirements. Numbers and outcomes beat adjectives.
+3. **What do you bring that isn't on the resume?** Context, motivation,
+   judgment, taste — the soft signals that a bullet list flattens out.
+
+If your cover letter doesn't move the conversation forward on any of these
+three fronts, it isn't helping you — and it might be hurting you.
+
+## Recommended Structure
+
+Modern cover letters are short. Recruiters skim — long letters lose them. Aim
+for **three short blocks**, fitting comfortably on a single page.
+
+### Opening (2–3 lines)
+
+State the role you're applying for, and one specific, concrete reason you're
+applying. Skip the generic *"I'm excited to apply…"* opener. Examples that
+actually work:
+
+- *"I've been following how Acme's pricing team rebuilt their tier model after
+  the 2025 migration, and would bring three years of pricing-ops experience to
+  the Senior Analyst role."*
+- *"I'm applying for the Backend Engineer position because your move to event
+  sourcing on the inventory service is exactly the kind of system I've spent
+  the last two years building."*
+
+### Middle (1–2 short paragraphs)
+
+Pick the **single strongest story** from your resume that maps to the role's
+top requirement, and tell it in plain language: *what* you did, *how* you did
+it, and the *result*. One specific story beats three vague claims.
+
+If a second paragraph helps — to show a different dimension like leadership,
+breadth, or a relevant side project — keep it just as tight.
+
+### Close (2–3 lines)
+
+A clear next step and a thank-you. No flourish required:
+
+> *"I'd welcome the chance to discuss how my work at \\[prior company\\] would
+> translate into the \\[role\\] team. Thanks for your time and consideration."*
+
+Length target: **250–350 words total**. If you're over 400, cut something.
+
+## Tone and Voice
+
+Write the way you'd speak in a first interview — professional, but not stiff.
+A few specific rules:
+
+- **Avoid clichés.** *"Team player," "results-driven," "passionate about
+  excellence."* These signal that you didn't have anything specific to say. Cut
+  them and the sentence still works.
+- **Show, don't claim.** Instead of *"I'm a strong communicator,"* describe
+  the cross-functional doc you wrote that aligned three teams on a release.
+- **Match the company's vocabulary.** Read their About page, latest blog post,
+  or product copy. If they call it a "platform" and not a "product," do the
+  same.
+- **Use the hiring manager's name** if you can find it (LinkedIn, the job ad,
+  the company directory). *"Dear Hiring Team,"* is a fine fallback when you
+  genuinely can't.
+
+## Tailoring Quickly
+
+Tailoring every letter from scratch is a great way to apply to two jobs a week.
+A better workflow:
+
+- **Keep a base letter** — your default close, your one-paragraph self-summary,
+  and a few stock middle paragraphs covering different angles of your work.
+- **Rewrite the opening and one middle paragraph** per application. That's
+  where the role-specific signal lives. The close is the boilerplate that
+  survives untouched.
+- **Apply the 30-second test.** If you can't name one specific reason for
+  *this* company in 30 seconds, the letter will read generic no matter how
+  much you polish it. Either find a reason — or skip this application.
+
+## Length and Format
+
+- **One page. Always.** A cover letter that spills onto page two signals that
+  you can't edit yourself.
+- **PDF or plain text**, depending on what the application requests. If it's
+  pasted into a form field, lose the formal letter header — just open with the
+  greeting.
+- **Header conventions** for standalone letters: your name and contact info at
+  the top, the date, the company address (optional), then *"Dear \\[Name\\],"*.
+  Skip the *"Re: Application for Position X"* line — it's dated.
+- **Font and spacing:** the same font family as your resume, 10–11pt,
+  single-spaced, one blank line between paragraphs.
+
+## Common Mistakes
+
+The mistakes that cost the most:
+
+- **Re-stating the resume bullet-by-bullet.** The letter is *context*, not a
+  summary. If a recruiter could get the same information from your resume in
+  half the time, the letter isn't earning its space.
+- **Vague enthusiasm without evidence.** *"I'm very excited about this
+  opportunity"* tells the reader nothing. Replace it with a specific reason or
+  cut it.
+- **Mentioning skills you don't have** to look stronger. Recruiters catch this
+  in interviews and it costs more trust than the false signal earned.
+- **Forgetting to update the company name** when reusing a draft. It happens.
+  Proofread, then proofread the company name and role title specifically.
+- **Submitting identical letters** to multiple roles at the same company.
+  Recruiters share notes — visibly identical letters land badly.
+
+## Generate a Draft with ExcelCV
+
+If you're starting from a blank page, use the **Cover Letter** generator in
+ExcelCV to produce a tailored first draft from your saved CV and a job
+description. The generator pulls relevant experience straight from your resume,
+aligns it to the role's stated requirements, and gives you a structured
+starting point.
+
+Then do the editing work the model can't do for you: rewrite the opening with
+a specific, true reason you're applying, sharpen the middle paragraph with
+your actual numbers, and put the close into your own voice.
+"""
+
+
+_COVER_LETTER_GUIDE_META = {
+    "title": "Cover Letter Guide",
+    "subtitle": (
+        "How to write a short, specific cover letter that complements your "
+        "resume instead of repeating it."
+    ),
+    "tag": "Cover Letter",
+    "date": "May 21, 2026",
+    "read_time": "7 min read",
+    "tags": [
+        "cover letter",
+        "job application",
+        "writing tips",
+        "tailoring",
+    ],
+}
+
+
+def render_cover_letter_guide() -> None:
+    """Render the Cover Letter Guide as a sub-article-style page.
+
+    Mirrors the layout of :func:`render_guide_article` (meta row + title +
+    byline + body with sticky TOC rail + scroll-spy + tag chips + editorial
+    byline card), but the content is inline and the "Continue learning"
+    block points to the Cover Letter generator plus a curated set of
+    ATS-focused guides rather than recommending more cover-letter articles.
+    The same `data-toc-target` / `data-smooth-scroll` attributes are used so
+    the existing TOC click handler and scroll-spy work without changes.
+    """
+    inject_guides_css()
+    _emit_guide_nav_bridges()
+    components.html(_GUIDE_NAV_DELEGATED_JS, height=0)
+    components.html(_GUIDE_TOC_DELEGATED_JS, height=0)
+
+    meta = _COVER_LETTER_GUIDE_META
+
+    cal_icon = (
+        '<svg class="excelcv-guide-meta-icon" viewBox="0 0 24 24" '
+        'fill="none" stroke="currentColor" stroke-width="2" '
+        'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        '<rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>'
+        '<line x1="16" y1="2" x2="16" y2="6"/>'
+        '<line x1="8" y1="2" x2="8" y2="6"/>'
+        '<line x1="3" y1="10" x2="21" y2="10"/></svg>'
+    )
+    clock_icon = (
+        '<svg class="excelcv-guide-meta-icon" viewBox="0 0 24 24" '
+        'fill="none" stroke="currentColor" stroke-width="2" '
+        'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        '<circle cx="12" cy="12" r="10"/>'
+        '<polyline points="12 6 12 12 16 14"/></svg>'
+    )
+    st.markdown(
+        f"""
+        <div class="excelcv-guide-article-meta-row">
+            <span class="excelcv-guide-tag-chip">{meta["tag"]}</span>
+            <span class="excelcv-guide-meta-item">{cal_icon}{meta["date"]}</span>
+            <span class="excelcv-guide-meta-item">{clock_icon}{meta["read_time"]}</span>
+        </div>
+        <h1 class="excelcv-guide-article-title">{meta["title"]}</h1>
+        <p class="excelcv-guide-byline">By <strong>{EDITORIAL_BYLINE}</strong></p>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    anchored_md, toc_entries = _extract_toc_and_anchor_headings(_COVER_LETTER_GUIDE_BODY_MD)
+    if toc_entries:
+        toc_items = "".join(
+            f'<li><a href="#{entry["id"]}" data-smooth-scroll="#{entry["id"]}" data-toc-target="{entry["id"]}">{entry["text"]}</a></li>'
+            for entry in toc_entries
+        )
+        toc_html = (
+            '<aside class="excelcv-guide-toc-rail">'
+            '<div class="excelcv-guide-toc-rail-inner">'
+            '<div class="excelcv-guide-toc-rail-label">On this page</div>'
+            f'<ul class="excelcv-guide-toc-rail-list">{toc_items}</ul>'
+            "</div></aside>"
+        )
+    else:
+        toc_html = ""
+
+    st.markdown(
+        (
+            '<div class="excelcv-guide-article-layout">'
+            '<div class="excelcv-guide-article-main">'
+            f'<div class="excelcv-guide-article-body">\n\n{anchored_md}\n\n</div>'
+            "</div>"
+            f"{toc_html}"
+            "</div>"
+        ),
+        unsafe_allow_html=True,
+    )
+
+    # Scroll-spy — same logic as render_guide_article; duplicated rather than
+    # extracted to avoid touching the working article renderer.
+    if toc_entries:
+        components.html(
+            """
+            <script>
+            (function() {
+                var w = window.parent && window.parent !== window ? window.parent : window;
+                var doc = w.document;
+                var attempts = 0;
+                var attach = function() {
+                    var rail = doc.querySelector('.excelcv-guide-toc-rail');
+                    var body = doc.querySelector('.excelcv-guide-article-body');
+                    if (!rail || !body) {
+                        if (attempts++ < 30) setTimeout(attach, 200);
+                        return;
+                    }
+                    if (w.__excelcv_toc_observer__) {
+                        try { w.__excelcv_toc_observer__.disconnect(); } catch (_e) {}
+                        w.__excelcv_toc_observer__ = null;
+                    }
+                    var links = Array.prototype.slice.call(
+                        rail.querySelectorAll('a[data-toc-target]')
+                    );
+                    var headings = links
+                        .map(function(a) { return doc.getElementById(a.getAttribute('data-toc-target')); })
+                        .filter(function(h) { return !!h; });
+                    if (!headings.length) return;
+                    var setActive = function(id) {
+                        links.forEach(function(a) {
+                            a.classList.toggle(
+                                'excelcv-guide-toc-active',
+                                a.getAttribute('data-toc-target') === id
+                            );
+                        });
+                    };
+                    var REF_OFFSET = 160;
+                    var update = function() {
+                        var docEl = doc.documentElement;
+                        var scrollY = w.scrollY || w.pageYOffset || docEl.scrollTop || 0;
+                        var maxScroll = (docEl.scrollHeight || 0) - (w.innerHeight || 0);
+                        if (maxScroll > 0 && scrollY >= maxScroll - 4) {
+                            setActive(headings[headings.length - 1].id);
+                            return;
+                        }
+                        var current = headings[0].id;
+                        for (var i = 0; i < headings.length; i++) {
+                            var top = headings[i].getBoundingClientRect().top;
+                            if (top - REF_OFFSET <= 0) {
+                                current = headings[i].id;
+                            } else {
+                                break;
+                            }
+                        }
+                        setActive(current);
+                    };
+                    var onScroll = function() {
+                        if (w.__excelcv_toc_raf__) return;
+                        w.__excelcv_toc_raf__ = w.requestAnimationFrame(function() {
+                            w.__excelcv_toc_raf__ = 0;
+                            update();
+                        });
+                    };
+                    w.addEventListener('scroll', onScroll, true);
+                    w.addEventListener('resize', onScroll, true);
+                    w.__excelcv_toc_observer__ = { disconnect: function() {
+                        try { w.removeEventListener('scroll', onScroll, true); } catch (_e) {}
+                        try { w.removeEventListener('resize', onScroll, true); } catch (_e) {}
+                    }};
+                    update();
+                };
+                attach();
+            })();
+            </script>
+            """,
+            height=0,
+        )
+
+    # CTA card — hands the reader to the actual tool. Resume-focused related
+    # links from the article template were dropped: they're off-topic on a
+    # cover-letter page. The secondary line still points at the Resume Tips
+    # hub for readers who want broader application advice.
+    cover_letter_href = _build_page_href("cover-letter")
+    resume_tips_href = _build_page_href("resume-tips")
+    st.markdown(
+        f"""
+        <div class="excelcv-guide-continue">
+            <h3>Ready to write yours?</h3>
+            <p class="excelcv-guide-continue-sub">
+                Use the
+                <a href="{cover_letter_href}" target="_self">Cover Letter generator</a>
+                to produce a tailored first draft from your saved CV and a job
+                description — then refine it with the guidance above.
+            </p>
+            <p class="excelcv-guide-continue-sub">
+                Looking for more application advice? Explore the
+                <a href="{resume_tips_href}" target="_self" data-guide-nav="resume-tips">complete ATS resume guide</a>.
+            </p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    # Tag chips
+    if meta.get("tags"):
+        chips_html = "".join(f'<span class="chip">#{t}</span>' for t in meta["tags"])
+        st.markdown(
+            f'<div class="excelcv-guide-tags">{chips_html}</div>',
+            unsafe_allow_html=True,
+        )
+
+    # Editorial byline card
+    st.markdown(
+        f"""
+        <div class="excelcv-guide-byline-card">
+            <div class="name">{EDITORIAL_BYLINE}</div>
+            <div class="role">Resume & ATS research at ExcelCV</div>
+            <p class="bio">
+                The ExcelCV Editorial Team researches resume parsing, ATS
+                behavior, and 2026 hiring trends to help job seekers land
+                interviews faster. We update these guides as the application
+                landscape evolves.
+            </p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Privacy Policy
+# ---------------------------------------------------------------------------
+
+# Only states what the app actually does. Avoid generic legal boilerplate that
+# can't be backed by the code (no GDPR DSR endpoints, no specific retention
+# windows, no third-party-processor list beyond the ones we genuinely call).
+_PRIVACY_POLICY_BODY_MD = """\
+## Overview
+
+This policy explains what information ExcelCV collects when you use the
+application, how it's used, and the controls you have over it. ExcelCV is an
+educational and portfolio project — the data we process is what you provide
+while using the features (resume analysis, comparisons, cover letter
+generation, resume building) and what's needed to keep your account working.
+
+If you have questions after reading this, email **support@excelcv.app**.
+
+## Information We Collect
+
+**Account information** — when you create an account: your email address, a
+bcrypt-hashed password (we never store the plaintext), and your display name.
+If you sign in with Google OAuth, we receive only the email address and name
+your Google account exposes to apps you authorize.
+
+**Content you submit** — resume files (PDF/DOCX), job descriptions you paste,
+cover-letter inputs, and any resume you build with the Resume Builder. The
+extracted text from uploaded files is processed by our AI provider to generate
+the analysis or output you requested.
+
+**Saved artifacts** — if you're signed in, every CV you build, analysis you
+run, and multi-resume comparison you save is persisted in our database under
+your account so you can retrieve it later.
+
+**Session information** — a signed session cookie is set when you check
+*"Remember me"* at sign-in, keeping you logged in across browser restarts.
+Your theme preference (light/dark) is stored in your browser's localStorage.
+
+**What we do NOT collect** — no analytics trackers, no advertising cookies,
+no session replay, no behavioral profiling. We do not sell or share your
+resume content with anyone other than the AI provider needed to produce the
+analysis.
+
+## How We Use Your Information
+
+The data above is used to:
+
+- Produce the feature you requested (CV analysis, multi-resume comparison,
+  cover-letter draft, resume PDF export).
+- Persist your account, saved CVs, analyses, and comparisons so you can
+  return to them later.
+- Send transactional email — password reset links and acknowledgements when
+  you submit the contact form.
+
+ExcelCV does not train any model on your resume content. Data sent to the
+Google Gemini API is processed according to Google's Gemini API terms.
+
+## Third-Party Services
+
+ExcelCV relies on a small, named set of external services:
+
+- **Google OAuth** — sign-in only. When you sign in with Google, your email
+  address and profile name are shared with us; no other Google account data
+  is accessed.
+- **Google Gemini API** — your resume text and job description are sent to
+  Google's Gemini model to produce the analysis or cover-letter draft. Usage
+  is governed by Google's Gemini API terms.
+- **SMTP email provider** — transactional email (password resets, contact-form
+  responses). Recipient addresses and message bodies pass through this
+  provider to be delivered.
+
+No third-party analytics, advertising, or tracking services are integrated.
+
+## Cookies and Local Storage
+
+ExcelCV uses cookies and local storage strictly for functional purposes:
+
+- **Session cookie** — set when you sign in and select *"Remember me"*. Lets
+  you stay signed in across browser restarts. Signing out clears it.
+- **Theme preference** — your light/dark choice is stored in browser
+  localStorage so the page renders correctly on your next visit.
+
+No tracking, analytics, or advertising cookies are set.
+
+## Data Retention and Deletion
+
+- **Saved artifacts** (built CVs, analyses, comparisons) remain in the
+  database until you delete them from the My CVs / My Analyses / My
+  Comparisons pages, or until you delete your account.
+- **Guest sessions** keep analysis data only for the current browser session
+  — closing the tab discards it.
+- **Account deletion** — Settings → Delete account removes your account
+  record and all associated CVs, analyses, and comparisons from the database.
+- **Email logs** — outgoing transactional emails follow the retention
+  defaults of our SMTP provider.
+
+## Your Rights and Choices
+
+- **Access** — every CV, analysis, and comparison tied to your account is
+  viewable on the My CVs / My Analyses / My Comparisons pages.
+- **Export** — every analysis can be downloaded as JSON or PDF from its
+  detail view; every saved CV can be exported as JSON or PDF from the Resume
+  Builder.
+- **Correction** — change your account email and password from Settings.
+- **Deletion** — delete individual artifacts from their list pages, or
+  delete your account from Settings to wipe everything.
+
+If any of these don't behave as described, email
+**support@excelcv.app** and we'll look into it.
+
+## Changes to This Policy
+
+If we materially change how data is handled, the *"Last updated"* date at
+the top of this page will change. The current version always lives at this
+URL.
+
+## Contact
+
+For questions about this policy, or about specific data tied to your
+account, email **support@excelcv.app**.
+"""
+
+
+_PRIVACY_POLICY_META = {
+    "title": "Privacy Policy",
+    "tag": "Legal",
+    "date": "May 21, 2026",
+    "read_time": "3 min read",
+}
+
+
+def render_privacy_policy() -> None:
+    """Render the Privacy Policy as a sub-article-style page.
+
+    Reuses the article shell from :func:`render_cover_letter_guide` (meta row
+    + title + body with sticky TOC rail + scroll-spy + closing CTA) but skips
+    the editorial byline card and the tag chips — a legal page shouldn't read
+    like a blog post.
+    """
+    inject_guides_css()
+    _emit_guide_nav_bridges()
+    components.html(_GUIDE_NAV_DELEGATED_JS, height=0)
+    components.html(_GUIDE_TOC_DELEGATED_JS, height=0)
+
+    meta = _PRIVACY_POLICY_META
+
+    cal_icon = (
+        '<svg class="excelcv-guide-meta-icon" viewBox="0 0 24 24" '
+        'fill="none" stroke="currentColor" stroke-width="2" '
+        'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        '<rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>'
+        '<line x1="16" y1="2" x2="16" y2="6"/>'
+        '<line x1="8" y1="2" x2="8" y2="6"/>'
+        '<line x1="3" y1="10" x2="21" y2="10"/></svg>'
+    )
+    clock_icon = (
+        '<svg class="excelcv-guide-meta-icon" viewBox="0 0 24 24" '
+        'fill="none" stroke="currentColor" stroke-width="2" '
+        'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        '<circle cx="12" cy="12" r="10"/>'
+        '<polyline points="12 6 12 12 16 14"/></svg>'
+    )
+    st.markdown(
+        f"""
+        <div class="excelcv-guide-article-meta-row">
+            <span class="excelcv-guide-tag-chip">{meta["tag"]}</span>
+            <span class="excelcv-guide-meta-item">{cal_icon}Last updated: {meta["date"]}</span>
+            <span class="excelcv-guide-meta-item">{clock_icon}{meta["read_time"]}</span>
+        </div>
+        <h1 class="excelcv-guide-article-title">{meta["title"]}</h1>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    anchored_md, toc_entries = _extract_toc_and_anchor_headings(_PRIVACY_POLICY_BODY_MD)
+    if toc_entries:
+        toc_items = "".join(
+            f'<li><a href="#{entry["id"]}" data-smooth-scroll="#{entry["id"]}" data-toc-target="{entry["id"]}">{entry["text"]}</a></li>'
+            for entry in toc_entries
+        )
+        toc_html = (
+            '<aside class="excelcv-guide-toc-rail">'
+            '<div class="excelcv-guide-toc-rail-inner">'
+            '<div class="excelcv-guide-toc-rail-label">On this page</div>'
+            f'<ul class="excelcv-guide-toc-rail-list">{toc_items}</ul>'
+            "</div></aside>"
+        )
+    else:
+        toc_html = ""
+
+    st.markdown(
+        (
+            '<div class="excelcv-guide-article-layout">'
+            '<div class="excelcv-guide-article-main">'
+            f'<div class="excelcv-guide-article-body">\n\n{anchored_md}\n\n</div>'
+            "</div>"
+            f"{toc_html}"
+            "</div>"
+        ),
+        unsafe_allow_html=True,
+    )
+
+    # Scroll-spy — same logic used elsewhere in this module. Duplicated
+    # rather than extracted to keep the working article renderers untouched.
+    if toc_entries:
+        components.html(
+            """
+            <script>
+            (function() {
+                var w = window.parent && window.parent !== window ? window.parent : window;
+                var doc = w.document;
+                var attempts = 0;
+                var attach = function() {
+                    var rail = doc.querySelector('.excelcv-guide-toc-rail');
+                    var body = doc.querySelector('.excelcv-guide-article-body');
+                    if (!rail || !body) {
+                        if (attempts++ < 30) setTimeout(attach, 200);
+                        return;
+                    }
+                    if (w.__excelcv_toc_observer__) {
+                        try { w.__excelcv_toc_observer__.disconnect(); } catch (_e) {}
+                        w.__excelcv_toc_observer__ = null;
+                    }
+                    var links = Array.prototype.slice.call(
+                        rail.querySelectorAll('a[data-toc-target]')
+                    );
+                    var headings = links
+                        .map(function(a) { return doc.getElementById(a.getAttribute('data-toc-target')); })
+                        .filter(function(h) { return !!h; });
+                    if (!headings.length) return;
+                    var setActive = function(id) {
+                        links.forEach(function(a) {
+                            a.classList.toggle(
+                                'excelcv-guide-toc-active',
+                                a.getAttribute('data-toc-target') === id
+                            );
+                        });
+                    };
+                    var REF_OFFSET = 160;
+                    var update = function() {
+                        var docEl = doc.documentElement;
+                        var scrollY = w.scrollY || w.pageYOffset || docEl.scrollTop || 0;
+                        var maxScroll = (docEl.scrollHeight || 0) - (w.innerHeight || 0);
+                        if (maxScroll > 0 && scrollY >= maxScroll - 4) {
+                            setActive(headings[headings.length - 1].id);
+                            return;
+                        }
+                        var current = headings[0].id;
+                        for (var i = 0; i < headings.length; i++) {
+                            var top = headings[i].getBoundingClientRect().top;
+                            if (top - REF_OFFSET <= 0) {
+                                current = headings[i].id;
+                            } else {
+                                break;
+                            }
+                        }
+                        setActive(current);
+                    };
+                    var onScroll = function() {
+                        if (w.__excelcv_toc_raf__) return;
+                        w.__excelcv_toc_raf__ = w.requestAnimationFrame(function() {
+                            w.__excelcv_toc_raf__ = 0;
+                            update();
+                        });
+                    };
+                    w.addEventListener('scroll', onScroll, true);
+                    w.addEventListener('resize', onScroll, true);
+                    w.__excelcv_toc_observer__ = { disconnect: function() {
+                        try { w.removeEventListener('scroll', onScroll, true); } catch (_e) {}
+                        try { w.removeEventListener('resize', onScroll, true); } catch (_e) {}
+                    }};
+                    update();
+                };
+                attach();
+            })();
+            </script>
+            """,
+            height=0,
+        )
+
+    # Compact closing card — single contact line, no CTA carousel.
+    st.markdown(
+        """
+        <div class="excelcv-guide-continue">
+            <h3>Questions about this policy?</h3>
+            <p class="excelcv-guide-continue-sub">
+                Email <a href="mailto:support@excelcv.app">support@excelcv.app</a>
+                and we'll get back to you.
+            </p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Terms of Service
+# ---------------------------------------------------------------------------
+
+# Same content discipline as the Privacy Policy: claim only what the app
+# actually does. Avoid jurisdiction-specific boilerplate (no governing-law
+# clause, no arbitration clause) — those imply legal review we haven't done
+# and don't fit an educational portfolio project.
+_TERMS_OF_SERVICE_BODY_MD = """\
+## Overview
+
+These terms govern your use of ExcelCV. By creating an account or using any
+feature on this site, you agree to them. ExcelCV is an educational and
+portfolio project — it's offered as-is, without charge, and without
+guarantee of continued availability.
+
+If you don't agree to these terms, don't use the service.
+
+## Your Account
+
+When you create an ExcelCV account, you're responsible for keeping your
+sign-in credentials safe and for everything that happens under your account.
+If you signed in with Google OAuth, the same applies to your Google account.
+
+You agree to:
+
+- Provide accurate contact information at sign-up.
+- Notify us at **support@excelcv.app** if you believe your account has been
+  accessed without your permission.
+- Use one account per person — don't share credentials.
+
+We may suspend or delete accounts that violate these terms or that show
+signs of automated abuse.
+
+## Acceptable Use
+
+You can use ExcelCV for personal job-search activities, education, and
+demonstration. You may not:
+
+- Upload content you don't have the right to share (for example, someone
+  else's resume without their consent).
+- Submit malware, executable payloads disguised as resumes, or content
+  intended to disrupt the service.
+- Attempt to reverse-engineer, scrape, or programmatically extract content
+  from the application beyond what the public UI permits.
+- Use the AI features to generate content that's unlawful, deceptive, or
+  that misrepresents your qualifications to an employer.
+- Resell or commercially redistribute the AI output as a paid service of
+  your own.
+
+## Your Content
+
+You keep ownership of everything you upload or build — resumes you upload,
+job descriptions you paste, cover-letter inputs, and any Resume Builder
+drafts. By submitting content, you grant ExcelCV a limited license to
+process that content for the purpose of providing the feature you
+requested, which includes sending the relevant text to our AI provider for
+analysis. This license ends when you delete the content or your account.
+
+You're responsible for the accuracy of what you submit and for any
+consequences of using the output in real applications.
+
+## AI-Generated Output
+
+ExcelCV uses Google's Gemini API to produce CV analyses, comparison
+rankings, cover-letter drafts, and bullet suggestions. AI output:
+
+- Is generated automatically and may contain factual errors, fabricated
+  details, or outdated information.
+- Should be reviewed and edited by you before being used in any real
+  application.
+- Is provided as a starting point — not as a finished product and not as
+  professional career advice.
+
+You're responsible for the final version you submit anywhere: to a
+recruiter, an ATS, or a company portal.
+
+## Service Availability and Changes
+
+ExcelCV is an educational project. The service:
+
+- May be modified, paused, or shut down at any time without prior notice.
+- May have features added, changed, or removed.
+- Is not subject to any uptime guarantee or service-level agreement.
+
+We'll try to give reasonable notice for planned permanent shutdowns where
+practical — but no commitment is made.
+
+## Disclaimer and Limitation of Liability
+
+The service is provided **"as is"** and **"as available"**. To the maximum
+extent permitted by law:
+
+- No warranties are made about the accuracy, reliability, fitness for a
+  particular purpose, or non-infringement of the service or any output
+  produced by it.
+- ExcelCV is not liable for any indirect, incidental, consequential, or
+  punitive damages arising from your use of the service — including
+  missed job opportunities, lost data, or downtime.
+- ExcelCV is not a career counsellor, recruiter, or employer. The service
+  does not place you in jobs.
+
+Some jurisdictions don't allow these limits — in that case they apply to
+the maximum extent permitted by the applicable law.
+
+## Termination
+
+You can stop using ExcelCV at any time and delete your account from
+Settings → Delete account, which removes all of your stored CVs, analyses,
+and comparisons from the database.
+
+We may suspend or terminate your access if you violate these terms,
+attempt to harm the service or other users, or use the service outside the
+scope above.
+
+## Updates to These Terms
+
+If we materially change these terms, the *"Last updated"* date at the top
+of this page will change. Continued use of ExcelCV after a change means
+you accept the updated terms. The current version always lives at this
+URL.
+
+## Contact
+
+Questions about these terms? Email **support@excelcv.app**.
+"""
+
+
+_TERMS_OF_SERVICE_META = {
+    "title": "Terms of Service",
+    "tag": "Legal",
+    "date": "May 21, 2026",
+    "read_time": "4 min read",
+}
+
+
+def render_terms_of_service() -> None:
+    """Render the Terms of Service as a sub-article-style page.
+
+    Same chassis as :func:`render_privacy_policy` — meta row + title +
+    body with sticky TOC rail + scroll-spy + compact closing contact card.
+    No editorial byline or tag chips.
+    """
+    inject_guides_css()
+    _emit_guide_nav_bridges()
+    components.html(_GUIDE_NAV_DELEGATED_JS, height=0)
+    components.html(_GUIDE_TOC_DELEGATED_JS, height=0)
+
+    meta = _TERMS_OF_SERVICE_META
+
+    cal_icon = (
+        '<svg class="excelcv-guide-meta-icon" viewBox="0 0 24 24" '
+        'fill="none" stroke="currentColor" stroke-width="2" '
+        'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        '<rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>'
+        '<line x1="16" y1="2" x2="16" y2="6"/>'
+        '<line x1="8" y1="2" x2="8" y2="6"/>'
+        '<line x1="3" y1="10" x2="21" y2="10"/></svg>'
+    )
+    clock_icon = (
+        '<svg class="excelcv-guide-meta-icon" viewBox="0 0 24 24" '
+        'fill="none" stroke="currentColor" stroke-width="2" '
+        'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        '<circle cx="12" cy="12" r="10"/>'
+        '<polyline points="12 6 12 12 16 14"/></svg>'
+    )
+    st.markdown(
+        f"""
+        <div class="excelcv-guide-article-meta-row">
+            <span class="excelcv-guide-tag-chip">{meta["tag"]}</span>
+            <span class="excelcv-guide-meta-item">{cal_icon}Last updated: {meta["date"]}</span>
+            <span class="excelcv-guide-meta-item">{clock_icon}{meta["read_time"]}</span>
+        </div>
+        <h1 class="excelcv-guide-article-title">{meta["title"]}</h1>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    anchored_md, toc_entries = _extract_toc_and_anchor_headings(_TERMS_OF_SERVICE_BODY_MD)
+    if toc_entries:
+        toc_items = "".join(
+            f'<li><a href="#{entry["id"]}" data-smooth-scroll="#{entry["id"]}" data-toc-target="{entry["id"]}">{entry["text"]}</a></li>'
+            for entry in toc_entries
+        )
+        toc_html = (
+            '<aside class="excelcv-guide-toc-rail">'
+            '<div class="excelcv-guide-toc-rail-inner">'
+            '<div class="excelcv-guide-toc-rail-label">On this page</div>'
+            f'<ul class="excelcv-guide-toc-rail-list">{toc_items}</ul>'
+            "</div></aside>"
+        )
+    else:
+        toc_html = ""
+
+    st.markdown(
+        (
+            '<div class="excelcv-guide-article-layout">'
+            '<div class="excelcv-guide-article-main">'
+            f'<div class="excelcv-guide-article-body">\n\n{anchored_md}\n\n</div>'
+            "</div>"
+            f"{toc_html}"
+            "</div>"
+        ),
+        unsafe_allow_html=True,
+    )
+
+    if toc_entries:
+        components.html(
+            """
+            <script>
+            (function() {
+                var w = window.parent && window.parent !== window ? window.parent : window;
+                var doc = w.document;
+                var attempts = 0;
+                var attach = function() {
+                    var rail = doc.querySelector('.excelcv-guide-toc-rail');
+                    var body = doc.querySelector('.excelcv-guide-article-body');
+                    if (!rail || !body) {
+                        if (attempts++ < 30) setTimeout(attach, 200);
+                        return;
+                    }
+                    if (w.__excelcv_toc_observer__) {
+                        try { w.__excelcv_toc_observer__.disconnect(); } catch (_e) {}
+                        w.__excelcv_toc_observer__ = null;
+                    }
+                    var links = Array.prototype.slice.call(
+                        rail.querySelectorAll('a[data-toc-target]')
+                    );
+                    var headings = links
+                        .map(function(a) { return doc.getElementById(a.getAttribute('data-toc-target')); })
+                        .filter(function(h) { return !!h; });
+                    if (!headings.length) return;
+                    var setActive = function(id) {
+                        links.forEach(function(a) {
+                            a.classList.toggle(
+                                'excelcv-guide-toc-active',
+                                a.getAttribute('data-toc-target') === id
+                            );
+                        });
+                    };
+                    var REF_OFFSET = 160;
+                    var update = function() {
+                        var docEl = doc.documentElement;
+                        var scrollY = w.scrollY || w.pageYOffset || docEl.scrollTop || 0;
+                        var maxScroll = (docEl.scrollHeight || 0) - (w.innerHeight || 0);
+                        if (maxScroll > 0 && scrollY >= maxScroll - 4) {
+                            setActive(headings[headings.length - 1].id);
+                            return;
+                        }
+                        var current = headings[0].id;
+                        for (var i = 0; i < headings.length; i++) {
+                            var top = headings[i].getBoundingClientRect().top;
+                            if (top - REF_OFFSET <= 0) {
+                                current = headings[i].id;
+                            } else {
+                                break;
+                            }
+                        }
+                        setActive(current);
+                    };
+                    var onScroll = function() {
+                        if (w.__excelcv_toc_raf__) return;
+                        w.__excelcv_toc_raf__ = w.requestAnimationFrame(function() {
+                            w.__excelcv_toc_raf__ = 0;
+                            update();
+                        });
+                    };
+                    w.addEventListener('scroll', onScroll, true);
+                    w.addEventListener('resize', onScroll, true);
+                    w.__excelcv_toc_observer__ = { disconnect: function() {
+                        try { w.removeEventListener('scroll', onScroll, true); } catch (_e) {}
+                        try { w.removeEventListener('resize', onScroll, true); } catch (_e) {}
+                    }};
+                    update();
+                };
+                attach();
+            })();
+            </script>
+            """,
+            height=0,
+        )
+
+    st.markdown(
+        """
+        <div class="excelcv-guide-continue">
+            <h3>Questions about these terms?</h3>
+            <p class="excelcv-guide-continue-sub">
+                Email <a href="mailto:support@excelcv.app">support@excelcv.app</a>
+                and we'll get back to you.
             </p>
         </div>
         """,

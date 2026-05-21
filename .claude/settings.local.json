@@ -103,7 +103,9 @@
       "Bash(taskkill /PID 20624 /F)",
       "PowerShell(Stop-Process -Id 20624 -Force)",
       "PowerShell(netstat -ano)",
-      "Bash(py -c \"from src.ui import theme; print\\('import OK'\\)\")"
+      "Bash(py -c \"from src.ui import theme; print\\('import OK'\\)\")",
+      "Bash(python -c \"with open\\('e:/professional/Projects/excelcv/excelcv/docs/guides/guide-why-75-rejected.md', 'rb'\\) as f: data = f.read\\(\\); idx = data.find\\(b'Don'\\); print\\(repr\\(data[idx:idx+25]\\)\\)\")",
+      "Bash(py -c \"data=open\\('e:/professional/Projects/excelcv/excelcv/docs/guides/guide-why-75-rejected.md','rb'\\).read\\(\\); idx=data.find\\(b'## Don'\\); print\\(repr\\(data[idx:idx+40]\\)\\)\")"
     ],
     "additionalDirectories": [
       "E:\\Academic\\minor-project\\cv-review"

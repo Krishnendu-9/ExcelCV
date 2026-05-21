@@ -1,4 +1,5 @@
 """Constants for the CV builder."""
+
 from __future__ import annotations
 
 SECTION_SCHEMA: list[tuple[str, str]] = [
@@ -19,13 +20,14 @@ SECTION_LABEL_TO_ID = {label: sid for sid, label in SECTION_SCHEMA}
 
 ACCENT_COLORS = [
     "#2563eb",
-    "#7c3aed",
-    "#059669",
-    "#dc2626",
-    "#d97706",
-    "#0891b2",
     "#4f46e5",
-    "#be185d",
+    "#059669",
+    "#d97706",
+    "#dc2626",
+    "#64748b",
+    "#9db6a8",
+    "#93a8c3",
+    "#7a8f7a",
 ]
 
 FONT_OPTIONS: dict[str, str] = {

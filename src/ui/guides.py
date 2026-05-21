@@ -2,8 +2,9 @@
 
 Architecture
 ------------
-- Each sub-guide is a separate app route (slug starts with ``guide-``) registered
-  in ``APP_PAGES``. Routing in ``app.py`` dispatches any ``guide-*`` page to
+- Each sub-guide is a separate app route registered in ``APP_PAGES`` and
+  recorded as a key in :data:`GUIDES_META`. Routing in ``app.py`` dispatches
+  any ``current_page`` that's a member of ``GUIDES_META`` to
   :func:`render_guide_article` here.
 - Metadata for every guide (title, byline, date, related slugs, …) lives in
   :data:`GUIDES_META` below — single source of truth used by the pillar's
@@ -18,10 +19,12 @@ All articles use the byline "ExcelCV Editorial Team". Adding/reordering guides
 only requires editing ``GUIDES_META`` and ``SECTIONS`` — no code changes.
 """
 
+import re
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 
 import streamlit as st
+import streamlit.components.v1 as components
 
 from src.ui.app_utils import _build_page_href
 
@@ -34,115 +37,115 @@ GUIDES_DIR = Path(__file__).resolve().parents[2] / "docs" / "guides"
 EDITORIAL_BYLINE = "ExcelCV Editorial Team"
 
 GUIDES_META: Dict[str, Dict[str, Any]] = {
-    "guide-why-75-rejected": {
+    "why-75-rejected": {
         "title": "Why 75% of Resumes Are Rejected Before a Human Sees Them",
         "tag": "Resume Help",
-        "date": "May 18, 2026",
+        "date": "May 20, 2026",
         "read_time": "7 min read",
         "summary": (
             "Three out of four resumes never reach a recruiter. Here's where the "
             "75% number comes from, why it happens, and what to fix first."
         ),
         "related": [
-            "guide-pass-ats-scanner-2026",
-            "guide-pdf-vs-docx",
-            "guide-keywords-software-engineers",
+            "pass-ats-scanner-2026",
+            "pdf-vs-docx",
+            "keywords-software-engineers",
         ],
         "tags": ["ATS rejection", "applicant tracking", "resume statistics", "job search"],
     },
-    "guide-pass-ats-scanner-2026": {
+    "pass-ats-scanner-2026": {
         "title": "How to Pass an ATS Scanner in 2026: Step-by-Step Guide",
         "tag": "Resume Help",
-        "date": "May 12, 2026",
+        "date": "May 20, 2026",
         "read_time": "9 min read",
         "summary": (
             "The complete 9-step playbook — parsing, keywords, formatting, file "
             "naming, and testing — for any ATS in 2026."
         ),
         "related": [
-            "guide-why-75-rejected",
-            "guide-ats-friendly-templates",
-            "guide-keywords-software-engineers",
+            "why-75-rejected",
+            "ats-friendly-templates",
+            "keywords-software-engineers",
         ],
         "tags": ["ATS", "resume optimization", "applicant tracking", "resume tips"],
     },
-    "guide-pdf-vs-docx": {
+    "pdf-vs-docx": {
         "title": "PDF vs DOCX Resume: Which Format Passes ATS Better in 2026?",
         "tag": "Resume Help",
-        "date": "April 28, 2026",
+        "date": "May 20, 2026",
         "read_time": "6 min read",
         "summary": (
             "The PDF-vs-DOCX debate finally settled with data — tested across the "
             "major ATS platforms in production today."
         ),
         "related": [
-            "guide-ats-friendly-templates",
-            "guide-pass-ats-scanner-2026",
-            "guide-why-75-rejected",
+            "ats-friendly-templates",
+            "pass-ats-scanner-2026",
+            "why-75-rejected",
         ],
         "tags": ["PDF vs DOCX", "resume format", "ATS", "resume tips"],
     },
-    "guide-ats-friendly-templates": {
+    "ats-friendly-templates": {
         "title": "ATS-Friendly Resume Templates and Formats",
         "tag": "Resume Help",
-        "date": "April 14, 2026",
+        "date": "May 20, 2026",
         "read_time": "5 min read",
         "summary": (
             "Optimized structure and formatting rules that keep parsers happy "
             "across every major ATS platform."
         ),
         "related": [
-            "guide-pdf-vs-docx",
-            "guide-pass-ats-scanner-2026",
-            "guide-keywords-software-engineers",
+            "pdf-vs-docx",
+            "pass-ats-scanner-2026",
+            "keywords-software-engineers",
         ],
         "tags": ["resume templates", "ATS", "resume format", "job search"],
     },
-    "guide-keywords-software-engineers": {
+    "keywords-software-engineers": {
         "title": "ATS Resume Keywords for Software Engineers in 2026",
         "tag": "Resume Help",
-        "date": "April 6, 2026",
+        "date": "May 20, 2026",
         "read_time": "9 min read",
         "summary": (
             "High-signal keywords ATS platforms scan for in software engineering "
             "resumes — broken down by backend, frontend, DevOps, and ML."
         ),
         "related": [
-            "guide-pass-ats-scanner-2026",
-            "guide-ai-hiring-tools-2026",
-            "guide-why-75-rejected",
+            "pass-ats-scanner-2026",
+            "ai-hiring-tools-2026",
+            "why-75-rejected",
         ],
         "tags": ["software engineer resume", "ATS keywords", "tech resume", "developer job search"],
     },
-    "guide-resume-no-experience": {
+    "resume-no-experience": {
         "title": "How to Write a Resume with No Experience That Passes ATS",
         "tag": "Career Advice",
-        "date": "March 22, 2026",
+        "date": "May 20, 2026",
         "read_time": "8 min read",
         "summary": (
             "Students, new grads, and career switchers — build a resume that "
             "beats the ATS without traditional work history."
         ),
         "related": [
-            "guide-pass-ats-scanner-2026",
-            "guide-ats-friendly-templates",
-            "guide-keywords-software-engineers",
+            "pass-ats-scanner-2026",
+            "ats-friendly-templates",
+            "keywords-software-engineers",
         ],
         "tags": ["no experience resume", "student resume", "new grad", "first job"],
     },
-    "guide-ai-hiring-tools-2026": {
+    "ai-hiring-tools-2026": {
         "title": "How AI Hiring Tools Are Changing Resume Screening in 2026",
         "tag": "Career Advice",
-        "date": "March 10, 2026",
+        "date": "May 20, 2026",
         "read_time": "9 min read",
         "summary": (
             "AI now reads, ranks, and rejects most resumes before recruiters see "
             "them. What's actually happening — and how to stay ahead."
         ),
         "related": [
-            "guide-pass-ats-scanner-2026",
-            "guide-keywords-software-engineers",
-            "guide-why-75-rejected",
+            "pass-ats-scanner-2026",
+            "keywords-software-engineers",
+            "why-75-rejected",
         ],
         "tags": ["AI hiring", "AI recruiting", "future of work", "resume screening"],
     },
@@ -159,7 +162,7 @@ SECTIONS: List[Dict[str, Any]] = [
             "explain what the software actually does and the step-by-step "
             "process that gets your resume through."
         ),
-        "guides": ["guide-why-75-rejected", "guide-pass-ats-scanner-2026"],
+        "guides": ["why-75-rejected", "pass-ats-scanner-2026"],
     },
     {
         "id": "format-layout",
@@ -169,7 +172,7 @@ SECTIONS: List[Dict[str, Any]] = [
             "Most parsing failures are caused by layout, not language. Get "
             "these two questions right before you write a single bullet."
         ),
-        "guides": ["guide-pdf-vs-docx", "guide-ats-friendly-templates"],
+        "guides": ["pdf-vs-docx", "ats-friendly-templates"],
     },
     {
         "id": "keywords",
@@ -179,7 +182,7 @@ SECTIONS: List[Dict[str, Any]] = [
             "ATS scoring lives and dies on the right keywords. Generic lists "
             "are useless — pick the guide that matches your role."
         ),
-        "guides": ["guide-keywords-software-engineers"],
+        "guides": ["keywords-software-engineers"],
     },
     {
         "id": "starters-changers",
@@ -189,7 +192,7 @@ SECTIONS: List[Dict[str, Any]] = [
             "ATS-friendly doesn't mean traditional experience required. If "
             "your background is non-linear, this guide is for you."
         ),
-        "guides": ["guide-resume-no-experience"],
+        "guides": ["resume-no-experience"],
     },
     {
         "id": "whats-changing",
@@ -200,7 +203,7 @@ SECTIONS: List[Dict[str, Any]] = [
             "semantic ranking. Understand what's new so you optimize for the "
             "right system."
         ),
-        "guides": ["guide-ai-hiring-tools-2026"],
+        "guides": ["ai-hiring-tools-2026"],
     },
 ]
 
@@ -353,6 +356,7 @@ def inject_guides_css() -> None:
            on guide pages so multiple st.markdown calls don't pile up vertical
            rhythm. Scoped to elements that contain our guide-* class names so
            it can't leak to other pages. */
+        [data-testid="stElementContainer"]:has(> .excelcv-guide-pillar-top),
         [data-testid="stElementContainer"]:has(> .excelcv-guide-pillar-hero),
         [data-testid="stElementContainer"]:has(> .excelcv-guide-toc),
         [data-testid="stElementContainer"]:has(> .excelcv-guide-section),
@@ -364,6 +368,7 @@ def inject_guides_css() -> None:
         [data-testid="stElementContainer"]:has(> .excelcv-guide-byline),
         [data-testid="stElementContainer"]:has(> .excelcv-guide-article-meta),
         [data-testid="stElementContainer"]:has(> .excelcv-guide-article-body),
+        [data-testid="stElementContainer"]:has(> .excelcv-guide-article-layout),
         [data-testid="stElementContainer"]:has(> .excelcv-guide-continue),
         [data-testid="stElementContainer"]:has(> .excelcv-guide-tags),
         [data-testid="stElementContainer"]:has(> .excelcv-guide-byline-card),
@@ -372,15 +377,57 @@ def inject_guides_css() -> None:
             margin-bottom: 0 !important;
         }}
         /* Pull the FIRST content block on a guide page up to close the natural
-           band below the site header rule. Applied to the wrapping
-           stElementContainer (not the inner element) so it actually offsets
-           Streamlit's vertical-block gap above it. */
-        [data-testid="stElementContainer"]:has(> .excelcv-guide-pillar-hero),
-        [data-testid="stElementContainer"]:has(> .excelcv-guide-breadcrumb) {{
-            margin-top: -60px !important;
+           band below the site header rule. The selector uses ``:has(X)`` (any
+           descendant) rather than ``:has(> X)`` (direct child) because
+           Streamlit wraps st.markdown content in extra
+           ``stMarkdown`` / ``stMarkdownContainer`` divs — the guide class is
+           not a direct child of stElementContainer.
+           On the pillar page the first block is ``.excelcv-guide-pillar-top``;
+           on an article page (breadcrumb removed) the first block is the
+           ``.excelcv-guide-article-meta-row``. */
+        [data-testid="stElementContainer"]:has(.excelcv-guide-pillar-top),
+        [data-testid="stElementContainer"]:has(.excelcv-guide-article-meta-row) {{
+            margin-top: -90px !important;
+        }}
+        /* Bridge-button container collapse. ``st.container(key="…")`` wraps
+           its children in a ``.st-key-<key>`` div AND, in recent Streamlit
+           versions, ALSO in a sibling ``data-testid="stLayoutWrapper"`` div
+           used for internal layout. Hiding the ``.st-key-…`` element alone
+           leaves the stLayoutWrapper reserving ~60px above the article meta
+           row. We have to ``display: none`` ALL three: the layout wrapper,
+           the ``.st-key-…`` element, and the wrapping ``stElementContainer``.
+           Streamlit buttons inside remain in the DOM and findable by the JS
+           click handler — ``.click()`` fires on display:none elements too —
+           so the bridge mechanism keeps working. */
+        [data-testid="stLayoutWrapper"]:has(.st-key-guide_nav_action_bridge),
+        [data-testid="stElementContainer"]:has(.st-key-guide_nav_action_bridge),
+        .st-key-guide_nav_action_bridge {{
+            display: none !important;
+        }}
+        /* 2-column hero + TOC row at the top of the pillar page. Hero takes
+           the left column, TOC card sits on the right filling the empty band
+           that used to be there. Same 50/50 ratio (``repeat(2, 1fr)``) as the
+           article-card grid in each pillar section, so the page reads as one
+           consistent column system top-to-bottom. Collapses to a single
+           column below 900px. */
+        .excelcv-guide-pillar-top {{
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 40px;
+            align-items: start;
+            margin-bottom: 0;
+        }}
+        @media (max-width: 900px) {{
+            .excelcv-guide-pillar-top {{
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }}
         }}
         .excelcv-guide-pillar-hero {{
-            padding: 12px 0 8px;
+            /* No top padding — the parent grid is align-items: start, so the
+               hero title needs to sit flush with the column top to align with
+               the TOC card's top edge on the right. */
+            padding: 0 0 8px;
         }}
         .excelcv-guide-pillar-badge {{
             display: inline-block;
@@ -398,14 +445,20 @@ def inject_guides_css() -> None:
             font-size: 2.4rem;
             font-weight: 800;
             line-height: 1.15;
-            margin: 0 0 14px;
+            /* !important on margin-top so the browser/Streamlit default
+               h1 margin (0.67em) doesn't push the title down,
+               which leaves the TOC card on the right looking taller. */
+            margin: 0 0 14px !important;
             color: {p["text_primary"]} !important;
         }}
         .excelcv-guide-pillar-lede {{
             color: {p["text_secondary"]} !important;
             font-size: 1.06rem;
             line-height: 1.6;
-            max-width: 64ch;
+            /* No max-width — the lede now lives in a 50% grid column, so the
+               column itself constrains the line length. The 64ch cap from
+               when the lede was full-width is what was making it look narrow
+               inside its own column. */
             margin: 0 0 18px;
         }}
         .excelcv-guide-pillar-lede strong {{
@@ -417,10 +470,25 @@ def inject_guides_css() -> None:
             border: 1px solid {p["card_border"]} !important;
             border-radius: 14px;
             padding: 18px 22px;
-            margin: 18px 0 28px;
+            /* No outer margin — the parent .excelcv-guide-pillar-top grid
+               controls spacing on wide screens; on narrow screens (where the
+               grid collapses to 1 column) the parent's gap handles it. */
+            margin: 0;
+        }}
+        .excelcv-guide-toc-header {{
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 12px;
+        }}
+        .excelcv-guide-toc-header .excelcv-guide-pillar-badge {{
+            /* In the TOC corner the badge is a label, not a hero element —
+               drop the bottom margin it had when it sat above the title. */
+            margin-bottom: 0;
         }}
         .excelcv-guide-toc h3 {{
-            margin: 0 0 12px;
+            margin: 0;
             font-size: 1.0rem;
             font-weight: 700;
             color: {p["text_primary"]} !important;
@@ -440,7 +508,10 @@ def inject_guides_css() -> None:
         }}
 
         .excelcv-guide-section {{
-            margin: 28px 0 8px;
+            margin: 12px 0 8px;
+            /* When the TOC scrolls a section into view, leave room for the
+               site header bar above it. */
+            scroll-margin-top: 110px;
         }}
         .excelcv-guide-section-head {{
             display: flex;
@@ -462,7 +533,6 @@ def inject_guides_css() -> None:
             font-size: 0.98rem;
             line-height: 1.6;
             margin: 6px 0 14px;
-            max-width: 72ch;
         }}
 
         .excelcv-guide-card-grid {{
@@ -484,16 +554,25 @@ def inject_guides_css() -> None:
             border: 1px solid {p["card_border"]} !important;
             border-radius: 14px;
             padding: 16px 18px;
-            text-decoration: none;
+            text-decoration: none !important;
             color: {p["text_primary"]} !important;
             transition: border-color 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
+        }}
+        /* Some Streamlit-injected global link rules add underline back on
+           hover or visited states; force-strip it on every state for cards. */
+        .excelcv-guide-card,
+        .excelcv-guide-card:hover,
+        .excelcv-guide-card:focus,
+        .excelcv-guide-card:active,
+        .excelcv-guide-card:visited,
+        .excelcv-guide-card * {{
+            text-decoration: none !important;
         }}
         .excelcv-guide-card:hover {{
             border-color: {p["card_hover_border"]} !important;
             background: {p["card_hover_bg"]} !important;
             transform: translateY(-1px);
             box-shadow: {p["shadow"]};
-            text-decoration: none;
         }}
         .excelcv-guide-card-title {{
             font-size: 1.02rem;
@@ -526,6 +605,8 @@ def inject_guides_css() -> None:
         /* FAQ */
         .excelcv-guide-faq {{
             margin: 36px 0 0;
+            /* TOC anchor scroll target — keep clear of the site header. */
+            scroll-margin-top: 110px;
         }}
         .excelcv-guide-faq h2 {{
             font-size: 1.6rem;
@@ -601,7 +682,31 @@ def inject_guides_css() -> None:
             border: 1px solid {p["badge_border"]} !important;
             padding: 3px 10px;
             border-radius: 999px;
-            margin: 14px 0 10px;
+            margin: 0;
+        }}
+        /* Inline meta row: tag chip + date with calendar icon + read time
+           with clock icon. Sits at the top of the article (above the title)
+           now that the breadcrumb has been removed. Top margin is 0 because
+           the wrapping ``stElementContainer`` already gets a negative
+           margin-top to close the gap below the site header rule. */
+        .excelcv-guide-article-meta-row {{
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 14px;
+            margin: 0 0 10px;
+        }}
+        .excelcv-guide-meta-item {{
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            color: {p["text_muted"]} !important;
+            font-size: 0.86rem;
+        }}
+        .excelcv-guide-meta-icon {{
+            width: 14px;
+            height: 14px;
+            flex-shrink: 0;
         }}
         .excelcv-guide-article-title {{
             font-size: 2.0rem;
@@ -628,11 +733,90 @@ def inject_guides_css() -> None:
         .excelcv-guide-article-meta .dot {{
             opacity: 0.5;
         }}
+        /* Two-column article layout: main body on the left, sticky TOC rail
+           on the right. The body retains a comfortable max-width for reading
+           (~70ch) while the rail takes its own fixed column on wide screens
+           and collapses entirely below 1100px. */
+        .excelcv-guide-article-layout {{
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 260px;
+            gap: 56px;
+            align-items: start;
+            margin-top: 6px;
+        }}
+        .excelcv-guide-article-main {{
+            min-width: 0;
+        }}
+        @media (max-width: 1100px) {{
+            .excelcv-guide-article-layout {{
+                grid-template-columns: 1fr;
+                gap: 0;
+            }}
+            .excelcv-guide-toc-rail {{ display: none !important; }}
+        }}
+        /* Outer aside must stretch to the full grid-row height (= article
+           body height) so the inner sticky element has a tall containing
+           block to stick within. With ``align-self: start`` the outer would
+           collapse to ~280px (TOC content height) and sticky would detach
+           the moment the reader scrolled past that, leaving the right column
+           blank for the rest of the article. */
+        .excelcv-guide-toc-rail {{
+            align-self: stretch;
+            min-height: 0;
+        }}
+        .excelcv-guide-toc-rail-inner {{
+            position: sticky;
+            top: 96px;
+            max-height: calc(100vh - 120px);
+            overflow-y: auto;
+            border-left: 2px solid {p["card_border"]};
+            padding: 4px 0 4px 18px;
+        }}
+        .excelcv-guide-toc-rail-label {{
+            font-size: 0.74rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: {p["text_muted"]} !important;
+            margin-bottom: 12px;
+        }}
+        .excelcv-guide-toc-rail-list {{
+            list-style: none;
+            margin: 0;
+            padding: 0;
+        }}
+        .excelcv-guide-toc-rail-list li {{
+            margin: 8px 0;
+        }}
+        .excelcv-guide-toc-rail-list a {{
+            display: block;
+            color: {p["text_muted"]} !important;
+            text-decoration: none;
+            font-size: 0.92rem;
+            line-height: 1.45;
+            padding: 4px 0;
+            border-left: 2px solid transparent;
+            margin-left: -20px;
+            padding-left: 18px;
+            transition: color 0.15s ease, border-color 0.15s ease;
+        }}
+        .excelcv-guide-toc-rail-list a:hover {{
+            color: {p["text_primary"]} !important;
+        }}
+        .excelcv-guide-toc-rail-list a.excelcv-guide-toc-active {{
+            color: {p["accent"]} !important;
+            border-left-color: {p["accent"]};
+            font-weight: 600;
+        }}
+
         .excelcv-guide-article-body {{
             color: {p["text_body"]} !important;
-            line-height: 1.7;
-            font-size: 1.0rem;
-            max-width: 78ch;
+            line-height: 1.75;
+            font-size: 1.125rem;
+            max-width: 70ch;
+        }}
+        .excelcv-guide-article-body p {{
+            margin: 0 0 16px;
         }}
         .excelcv-guide-article-body h1,
         .excelcv-guide-article-body h2,
@@ -642,12 +826,16 @@ def inject_guides_css() -> None:
             color: {p["text_primary"]} !important;
         }}
         .excelcv-guide-article-body h2 {{
-            font-size: 1.45rem;
-            margin: 28px 0 10px;
+            font-size: 1.65rem;
+            font-weight: 800;
+            margin: 36px 0 12px;
+            scroll-margin-top: 110px;
         }}
         .excelcv-guide-article-body h3 {{
-            font-size: 1.15rem;
-            margin: 22px 0 8px;
+            font-size: 1.25rem;
+            font-weight: 700;
+            margin: 26px 0 8px;
+            scroll-margin-top: 110px;
         }}
         .excelcv-guide-article-body ul,
         .excelcv-guide-article-body ol {{
@@ -785,6 +973,91 @@ def _guide_href(slug: str) -> str:
     return _build_page_href(slug)
 
 
+def _guide_nav_button_key(slug: str) -> str:
+    """Key for the hidden bridge button that swaps the page to ``slug``."""
+    normalized = "".join(ch if ch.isalnum() else "_" for ch in str(slug).strip().lower())
+    return f"nav_action_{normalized}"
+
+
+def _navigate_to_guide_page(slug: str) -> None:
+    """Bridge-button callback: swap st.session_state['page'] to ``slug``.
+
+    Also writes the new page to ``st.query_params['page']`` so the URL
+    updates atomically with the state change. Without this, the address bar
+    can stay stuck on the previous page's URL even though the new page is
+    rendered (the JS-based URL sync in app.py can lose its race with the
+    rerun). Pops nav_action_pending so any stale top-nav focus from the
+    previous page doesn't leak into the new render.
+    """
+    st.session_state["page"] = str(slug)
+    st.session_state.pop("nav_action_pending", None)
+    try:
+        st.query_params["page"] = str(slug)
+    except Exception:
+        # Older Streamlit versions don't expose dict-style writes — silently
+        # fall back to the JS-based URL sync if so.
+        pass
+
+
+def _emit_guide_nav_bridges() -> None:
+    """Emit hidden Streamlit buttons — one per guide slug + the pillar.
+
+    The reasoning: ``<a href="?page=guide-…">`` does a real HTTP navigation
+    which forces a full page reload (slow, visible flash). Clicking a
+    hidden Streamlit button instead sends a WebSocket message that
+    triggers a normal in-app rerun — much faster, no white flash.
+
+    Guide-card and continue-learning links get ``data-guide-nav="<slug>"``
+    and a small JS handler (injected by :func:`render_guide_article` and
+    :func:`render_resume_tips_pillar`) clicks the matching bridge on the
+    user's behalf. The bridge buttons themselves are invisible thanks to
+    the existing ``st-key-nav_action_*`` CSS rules in ``base_theme.css.tpl``.
+    """
+    targets = list(GUIDES_META.keys()) + ["resume-tips"]
+    with st.container(key="guide_nav_action_bridge"):
+        for slug in targets:
+            st.button(
+                " ",
+                key=_guide_nav_button_key(slug),
+                help=f"Internal navigation trigger for {slug}",
+                on_click=_navigate_to_guide_page,
+                args=(slug,),
+            )
+
+
+_GUIDE_NAV_DELEGATED_JS = """
+<script>
+(function() {
+    var w = window.parent && window.parent !== window ? window.parent : window;
+    var doc = w.document;
+    if (doc.__excelcv_guide_nav_bound__) return;
+    doc.__excelcv_guide_nav_bound__ = true;
+    doc.addEventListener('click', function(ev) {
+        var el = ev.target;
+        while (el && el !== doc && !(el.getAttribute && el.getAttribute('data-guide-nav'))) {
+            el = el.parentNode;
+        }
+        if (!el || el === doc) return;
+        var slug = String(el.getAttribute('data-guide-nav') || '').trim();
+        if (!slug) return;
+        var normalized = '';
+        for (var i = 0; i < slug.length; i++) {
+            var c = slug.charAt(i);
+            normalized += /[a-zA-Z0-9]/.test(c) ? c.toLowerCase() : '_';
+        }
+        var btnClass = 'st-key-nav_action_' + normalized;
+        var btn = doc.querySelector('.' + btnClass + ' button');
+        if (!btn) return;
+        ev.preventDefault();
+        ev.stopPropagation();
+        try { w.scrollTo({ top: 0, left: 0, behavior: 'instant' }); } catch (_e1) { w.scrollTo(0, 0); }
+        btn.click();
+    }, true);
+})();
+</script>
+"""
+
+
 def _load_guide_markdown(slug: str) -> str | None:
     """Return the markdown body for a guide, or None if the file is missing."""
     path = GUIDES_DIR / f"{slug}.md"
@@ -804,6 +1077,52 @@ def _section_for_guide(slug: str) -> Dict[str, Any] | None:
     return None
 
 
+_H2_PATTERN = re.compile(r"^## (.+)$", re.MULTILINE)
+_SLUG_NON_ALNUM = re.compile(r"[^a-z0-9]+")
+# Strip apostrophes (straight and curly) BEFORE the non-alphanumeric pass so
+# that "Don't" becomes "dont" rather than "don-t" — the awkward ``-t-``
+# artifact was breaking clicks on the "Don't Be in the 75%" TOC link.
+_SLUG_STRIP_CHARS = str.maketrans("", "", "'’‘“”")
+
+
+def _slugify(text: str) -> str:
+    """Lower-kebab-case a heading for use as an in-page anchor id."""
+    cleaned = text.lower().translate(_SLUG_STRIP_CHARS)
+    slug = _SLUG_NON_ALNUM.sub("-", cleaned).strip("-")
+    return slug or "section"
+
+
+def _extract_toc_and_anchor_headings(md: str) -> Tuple[str, List[Dict[str, str]]]:
+    """Inject explicit ``id`` attributes onto each ``## H2`` in the markdown
+    and return the modified markdown alongside the TOC entries.
+
+    Streamlit's markdown renderer doesn't honor the Kramdown ``{#id}`` extension,
+    so the only reliable way to get stable in-page anchors is to convert the
+    ``## Heading`` lines to raw HTML headings ourselves and render the result
+    with ``unsafe_allow_html=True``. The rest of the markdown still renders
+    normally — Streamlit happily mixes markdown blocks and inline HTML blocks.
+
+    Duplicate slugs are disambiguated with a ``-2``, ``-3`` suffix so repeated
+    section names (e.g. two "Common Mistakes" sections) get unique anchors.
+    """
+    toc: List[Dict[str, str]] = []
+    used_slugs: Dict[str, int] = {}
+
+    def _replace(match: re.Match) -> str:
+        text = match.group(1).strip()
+        base = _slugify(text)
+        count = used_slugs.get(base, 0) + 1
+        used_slugs[base] = count
+        slug = base if count == 1 else f"{base}-{count}"
+        toc.append({"id": slug, "text": text})
+        # Blank lines around the raw HTML keep Streamlit's markdown parser from
+        # gluing it into surrounding paragraphs.
+        return f'\n\n<h2 id="{slug}">{text}</h2>\n\n'
+
+    new_md = _H2_PATTERN.sub(_replace, md)
+    return new_md, toc
+
+
 # ---------------------------------------------------------------------------
 # Pillar page
 # ---------------------------------------------------------------------------
@@ -812,6 +1131,8 @@ def _section_for_guide(slug: str) -> Dict[str, Any] | None:
 def render_resume_tips_pillar() -> None:
     """Render the redesigned Resume Tips pillar page."""
     inject_guides_css()
+    _emit_guide_nav_bridges()
+    components.html(_GUIDE_NAV_DELEGATED_JS, height=0)
 
     pillar_title = "Resume Tips: The Complete ATS Guide"
     pillar_lede = (
@@ -823,27 +1144,33 @@ def render_resume_tips_pillar() -> None:
         "sections that apply to you."
     )
 
-    st.markdown(
-        f"""
-        <div class="excelcv-guide-pillar-hero">
-            <span class="excelcv-guide-pillar-badge">Pillar Guide · Updated May 2026</span>
-            <h1 class="excelcv-guide-pillar-title">{pillar_title}</h1>
-            <p class="excelcv-guide-pillar-lede">{pillar_lede}</p>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    # Table of contents
+    # Table of contents links (built first so we can render hero + TOC as a
+    # single 2-column row instead of stacking them vertically). Each link
+    # carries ``data-smooth-scroll`` so the delegated click handler in
+    # ``render_site_footer`` intercepts the click and smooth-scrolls + updates
+    # the URL via replaceState. Without the attribute the plain hash link
+    # triggers a Streamlit rerun on the URL change, which resets the scroll
+    # position and makes clicking the TOC feel like a page reload.
     toc_links = "".join(
-        f'<a href="#section-{section["id"]}">{section["label"]}</a>' for section in SECTIONS
+        f'<a href="#section-{section["id"]}" data-smooth-scroll="#section-{section["id"]}">{section["label"]}</a>'
+        for section in SECTIONS
     )
-    toc_links += '<a href="#faq">Frequently asked questions</a>'
+    toc_links += '<a href="#faq" data-smooth-scroll="#faq">Frequently asked questions</a>'
+
     st.markdown(
         f"""
-        <div class="excelcv-guide-toc">
-            <h3>What this guide covers</h3>
-            <div class="excelcv-guide-toc-grid">{toc_links}</div>
+        <div class="excelcv-guide-pillar-top">
+            <div class="excelcv-guide-pillar-hero">
+                <h1 class="excelcv-guide-pillar-title">{pillar_title}</h1>
+                <p class="excelcv-guide-pillar-lede">{pillar_lede}</p>
+            </div>
+            <div class="excelcv-guide-toc">
+                <div class="excelcv-guide-toc-header">
+                    <h3>What this guide covers</h3>
+                    <span class="excelcv-guide-pillar-badge">Pillar Guide · Updated May 2026</span>
+                </div>
+                <div class="excelcv-guide-toc-grid">{toc_links}</div>
+            </div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -858,7 +1185,7 @@ def render_resume_tips_pillar() -> None:
                 continue
             href = _guide_href(slug)
             cards_html += (
-                f'<a class="excelcv-guide-card" href="{href}" target="_self">'
+                f'<a class="excelcv-guide-card" href="{href}" target="_self" data-guide-nav="{slug}">'
                 f'<div class="excelcv-guide-card-title">{meta["title"]}</div>'
                 f'<div class="excelcv-guide-card-summary">{meta["summary"]}</div>'
                 f'<div class="excelcv-guide-card-meta">'
@@ -904,6 +1231,8 @@ def render_resume_tips_pillar() -> None:
 def render_guide_article(slug: str) -> None:
     """Render a single sub-guide article identified by its slug."""
     inject_guides_css()
+    _emit_guide_nav_bridges()
+    components.html(_GUIDE_NAV_DELEGATED_JS, height=0)
 
     meta = GUIDES_META.get(slug)
     if not meta:
@@ -922,37 +1251,161 @@ def render_guide_article(slug: str) -> None:
     body_md = _load_guide_markdown(slug)
 
     pillar_href = _build_page_href("resume-tips")
-    home_href = _build_page_href("home")
 
-    # Breadcrumb + back link
+    # Breadcrumb + inline meta row (tag chip · date · read time). The
+    # "← Back to Resume Tips" link is intentionally not rendered — the
+    # breadcrumb above already provides the way back and the meta row reads
+    # cleaner without a second back affordance underneath.
+    cal_icon = (
+        '<svg class="excelcv-guide-meta-icon" viewBox="0 0 24 24" '
+        'fill="none" stroke="currentColor" stroke-width="2" '
+        'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        '<rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>'
+        '<line x1="16" y1="2" x2="16" y2="6"/>'
+        '<line x1="8" y1="2" x2="8" y2="6"/>'
+        '<line x1="3" y1="10" x2="21" y2="10"/></svg>'
+    )
+    clock_icon = (
+        '<svg class="excelcv-guide-meta-icon" viewBox="0 0 24 24" '
+        'fill="none" stroke="currentColor" stroke-width="2" '
+        'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        '<circle cx="12" cy="12" r="10"/>'
+        '<polyline points="12 6 12 12 16 14"/></svg>'
+    )
     st.markdown(
         f"""
-        <div class="excelcv-guide-breadcrumb">
-            <a href="{home_href}" target="_self">Home</a>
-            <span class="excelcv-guide-breadcrumb-sep">›</span>
-            <a href="{pillar_href}" target="_self">Resume Tips</a>
-            <span class="excelcv-guide-breadcrumb-sep">›</span>
-            <span>{meta["title"]}</span>
+        <div class="excelcv-guide-article-meta-row">
+            <span class="excelcv-guide-tag-chip">{meta["tag"]}</span>
+            <span class="excelcv-guide-meta-item">{cal_icon}{meta["date"]}</span>
+            <span class="excelcv-guide-meta-item">{clock_icon}{meta["read_time"]}</span>
         </div>
-        <a class="excelcv-guide-back-link" href="{pillar_href}" target="_self">← Back to Resume Tips</a>
-        <span class="excelcv-guide-tag-chip">{meta["tag"]}</span>
         <h1 class="excelcv-guide-article-title">{meta["title"]}</h1>
         <p class="excelcv-guide-byline">By <strong>{EDITORIAL_BYLINE}</strong></p>
-        <div class="excelcv-guide-article-meta">
-            <span>{meta["date"]}</span>
-            <span class="dot">·</span>
-            <span>{meta["read_time"]}</span>
-        </div>
         """,
         unsafe_allow_html=True,
     )
 
-    # Body
+    # Body + sticky TOC rail
     if body_md:
+        anchored_md, toc_entries = _extract_toc_and_anchor_headings(body_md)
+        if toc_entries:
+            toc_items = "".join(
+                f'<li><a href="#{entry["id"]}" data-smooth-scroll="#{entry["id"]}" data-toc-target="{entry["id"]}">{entry["text"]}</a></li>'
+                for entry in toc_entries
+            )
+            toc_html = (
+                '<aside class="excelcv-guide-toc-rail">'
+                '<div class="excelcv-guide-toc-rail-inner">'
+                '<div class="excelcv-guide-toc-rail-label">On this page</div>'
+                f'<ul class="excelcv-guide-toc-rail-list">{toc_items}</ul>'
+                "</div></aside>"
+            )
+        else:
+            toc_html = ""
+        # Two-column layout: main body on the left, sticky TOC on the right.
+        # ``anchored_md`` has its H2 headings rewritten as raw <h2 id="…">
+        # blocks; Streamlit mixes markdown and HTML when unsafe_allow_html=True,
+        # so the anchor ids survive and the TOC links land on them.
         st.markdown(
-            f'<div class="excelcv-guide-article-body">\n\n{body_md}\n\n</div>',
+            (
+                '<div class="excelcv-guide-article-layout">'
+                '<div class="excelcv-guide-article-main">'
+                f'<div class="excelcv-guide-article-body">\n\n{anchored_md}\n\n</div>'
+                "</div>"
+                f"{toc_html}"
+                "</div>"
+            ),
             unsafe_allow_html=True,
         )
+        # Scroll-spy: highlight the current section in the TOC rail as the
+        # reader scrolls. Replaces any previously bound observer so navigating
+        # between guide articles doesn't leave stale listeners attached to
+        # the wrong DOM.
+        if toc_entries:
+            components.html(
+                """
+                <script>
+                (function() {
+                    var w = window.parent && window.parent !== window ? window.parent : window;
+                    var doc = w.document;
+                    var attempts = 0;
+                    var attach = function() {
+                        var rail = doc.querySelector('.excelcv-guide-toc-rail');
+                        var body = doc.querySelector('.excelcv-guide-article-body');
+                        if (!rail || !body) {
+                            if (attempts++ < 30) setTimeout(attach, 200);
+                            return;
+                        }
+                        if (w.__excelcv_toc_observer__) {
+                            try { w.__excelcv_toc_observer__.disconnect(); } catch (_e) {}
+                            w.__excelcv_toc_observer__ = null;
+                        }
+                        var links = Array.prototype.slice.call(
+                            rail.querySelectorAll('a[data-toc-target]')
+                        );
+                        var headings = links
+                            .map(function(a) { return doc.getElementById(a.getAttribute('data-toc-target')); })
+                            .filter(function(h) { return !!h; });
+                        if (!headings.length) return;
+                        var setActive = function(id) {
+                            links.forEach(function(a) {
+                                a.classList.toggle(
+                                    'excelcv-guide-toc-active',
+                                    a.getAttribute('data-toc-target') === id
+                                );
+                            });
+                        };
+                        // Scroll-position scan rather than pure IntersectionObserver
+                        // — IO doesn't cleanly resolve "which section am I in
+                        // RIGHT now" for long sections that span the entire
+                        // viewport, leaving the highlight stuck on a stale link.
+                        var REF_OFFSET = 160;
+                        var update = function() {
+                            // Edge case: when the user has scrolled to (or past)
+                            // the bottom of the document, the last heading
+                            // physically cannot reach the REF_OFFSET line —
+                            // the page is at max scroll. Force-activate the
+                            // last heading so the TOC reflects what the reader
+                            // is actually reading.
+                            var docEl = doc.documentElement;
+                            var scrollY = w.scrollY || w.pageYOffset || docEl.scrollTop || 0;
+                            var maxScroll = (docEl.scrollHeight || 0) - (w.innerHeight || 0);
+                            if (maxScroll > 0 && scrollY >= maxScroll - 4) {
+                                setActive(headings[headings.length - 1].id);
+                                return;
+                            }
+                            var current = headings[0].id;
+                            for (var i = 0; i < headings.length; i++) {
+                                var top = headings[i].getBoundingClientRect().top;
+                                if (top - REF_OFFSET <= 0) {
+                                    current = headings[i].id;
+                                } else {
+                                    break;
+                                }
+                            }
+                            setActive(current);
+                        };
+                        var onScroll = function() {
+                            if (w.__excelcv_toc_raf__) return;
+                            w.__excelcv_toc_raf__ = w.requestAnimationFrame(function() {
+                                w.__excelcv_toc_raf__ = 0;
+                                update();
+                            });
+                        };
+                        w.addEventListener('scroll', onScroll, true);
+                        w.addEventListener('resize', onScroll, true);
+                        w.__excelcv_toc_observer__ = { disconnect: function() {
+                            try { w.removeEventListener('scroll', onScroll, true); } catch (_e) {}
+                            try { w.removeEventListener('resize', onScroll, true); } catch (_e) {}
+                        }};
+                        update();
+                    };
+                    attach();
+                })();
+                </script>
+                """,
+                height=0,
+            )
     else:
         st.markdown(
             """
@@ -977,7 +1430,7 @@ def render_guide_article(slug: str) -> None:
             rel = GUIDES_META[rel_slug]
             href = _guide_href(rel_slug)
             items_html += (
-                f'<li><a href="{href}" target="_self">{rel["title"]}</a>'
+                f'<li><a href="{href}" target="_self" data-guide-nav="{rel_slug}">{rel["title"]}</a>'
                 f'<span class="excelcv-guide-continue-blurb"> — {rel["summary"]}</span></li>'
             )
         st.markdown(
@@ -985,7 +1438,7 @@ def render_guide_article(slug: str) -> None:
             <div class="excelcv-guide-continue">
                 <h3>Continue learning: more ATS guides</h3>
                 <p class="excelcv-guide-continue-sub">
-                    Part of the <a href="{pillar_href}" target="_self">complete ATS resume guide</a>.
+                    Part of the <a href="{pillar_href}" target="_self" data-guide-nav="resume-tips">complete ATS resume guide</a>.
                     Recommended next reads:
                 </p>
                 <ul class="excelcv-guide-continue-list">{items_html}</ul>

@@ -328,6 +328,51 @@ def _inject_url_and_anchor_cleanup(
         return w.__excelcvUrlSyncRunToken === runToken;
     }
 
+    // Track what Python has just rendered so the popstate handler (bound
+    // below) knows what to compare the URL against after the user hits
+    // Back/Forward. Updating this on EVERY render is the whole point of
+    // putting this logic here — the runToken guarantees the iframe content
+    // changes each render and re-executes, which static scripts in
+    // components.html do NOT do.
+    w.__excelcvRenderedPage = desiredPage;
+
+    // Bind the popstate listener — handle browser Back/Forward so the URL
+    // and the rendered page don't desync. Strategy: store the handler as a
+    // window-scoped FUNCTION REFERENCE (not a closure stuck inside this
+    // iframe's scope) and re-install it every render. That way, even if a
+    // previous render's iframe was torn down and its closure became
+    // invalid, the latest iframe's handler is always live on the parent
+    // window. The old listener (if any) is explicitly removed first so we
+    // don't accumulate duplicates.
+    if (w.__excelcvPopstateHandler) {
+        try { w.removeEventListener("popstate", w.__excelcvPopstateHandler); } catch (_re) {}
+    }
+    w.__excelcvPopstateHandler = function () {
+        try {
+            console.log("[excelcv-popstate] fired", "url=", w.location.href, "rendered=", w.__excelcvRenderedPage);
+            var u = new URL(w.location.href);
+            var urlPage = (u.searchParams.get("page") || "home").toLowerCase();
+            var renderedPage = String(w.__excelcvRenderedPage || "home").toLowerCase();
+            var homeLike = new Set(["home", "upload", "upload-cv", ""]);
+            if (homeLike.has(urlPage) && homeLike.has(renderedPage)) {
+                console.log("[excelcv-popstate] both home-like, skipping");
+                return;
+            }
+            if (urlPage !== renderedPage) {
+                console.log("[excelcv-popstate] mismatch -> setting __bnav and reloading");
+                u.searchParams.set("__bnav", "1");
+                w.history.replaceState(null, "", u.toString());
+                w.location.reload();
+            } else {
+                console.log("[excelcv-popstate] URL matches rendered, no reload");
+            }
+        } catch (pe) {
+            console.error("[excelcv-popstate] handler threw:", pe);
+        }
+    };
+    w.addEventListener("popstate", w.__excelcvPopstateHandler);
+    w.__excelcvPopstateBound = true;
+
     if (!_isCurrentRun()) return;
 
     try {
@@ -676,12 +721,36 @@ def main() -> None:
     url_rid = st.query_params.get("rid")
     open_feedback = str(st.query_params.get("open_feedback") or "").strip().lower()
     open_support = str(st.query_params.get("open_support") or "").strip().lower()
+    # Browser-nav marker. ``_inject_url_and_anchor_cleanup`` adds ``__bnav=1``
+    # to the URL just before reloading in response to a popstate (browser
+    # Back/Forward). When we see it, we force URL-driven routing — bypassing
+    # the ``_last_applied_url_page`` guard below — and then strip the marker
+    # so it doesn't survive subsequent renders.
+    is_browser_nav = bool(st.query_params.get("__bnav"))
+    if is_browser_nav:
+        try:
+            del st.query_params["__bnav"]
+        except Exception:
+            pass
     is_unauth_protected = url_page in PROTECTED_PAGES and not get_session_user()
     if is_unauth_protected:
         intended = str(url_page)
         _render_auth_gate(intended)
+    # Apply URL-driven routing when either:
+    #   - the URL page value actually changed since we last applied it
+    #     (normal in-app rerun / refresh), OR
+    #   - this rerun was triggered by a browser-nav reload (``__bnav=1``),
+    #     even if the URL value matches what was last applied. Without the
+    #     browser-nav override, hitting Back after a forward bridge-button
+    #     nav would leave ``session_state['page']`` stuck on the previous
+    #     slug because ``_last_applied_url_page`` would equal the URL.
+    last_applied_url_page = st.session_state.get("_last_applied_url_page")
     if url_page in APP_PAGES and not is_unauth_protected:
-        st.session_state["page"] = str(url_page)
+        if is_browser_nav or str(url_page) != str(last_applied_url_page):
+            st.session_state["page"] = str(url_page)
+            st.session_state["_last_applied_url_page"] = str(url_page)
+    elif url_page not in APP_PAGES:
+        st.session_state["_last_applied_url_page"] = None
     if url_rid:
         st.session_state["report_snapshot_id"] = str(url_rid)
     if open_feedback in {"1", "true", "yes"}:
@@ -765,6 +834,15 @@ def main() -> None:
         HOME_COMPARE_FOCUS_KEY
     ):
         active_nav_label = "Compare Resumes"
+    # Resume Tips pillar and any sub-guide article are NOT part of the top
+    # nav — none of the top-nav items should be highlighted when the reader
+    # is in the Resume Tips section. An empty label normalizes to a
+    # non-matching page key in render_top_nav, so no nav item gets the
+    # .site-nav-item-active class.
+    from src.ui.guides import GUIDES_META as _GUIDES_META
+
+    if current_page == "resume-tips" or current_page in _GUIDES_META:
+        active_nav_label = ""
 
     # Inject layout-critical CSS BEFORE the header and page content render.
     # Streamlit streams its response to the browser top-to-bottom; if these
@@ -833,10 +911,12 @@ def main() -> None:
     elif current_page == "settings":
         _require_auth("settings")
         render_settings_page()
-    elif current_page.startswith("guide-"):
-        # Resume Tips sub-guide articles (see src/ui/guides.py). Each guide is
-        # a separate APP_PAGES entry routed by slug here; the pillar page
-        # (resume-tips) is handled by render_static_page below.
+    elif current_page in _GUIDES_META:
+        # Resume Tips sub-guide articles (see src/ui/guides.py). Each guide
+        # slug is registered in APP_PAGES; dispatch here by checking
+        # membership in the canonical GUIDES_META dict rather than relying
+        # on a slug prefix (slugs no longer carry a "guide-" prefix so they
+        # render shorter in the URL bar).
         from src.ui.guides import render_guide_article
 
         render_guide_article(current_page)

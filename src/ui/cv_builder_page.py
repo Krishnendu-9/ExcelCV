@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import inspect
 import json
+import re
 import uuid
 from datetime import date, datetime
 
@@ -108,9 +109,17 @@ def _rerun_resume_builder() -> None:
     """Rerun while pinning the active route to Resume Builder."""
     st.session_state["page"] = "resume-builder"
     try:
-        st.query_params["page"] = "resume-builder"
+        current = dict(st.query_params.to_dict())
+        target = dict(current)
+        target["page"] = "resume-builder"
+        target.pop("next", None)
+        if target != current:
+            st.query_params.from_dict(target)
     except Exception:
-        pass
+        try:
+            st.query_params["page"] = "resume-builder"
+        except Exception:
+            pass
     st.rerun()
 
 
@@ -572,6 +581,14 @@ def load_cv_into_builder(cv_record: CV) -> None:
     ss["cvb_cv_title"] = cv_record.title
     ss["cvb_template"] = _normalize_template(cv_record.template)
     ss["cvb_loaded_cv_id"] = cv_record.id
+    updated_at = getattr(cv_record, "updated_at", None)
+    if updated_at:
+        try:
+            ss["cvb_last_saved"] = updated_at.strftime("%I:%M %p")
+        except Exception:
+            ss["cvb_last_saved"] = None
+    else:
+        ss["cvb_last_saved"] = None
     p = d.get("personal", {})
     for field in [
         "full_name",
@@ -808,7 +825,7 @@ def _date_field(
 
     def _close_date_popover() -> None:
         ss[popover_close_request_key] = True
-        st.rerun()
+        _rerun_resume_builder()
 
     is_current = bool(ss.get(current_key, False)) if (allow_present and current_key) else False
     raw_value = str(ss.get(storage_key, "") or "").strip()
@@ -1040,6 +1057,24 @@ def _get_backup_json() -> str:
     return json.dumps(data, indent=2, default=str)
 
 
+def _build_resume_pdf_filename(ss: dict) -> str:
+    full_name = str(ss.get("cvb_full_name", "") or "").strip()
+    cv_title = str(ss.get("cvb_cv_title", "") or "").strip()
+
+    if full_name:
+        base = f"{full_name}_CV"
+    elif cv_title:
+        base = cv_title
+    else:
+        base = "resume"
+
+    base = re.sub(r"\s+", "_", base)
+    base = re.sub(r'[<>:"/\\|?*\r\n\t]+', "_", base).strip(" ._")
+    if not base:
+        base = "resume"
+    return f"{base}.pdf"
+
+
 def _import_from_json(uploaded_file) -> None:
     try:
         payload = uploaded_file.read()
@@ -1056,7 +1091,7 @@ def _import_from_json(uploaded_file) -> None:
                 st.session_state[k] = v
         _init_builder()
         st.session_state["cvb_show_import"] = False
-        st.rerun()
+        _rerun_resume_builder()
     except Exception as exc:
         st.error(f"Import failed: {exc}")
 
@@ -1129,7 +1164,6 @@ def _inject_reset_popup_native_js() -> None:
 # ─── Form section renderers ───────────────────────────────────────────────────
 
 
-@st.fragment
 def _render_backup_button_fragment(backup_payload: str) -> None:
     st.download_button(
         "Backup",
@@ -1141,7 +1175,6 @@ def _render_backup_button_fragment(backup_payload: str) -> None:
     )
 
 
-@st.fragment
 def _render_save_button_fragment(template: str) -> None:
     ss = st.session_state
     if st.button("Save", key="cvb_toolbar_save"):
@@ -1152,18 +1185,9 @@ def _render_save_button_fragment(template: str) -> None:
         if _save_cv(cv_data, title, template):
             ss["cvb_cv_title"] = title
             ss["cvb_last_saved"] = datetime.now().strftime("%I:%M %p")
-            ss["cvb_toolbar_save_notice"] = f"Saved {ss['cvb_last_saved']}"
-            ss["cvb_toolbar_save_notice_kind"] = "ok"
+            _rerun_resume_builder()
         else:
-            ss["cvb_toolbar_save_notice"] = "Save failed."
-            ss["cvb_toolbar_save_notice_kind"] = "err"
-
-    note = str(ss.get("cvb_toolbar_save_notice", "") or "").strip()
-    if note:
-        if ss.get("cvb_toolbar_save_notice_kind") == "err":
-            st.caption(f"! {note}")
-        else:
-            st.caption(note)
+            st.error("Save failed.")
 
 
 def _inject_realtime_js() -> None:
@@ -5024,13 +5048,25 @@ def _render_style_component(
     spacing_scale = es / 8.0
 
     # Build swatches — 4 per row using CSS grid so they never overflow
+    accent_name_by_hex = {
+        "#2563eb": "Blue",
+        "#4f46e5": "Indigo",
+        "#059669": "Emerald",
+        "#d97706": "Orange",
+        "#dc2626": "Red",
+        "#64748b": "Slate",
+        "#9db6a8": "Muted Mint",
+        "#93a8c3": "Soft Steel Blue",
+        "#7a8f7a": "Sage",
+    }
     swatches_html = ""
     for i, color in enumerate(ACCENT_COLORS):
         active = color.lower() == (current_accent or "").lower()
         sel_cls = " sel" if active else ""
+        color_label = accent_name_by_hex.get(color.lower(), "Accent Color")
         swatches_html += (
             f"<button class='sw{sel_cls}' data-idx='{i}' "
-            f"style='background:{color}' title='{color}'></button>"
+            f"style='background:{color}' title='{color_label}'></button>"
         )
 
     icons_on = "on" if show_icons else ""
@@ -5418,7 +5454,7 @@ def _render_middle_panel_native() -> None:
                     with ha:
                         if st.button(add_btn_label, key=f"cvb_section_add_{sid}", type="secondary"):
                             if _handle_header_add(sid):
-                                st.rerun()
+                                _rerun_resume_builder()
                 with hr:
                     with st.container(key=f"cvb-section-chevron-{sid}"):
                         chevron_glyph = (
@@ -5433,7 +5469,7 @@ def _render_middle_panel_native() -> None:
                             help="Collapse" if is_open else "Expand",
                         ):
                             ss[state_key] = not is_open
-                            st.rerun()
+                            _rerun_resume_builder()
 
             # Content — only rendered when open. Widget values in st.session_state persist
             # across collapse/expand because session_state is independent of widget render.
@@ -5612,12 +5648,12 @@ def render_cv_builder_page() -> None:
                     with a3:
                         _render_save_button_fragment(template)
                     with a4:
-                        cv_title_pdf = (ss.get("cvb_cv_title", "resume") or "resume").strip()
+                        pdf_filename = _build_resume_pdf_filename(ss)
                         if pdf_bytes:
                             st.download_button(
                                 "Download PDF",
                                 data=pdf_bytes,
-                                file_name=f"{cv_title_pdf.replace(' ', '_')}.pdf",
+                                file_name=pdf_filename,
                                 mime="application/pdf",
                                 key="cvb_toolbar_download",
                                 type="primary",
@@ -5632,7 +5668,7 @@ def render_cv_builder_page() -> None:
                                 ss["cvb_pdf_hash"] = pdf_hash
                                 ss["cvb_pdf_bytes"] = bytes_out
                                 ss["cvb_pdf_error"] = err_out
-                                st.rerun()
+                                _rerun_resume_builder()
                     with a5:
                         st.markdown(
                             "<div role='button' tabindex='0' class='cvb-reset-open-native'>Reset</div>",
@@ -5776,13 +5812,13 @@ def _education_section() -> None:
                         edu_eye_icon, key=f"vis_edu_{eid}", type="tertiary", help="Show/Hide in CV"
                     ):
                         st.session_state[f"cvb_edu_visible_{eid}"] = not edu_visible
-                        st.rerun()
+                        _rerun_resume_builder()
                 with del_col:
                     if len(edu_ids) > 1 and st.button(
                         ":material/delete:", key=f"rem_edu_{eid}", type="tertiary"
                     ):
                         _remove_education(eid)
-                        st.rerun()
+                        _rerun_resume_builder()
 
             st.text_input(
                 "Degree", key=f"cvb_edu_degree_{eid}", placeholder="B.S. Computer Science"
@@ -5867,7 +5903,7 @@ def _skills_section() -> None:
                     skill_eye_icon, key=f"vis_skill_{sid}", type="tertiary", help="Show/Hide in CV"
                 ):
                     ss[f"cvb_skill_visible_{sid}"] = not skill_visible
-                    st.rerun()
+                    _rerun_resume_builder()
             with c3:
                 st.button(
                     ":material/delete:",
@@ -5908,7 +5944,7 @@ def _projects_section() -> None:
                     proj_eye_icon, key=f"vis_proj_{pid}", type="tertiary", help="Show/Hide in CV"
                 ):
                     st.session_state[f"cvb_proj_visible_{pid}"] = not proj_visible
-                    st.rerun()
+                    _rerun_resume_builder()
             with ph_del:
                 if st.button(":material/delete:", key=f"rem_proj_{pid}", type="tertiary"):
                     st.session_state["cvb_proj_ids"].remove(pid)
@@ -5920,7 +5956,7 @@ def _projects_section() -> None:
                             del st.query_params[qk]
                     except Exception:
                         pass
-                    st.rerun()
+                    _rerun_resume_builder()
             c1, c2 = st.columns(2)
             with c1:
                 st.text_input(
@@ -5994,12 +6030,12 @@ def _languages_section() -> None:
                     lang_eye_icon, key=f"vis_lang_{lid}", type="tertiary", help="Show/Hide in CV"
                 ):
                     st.session_state[f"cvb_lang_visible_{lid}"] = not lang_visible
-                    st.rerun()
+                    _rerun_resume_builder()
             with c4:
                 if st.button(":material/delete:", key=f"rem_lang_{lid}", type="tertiary"):
                     st.session_state["cvb_lang_ids"].remove(lid)
                     st.session_state.pop(f"cvb_lang_visible_{lid}", None)
-                    st.rerun()
+                    _rerun_resume_builder()
 
 
 def _certifications_section() -> None:
@@ -6028,7 +6064,7 @@ def _certifications_section() -> None:
                     cert_eye_icon, key=f"vis_cert_{cid}", type="tertiary", help="Show/Hide in CV"
                 ):
                     st.session_state[f"cvb_cert_visible_{cid}"] = not cert_visible
-                    st.rerun()
+                    _rerun_resume_builder()
             with ch_del:
                 if st.button(":material/delete:", key=f"rem_cert_{cid}", type="tertiary"):
                     st.session_state["cvb_cert_ids"].remove(cid)
@@ -6040,7 +6076,7 @@ def _certifications_section() -> None:
                             del st.query_params[qk]
                     except Exception:
                         pass
-                    st.rerun()
+                    _rerun_resume_builder()
             st.text_input(
                 "Title", key=f"cvb_cert_name_{cid}", placeholder="Enter certification title"
             )
@@ -6082,7 +6118,7 @@ def _interests_section() -> None:
                     if st.button("Delete", key=f"rm_int_{i}", help=f"Remove {interest}"):
                         interests.pop(i)
                         st.session_state["cvb_interests"] = interests
-                        st.rerun()
+                        _rerun_resume_builder()
 
     ctr = st.session_state.get("cvb_interest_ctr", 0)
     ia, ib = st.columns([4, 1])
@@ -6100,7 +6136,7 @@ def _interests_section() -> None:
                 interests.append(tag)
                 st.session_state["cvb_interests"] = interests
                 st.session_state["cvb_interest_ctr"] = ctr + 1
-                st.rerun()
+                _rerun_resume_builder()
 
 
 # --- CVReviewer middle-panel runtime overrides (v2) ---
@@ -6228,7 +6264,7 @@ def _experience_section() -> None:
                     with act_dup:
                         if st.button("Duplicate", key=f"dup_exp_{eid}", type="tertiary"):
                             _clone_position(eid)
-                            st.rerun()
+                            _rerun_resume_builder()
                     with act_eye:
                         exp_visible = bool(st.session_state.get(f"cvb_exp_visible_{eid}", True))
                         exp_eye_icon = (
@@ -6241,11 +6277,11 @@ def _experience_section() -> None:
                             help="Show/Hide in CV",
                         ):
                             st.session_state[f"cvb_exp_visible_{eid}"] = not exp_visible
-                            st.rerun()
+                            _rerun_resume_builder()
                     with act_del:
                         if st.button(":material/delete:", key=f"rem_exp_{eid}", type="tertiary"):
                             _remove_position(eid)
-                            st.rerun()
+                            _rerun_resume_builder()
 
             c1, c2 = st.columns(2)
             with c1:
@@ -6305,7 +6341,7 @@ def _experience_section() -> None:
 
             if st.button("Add bullet point", key=f"add_b_{eid}", type="tertiary"):
                 st.session_state[f"cvb_exp_bcount_{eid}"] = bcount + 1
-                st.rerun()
+                _rerun_resume_builder()
 
 
 # --- CVReviewer template-structure overrides (safe, isolated) ---

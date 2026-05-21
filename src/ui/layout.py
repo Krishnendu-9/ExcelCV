@@ -614,6 +614,13 @@ def render_site_footer() -> None:
     # surprises) and gives us one place to debug if scrolling regresses.
     # `data-smooth-scroll="top"` scrolls to top of page; any other value is
     # treated as a DOM id (with optional leading `#`) and scrollIntoView'd.
+    #
+    # (Browser Back/Forward URL-sync is handled in app.py's
+    # ``_inject_url_and_anchor_cleanup`` because that script has a per-render
+    # runToken baked in — required so the "currently rendered page"
+    # reference the popstate listener compares against stays fresh after
+    # forward navigation. A static script here would get cached by
+    # Streamlit and the reference would never update.)
     components.html(
         """
         <script>

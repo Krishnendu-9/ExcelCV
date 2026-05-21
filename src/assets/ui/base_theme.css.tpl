@@ -1871,6 +1871,28 @@
                 min-height: 0 !important;
                 line-height: 0 !important;
             }}
+            /* Defensive: ANY element rendered AFTER the footer band should not
+               extend the document. The existing height:0 matcher above misses
+               components.html iframes when Streamlit emits the height as an
+               attribute (``height="0"``) rather than inline style — those
+               wrappers still take ~150px of layout space and produce the
+               "scrolls past footer into a black void" symptom. Anything after
+               the footer is, by definition, a script/iframe (the footer is
+               always the last visible thing on the page), so pulling them out
+               of flow is safe. */
+            [data-testid="stElementContainer"]:has(.site-footer-band) ~ [data-testid="stElementContainer"] {{
+                position: absolute !important;
+                top: 0 !important;
+                left: 0 !important;
+                width: 1px !important;
+                height: 0 !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                overflow: hidden !important;
+                pointer-events: none !important;
+                z-index: -1 !important;
+                min-height: 0 !important;
+            }}
             [data-testid="stElementContainer"]:has([data-testid="stCustomComponentV1"][style*="height: 0"]),
             [data-testid="stElementContainer"]:has([data-testid="stCustomComponentV1"][style*="height:0"]) {{
                 position: absolute !important;

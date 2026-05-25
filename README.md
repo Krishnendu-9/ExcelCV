@@ -1,4 +1,4 @@
-﻿# ExcelCV â€” GenAI-Powered CV Reviewer, Comparator & Resume Builder
+﻿# ExcelCV GenAI-Powered CV Reviewer, Comparator & Resume Builder
 
 ExcelCV is a full-stack AI-powered career tool built with Streamlit and Google Gemini.
 It analyzes resumes against job descriptions with explainable ATS scoring, ranks multiple

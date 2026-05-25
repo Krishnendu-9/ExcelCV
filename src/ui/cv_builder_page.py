@@ -253,7 +253,6 @@ def _init_builder() -> None:
         "cvb_zoom": 100,
         "cvb_section_order": list(SECTION_IDS),
         "cvb_section_visibility": {sid: True for sid in SECTION_IDS},
-        "cvb_active_section": "personal",
         "cvb_full_name": "",
         "cvb_prof_title": "",
         "cvb_email": "",
@@ -272,7 +271,6 @@ def _init_builder() -> None:
         "cvb_cert_ids": [],
         "cvb_lang_ids": [],
         "cvb_skill_ids": [],
-        "cvb_skill_cat_ids": [],
         "cvb_interests": [],
         "cvb_interest_ctr": 0,
     }
@@ -362,22 +360,6 @@ def _init_builder() -> None:
             st.session_state[f"cvb_cert_link_url_{cid}"] = ""
             st.session_state[f"cvb_cert_visible_{cid}"] = True
         st.session_state["cvb_cert_default_seed_v1"] = True
-    if "cvb_skills_flat_v1_migrated" not in st.session_state:
-        if not st.session_state.get("cvb_skill_ids"):
-            migrated: list[str] = []
-            seen: set[str] = set()
-            for sid in st.session_state.get("cvb_skill_cat_ids", []):
-                raw = st.session_state.get(f"cvb_skill_items_{sid}", "")
-                for item in [x.strip() for x in raw.replace(",", "\n").splitlines() if x.strip()]:
-                    token = item.lower()
-                    if token in seen:
-                        continue
-                    seen.add(token)
-                    kid = str(uuid.uuid4())
-                    migrated.append(kid)
-                    st.session_state[f"cvb_skill_item_{kid}"] = item
-            st.session_state["cvb_skill_ids"] = migrated
-        st.session_state["cvb_skills_flat_v1_migrated"] = True
     if "cvb_item_visibility_defaults_v1" not in st.session_state:
         for eid in st.session_state.get("cvb_exp_ids", []):
             st.session_state.setdefault(f"cvb_exp_visible_{eid}", True)
@@ -409,8 +391,6 @@ def _init_builder() -> None:
     st.session_state["cvb_section_visibility"] = _normalize_section_visibility(
         st.session_state.get("cvb_section_visibility")
     )
-    if st.session_state.get("cvb_active_section") not in SECTION_IDS:
-        st.session_state["cvb_active_section"] = SECTION_IDS[0]
     _normalize_builder_tuning_state()
     if "cvb_link_query_bootstrap_v1" not in st.session_state:
         _clear_link_query_params()
@@ -651,7 +631,6 @@ def load_cv_into_builder(cv_record: CV) -> None:
         ss[f"cvb_skill_visible_{sid}"] = True
     ss["cvb_skill_ids"] = skill_ids
     ss["cvb_skill_default_seed_done"] = bool(skill_ids)
-    ss["cvb_skill_cat_ids"] = []
     proj_ids = []
     for proj in d.get("projects", []):
         pid = proj.get("id") or str(uuid.uuid4())
@@ -2127,7 +2106,13 @@ def _inject_middle_section_exact_css(is_dark: bool = False) -> None:
   font-weight: 500;
   color: #64748b;
   line-height: 1.25;
-  margin: 2px 0 11px;
+  /* top: 22px so the date label sits at the same vertical position as
+     Streamlit's text_input labels in the sibling row above. Streamlit's
+     auto-generated emotion-cache wrapper around stMarkdown applies a
+     negative margin-bottom (≈-16px) — we add extra top margin here to
+     compensate and push the date row down so it lines up visually with
+     the natural sibling spacing of plain text_input rows. */
+  margin: 22px 0 11px;
   padding-left: 1px;
   display: block;
 }
@@ -2261,9 +2246,27 @@ def _inject_middle_section_exact_css(is_dark: bool = False) -> None:
   gap: 4px !important;
   row-gap: 4px !important;
 }
-.st-key-cvb-middle-scroll-native [class*="st-key-cvb-exp-date-row-"],
-.st-key-cvb-middle-scroll-native [class*="st-key-cvb-edu-date-row-"] {
-  padding-top: 10px !important;
+/* Date rows (Work Experience / Education) — the outer cvb-*-date-row wrapper
+   was removed in Python so the start/end columns render as direct siblings
+   of the Job Title / Institution rows. The date label inside each column
+   carries explicit margin-top via .cvb-date-field-label so it sits at the
+   same vertical baseline as Streamlit's text_input labels in sibling rows.
+
+   ROOT CAUSE FOUND VIA DEVTOOLS: Streamlit auto-generates a wrapper div
+   (class="st-emotion-cache-<hash>") inside stMarkdown that ships with
+   `margin: 0 0 -16px` — a negative bottom margin that pulls the popover
+   button up toward the label, AND collapses with the label's margin-top
+   to swallow the breathing space above the row. We override that wrapper
+   with high specificity. The selector chain reaches (0,5,0) so it beats
+   Streamlit's default rule for the emotion-cache class. */
+.st-key-cvb-page-native .st-key-cvb-middle-scroll-native [data-testid="stElementContainer"]:has(.cvb-date-field-label) [data-testid="stMarkdown"],
+.st-key-cvb-page-native .st-key-cvb-middle-scroll-native [data-testid="stElementContainer"]:has(.cvb-date-field-label) [data-testid="stMarkdown"] > div,
+.st-key-cvb-page-native .st-key-cvb-middle-scroll-native [data-testid="stMarkdown"]:has(.cvb-date-field-label),
+.st-key-cvb-page-native .st-key-cvb-middle-scroll-native [data-testid="stMarkdown"]:has(.cvb-date-field-label) > div,
+.st-key-cvb-page-native .st-key-cvb-middle-scroll-native [data-testid="stMarkdown"]:has(.cvb-date-field-label) > [class*="st-emotion-cache-"] {
+  margin: 0 !important;
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
 }
 
 .st-key-cvb-middle-scroll-native [class*="st-key-cvb-personal-inner-card"],
@@ -2936,69 +2939,6 @@ def _inject_middle_section_exact_css(is_dark: bool = False) -> None:
         )
 
 
-def _inject_chevron_hider_js() -> None:
-    """Hide Streamlit's built-in expander chevron precisely (safe — only hides the icon
-    span itself, never walks up to potentially break the heading).
-
-    Streamlit renders the chevron as a Material Symbols Rounded ligature in
-    <span data-testid="stIconMaterial">keyboard_arrow_down</span>. We only target spans
-    whose text is exactly a chevron glyph name and hide them. The flex wrappers around
-    them collapse naturally when empty.
-    """
-    # Custom section cards replaced st.expander, so this legacy observer is no longer needed.
-    return
-    components.html(
-        """<script>
-(function() {
-  var w = window.parent && window.parent !== window ? window.parent : window;
-  var doc = w.document;
-  var KEY = '__cvbChevronHiderInstalled__';
-  if (w[KEY]) return;
-  w[KEY] = true;
-
-  var CHEVRON_TEXTS = {
-    'keyboard_arrow_down': 1,
-    'keyboard_arrow_up': 1,
-    'expand_more': 1,
-    'expand_less': 1
-  };
-
-  function hideChevrons() {
-    var icons = doc.querySelectorAll(
-      '.st-key-cvb-middle-scroll-native [data-testid="stExpander"] summary [data-testid="stIconMaterial"]'
-    );
-    for (var i = 0; i < icons.length; i++) {
-      var icon = icons[i];
-      var text = (icon.textContent || '').trim();
-      if (CHEVRON_TEXTS[text] && icon.style.display !== 'none') {
-        // Hide ONLY the icon span — never walk up. This guarantees the section heading
-        // and label are never touched.
-        icon.style.display = 'none';
-        // Collapse any direct wrapper that has no other content, by making it zero-size.
-        var p = icon.parentElement;
-        while (p && p.tagName !== 'SUMMARY') {
-          if ((p.textContent || '').trim() === '') {
-            p.style.padding = '0';
-            p.style.margin = '0';
-            p.style.width = '0';
-          } else {
-            break;
-          }
-          p = p.parentElement;
-        }
-      }
-    }
-  }
-
-  hideChevrons();
-  var observer = new MutationObserver(hideChevrons);
-  observer.observe(doc.body, { childList: true, subtree: true });
-})();
-</script>""",
-        height=0,
-    )
-
-
 def _inject_builder_final_alignment_overrides() -> None:
     """Last-pass CSS overrides to defeat global theme alignment defaults."""
     st.markdown(
@@ -3149,19 +3089,17 @@ def _inject_builder_css_native(is_dark: bool) -> None:
     st.markdown(
         f"""<style>
 .site-footer-band {{ display:none !important; }}
-html:has(.st-key-cvb-page-native)
 body:has(.st-key-cvb-page-native) {{
   height: 100vh !important;
   height: 100dvh !important;
   overflow: hidden !important;
   overflow-y: hidden !important;
-  scrollbar-gutter: unset !important;
   margin: 0 !important;
   padding: 0 !important;
 }}
 [data-testid="stAppViewContainer"]:has(.st-key-cvb-page-native),
 [data-testid="stAppViewContainer"]:has(.st-key-cvb-page-native) > .main,
-[data-testid="stApp"]:has(.st-key-cvb-page-native)
+[data-testid="stApp"]:has(.st-key-cvb-page-native),
 section[data-testid="stMain"]:has(.st-key-cvb-page-native) {{
   height: 100vh !important;
   height: 100dvh !important;
@@ -3220,7 +3158,7 @@ section[data-testid="stMain"]:has(.st-key-cvb-page-native) {{
   min-height: 0 !important;
 }}
 .st-key-cvb-page-native > [data-testid="stVerticalBlock"] > [data-testid="stElementContainer"]:empty,
-.st-key-cvb-page-native > [data-testid="stVerticalBlock"] > div:empty
+.st-key-cvb-page-native > [data-testid="stVerticalBlock"] > div:empty,
 .st-key-cvb-page-native > [data-testid="stVerticalBlock"] > div > [data-testid="stElementContainer"]:empty {{
   display: none !important;
 }}
@@ -3241,7 +3179,7 @@ section[data-testid="stMain"]:has(.st-key-cvb-page-native) {{
   row-gap: 0 !important;
 }}
 [data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"] > div:has(.st-key-cvb-page-native),
-[data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"] > div:has(.st-key-cvb-toolbar-native)
+[data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"] > div:has(.st-key-cvb-toolbar-native),
 [data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"] > [data-testid="stElementContainer"]:has(.st-key-cvb-page-native) {{
   margin-top: 0 !important;
   padding-top: 0 !important;
@@ -3252,14 +3190,14 @@ section[data-testid="stMain"]:has(.st-key-cvb-page-native) {{
   padding-top: 0 !important;
   gap: 0 !important;
 }}
-[data-testid="stAppViewContainer"]:has(.st-key-cvb-page-native)
+[data-testid="stAppViewContainer"]:has(.st-key-cvb-page-native),
 [data-testid="stMain"]:has(.st-key-cvb-page-native) {{
   height: 100vh !important;
   height: 100dvh !important;
   overflow: hidden !important;
 }}
 [data-testid="stMainBlockContainer"]:has(.st-key-cvb-page-native),
-[data-testid="stMainBlockContainer"]:has(.st-key-cvb-page-native) .block-container
+[data-testid="stMainBlockContainer"]:has(.st-key-cvb-page-native) .block-container,
 section[data-testid="stMain"]:has(.st-key-cvb-page-native) .block-container {{
   height: 100vh !important;
   height: 100dvh !important;
@@ -3777,7 +3715,7 @@ body.cvb-reset-open .st-key-cvb-reset-float-native {{
   margin: 0 !important;
 }}
 .st-key-cvb-main-native > [data-testid="stHorizontalBlock"] > [data-testid="column"]:nth-child(1),
-.st-key-cvb-main-native > div > [data-testid="stHorizontalBlock"] > [data-testid="column"]:nth-child(1)
+.st-key-cvb-main-native > div > [data-testid="stHorizontalBlock"] > [data-testid="column"]:nth-child(1),
 .st-key-cvb-main-native [data-testid="stElementContainer"]:has(> [data-testid="stHorizontalBlock"]) > [data-testid="stHorizontalBlock"] > [data-testid="column"]:nth-child(1) {{
   flex: 0 0 256px !important;
   width: 256px !important;
@@ -3785,7 +3723,7 @@ body.cvb-reset-open .st-key-cvb-reset-float-native {{
   max-width: 256px !important;
 }}
 .st-key-cvb-main-native > [data-testid="stHorizontalBlock"] > [data-testid="column"]:nth-child(2),
-.st-key-cvb-main-native > div > [data-testid="stHorizontalBlock"] > [data-testid="column"]:nth-child(2)
+.st-key-cvb-main-native > div > [data-testid="stHorizontalBlock"] > [data-testid="column"]:nth-child(2),
 .st-key-cvb-main-native [data-testid="stElementContainer"]:has(> [data-testid="stHorizontalBlock"]) > [data-testid="stHorizontalBlock"] > [data-testid="column"]:nth-child(2) {{
   flex: 9 1 0 !important;
   width: auto !important;
@@ -3793,7 +3731,7 @@ body.cvb-reset-open .st-key-cvb-reset-float-native {{
   min-width: 0 !important;
 }}
 .st-key-cvb-main-native > [data-testid="stHorizontalBlock"] > [data-testid="column"]:nth-child(3),
-.st-key-cvb-main-native > div > [data-testid="stHorizontalBlock"] > [data-testid="column"]:nth-child(3)
+.st-key-cvb-main-native > div > [data-testid="stHorizontalBlock"] > [data-testid="column"]:nth-child(3),
 .st-key-cvb-main-native [data-testid="stElementContainer"]:has(> [data-testid="stHorizontalBlock"]) > [data-testid="stHorizontalBlock"] > [data-testid="column"]:nth-child(3) {{
   flex: 7 1 0 !important;
   width: auto !important;
@@ -3810,7 +3748,7 @@ body.cvb-reset-open .st-key-cvb-reset-float-native {{
 .st-key-cvb-main-native > div > [data-testid="stHorizontalBlock"] > [data-testid="column"] [data-testid="stVerticalBlock"],
 .st-key-cvb-main-native [data-testid="stElementContainer"]:has(> [data-testid="stHorizontalBlock"]) > [data-testid="stHorizontalBlock"] > [data-testid="column"] > div,
 .st-key-cvb-main-native [data-testid="stElementContainer"]:has(> [data-testid="stHorizontalBlock"]) > [data-testid="stHorizontalBlock"] > [data-testid="column"] [data-testid="stElementContainer"],
-.st-key-cvb-main-native [data-testid="stElementContainer"]:has(> [data-testid="stHorizontalBlock"]) > [data-testid="stHorizontalBlock"] > [data-testid="column"] [data-testid="stVerticalBlockBorderWrapper"]
+.st-key-cvb-main-native [data-testid="stElementContainer"]:has(> [data-testid="stHorizontalBlock"]) > [data-testid="stHorizontalBlock"] > [data-testid="column"] [data-testid="stVerticalBlockBorderWrapper"],
 .st-key-cvb-main-native [data-testid="stElementContainer"]:has(> [data-testid="stHorizontalBlock"]) > [data-testid="stHorizontalBlock"] > [data-testid="column"] [data-testid="stVerticalBlock"] {{
   padding: 0 !important;
   margin: 0 !important;
@@ -3937,57 +3875,53 @@ body.cvb-reset-open .st-key-cvb-reset-float-native {{
   padding-right: 0 !important;
 }}
 .st-key-cvb-left-scroll-native::-webkit-scrollbar,
-.st-key-cvb-middle-scroll-native::-webkit-scrollbar
+.st-key-cvb-middle-scroll-native::-webkit-scrollbar,
 .st-key-cvb-right-scroll-native::-webkit-scrollbar {{
   width: 6px !important;
   height: 6px !important;
 }}
 .st-key-cvb-left-scroll-native::-webkit-scrollbar-track,
-.st-key-cvb-middle-scroll-native::-webkit-scrollbar-track
+.st-key-cvb-middle-scroll-native::-webkit-scrollbar-track,
 .st-key-cvb-right-scroll-native::-webkit-scrollbar-track {{
   background: {scroll_track} !important;
   border-radius: 8px !important;
 }}
 .st-key-cvb-left-scroll-native::-webkit-scrollbar-thumb,
-.st-key-cvb-middle-scroll-native::-webkit-scrollbar-thumb
+.st-key-cvb-middle-scroll-native::-webkit-scrollbar-thumb,
 .st-key-cvb-right-scroll-native::-webkit-scrollbar-thumb {{
   background: {scroll_thumb} !important;
   border-radius: 8px !important;
 }}
 .st-key-cvb-left-scroll-native::-webkit-scrollbar-thumb:hover,
-.st-key-cvb-middle-scroll-native::-webkit-scrollbar-thumb:hover
+.st-key-cvb-middle-scroll-native::-webkit-scrollbar-thumb:hover,
 .st-key-cvb-right-scroll-native::-webkit-scrollbar-thumb:hover {{
   background: {scroll_thumb_hover} !important;
 }}
 .st-key-cvb-left-scroll-native > [data-testid="stVerticalBlock"]::-webkit-scrollbar,
-.st-key-cvb-middle-scroll-native > [data-testid="stVerticalBlock"]::-webkit-scrollbar
+.st-key-cvb-middle-scroll-native > [data-testid="stVerticalBlock"]::-webkit-scrollbar,
 .st-key-cvb-right-scroll-native > [data-testid="stVerticalBlock"]::-webkit-scrollbar {{
   width: 6px !important;
   height: 6px !important;
 }}
 .st-key-cvb-left-scroll-native > [data-testid="stVerticalBlock"]::-webkit-scrollbar-track,
-.st-key-cvb-middle-scroll-native > [data-testid="stVerticalBlock"]::-webkit-scrollbar-track
+.st-key-cvb-middle-scroll-native > [data-testid="stVerticalBlock"]::-webkit-scrollbar-track,
 .st-key-cvb-right-scroll-native > [data-testid="stVerticalBlock"]::-webkit-scrollbar-track {{
   background: {scroll_track} !important;
   border-radius: 8px !important;
 }}
 .st-key-cvb-left-scroll-native > [data-testid="stVerticalBlock"]::-webkit-scrollbar-thumb,
-.st-key-cvb-middle-scroll-native > [data-testid="stVerticalBlock"]::-webkit-scrollbar-thumb
+.st-key-cvb-middle-scroll-native > [data-testid="stVerticalBlock"]::-webkit-scrollbar-thumb,
 .st-key-cvb-right-scroll-native > [data-testid="stVerticalBlock"]::-webkit-scrollbar-thumb {{
   background: {scroll_thumb} !important;
   border-radius: 8px !important;
 }}
 .st-key-cvb-left-scroll-native > [data-testid="stVerticalBlock"]::-webkit-scrollbar-thumb:hover,
-.st-key-cvb-middle-scroll-native > [data-testid="stVerticalBlock"]::-webkit-scrollbar-thumb:hover
+.st-key-cvb-middle-scroll-native > [data-testid="stVerticalBlock"]::-webkit-scrollbar-thumb:hover,
 .st-key-cvb-right-scroll-native > [data-testid="stVerticalBlock"]::-webkit-scrollbar-thumb:hover {{
   background: {scroll_thumb_hover} !important;
 }}
-/* The chevron itself is hidden by JavaScript (_inject_chevron_hider_js) — it walks the
-   DOM, finds Material Icon spans with text "keyboard_arrow_down" / "keyboard_arrow_up",
-   and hides only their wrapper. CSS can't reliably target it because the wrapping
-   structure varies across Streamlit versions. */
-/* Custom chevron drawn on the right via ::after — rotates when expanded */
-/* Embedded section icon inside the label — blue, vertically centered */
+/* Custom section cards replaced st.expander; chevron is rendered as a plain
+   st.button so no DOM hiding is needed. */
 
 /* ─── Custom section card (CVReviewer-style: icon+label LEFT, chevron RIGHT) ─── */
 /* Outer card */
@@ -4048,14 +3982,14 @@ body.cvb-reset-open .st-key-cvb-reset-float-native {{
   min-height: 86px !important;
 }}
 /* Focus: blue border + soft glow on wrapper, white background */
-.st-key-cvb-middle-scroll-native div[data-baseweb="input"]:focus-within
+.st-key-cvb-middle-scroll-native div[data-baseweb="input"]:focus-within,
 .st-key-cvb-middle-scroll-native div[data-baseweb="textarea"]:focus-within {{
   border-color: {field_focus_border} !important;
   box-shadow: {field_focus_ring} !important;
   background: {field_focus_bg} !important;
 }}
 /* Placeholder */
-.st-key-cvb-middle-scroll-native div[data-baseweb="input"] input::placeholder
+.st-key-cvb-middle-scroll-native div[data-baseweb="input"] input::placeholder,
 .st-key-cvb-middle-scroll-native div[data-baseweb="textarea"] textarea::placeholder {{
   color: #94a3b8 !important;
   opacity: 1 !important;
@@ -4323,7 +4257,7 @@ body.cvb-reset-open .st-key-cvb-reset-float-native {{
   font-size: 0 !important;
   border: 2px solid transparent !important;
 }}
-{native_dot_css},
+{native_dot_css}
 .st-key-cvb-color-dots-native .stButton button:hover {{
   transform: scale(1.04);
 }}
@@ -4372,7 +4306,7 @@ body.cvb-reset-open .st-key-cvb-reset-float-native {{
 .st-key-cvb-left-scroll-native .stSlider [data-baseweb="slider"] > div:nth-child(1) {{
   height: 4px !important;
 }}
-.st-key-cvb-left-scroll-native .stCheckbox [data-baseweb="checkbox"] > div:first-child
+.st-key-cvb-left-scroll-native .stCheckbox [data-baseweb="checkbox"] > div:first-child,
 .st-key-cvb-left-scroll-native .stToggle [data-baseweb="checkbox"] > div:first-child {{
   border-radius: 999px !important;
 }}
@@ -5351,6 +5285,13 @@ def _render_middle_panel_native() -> None:
         if section_id == "experience":
             eid = str(uuid.uuid4())
             st.session_state["cvb_exp_ids"].append(eid)
+            st.session_state[f"cvb_exp_role_{eid}"] = ""
+            st.session_state[f"cvb_exp_company_{eid}"] = ""
+            st.session_state[f"cvb_exp_loc_{eid}"] = ""
+            st.session_state[f"cvb_exp_start_{eid}"] = ""
+            st.session_state[f"cvb_exp_end_{eid}"] = ""
+            st.session_state[f"cvb_exp_curr_{eid}"] = False
+            st.session_state[f"cvb_exp_desc_{eid}"] = ""
             st.session_state[f"cvb_exp_bcount_{eid}"] = 1
             st.session_state[f"cvb_exp_b_{eid}_0"] = ""
             st.session_state[f"cvb_exp_visible_{eid}"] = True
@@ -5358,6 +5299,13 @@ def _render_middle_panel_native() -> None:
         if section_id == "education":
             eid = str(uuid.uuid4())
             st.session_state["cvb_edu_ids"].append(eid)
+            st.session_state[f"cvb_edu_inst_{eid}"] = ""
+            st.session_state[f"cvb_edu_degree_{eid}"] = ""
+            st.session_state[f"cvb_edu_field_{eid}"] = ""
+            st.session_state[f"cvb_edu_loc_{eid}"] = ""
+            st.session_state[f"cvb_edu_start_{eid}"] = ""
+            st.session_state[f"cvb_edu_end_{eid}"] = ""
+            st.session_state[f"cvb_edu_curr_{eid}"] = False
             st.session_state[f"cvb_edu_desc_{eid}"] = ""
             st.session_state[f"cvb_edu_gpa_{eid}"] = ""
             st.session_state[f"cvb_edu_visible_{eid}"] = True
@@ -5421,11 +5369,6 @@ def _render_middle_panel_native() -> None:
     if not visible_order:
         st.info("All sections are hidden. Enable sections from the left sidebar.")
         return
-
-    current_active = ss.get("cvb_active_section", "personal")
-    if current_active not in visible_order:
-        current_active = visible_order[0]
-        ss["cvb_active_section"] = current_active
 
     # Custom CVReviewer-style section: header row (icon + label on left, chevron button
     # on right) + conditionally-rendered content. Replaces st.expander entirely so we
@@ -5832,19 +5775,20 @@ def _education_section() -> None:
             with c2:
                 st.text_input("Location", key=f"cvb_edu_loc_{eid}", placeholder="City, Country")
 
-            with st.container(key=f"cvb-edu-date-row-{eid}"):
-                c3, c4 = st.columns(2)
-                with c3:
-                    with st.container(key=f"cvb-edu-date-start-{eid}"):
-                        _date_field("Start Date", f"cvb_edu_start_{eid}")
-                with c4:
-                    with st.container(key=f"cvb-edu-date-end-{eid}"):
-                        _date_field(
-                            "End Date",
-                            f"cvb_edu_end_{eid}",
-                            allow_present=True,
-                            current_key=f"cvb_edu_curr_{eid}",
-                        )
+            # Date row — direct sibling of the Institution/Location row (no
+            # extra wrapper container) so Streamlit's natural sibling gap applies.
+            c3, c4 = st.columns(2)
+            with c3:
+                with st.container(key=f"cvb-edu-date-start-{eid}"):
+                    _date_field("Start Date", f"cvb_edu_start_{eid}")
+            with c4:
+                with st.container(key=f"cvb-edu-date-end-{eid}"):
+                    _date_field(
+                        "End Date",
+                        f"cvb_edu_end_{eid}",
+                        allow_present=True,
+                        current_key=f"cvb_edu_curr_{eid}",
+                    )
 
             st.text_area(
                 "Description / Details",
@@ -6289,21 +6233,24 @@ def _experience_section() -> None:
             with c2:
                 st.text_input("Company", key=f"cvb_exp_company_{eid}", placeholder="Enter company")
 
-            with st.container(key=f"cvb-exp-date-row-{eid}"):
-                c3, c4 = st.columns(2)
-                with c3:
-                    with st.container(key=f"cvb-exp-date-start-{eid}"):
-                        _date_field("Start Date", f"cvb_exp_start_{eid}")
-                with c4:
-                    curr_key = f"cvb_exp_curr_{eid}"
-                    end_key = f"cvb_exp_end_{eid}"
-                    with st.container(key=f"cvb-exp-date-end-{eid}"):
-                        _date_field(
-                            "End Date",
-                            end_key,
-                            allow_present=True,
-                            current_key=curr_key,
-                        )
+            # Date row — rendered as a direct sibling of the Job Title row so it
+            # picks up Streamlit's natural vertical-block sibling gap. The two
+            # inner cvb-exp-date-{start,end}-{eid} containers are kept because
+            # other CSS rules style the popover button + label spacing inside.
+            c3, c4 = st.columns(2)
+            with c3:
+                with st.container(key=f"cvb-exp-date-start-{eid}"):
+                    _date_field("Start Date", f"cvb_exp_start_{eid}")
+            with c4:
+                curr_key = f"cvb_exp_curr_{eid}"
+                end_key = f"cvb_exp_end_{eid}"
+                with st.container(key=f"cvb-exp-date-end-{eid}"):
+                    _date_field(
+                        "End Date",
+                        end_key,
+                        allow_present=True,
+                        current_key=curr_key,
+                    )
             st.text_input("Location", key=f"cvb_exp_loc_{eid}", placeholder="City, Country")
 
             st.text_area(

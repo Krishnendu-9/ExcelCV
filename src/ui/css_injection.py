@@ -193,10 +193,10 @@ def inject_compact_header_css() -> None:
             width: min(1800px, calc(100vw - 90px)) !important;
             margin: 0 auto !important;
             margin-bottom: 0 !important;
-            padding: 0 16px !important;
-            height: 60px !important;
-            min-height: 60px !important;
-            max-height: 60px !important;
+            padding: 0 16px 0 0 !important;
+            height: 48px !important;
+            min-height: 48px !important;
+            max-height: 48px !important;
             box-sizing: border-box !important;
             background: __HEADER_BG__ !important;
             border: none !important;
@@ -218,13 +218,38 @@ def inject_compact_header_css() -> None:
             padding-top: 0 !important;
             padding-bottom: 0 !important;
         }
+        /* The header bar is position:fixed via JS, so the stElementContainer that
+           wraps it should not reserve any space in normal flow. Collapsing this
+           wrapper removes the visible gap between the fixed-header spacer and the
+           first page content. */
+        [data-testid="stElementContainer"]:has(> [data-testid="stHorizontalBlock"].header-bar),
+        [data-testid="stElementContainer"]:has([data-testid="stHorizontalBlock"].header-bar) {
+            margin: 0 !important;
+            padding: 0 !important;
+            height: 0 !important;
+            min-height: 0 !important;
+            overflow: visible !important;
+        }
+        [data-testid="stHorizontalBlock"].header-bar:has(.site-brand) > div:has(.site-brand),
+        [data-testid="stHorizontalBlock"].header-bar:has(.site-brand) [data-testid="stColumn"]:has(.site-brand),
+        [data-testid="stHorizontalBlock"].header-bar:has(.site-brand) [data-testid="column"]:has(.site-brand),
+        [data-testid="stHorizontalBlock"].header-bar:has(.site-brand) [data-testid="stVerticalBlock"]:has(.site-brand),
+        [data-testid="stHorizontalBlock"].header-bar:has(.site-brand) [data-testid="stElementContainer"]:has(.site-brand) {
+            display: flex !important;
+            flex-direction: column !important;
+            justify-content: center !important;
+            height: 48px !important;
+            min-height: 48px !important;
+        }
         .site-brand {
-            min-height: 40px !important;
-            max-height: 40px !important;
+            height: 48px !important;
+            min-height: 48px !important;
+            max-height: 48px !important;
             overflow: hidden !important;
-            padding-top: 0 !important;
+            padding: 0 !important;
             margin: 0 !important;
             display: flex !important;
+            flex-direction: row !important;
             align-items: center !important;
         }
         .site-logo-link {
@@ -264,7 +289,7 @@ def inject_compact_header_css() -> None:
             box-shadow: none !important;
         }
         .site-logo-wordmark {
-            height: 40px !important;
+            height: 48px !important;
             width: auto !important;
             display: block !important;
             object-fit: contain !important;
@@ -2598,10 +2623,10 @@ def inject_compact_header_css() -> None:
         @media (max-width: 1100px) {
             [data-testid="stHorizontalBlock"].header-bar:has(.site-brand) {
                 width: calc(100vw - 34px) !important;
-                padding: 0 10px !important;
+                padding: 0 10px 0 0 !important;
             }
             .site-logo-wordmark {
-                height: 36px !important;
+                height: 44px !important;
                 transform: scale(1.0) !important;
             }
             .site-nav-item {
@@ -2644,11 +2669,11 @@ def inject_compact_header_css() -> None:
                 display: none !important;
             }
             .site-logo-wordmark {
-                height: 32px !important;
+                height: 38px !important;
                 transform: scale(1.0) !important;
             }
             #excelcv-fixed-header-spacer {
-                min-height: 60px;
+                min-height: 48px;
             }
             .compare-section-shell {
                 margin-top: 16px !important;
@@ -2757,10 +2782,10 @@ def inject_header_layout_override() -> None:
             var styleId = "excelcv-header-layout-override";
             var css = `
 [data-testid="stAppViewContainer"] .site-brand{
-  max-height:40px !important; overflow:hidden !important;
+  max-height:48px !important; overflow:hidden !important;
 }
 [data-testid="stAppViewContainer"] .site-brand img{
-  height:40px !important; max-height:40px !important; width:auto !important;
+  height:48px !important; max-height:48px !important; width:auto !important;
 }
 [data-testid="stAppViewContainer"] .site-nav-shell{
   display:flex !important; align-items:center !important; justify-content:flex-end !important;
@@ -2926,7 +2951,7 @@ def inject_fixed_top_bar() -> None:
                 header.style.outline = 'none';
 
                 var headerHeight = Math.max(
-                    60,
+                    48,
                     Math.ceil(header.getBoundingClientRect().height || header.offsetHeight || 78)
                 );
                 spacer.style.display = 'block';

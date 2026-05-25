@@ -138,7 +138,6 @@ CVB_PERSIST_BASE_KEYS: tuple[str, ...] = (
     "cvb_zoom",
     "cvb_section_order",
     "cvb_section_visibility",
-    "cvb_active_section",
     "cvb_full_name",
     "cvb_prof_title",
     "cvb_email",

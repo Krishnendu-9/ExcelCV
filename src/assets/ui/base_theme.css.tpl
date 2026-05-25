@@ -486,9 +486,11 @@
                 margin-top: 0 !important;
             }}
             .site-header-rule {{
-                height: 1px;
-                margin: 6px 0 6px;
-                background: var(--border-light);
+                height: 0;
+                margin: 0;
+                padding: 0;
+                background: transparent;
+                display: none;
             }}
             @media (max-width: 1200px) {{
                 .site-name {{

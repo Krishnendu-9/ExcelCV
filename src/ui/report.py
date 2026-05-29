@@ -870,6 +870,7 @@ def _render_download_buttons(name: str, analysis: Dict[str, Any]) -> None:
             mime="application/pdf",
             width="stretch",
             key="download_pdf_main",
+            on_click="ignore",
             disabled=not bool(pdf_bytes),
         )
     with col2:
@@ -880,6 +881,7 @@ def _render_download_buttons(name: str, analysis: Dict[str, Any]) -> None:
             mime="application/json",
             width="stretch",
             key="download_json_main",
+            on_click="ignore",
         )
     if pdf_error:
         st.caption(pdf_error)
@@ -1662,6 +1664,7 @@ def render_evaluation_toolkit(analysis: Dict[str, Any], resume_name: str) -> Non
             mime="application/json",
             width="stretch",
             key="download_benchmark_json",
+            on_click="ignore",
         )
 
 

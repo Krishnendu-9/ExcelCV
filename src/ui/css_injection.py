@@ -343,7 +343,7 @@ def inject_compact_header_css() -> None:
             position: relative !important;
             display: inline-flex !important;
             align-items: center !important;
-            padding: 6px 8px !important;
+            padding: 6px 8px 9px 8px !important;
             border: none !important;
             background: transparent !important;
             box-shadow: none !important;
@@ -356,6 +356,9 @@ def inject_compact_header_css() -> None:
             text-decoration: none !important;
             transition: color 0.16s ease !important;
         }
+        .site-nav-item::after {
+            content: none !important;
+        }
         .site-nav-item:hover,
         .site-nav-item:focus-visible {
             color: __NAV_ACTIVE_COLOR__ !important;
@@ -363,16 +366,9 @@ def inject_compact_header_css() -> None:
         .site-nav-item.site-nav-item-active {
             color: __NAV_ACTIVE_COLOR__ !important;
             font-weight: 600 !important;
-        }
-        .site-nav-item.site-nav-item-active::after {
-            content: "" !important;
-            position: absolute !important;
-            left: 0 !important;
-            right: 0 !important;
-            bottom: -8px !important;
-            height: 2px !important;
-            border-radius: 999px !important;
-            background: __NAV_ACTIVE_COLOR__ !important;
+            /* Inset underline is layout-stable in fixed headers and avoids
+               pseudo-element offset drift/clipping during scroll/reflow. */
+            box-shadow: inset 0 -2px 0 __NAV_ACTIVE_COLOR__ !important;
         }
         .site-nav-item-signin {
             padding: 6px 12px !important;
@@ -2808,7 +2804,7 @@ def inject_header_layout_override() -> None:
 [data-testid="stAppViewContainer"] .site-nav-item{
   flex:0 0 auto !important;
   font-size:15px !important;
-  padding:6px 8px !important;
+  padding:6px 8px 9px 8px !important;
 }
 [data-testid="stAppViewContainer"] .site-user-section{
   display:flex !important; align-items:center !important; justify-content:flex-end !important;
@@ -2891,11 +2887,24 @@ def inject_fixed_top_bar() -> None:
             var SPACER_ID = 'excelcv-fixed-header-spacer';
             var MAX_WIDTH = 1800;
 
+            function queryHeaderByStructure() {
+                var brand = doc.querySelector('.site-brand');
+                if (!brand || !brand.closest) return null;
+                return brand.closest('[data-testid="stHorizontalBlock"]');
+            }
+
             function getHeader() {
-                var header = doc.querySelector(HEADER_SELECTOR);
-                if (!header) return null;
-                var rect = header.getBoundingClientRect();
-                if (!rect || rect.width < 40 || rect.height < 24) return null;
+                var header = null;
+                try {
+                    header = doc.querySelector(HEADER_SELECTOR);
+                } catch (_selErr) {
+                    header = null;
+                }
+                if (!header) {
+                    header = queryHeaderByStructure();
+                }
+                if (!header || !header.isConnected) return null;
+                if (!header.querySelector || !header.querySelector('.site-brand')) return null;
                 return header;
             }
 
@@ -2929,10 +2938,24 @@ def inject_fixed_top_bar() -> None:
                 return spacer;
             }
 
+            function ensureHeaderResizeObserver(header) {
+                if (!target.ResizeObserver || !header) return;
+                if (target.__excelcvFixedHeaderObservedEl === header) return;
+                if (target.__excelcvFixedHeaderResizeObserver) {
+                    try { target.__excelcvFixedHeaderResizeObserver.disconnect(); } catch (_de) {}
+                }
+                target.__excelcvFixedHeaderObservedEl = header;
+                target.__excelcvFixedHeaderResizeObserver = new target.ResizeObserver(function() {
+                    scheduleApply();
+                });
+                try { target.__excelcvFixedHeaderResizeObserver.observe(header); } catch (_oe) {}
+            }
+
             function applyFixedBar() {
                 var header = getHeader();
-                if (!header) return;
+                if (!header) return false;
                 header.classList.add('header-bar');
+                ensureHeaderResizeObserver(header);
 
                 var vw = viewportWidth();
                 var top = computeTop(vw);
@@ -2966,6 +2989,8 @@ def inject_fixed_top_bar() -> None:
                     doc.documentElement.style.setProperty('--excelcv-fixed-header-space', fixedSpace);
                     doc.body.style.setProperty('--excelcv-fixed-header-space', fixedSpace);
                 } catch (e) {}
+                target.__excelcvFixedHeaderReady = true;
+                return true;
             }
 
             function scheduleApply() {
@@ -2973,9 +2998,27 @@ def inject_fixed_top_bar() -> None:
                 target.requestAnimationFrame(applyFixedBar);
                 setTimeout(applyFixedBar, 60);
                 setTimeout(applyFixedBar, 220);
+                setTimeout(applyFixedBar, 500);
+                setTimeout(applyFixedBar, 1000);
             }
 
             scheduleApply();
+
+            if (target.__excelcvFixedHeaderBootstrapTimer) {
+                try { target.clearInterval(target.__excelcvFixedHeaderBootstrapTimer); } catch (_ci) {}
+                target.__excelcvFixedHeaderBootstrapTimer = null;
+            }
+            var bootstrapStartedAt = Date.now();
+            target.__excelcvFixedHeaderBootstrapTimer = target.setInterval(function() {
+                var applied = applyFixedBar();
+                var elapsed = Date.now() - bootstrapStartedAt;
+                // Keep retrying through first paint/asset hydration; stop once
+                // stable or after a bounded window to avoid permanent polling.
+                if ((applied && elapsed > 1200) || elapsed > 10000) {
+                    try { target.clearInterval(target.__excelcvFixedHeaderBootstrapTimer); } catch (_ce) {}
+                    target.__excelcvFixedHeaderBootstrapTimer = null;
+                }
+            }, 140);
 
             if (!target.__excelcvFixedHeaderResizeBound) {
                 target.__excelcvFixedHeaderResizeBound = true;

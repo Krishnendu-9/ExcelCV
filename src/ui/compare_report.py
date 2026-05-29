@@ -656,6 +656,7 @@ def render_compare_report_page() -> None:
                 mime="text/csv",
                 key="download_compare_csv_report",
                 width="stretch",
+                on_click="ignore",
             )
         with action_cols[3]:
             pdf_bytes = _build_comparison_pdf_bytes(
@@ -673,6 +674,7 @@ def render_compare_report_page() -> None:
                 key="download_compare_pdf_report",
                 width="stretch",
                 type="primary",
+                on_click="ignore",
             )
 
     if comparison_errors:

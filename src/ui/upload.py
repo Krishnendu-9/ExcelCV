@@ -1211,7 +1211,12 @@ def render_upload_page(compare_mode: bool = False) -> None:
                         unsafe_allow_html=True,
                     )
 
+    st.markdown(
+        '<div id="compare-section-anchor" style="scroll-margin-top: 72px;"></div>',
+        unsafe_allow_html=True,
+    )
     # Instant landing on the compare section when arriving via top-nav action.
+    # Run this AFTER rendering the anchor to avoid first-paint timing races.
     should_anchor_compare = st.session_state.pop("scroll_to_compare_anchor", False)
     if should_anchor_compare:
         components.html(
@@ -1220,24 +1225,58 @@ def render_upload_page(compare_mode: bool = False) -> None:
             (function() {
                 var target = window.parent && window.parent !== window ? window.parent : window;
                 var doc = target.document;
-                var tryScroll = function() {
+                var TIMER_KEY = "__excelcv_scroll_compare_timer__";
+
+                if (target[TIMER_KEY]) {
+                    try { clearTimeout(target[TIMER_KEY]); } catch (_e0) {}
+                    target[TIMER_KEY] = null;
+                }
+
+                var attempts = 0;
+                var maxAttempts = 80; // ~8s at 100ms cadence (covers slow first paint)
+                function setCompareActive() {
+                    var analyzeItem = doc.querySelector('a.site-nav-item[data-nav-action="upload-cv"]');
+                    var compareItem = doc.querySelector('a.site-nav-item[data-nav-action="compare-anchor"]');
+                    if (analyzeItem) analyzeItem.classList.remove('site-nav-item-active');
+                    if (compareItem) compareItem.classList.add('site-nav-item-active');
+                }
+                function tryScroll() {
                     var anchor = doc.getElementById("compare-section-anchor");
-                    if (anchor) {
-                        try { anchor.scrollIntoView({ behavior: "instant", block: "start" }); }
-                        catch (_e) { anchor.scrollIntoView(true); }
+                    if (!anchor) return false;
+                    try { anchor.scrollIntoView({ behavior: "auto", block: "start", inline: "nearest" }); }
+                    catch (_e1) {
+                        try { anchor.scrollIntoView(true); } catch (_e2) {}
                     }
-                };
-                [0, 50, 150, 400].forEach(function(ms) { setTimeout(tryScroll, ms); });
+                    setCompareActive();
+                    return true;
+                }
+                function loop() {
+                    attempts += 1;
+                    var ok = tryScroll();
+                    if (ok) {
+                        // Re-apply a couple of times in case Streamlit reflows right after paint.
+                        if (attempts < 4) {
+                            target[TIMER_KEY] = setTimeout(loop, 120);
+                        } else {
+                            target[TIMER_KEY] = null;
+                        }
+                        return;
+                    }
+                    if (attempts < maxAttempts) {
+                        target[TIMER_KEY] = setTimeout(loop, 100);
+                    } else {
+                        target[TIMER_KEY] = null;
+                    }
+                }
+
+                loop();
+                target.requestAnimationFrame(loop);
             })();
             </script>
             """,
             height=0,
         )
 
-    st.markdown(
-        '<div id="compare-section-anchor" style="scroll-margin-top: 130px;"></div>',
-        unsafe_allow_html=True,
-    )
     with st.container(key="compare_section_shell"):
         if compare_mode:
             st.markdown(
@@ -1364,7 +1403,7 @@ def render_upload_page(compare_mode: bool = False) -> None:
     render_upload_landing_sections()
 
     # Scroll-spy: three states keyed off where the viewport's reference line
-    # (top + 130px, matching the compare anchor's scroll-margin-top) sits
+    # (top + 72px, matching the compare anchor's scroll-margin-top) sits
     # relative to the start/end markers of the Compare section.
     #   - reference line above compare-section-anchor  → Analyze CV active
     #   - between compare-section-anchor and compare-section-end → Compare Resumes active
@@ -1394,16 +1433,17 @@ def render_upload_page(compare_mode: bool = False) -> None:
                     try { target.removeEventListener('resize', target.__excelcv_compare_spy_scroll__, true); } catch (_e) {}
                     target.__excelcv_compare_spy_scroll__ = null;
                 }
-                // Reference line: 130px below viewport top — matches the
+                // Reference line: 72px below viewport top — matches the
                 // scroll-margin-top of compare-section-anchor so the active
                 // state flips exactly when the heading lands at its anchored
                 // resting position.
-                var REF_OFFSET = 130;
+                var REF_OFFSET = 72;
+                var EPSILON = 8;
                 var apply = function() {
                     var refY = REF_OFFSET;
                     var startTop = startAnchor.getBoundingClientRect().top;
                     var endTop = endAnchor.getBoundingClientRect().top;
-                    var inAnalyze = startTop > refY;
+                    var inAnalyze = startTop > (refY + EPSILON);
                     var inCompare = !inAnalyze && endTop > refY;
                     analyzeItem.classList.toggle('site-nav-item-active', inAnalyze);
                     compareItem.classList.toggle('site-nav-item-active', inCompare);

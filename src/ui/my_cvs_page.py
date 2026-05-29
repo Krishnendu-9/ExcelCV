@@ -119,6 +119,7 @@ def render_my_cvs_page() -> None:
                             mime="application/pdf",
                             key=f"mycvs_dl_{cv.id}",
                             width="stretch",
+                            on_click="ignore",
                         )
                     else:
                         st.button(

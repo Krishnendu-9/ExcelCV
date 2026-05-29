@@ -2973,10 +2973,14 @@ def inject_fixed_top_bar() -> None:
                 header.style.border = 'none';
                 header.style.outline = 'none';
 
-                var headerHeight = Math.max(
-                    48,
-                    Math.ceil(header.getBoundingClientRect().height || header.offsetHeight || 78)
+                // Guard against transient first-paint mis-measurements where
+                // Streamlit may report an inflated row height before final CSS
+                // settles. The visual header is intentionally compact (~48px),
+                // so clamp spacer height to avoid a large blank band below nav.
+                var headerHeightRaw = Math.ceil(
+                    header.getBoundingClientRect().height || header.offsetHeight || 48
                 );
+                var headerHeight = Math.min(64, Math.max(48, headerHeightRaw));
                 spacer.style.display = 'block';
                 spacer.style.width = '100%';
                 spacer.style.height = (top + headerHeight) + 'px';

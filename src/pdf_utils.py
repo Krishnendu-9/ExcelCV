@@ -31,6 +31,60 @@ def _read_uploaded_bytes(uploaded_file) -> bytes:
     raise ValueError("Upload could not be read as bytes.")
 
 
+def _is_contact_annotation_uri(uri: str) -> bool:
+    """Return True when a PDF link annotation URI is useful for contact parsing."""
+    value = str(uri or "").strip()
+    if not value:
+        return False
+    lower = value.lower()
+    return (
+        lower.startswith("mailto:")
+        or lower.startswith("tel:")
+        or "linkedin.com/" in lower
+        or "github.com/" in lower
+    )
+
+
+def _normalize_contact_annotation_uri(uri: str) -> str:
+    """Normalize a contact URI into text-friendly form for downstream regex extraction."""
+    value = str(uri or "").strip()
+    if not value:
+        return ""
+    lower = value.lower()
+    if lower.startswith("mailto:"):
+        return value.split(":", 1)[1].strip()
+    if lower.startswith("tel:"):
+        return value.split(":", 1)[1].strip()
+    return value
+
+
+def _extract_pdf_contact_annotation_uris(reader: PdfReader) -> list[str]:
+    """Extract contact URIs from PDF link annotations (mailto/tel/linkedin/github)."""
+    found: list[str] = []
+    for page in getattr(reader, "pages", []) or []:
+        try:
+            annots = page.get("/Annots")
+        except Exception:
+            annots = None
+        if not annots:
+            continue
+        for annot_ref in annots:
+            try:
+                annot = annot_ref.get_object() if hasattr(annot_ref, "get_object") else annot_ref
+                action = annot.get("/A") if hasattr(annot, "get") else None
+                uri = action.get("/URI") if action and hasattr(action, "get") else None
+                uri_text = str(uri or "").strip()
+                if not _is_contact_annotation_uri(uri_text):
+                    continue
+                normalized = _normalize_contact_annotation_uri(uri_text)
+                if normalized:
+                    found.append(normalized)
+            except Exception:
+                continue
+    # Stable de-duplication while preserving first-seen order.
+    return list(dict.fromkeys(found))
+
+
 def extract_pdf_text(uploaded_file) -> str:
     """Return concatenated text from all PDF pages or raise on failure."""
     try:
@@ -51,6 +105,9 @@ def extract_pdf_text(uploaded_file) -> str:
                 text = ""
             text_chunks.append(text)
         combined = "\n".join(text_chunks).strip()
+        contact_uri_hints = _extract_pdf_contact_annotation_uris(reader)
+        if contact_uri_hints:
+            combined = (combined + "\n" + "\n".join(contact_uri_hints)).strip()
         if not combined:
             raise ValueError("PDF contained no extractable text (it may be a scanned image).")
         return combined

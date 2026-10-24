@@ -2,7 +2,7 @@
 
 ExcelCV is a Streamlit application: an AI-powered CV reviewer + multi-resume comparator + resume builder + cover-letter generator, backed by SQLite for per-user persistence.
 
-> **Deploying anywhere other than your own machine? Read [KNOWN_ISSUES.md](KNOWN_ISSUES.md) first.** Login and password-reset throttling currently trusts client-supplied IP headers and lets anyone lock any account. It is unfixed because the right fix depends on your proxy setup.
+> **Deploying anywhere other than your own machine? Read [KNOWN_ISSUES.md](KNOWN_ISSUES.md) first.** It lists problems left unfixed because the right fix depends on your deployment: login throttling that trusts client-supplied IP headers and lets anyone lock any account, an AI rate limit that counts actions rather than API calls, and unlimited free sign-ups.
 
 ---
 
@@ -196,7 +196,7 @@ app.py                        — Main router, page dispatch, auth gating, theme
 src/
   auth_utils.py               — Session cookies, password hashing, login/logout
   database.py                 — SQLAlchemy models (User, CV, Analysis, Comparison, ...)
-  gemini_client.py            — Gemini API calls (CV analysis, bullet suggestions)
+  gemini_client.py            — Gemini API calls (CV analysis)
   prompt_fence.py             — Delimiter fencing for untrusted prompt input
   pdf_utils.py                — PDF (pypdf) and DOCX text extraction
   oauth_utils.py              — Google OAuth state and token exchange

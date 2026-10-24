@@ -90,15 +90,43 @@ class KnownIssuesDocTests(unittest.TestCase):
         self.assertEqual(len(re.findall(r"(?m)^\d\. \*\*", proposal)), 4)
 
     def test_names_only_code_and_settings_that_exist(self) -> None:
-        from src import auth_utils
-
+        source = "\n".join(
+            p.read_text(encoding="utf-8") for p in sorted((REPO_ROOT / "src").rglob("*.py"))
+        )
         for name in set(re.findall(r"`(_?\w+)\(\)`", self.doc)):
             with self.subTest(function=name):
-                self.assertTrue(hasattr(auth_utils, name), f"{name}() is not in auth_utils")
-        source = (REPO_ROOT / "src" / "auth_utils.py").read_text(encoding="utf-8")
-        for setting in set(re.findall(r"`(AUTH_[A-Z_]+)`", self.doc)):
+                self.assertRegex(
+                    source, rf"(?m)^\s*def {re.escape(name)}\(", f"{name}() not in src"
+                )
+        for setting in set(re.findall(r"`((?:AUTH|GEMINI|SMTP)_[A-Z_]+)`", self.doc)):
             with self.subTest(setting=setting):
                 self.assertIn(f'"{setting}"', source)
+
+    def test_records_the_abuse_findings_as_unfixed_with_their_dependencies(self) -> None:
+        for heading in (
+            "## 2. The Gemini rate limit counts user actions, not API calls",
+            "## 3. Anyone can register any number of accounts",
+        ):
+            with self.subTest(heading=heading):
+                section = self.doc.split(heading, 1)[1].split("\n## ", 1)[0]
+                self.assertIn("**Status: unfixed, deliberately.**", section)
+                for part in ("### What it is", "### When it starts to matter"):
+                    self.assertIn(part, section)
+                self.assertIn("### What the fix depends on", section)
+
+    def test_notes_that_sign_in_checks_live_in_the_ui_layer(self) -> None:
+        section = self.doc.split("## 4. Sign-in checks for AI features live in the UI layer", 1)[1]
+        section = section.split("\n## ", 1)[0]
+        self.assertIn("Cover Letter", section)
+        self.assertIn("HTTP API", section)
+        self.assertIn("`generate_cover_letter_draft()`", section)
+
+    def test_records_bullet_suggestions_as_dormant_with_a_restore_plan(self) -> None:
+        section = self.doc.split("## 5. Dormant: AI bullet suggestions", 1)[1]
+        self.assertIn("**Status: dormant.**", section)
+        self.assertIn("### What restoring it would take", section)
+        for commit in ("3e0f3fb", "88f3f1a"):
+            self.assertIn(commit, section)
 
 
 if __name__ == "__main__":

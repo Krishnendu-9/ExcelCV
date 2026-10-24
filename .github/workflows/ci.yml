@@ -6,13 +6,16 @@ on:
 
 jobs:
   checks:
-    runs-on: ubuntu-latest
+    # Pinned, not ubuntu-latest: GitHub is moving ubuntu-latest from 24.04 to 26.04
+    # between 2026-10-19 and 2026-11-19, so the label can resolve to either image per
+    # run. Bump this deliberately when the next LTS image is current.
+    runs-on: ubuntu-26.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: "3.13"
 

@@ -141,11 +141,13 @@ See [docs/SETUP.md](docs/SETUP.md) for the full walkthrough, including OAuth and
 python -m unittest discover -s tests -p "test_*.py" -q
 ```
 
-85 tests covering auth and session handling, the session-secret guard, OAuth state binding
+The tests cover auth and session handling, the session-secret guard, OAuth state binding
 and verified-email checks, prompt fencing of untrusted resume text, scoring, the analysis
-runner, the cover-letter pipeline, and compare and upload helpers.
+runner, the cover-letter pipeline, compare and upload helpers, SQLite settings, and
+committed configuration.
 
-CI runs ruff, a compile check and the full suite on every push and pull request.
+CI runs ruff, mypy (Streamlit UI pages excluded), a pip-audit dependency audit that fails
+on any advisory, a compile check and the full suite on every push and pull request.
 
 ## Project structure
 

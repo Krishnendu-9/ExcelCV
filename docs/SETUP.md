@@ -6,7 +6,7 @@ ExcelCV is a Streamlit application: an AI-powered CV reviewer + multi-resume com
 
 ## 1) Prerequisites
 
-- **Python 3.11+** (the codebase uses `match` statements, `dict | None` PEP 604 unions, etc.)
+- **Python 3.13** — the version CI tests and `pyproject.toml` targets.
 - A **Google Gemini API key** — sign up at [aistudio.google.com](https://aistudio.google.com/app/apikey). Free tier is sufficient for development.
 
 OS notes:
@@ -39,6 +39,18 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
+Then install the headless Chromium browser that the **resume builder's PDF export** launches at runtime (through Playwright, which `requirements.txt` already installs):
+
+```bash
+# Windows
+py -3 -m playwright install chromium
+
+# macOS / Linux
+python3 -m playwright install chromium
+```
+
+Everything else works without it, but the resume builder's **Download PDF** button will fail until Chromium is installed.
+
 ---
 
 ## 3) Configure Environment
@@ -58,13 +70,16 @@ cp .env.example .env
 | Variable | Purpose |
 |---|---|
 | `GOOGLE_API_KEY` | Gemini API key. Without it, the Analyze CV / Compare Resumes / Cover Letter features won't work. |
+| `SESSION_SECRET` | Signs session cookies and Google OAuth state. **The app refuses to start without it.** It must be at least 32 characters and must not be a published placeholder: the value in `.env.example`, `changeme`, `change-this` and similar are all rejected. Generate one with `python -c "import secrets; print(secrets.token_hex(32))"`. |
 
-### Recommended (defaults work but should be overridden)
+`.env.example` is documentation only; the app never reads it. Copying it unchanged leaves `SESSION_SECRET` at its placeholder, which is rejected on purpose.
+
+### Optional
 
 | Variable | Purpose | Default |
 |---|---|---|
-| `SESSION_SECRET` | HMAC key used to sign session cookies. **Change this in any non-local deployment.** Generate with `python -c "import secrets; print(secrets.token_hex(32))"`. | `excelcv-session-key-change-in-prod` |
 | `GEMINI_MODEL` | Override the default Gemini model preference order. | `models/gemini-2.0-flash` |
+| `ENABLE_PERSISTENT_LOGIN` | `1` keeps users signed in across browser restarts with a signed cookie. | `0` |
 
 ### Optional - Production Safety Guardrails
 
@@ -86,9 +101,9 @@ These env vars are optional. If unset, the app uses safe defaults.
 |---|---|---|
 | `GEMINI_RATE_WINDOW_SECONDS` | Rate-limit window for AI requests per user/session. | `60` |
 | `GEMINI_MAX_REQUESTS_PER_WINDOW` | Max AI requests allowed in the window. | `20` |
-| `GEMINI_MAX_CV_CHARS` | Hard cap on CV text length sent for analysis. | `120000` |
-| `GEMINI_MAX_JD_CHARS` | Hard cap on JD text length sent for analysis. | `40000` |
-| `GEMINI_MAX_FILE_SIZE_BYTES` | File-size cap enforced by Gemini guardrail checks. | `5242880` |
+| `GEMINI_MAX_CV_CHARS` | Longest CV text accepted. Longer CVs are rejected with a message; anything accepted is sent to the model whole. Lower it to bound prompt size. | `120000` |
+| `GEMINI_MAX_JD_CHARS` | Longest job description accepted, for both analysis and cover letters. Same rule: rejected if longer, never silently cut. | `40000` |
+| `GEMINI_MAX_FILE_SIZE_BYTES` | File-size guardrail for analysis. Can only **lower** the 2 MB upload cap; a larger value has no effect. | `2097152` |
 | `GEMINI_ANALYSIS_MAX_OUTPUT_TOKENS` | Max output tokens requested for analysis response. | `2400` |
 
 ### Optional — Google OAuth ("Continue with Google" button)
@@ -147,18 +162,20 @@ Open the Local URL in your browser. On first run the SQLite database is auto-cre
 
 These live in [`.streamlit/config.toml`](../.streamlit/config.toml) — don't delete the file:
 
-- **Upload cap = 2 MB per file** (`maxUploadSize = 2`). Enforced at the network layer before the Python validation in [src/ui/upload.py](../src/ui/upload.py) runs.
+- **Upload cap = 2 MB per file** (`maxUploadSize = 2`). Enforced at the network layer before the Python validation in [src/ui/upload.py](../src/ui/upload.py) runs. It must match `MAX_FILE_MB` in [src/config.py](../src/config.py); a test checks that they agree.
 - **Hot-reload via polling** (`fileWatcherType = "poll"`) — reliable on Windows where the default inotify-style watcher is flaky.
-- **Auto-rerun on file save** (`runOnSave = true`).
 - **Folder watch blacklist** prevents spurious reruns when the SQLite DB or git refs are written.
+
+Auto-rerun on save is a development setting and is not committed. Turn it on for a local session with `streamlit run app.py --server.runOnSave true`.
 
 ---
 
 ## 5) Data & Storage
 
 - **Database**: a single SQLite file at `data/excelcv.db`. Auto-created on first app startup by [`src/database.py`](../src/database.py) `init_db()`. Per-user data (saved resumes, analyses, comparisons) survives logout.
-- **Gitignored**: `data/*.db` is in `.gitignore` so your local DB is never committed.
-- **Backup**: the file isn't in version control. If the data matters to you, copy it periodically:
+- **WAL mode**: connections use SQLite's write-ahead log (`journal_mode=WAL`, `busy_timeout` 15 s), so concurrent sessions do not block each other on reads. This creates `excelcv.db-wal` and `excelcv.db-shm` next to the database while the app runs.
+- **Gitignored**: `data/*.db` and the `-wal` / `-shm` / `-journal` side files are in `.gitignore`, so your local data is never committed.
+- **Backup**: the file isn't in version control. **Stop the app first**: while it runs, recent writes may still sit in `excelcv.db-wal`, and copying only `excelcv.db` would miss them. Then copy it:
   ```bash
   # Windows
   copy data\excelcv.db data\excelcv.db.bak
@@ -177,15 +194,19 @@ app.py                        — Main router, page dispatch, auth gating, theme
 src/
   auth_utils.py               — Session cookies, password hashing, login/logout
   database.py                 — SQLAlchemy models (User, CV, Analysis, Comparison, ...)
-  gemini_client.py            — Gemini API calls (CV analysis)
-  oauth_utils.py              — Google OAuth token exchange
+  gemini_client.py            — Gemini API calls (CV analysis, bullet suggestions)
+  prompt_fence.py             — Delimiter fencing for untrusted prompt input
+  pdf_utils.py                — PDF (pypdf) and DOCX text extraction
+  oauth_utils.py              — Google OAuth state and token exchange
   email_utils.py              — Password reset email (SMTP)
-  config.py                   — Env helpers, MAX_FILE_MB
+  config.py                   — .env loading, SESSION_SECRET guard, MAX_FILE_MB
   cover_letter/               — Cover letter page + service
   services/
-    pdf_generator.py          — Resume PDF export (ReportLab)
+    pdf_generator.py          — Saved-CV PDF export (ReportLab)
     comparison_pdf.py         — Compare-resumes PDF export
+    reporting.py              — Analysis report PDF / Markdown
   ui/
+    cv_builder_pdf.py         — Resume builder PDF export (headless Chromium via Playwright)
     upload.py                 — Analyze CV / Compare form (home page)
     report.py                 — Single-CV analysis report view
     compare_report.py         — Ranked comparison results page
@@ -221,11 +242,17 @@ docs/
 
 **Upload says "could not read these files (try re-selecting)" on the first try** — known Streamlit hydration race. The app retries up to 2 times silently before surfacing the warning. If you still see it after retries, the file is genuinely unreadable.
 
-**SQLite file locked** — only one process can write to a SQLite file at a time. Close any other Streamlit instance / DB browser before running the app.
+**App refuses to start, complaining about `SESSION_SECRET`** — it is missing, shorter than 32 characters, or a placeholder. Generate one with `python -c "import secrets; print(secrets.token_hex(32))"` and put it in `.env`.
+
+**Resume builder "Download PDF" fails with "PDF engine unavailable"** — run `py -3 -m playwright install chromium` (see step 2).
+
+**Google sign-in says the browser did not send back the sign-in cookie** — click Continue with Google again. If it keeps happening, the browser is blocking cookies for this site.
+
+**SQLite "database is locked"** — WAL mode lets reads and writes overlap, and writers wait up to 15 s for each other. A lock error now usually means another program (a DB browser, a second app instance) is holding a write transaction open. Close it.
 
 ---
 
 ## 8) What's Not Set Up Yet
 
-- **Coverage is growing but still not complete** — `tests/` now covers auth/session helpers, scoring core, analysis runner paths, cover-letter pipeline, and compare/upload helper functions. Run with `py -3 -m unittest discover -s tests -p "test_*.py" -q`. Large UI flows are still mostly manual; adding Playwright / E2E coverage remains on the backlog.
-- **No production deployment config** — the app runs locally on port 8501. For deployment you'd need to set `SESSION_SECRET` to a strong random value, harden the SMTP / OAuth secrets handling, and put SQLite behind a proper backup story (or migrate to Postgres via SQLAlchemy's connection string).
+- **Coverage is growing but still not complete** — `tests/` covers auth/session helpers, the session-secret guard, OAuth state binding, prompt fencing, scoring core, analysis runner paths, the cover-letter pipeline, compare/upload helpers, SQLite settings and committed configuration. Run with `py -3 -m unittest discover -s tests -p "test_*.py" -q`. CI also runs ruff, mypy (UI pages excluded) and pip-audit. Large UI flows are still mostly manual: Playwright is installed for the resume builder's PDF export, but no browser-driven end-to-end tests exist yet.
+- **No production deployment config** — the app runs locally on port 8501. `SESSION_SECRET` is already enforced at startup. For deployment you would still need to harden the SMTP / OAuth secrets handling, decide which proxy headers to trust for login throttling, and put SQLite behind a proper backup story (or migrate to Postgres via SQLAlchemy's connection string).

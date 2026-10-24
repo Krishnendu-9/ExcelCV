@@ -323,7 +323,7 @@ This section maps each value on the report page to its source and code location,
 - Status thresholds may vary slightly between metrics based on industry standards
 - Scores are calculated in real-time during analysis
 - Metrics are mode-dependent (General Review vs ATS Scan modes may produce different scores)
-- The AI model analyzes up to 6000 characters of CV text and 4000 characters of job description
+- The final score and every metric above are computed in code from the full CV and job description. The AI model's own subscores (skills alignment, experience alignment, ATS readiness) also see the full text: inputs are capped by `GEMINI_MAX_CV_CHARS` (default 120,000) and `GEMINI_MAX_JD_CHARS` (default 40,000), and anything longer is rejected with a message instead of being cut
 
 ---
 

@@ -76,10 +76,62 @@ class PromptFencingTests(unittest.TestCase):
             found.add(match.group(1))
         self.assertEqual(len(found), 3)
 
-    def test_length_caps_are_kept(self) -> None:
-        prompt = gemini_client._build_analysis_prompt("c" * 50000, "j" * 50000, _DELIM)
-        self.assertEqual(len(_block(prompt, "CV")), 6000)
-        self.assertEqual(len(_block(prompt, "JOB_DESCRIPTION")), 4000)
+    def test_long_job_description_reaches_the_model_whole(self) -> None:
+        # 12,000 chars: three times the old 4,000 cut, well under GEMINI_MAX_JD_CHARS.
+        jd = " ".join(f"req{i:05d}" for i in range(1334))[:12000]
+        self.assertEqual(len(jd), 12000)
+        gemini_client._validate_analysis_inputs("CV body.", jd, 0)  # accepted
+        prompt = gemini_client._build_analysis_prompt("CV body.", jd, _DELIM)
+        self.assertEqual(_block(prompt, "JOB_DESCRIPTION"), jd)
+
+    def test_long_cv_reaches_the_model_whole(self) -> None:
+        # 20,000 chars: a long multi-page CV, over the old 6,000 cut.
+        cv = " ".join(f"role{i:05d}" for i in range(2223))[:19999] + "x"  # no trailing space
+        self.assertEqual(len(cv), 20000)
+        gemini_client._validate_analysis_inputs(cv, "JD.", 0)  # accepted
+        prompt = gemini_client._build_analysis_prompt(cv, "JD.", _DELIM)
+        self.assertEqual(_block(prompt, "CV"), cv)
+
+    def test_prompt_caps_follow_the_configured_input_caps(self) -> None:
+        with (
+            patch.object(gemini_client, "_MAX_CV_INPUT_CHARS", 7000),
+            patch.object(gemini_client, "_MAX_JD_INPUT_CHARS", 5000),
+        ):
+            # Exactly at the caps: accepted, and nothing is cut.
+            gemini_client._validate_analysis_inputs("c" * 7000, "j" * 5000, 0)
+            at_cap = gemini_client._build_analysis_prompt("c" * 7000, "j" * 5000, _DELIM)
+            self.assertEqual(len(_block(at_cap, "CV")), 7000)
+            self.assertEqual(len(_block(at_cap, "JOB_DESCRIPTION")), 5000)
+            # One over: rejected with a message instead of silently truncated.
+            with self.assertRaisesRegex(ValueError, "Job description is too large"):
+                gemini_client._validate_analysis_inputs("c", "j" * 5001, 0)
+            with self.assertRaisesRegex(ValueError, "CV content is too large"):
+                gemini_client._validate_analysis_inputs("c" * 7001, "j", 0)
+            # The builder still bounds the prompt if it is ever called without validation.
+            over = gemini_client._build_analysis_prompt("c" * 50000, "j" * 50000, _DELIM)
+            self.assertEqual(len(_block(over, "CV")), 7000)
+            self.assertEqual(len(_block(over, "JOB_DESCRIPTION")), 5000)
+
+    def test_analyze_sends_a_long_job_description_in_full(self) -> None:
+        sent: list[str] = []
+
+        def fake_generate(_model, prompt, _config):
+            sent.append(prompt)
+            raise RuntimeError("stop after capturing the prompt")
+
+        jd = " ".join(f"req{i:05d}" for i in range(1334))[:12000]
+        with (
+            patch.object(gemini_client, "get_api_key", return_value="test-key"),
+            patch.object(gemini_client, "_enforce_gemini_rate_limit"),
+            patch.object(gemini_client, "_pick_model_id", return_value="models/x"),
+            patch.object(prompt_fence, "new_delimiter", return_value=_DELIM),
+            patch.object(gemini_client, "genai", MagicMock()),
+            patch.object(gemini_client, "_generate_with_retry", side_effect=fake_generate),
+        ):
+            with self.assertRaises(Exception):
+                gemini_client.analyze_cv_with_gemini("CV body.", jd)
+        self.assertTrue(sent)
+        self.assertEqual(_block(sent[0], "JOB_DESCRIPTION"), jd)
 
     def test_sanitizer_neutralizes_quote_runs_and_delimiter(self) -> None:
         out = prompt_fence.sanitize_untrusted(

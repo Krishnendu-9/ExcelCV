@@ -18,7 +18,7 @@ from typing import Any, Dict, List, Optional
 import google.generativeai as genai
 
 from src import prompt_fence
-from src.config import get_api_key, preferred_models
+from src.config import MAX_FILE_BYTES, get_api_key, preferred_models
 from src.services.career_tools import (
     build_interview_prep_questions,
     build_learning_roadmap,
@@ -65,7 +65,19 @@ _GEMINI_WINDOW_SECONDS = _env_int("GEMINI_RATE_WINDOW_SECONDS", 60, 10)
 _GEMINI_MAX_REQUESTS_PER_WINDOW = _env_int("GEMINI_MAX_REQUESTS_PER_WINDOW", 20, 1)
 _MAX_CV_INPUT_CHARS = _env_int("GEMINI_MAX_CV_CHARS", 120000, 2000)
 _MAX_JD_INPUT_CHARS = _env_int("GEMINI_MAX_JD_CHARS", 40000, 1000)
-_MAX_FILE_SIZE_BYTES = _env_int("GEMINI_MAX_FILE_SIZE_BYTES", 5 * 1024 * 1024, 1)
+
+
+def _file_size_cap() -> int:
+    """Return the Gemini file-size guardrail, never above the app's upload cap.
+
+    Streamlit's maxUploadSize and config.MAX_FILE_BYTES (both 2 MB) reject larger files
+    before analysis runs, so a higher value here would be unreachable.
+    GEMINI_MAX_FILE_SIZE_BYTES can only lower it.
+    """
+    return min(_env_int("GEMINI_MAX_FILE_SIZE_BYTES", MAX_FILE_BYTES, 1), MAX_FILE_BYTES)
+
+
+_MAX_FILE_SIZE_BYTES = _file_size_cap()
 _ANALYSIS_MAX_OUTPUT_TOKENS = _env_int("GEMINI_ANALYSIS_MAX_OUTPUT_TOKENS", 2400, 256)
 
 _REQUEST_LOCK = threading.Lock()
@@ -659,8 +671,15 @@ Be BALANCED in scoring. Consider the overall fit and potential, not just exact k
 """
 
     delimiter = delimiter or prompt_fence.new_delimiter()
-    job_desc_prompt = prompt_fence.sanitize_untrusted(job_desc, 4000, delimiter=delimiter)
-    cv_text_prompt = prompt_fence.sanitize_untrusted(cv_text, 6000, delimiter=delimiter)
+    # The prompt caps are the validation caps: text that passes _validate_analysis_inputs
+    # reaches the model whole, and text over a cap is rejected with a message rather than
+    # silently cut. Bound prompt size with GEMINI_MAX_CV_CHARS / GEMINI_MAX_JD_CHARS.
+    job_desc_prompt = prompt_fence.sanitize_untrusted(
+        job_desc, _MAX_JD_INPUT_CHARS, delimiter=delimiter
+    )
+    cv_text_prompt = prompt_fence.sanitize_untrusted(
+        cv_text, _MAX_CV_INPUT_CHARS, delimiter=delimiter
+    )
     untrusted_notice = prompt_fence.untrusted_input_notice(delimiter)
     job_desc_block = prompt_fence.fence("JOB_DESCRIPTION", job_desc_prompt, delimiter)
     cv_block = prompt_fence.fence("CV", cv_text_prompt, delimiter)

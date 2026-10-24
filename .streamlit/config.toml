@@ -3,7 +3,6 @@ headless = true
 enableCORS = true
 enableXsrfProtection = true
 maxUploadSize = 2
-runOnSave = true
 fileWatcherType = "poll"
 folderWatchBlacklist = [".git", ".pytest_cache", "__pycache__", "data", "templates", ".streamlit"]
 

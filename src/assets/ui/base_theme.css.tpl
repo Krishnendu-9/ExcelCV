@@ -2571,9 +2571,9 @@
                 scroll-margin-top: 100px;
             }}
             .badge {{
-                padding: 4px 10px;
+                padding: 3px 9px;
                 border-radius: 999px;
-                font-size: 0.8rem;
+                font-size: 0.74rem;
                 font-weight: 700;
             }}
             .badge-ok {{
@@ -2648,7 +2648,7 @@
             }}
             .report-group-head h3 {{
                 margin: 0;
-                font-size: 1.55rem;
+                font-size: 1.18rem;
                 color: var(--text-primary);
                 letter-spacing: 0.02em;
             }}
@@ -2656,9 +2656,9 @@
                 display: inline-flex;
                 align-items: center;
                 justify-content: center;
-                padding: 7px 14px;
+                padding: 5px 11px;
                 border-radius: 999px;
-                font-size: 0.82rem;
+                font-size: 0.72rem;
                 font-weight: 700;
                 color: var(--report-pill-text);
                 background: var(--report-pill-bg);
@@ -2691,6 +2691,9 @@
                 display: inline-flex;
                 align-items: center;
                 gap: 10px;
+                font-size: 1.02rem;
+                line-height: 1.3;
+                font-weight: 700;
             }}
             .detail-chevron {{
                 display: inline-block;

@@ -1457,7 +1457,7 @@ def render_report_page(analysis: Dict[str, Any], name: str = "CV") -> None:
         ),
         (
             "Suggestions",
-            "ok" if suggestions_list else "warn",
+            "warn" if suggestions_list else "ok",
             len(suggestions_list) if suggestions_list else None,
         ),
     ]
@@ -1467,7 +1467,7 @@ def render_report_page(analysis: Dict[str, Any], name: str = "CV") -> None:
         (1 if strengths_list else 0)
         + (0 if missing_skills_list else 1)
         + (0 if missing_keywords_list else 1)
-        + 1  # Suggestions are informational ("tips"), not an issue
+        + (0 if suggestions_list else 1)
     )
     insights_score = round(100 * _insights_ok / len(insights_items_list))
 
@@ -1521,7 +1521,7 @@ def render_report_page(analysis: Dict[str, Any], name: str = "CV") -> None:
             "Suggestions",
             suggestions_list,
             "suggestions",
-            "ok",
+            "warn" if suggestions_list else "ok",
             f"{len(suggestions_list)} tips" if suggestions_list else "None",
             "Tip",
             "No additional suggestions at this time.",
@@ -1554,7 +1554,9 @@ def render_report_page(analysis: Dict[str, Any], name: str = "CV") -> None:
         if file_name_flagged:
             ats_issue_count += len(file_name_issues)
 
-        insights_issue_count = len(missing_skills_list) + len(missing_keywords_list)
+        insights_issue_count = (
+            len(missing_skills_list) + len(missing_keywords_list) + (1 if suggestions_list else 0)
+        )
 
         content_group_html = _build_group_card(
             "Content",

@@ -1177,7 +1177,7 @@ for s in [
 add_para("Configuration Files", bold=True, space_after=4)
 for s in [
     ".env — environment variables (API keys, OAuth client, SMTP creds, SESSION_SECRET).",
-    ".env.example — template with safe defaults and inline guidance.",
+    ".env.example — documented template to copy to .env; never read at runtime.",
     ".streamlit/config.toml — upload cap (2 MB), polling file watcher, theme tokens.",
 ]:
     add_bullet(s)

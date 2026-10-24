@@ -1,4 +1,5 @@
 import os
+import re
 import secrets
 import shutil
 import subprocess
@@ -90,6 +91,26 @@ class SessionSecretGuardTests(unittest.TestCase):
 
 class EnvExampleIsNotConfigTests(unittest.TestCase):
     """src.config must not read .env.example: its values are published placeholders."""
+
+    def test_no_message_or_doc_says_env_example_is_used_at_runtime(self) -> None:
+        from tests.repo_files import repo_text_files
+
+        runtime_claim = re.compile(r"fallback|falls back|safe default|\bloaded\b|\bloads\b", re.I)
+        negated = re.compile(r"\bnever\b|\bnot\b|n't\b", re.I)
+        hits = []
+        for path in repo_text_files():
+            rel = path.relative_to(_REPO_ROOT).as_posix()
+            if rel.startswith("tests/"):
+                continue
+            try:
+                lines = path.read_text(encoding="utf-8").splitlines()
+            except (UnicodeDecodeError, OSError):
+                continue
+            for lineno, line in enumerate(lines, start=1):
+                if ".env.example" in line and runtime_claim.search(line):
+                    if not negated.search(line):
+                        hits.append(f"{rel}:{lineno}: {line.strip()[:90]}")
+        self.assertEqual(hits, [])
 
     def test_env_example_values_are_not_loaded(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

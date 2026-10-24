@@ -1222,7 +1222,7 @@ def _render_forgot_password_form(col, t: dict) -> None:
                     elif not is_email_configured():
                         st.warning(
                             "Email is not configured on this server. "
-                            "Set SMTP_USER and SMTP_PASSWORD in .env (or .env.example for local fallback)."
+                            "Set SMTP_USER and SMTP_PASSWORD in .env and restart the app."
                         )
                     else:
                         record_password_reset_attempt(normalized_email)

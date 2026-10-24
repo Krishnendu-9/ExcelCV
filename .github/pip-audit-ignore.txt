@@ -1,0 +1,10 @@
+# Advisories pip-audit may ignore in CI. CI fails on every other advisory, at any
+# severity, including advisories with no CVSS score.
+#
+# One entry per line, all three fields required:
+#   <ADVISORY-ID> | <YYYY-MM-DD added> | <why it is safe to ignore, and until when>
+#
+# Example (not active):
+#   # PYSEC-2099-0001 | 2099-01-01 | Only reachable via feature X, which we do not use; drop when 1.2.3 ships.
+#
+# No advisories are currently ignored.

@@ -73,8 +73,8 @@ def summarize_evaluation(records: List[Dict[str, Any]]) -> Dict[str, Any]:
     valid_records: List[Dict[str, Any]] = []
     for record in records or []:
         try:
-            model = float(record.get("model_score"))
-            human = float(record.get("human_score"))
+            model = float(record.get("model_score", ""))
+            human = float(record.get("human_score", ""))
         except (TypeError, ValueError):
             continue
         valid_records.append({"model_score": model, "human_score": human})

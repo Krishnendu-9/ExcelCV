@@ -78,7 +78,7 @@ def send_password_reset_email(to_email: str, reset_token: str, app_url: str) -> 
 
     try:
         if cfg["encryption"] == "ssl":
-            server_ctx = smtplib.SMTP_SSL(cfg["host"], cfg["port"], timeout=15)
+            server_ctx: smtplib.SMTP = smtplib.SMTP_SSL(cfg["host"], cfg["port"], timeout=15)
         else:
             server_ctx = smtplib.SMTP(cfg["host"], cfg["port"], timeout=15)
         with server_ctx as server:
@@ -153,7 +153,7 @@ def send_contact_email(name: str, reply_to: str, inquiry: str, subject: str, mes
 
     try:
         if cfg["encryption"] == "ssl":
-            server_ctx = smtplib.SMTP_SSL(cfg["host"], cfg["port"], timeout=15)
+            server_ctx: smtplib.SMTP = smtplib.SMTP_SSL(cfg["host"], cfg["port"], timeout=15)
         else:
             server_ctx = smtplib.SMTP(cfg["host"], cfg["port"], timeout=15)
         with server_ctx as server:
@@ -232,7 +232,7 @@ def send_acknowledgement_email(to_email: str, name: str, inquiry: str, message: 
 
     try:
         if cfg["encryption"] == "ssl":
-            server_ctx = smtplib.SMTP_SSL(cfg["host"], cfg["port"], timeout=15)
+            server_ctx: smtplib.SMTP = smtplib.SMTP_SSL(cfg["host"], cfg["port"], timeout=15)
         else:
             server_ctx = smtplib.SMTP(cfg["host"], cfg["port"], timeout=15)
         with server_ctx as server:

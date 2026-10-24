@@ -26,6 +26,19 @@ jobs:
         run: |
           ruff check app.py src tests
 
+      - name: Type check (mypy)
+        # Streamlit UI pages are excluded in pyproject.toml ([[tool.mypy.overrides]]).
+        run: |
+          mypy app.py src
+
+      - name: Dependency audit (pip-audit)
+        # Fails on ANY advisory, scored or not; there is deliberately no severity
+        # threshold. --strict also fails if a package cannot be audited at all.
+        # Exceptions go in .github/pip-audit-ignore.txt with a date and a reason.
+        run: |
+          ignore_args=$(python scripts/pip_audit_ignores.py .github/pip-audit-ignore.txt)
+          pip-audit --strict --desc on $ignore_args
+
       - name: Compile check
         run: |
           python -m py_compile app.py

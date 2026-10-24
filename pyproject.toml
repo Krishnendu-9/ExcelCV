@@ -1,7 +1,3 @@
-[tool.black]
-line-length = 100
-target-version = ["py313"]
-
 [tool.ruff]
 line-length = 100
 target-version = "py313"
@@ -29,3 +25,10 @@ ignore_missing_imports = true
 show_error_codes = true
 pretty = true
 exclude = "(^venv/|^\\.venv/|^tmp_pdf_preview/)"
+
+[[tool.mypy.overrides]]
+# Streamlit UI pages: widget and session_state types are too loose to check usefully
+# yet (42 errors when this was added, none of them real bugs). Take modules off this
+# list as they are cleaned up.
+module = ["src.ui.*", "src.cover_letter.page"]
+ignore_errors = true

@@ -459,14 +459,14 @@ def logout_user() -> None:
     ]:
         st.session_state.pop(key, None)
 
-    for key in list(st.session_state.keys()):
-        if str(key).startswith("compare_cvs_input_"):
-            st.session_state.pop(key, None)
+    for state_key in list(st.session_state.keys()):
+        if str(state_key).startswith("compare_cvs_input_"):
+            st.session_state.pop(state_key, None)
 
     # Remove all resume-builder keys in one pass (covers old/new naming variants).
-    for key in list(st.session_state.keys()):
-        if str(key).startswith("cvb_"):
-            st.session_state.pop(key, None)
+    for state_key in list(st.session_state.keys()):
+        if str(state_key).startswith("cvb_"):
+            st.session_state.pop(state_key, None)
 
     # Legacy key kept for backwards compatibility with older sessions.
     st.session_state.pop("cvb_skill_ids", None)

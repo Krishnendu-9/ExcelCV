@@ -15,7 +15,7 @@ from src.cover_letter.models import CoverLetterDraft, CoverLetterRequest
 from src.cover_letter.validators import validate_draft_quality
 
 
-def _normalize_model_name(name: str) -> str:
+def _normalize_model_name(name: str | None) -> str:
     model = (name or "").strip()
     if not model:
         return ""

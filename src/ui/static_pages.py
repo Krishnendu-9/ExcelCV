@@ -324,9 +324,8 @@ def render_static_page(page: str) -> None:
         st.markdown("### Resume Builder")
         st.markdown(
             "Build a resume from scratch in a two-pane editor with a live preview. Pick from three "
-            "templates (Classic, Creative, Modern), customize accent color and typography, and use "
-            "AI-suggested bullet points for experience entries. Save drafts to your account, reload "
-            "them later, and export to PDF when ready."
+            "templates (Classic, Creative, Modern) and customize accent color and typography. Save "
+            "drafts to your account, reload them later, and export to PDF when ready."
         )
         st.markdown("### My CVs and My Analyses")
         st.markdown(

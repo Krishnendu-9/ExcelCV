@@ -19,13 +19,13 @@ _PLACEHOLDER_PATTERNS = [
 #     about 65 characters.
 #   Company: a name. Long legal names ("The Hongkong and Shanghai Banking Corporation
 #     Limited") run to about 55 characters.
-#   Both use 120, the cap the app already applies to role and company for AI bullet
-#     suggestions, which is about twice the longest real value.
+#   Both use 120, the cap suggest_cv_bullets() applies to role and company (that function
+#     is dormant; see docs/KNOWN_ISSUES.md), about twice the longest real value.
 #   Source: a site name or a short referral phrase ("Referral from Jane Smith at Acme"),
 #     turned into one sentence of the letter. 100 is several times the longest such phrase.
 #   Additional information: notes for a letter capped at 420 words (about 2,500
 #     characters). 2,000 characters (roughly 300 words) is most of a letter and matches
-#     the cap on context for AI bullet suggestions; more notes than that cannot all be used.
+#     suggest_cv_bullets()'s context cap; more notes than that cannot all be used.
 #   Candidate name is not typed by the user; it is guessed from the CV (lines of at most
 #     60 characters) or the upload's file name, which the client supplies. 60 bounds both.
 MAX_CANDIDATE_NAME_CHARS = 60

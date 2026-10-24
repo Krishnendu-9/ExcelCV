@@ -62,8 +62,6 @@ Gemini drafts the letter, which renders as Markdown and downloads as DOCX.
 - Three templates — Classic, Creative, Modern — each with a distinct layout in both the
   preview and the exported PDF
 - Nine section types, all collapsible, reorderable and individually hideable
-- AI bullet suggestions generated from job title and company, using existing bullets as
-  context so they do not repeat
 - Accent colour, font, font size, line height and spacing, persisted per saved CV
 - One-click PDF download; manage saved CVs from **My CVs**
 
@@ -159,7 +157,7 @@ excelcv/
 │   ├── database.py             # SQLAlchemy models
 │   ├── auth_utils.py           # Sessions, cookies, bcrypt, OAuth browser binding
 │   ├── oauth_utils.py          # Google OAuth state and token exchange
-│   ├── gemini_client.py        # Gemini calls: analysis, bullet suggestions
+│   ├── gemini_client.py        # Gemini calls: CV analysis
 │   ├── prompt_fence.py         # Delimiter fencing for untrusted prompt input
 │   ├── pdf_utils.py            # PDF and DOCX text extraction
 │   ├── email_utils.py          # SMTP password-reset email

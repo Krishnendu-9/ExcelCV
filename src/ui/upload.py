@@ -315,7 +315,7 @@ def render_upload_landing_sections() -> None:
                                 <span class="lsc-mb-pline lsc-mb-pline-short"></span>
                             </div>
                         </div>
-                        <p class="lsc-desc">3 templates &middot; live preview &middot; AI bullet suggestions &middot; one-click PDF.</p>
+                        <p class="lsc-desc">3 templates &middot; live preview &middot; one-click PDF.</p>
                     </article>
                     <article class="landing-showcase-card">
                         <div class="lsc-emoji">📊</div>

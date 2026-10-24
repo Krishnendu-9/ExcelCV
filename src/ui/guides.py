@@ -2290,7 +2290,7 @@ consequences of using the output in real applications.
 ## AI-Generated Output
 
 ExcelCV uses Google's Gemini API to produce CV analyses, comparison
-rankings, cover-letter drafts, and bullet suggestions. AI output:
+rankings, and cover-letter drafts. AI output:
 
 - Is generated automatically and may contain factual errors, fabricated
   details, or outdated information.

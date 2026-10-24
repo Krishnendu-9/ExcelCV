@@ -2,6 +2,8 @@
 
 ExcelCV is a Streamlit application: an AI-powered CV reviewer + multi-resume comparator + resume builder + cover-letter generator, backed by SQLite for per-user persistence.
 
+> **Deploying anywhere other than your own machine? Read [KNOWN_ISSUES.md](KNOWN_ISSUES.md) first.** Login and password-reset throttling currently trusts client-supplied IP headers and lets anyone lock any account. It is unfixed because the right fix depends on your proxy setup.
+
 ---
 
 ## 1) Prerequisites
@@ -101,7 +103,7 @@ These env vars are optional. If unset, the app uses safe defaults.
 |---|---|---|
 | `GEMINI_RATE_WINDOW_SECONDS` | Rate-limit window for AI requests per user/session. | `60` |
 | `GEMINI_MAX_REQUESTS_PER_WINDOW` | Max AI requests allowed in the window. | `20` |
-| `GEMINI_MAX_CV_CHARS` | Longest CV text accepted. Longer CVs are rejected with a message; anything accepted is sent to the model whole. Lower it to bound prompt size. | `120000` |
+| `GEMINI_MAX_CV_CHARS` | Longest CV text accepted. Longer CVs are rejected with a message; anything accepted is sent to the model whole. The default is four A4 pages of text packed edge to edge at 10 pt, beyond any real resume (derivation in `src/gemini_client.py`). | `26624` |
 | `GEMINI_MAX_JD_CHARS` | Longest job description accepted, for both analysis and cover letters. Same rule: rejected if longer, never silently cut. | `40000` |
 | `GEMINI_MAX_FILE_SIZE_BYTES` | File-size guardrail for analysis. Can only **lower** the 2 MB upload cap; a larger value has no effect. | `2097152` |
 | `GEMINI_ANALYSIS_MAX_OUTPUT_TOKENS` | Max output tokens requested for analysis response. | `2400` |
@@ -255,4 +257,4 @@ docs/
 ## 8) What's Not Set Up Yet
 
 - **Coverage is growing but still not complete** — `tests/` covers auth/session helpers, the session-secret guard, OAuth state binding, prompt fencing, scoring core, analysis runner paths, the cover-letter pipeline, compare/upload helpers, SQLite settings and committed configuration. Run with `py -3 -m unittest discover -s tests -p "test_*.py" -q`. CI also runs ruff, mypy (UI pages excluded) and pip-audit. Large UI flows are still mostly manual: Playwright is installed for the resume builder's PDF export, but no browser-driven end-to-end tests exist yet.
-- **No production deployment config** — the app runs locally on port 8501. `SESSION_SECRET` is already enforced at startup. For deployment you would still need to harden the SMTP / OAuth secrets handling, decide which proxy headers to trust for login throttling, and put SQLite behind a proper backup story (or migrate to Postgres via SQLAlchemy's connection string).
+- **No production deployment config** — the app runs locally on port 8501. `SESSION_SECRET` is already enforced at startup. For deployment you would still need to harden the SMTP / OAuth secrets handling, fix login throttling for your proxy setup (see [KNOWN_ISSUES.md §1](KNOWN_ISSUES.md#1-login-and-password-reset-throttling-trusts-spoofable-headers-and-can-lock-out-any-account)), and put SQLite behind a proper backup story (or migrate to Postgres via SQLAlchemy's connection string).

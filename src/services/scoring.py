@@ -851,9 +851,13 @@ def calculate_contact_info(cv_text: str) -> Dict[str, Any]:
         )
 
     # â”€â”€ Email address â”€â”€
-    email_match = re.search(r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}", cleaned)
+    email_match = re.search(
+        r"[a-zA-Z0-9._%+\-]+\s*@\s*[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}",
+        cleaned,
+    )
     if email_match:
-        found.append({"type": "email", "label": "Email address", "value": email_match.group()})
+        email_value = re.sub(r"\s+", "", email_match.group())
+        found.append({"type": "email", "label": "Email address", "value": email_value})
     else:
         missing.append(
             {
@@ -903,18 +907,21 @@ def calculate_contact_info(cv_text: str) -> Dict[str, Any]:
     if github_match:
         found.append({"type": "github", "label": "GitHub", "value": github_match.group()})
     else:
-        # PDF icon extraction: "github" followed by username
-        gh_icon_match = re.search(r"github[\-_]?\s*([\w\-]+)", cleaned, re.I)
+        # PDF icon extraction fallback: only trust explicit icon-remnant patterns,
+        # not plain "GitHub" labels followed by unrelated text (e.g. "GitHub" + "Java").
+        gh_icon_match = re.search(
+            r"/github[\-_]?(?:icon|alt)?\s*([\w\-]{3,})",
+            cleaned,
+            re.I,
+        )
         if gh_icon_match:
             username = gh_icon_match.group(1)
             if username.lower() not in ("com", "io"):
                 found.append(
                     {"type": "github", "label": "GitHub", "value": f"github.com/{username}"}
                 )
-        elif re.search(r"github", cleaned, re.I):
-            found.append(
-                {"type": "github", "label": "GitHub", "value": "(detected but URL not parsed)"}
-            )
+        # Do not mark GitHub as "found" on label-only text (e.g. "GitHub" heading
+        # followed by a skill name). That produced false positives like github.com/Java.
 
     # â”€â”€ Portfolio / Website â”€â”€
     website_match = re.search(
@@ -1508,6 +1515,201 @@ def calculate_ats_essentials(
     return score, details
 
 
+def _is_actionable_jd_term(token: str) -> bool:
+    """Return True for JD terms that are useful as skills/keywords."""
+    text = str(token or "").strip().lower()
+    if not text or len(text) < 3:
+        return False
+    noise_terms = {
+        "role",
+        "roles",
+        "team",
+        "teams",
+        "work",
+        "works",
+        "working",
+        "manager",
+        "management",
+        "engineer",
+        "developer",
+        "experience",
+        "required",
+        "requiring",
+        "preferred",
+        "responsible",
+        "responsibilities",
+        "requirements",
+        "qualification",
+        "qualifications",
+        "candidate",
+        "ability",
+        "strong",
+        "good",
+        "great",
+        "minimum",
+        "years",
+        "plus",
+    }
+    return text not in noise_terms
+
+
+def _derive_role_baseline_terms(job_desc: str) -> List[str]:
+    """Derive baseline role skills from short role-title style JDs."""
+    jd = str(job_desc or "").lower()
+    role_terms: List[str] = []
+
+    role_skill_map = [
+        (
+            ("project manager", "program manager", "delivery manager"),
+            [
+                "stakeholder management",
+                "risk management",
+                "budgeting",
+                "agile",
+                "scrum",
+                "jira",
+                "roadmap",
+                "kpi",
+            ],
+        ),
+        (
+            ("devops", "site reliability", "sre"),
+            [
+                "ci/cd",
+                "kubernetes",
+                "docker",
+                "terraform",
+                "monitoring",
+                "incident response",
+                "linux",
+            ],
+        ),
+        (
+            ("cloud engineer", "cloud architect", "cloud administrator"),
+            [
+                "aws",
+                "azure",
+                "gcp",
+                "kubernetes",
+                "terraform",
+                "cloud security",
+                "networking",
+            ],
+        ),
+        (
+            ("data engineer", "data analyst", "data scientist"),
+            [
+                "sql",
+                "python",
+                "etl",
+                "data pipeline",
+                "dashboard",
+                "statistics",
+                "machine learning",
+            ],
+        ),
+    ]
+
+    for role_markers, skills in role_skill_map:
+        if any(marker in jd for marker in role_markers):
+            role_terms.extend(skills)
+
+    seen: set[str] = set()
+    deduped: List[str] = []
+    for term in role_terms:
+        token = str(term).strip().lower()
+        if not token or token in seen:
+            continue
+        seen.add(token)
+        deduped.append(token)
+    return deduped[:16]
+
+
+def _is_actionable_phrase(phrase: str) -> bool:
+    """Return True for multi-word JD phrases that represent real requirements."""
+    text = str(phrase or "").strip().lower()
+    if not text:
+        return False
+    tokens = [t for t in re.findall(r"[a-z0-9\+\#\.]+", text) if len(t) >= 3]
+    if not tokens:
+        return False
+    if all(t in STOP_WORDS for t in tokens):
+        return False
+    return any(_is_actionable_jd_term(t) for t in tokens)
+
+
+def _is_role_title_phrase(phrase: str) -> bool:
+    """Return True when phrase looks like a job title, not a concrete skill."""
+    text = str(phrase or "").strip().lower()
+    tokens = [t for t in re.findall(r"[a-z0-9\+\#\.]+", text) if t]
+    if not tokens:
+        return False
+    role_words = {
+        "developer",
+        "engineer",
+        "manager",
+        "architect",
+        "analyst",
+        "administrator",
+        "consultant",
+        "specialist",
+        "lead",
+    }
+    role_hits = sum(1 for t in tokens if t in role_words)
+    actionable_non_role = [t for t in tokens if t not in role_words and _is_actionable_jd_term(t)]
+    return len(tokens) <= 4 and role_hits >= 1 and len(actionable_non_role) <= 1
+
+
+def _extract_requirement_phrases(job_desc: str, max_items: int = 30) -> List[str]:
+    """Extract role requirements from arbitrary JD prose without role presets."""
+    jd_raw = str(job_desc or "").strip().lower()
+    if not jd_raw:
+        return []
+
+    normalized = re.sub(r"[\u2022\u2023\u25e6\u2043\u2219•·▪●]", ",", jd_raw)
+    normalized = re.sub(r"[\r\n;/|]+", ",", normalized)
+    normalized = re.sub(r"\s+", " ", normalized)
+
+    cue_patterns = [
+        r"(?:must\s+have|should\s+have|required\s+skills?|requirements?)\s*[:\-]\s*([^\.]+)",
+        r"(?:requiring)\s+([^\.]+)",
+        r"(?:experience\s+with|expertise\s+in|proficien(?:cy|t)\s+in|knowledge\s+of)\s+([^\.]+)",
+        r"(?:hands[\s-]?on\s+with|familiarity\s+with|background\s+in)\s+([^\.]+)",
+        r"(?:with)\s+([^\.]+)",
+        r"(?:technolog(?:y|ies)|tools?|platforms?)\s*[:\-]\s*([^\.]+)",
+    ]
+
+    segments: List[str] = []
+    for pattern in cue_patterns:
+        for match in re.finditer(pattern, normalized, flags=re.I):
+            segment = str(match.group(1) or "").strip()
+            if segment:
+                segments.append(segment)
+
+    phrases: List[str] = []
+    seen: set[str] = set()
+    for segment in segments:
+        for part in re.split(r",| and | or ", segment):
+            cleaned = re.sub(r"[^a-z0-9\+\#/\.\-\s]", " ", part).strip(" .:-")
+            cleaned = re.sub(r"\s+", " ", cleaned).strip()
+            if not cleaned:
+                continue
+            token_count = len(cleaned.split())
+            if token_count > 5:
+                continue
+            if not _is_actionable_phrase(cleaned):
+                continue
+            if _is_role_title_phrase(cleaned):
+                continue
+            if cleaned in seen:
+                continue
+            seen.add(cleaned)
+            phrases.append(cleaned)
+            if len(phrases) >= max_items:
+                return phrases
+    return phrases
+
+
 def calculate_tailoring(cv_text: str, job_desc: str) -> Tuple[int, Dict[str, Any]]:
     """
     Score 0-100 based on keyword/skill/phrase overlap between CV and job description.
@@ -1545,9 +1747,8 @@ def calculate_tailoring(cv_text: str, job_desc: str) -> Tuple[int, Dict[str, Any
             "missing_keywords": [],
         }
 
-    # â”€â”€ 1. Extract multi-word tech phrases from JD (e.g. "machine learning", "google cloud") â”€â”€
-    tech_phrases = set()
-    # Common multi-word tech/skill patterns
+    tech_phrases: set[str] = set()
+    tech_phrases_ordered: List[str] = []
     multi_word_patterns = [
         r"(?:machine|deep)\s+learning",
         r"(?:natural\s+language\s+processing|nlp)",
@@ -1573,16 +1774,16 @@ def calculate_tailoring(cv_text: str, job_desc: str) -> Tuple[int, Dict[str, Any
         r"(?:(?:sql|no[\s\-]?sql)\s+(?:database)?)",
     ]
     for pattern in multi_word_patterns:
-        matches = re.findall(pattern, jd)
-        for m in matches:
-            tech_phrases.add(m.strip())
+        for match in re.findall(pattern, jd):
+            phrase = str(match).strip()
+            if phrase and phrase not in tech_phrases:
+                tech_phrases.add(phrase)
+                tech_phrases_ordered.append(phrase)
 
-    # â”€â”€ 2. Extract single-word tech/skill keywords from JD â”€â”€
-    jd_words = set(re.findall(r"[a-z][a-z0-9\+\#\.]*(?:[a-z0-9\+\#])", jd))
-    cv_words_text = cv  # keep full text for phrase matching
+    jd_words_ordered = re.findall(r"[a-z][a-z0-9\+\#\.]*(?:[a-z0-9\+\#])", jd)
+    jd_words = set(jd_words_ordered)
     cv_words = set(re.findall(r"[a-z][a-z0-9\+\#\.]*(?:[a-z0-9\+\#])", cv))
 
-    # Remove stop words and very short words
     extra_stop = {
         "the",
         "and",
@@ -1684,7 +1885,31 @@ def calculate_tailoring(cv_text: str, job_desc: str) -> Tuple[int, Dict[str, Any
     all_stop = STOP_WORDS | extra_stop
     jd_key = {w for w in jd_words if w not in all_stop and len(w) >= TAILORING_MIN_WORD_LENGTH}
 
-    if not jd_key and not tech_phrases:
+    jd_terms_ordered: List[str] = []
+    seen_terms: set[str] = set()
+    for token in jd_words_ordered:
+        if token not in jd_key:
+            continue
+        if not _is_actionable_jd_term(token):
+            continue
+        if token in seen_terms:
+            continue
+        seen_terms.add(token)
+        jd_terms_ordered.append(token)
+
+    requirement_phrases = _extract_requirement_phrases(job_desc)
+    role_baseline_terms = _derive_role_baseline_terms(jd)
+    phrase_component_tokens: set[str] = set()
+    for phrase in requirement_phrases:
+        parts = [t for t in re.findall(r"[a-z0-9\+\#]+", phrase) if len(t) >= 3]
+        if len(parts) > 1:
+            phrase_component_tokens.update(parts)
+    for phrase in tech_phrases_ordered:
+        parts = [t for t in re.findall(r"[a-z0-9\+\#]+", phrase) if len(t) >= 3]
+        if len(parts) > 1:
+            phrase_component_tokens.update(parts)
+
+    if not jd_key and not tech_phrases and not requirement_phrases and not role_baseline_terms:
         return TAILORING_DEFAULT_SCORE_NO_KEYWORDS, {
             "keyword_match_rate": TAILORING_DEFAULT_SCORE_NO_KEYWORDS,
             "skill_match_rate": TAILORING_DEFAULT_SCORE_NO_KEYWORDS,
@@ -1692,58 +1917,198 @@ def calculate_tailoring(cv_text: str, job_desc: str) -> Tuple[int, Dict[str, Any
             "alignment_score": TAILORING_DEFAULT_SCORE_NO_KEYWORDS,
             "matched_keywords": [],
             "missing_keywords": [],
+            "required_skills": [],
+            "matched_skills": [],
+            "missing_skills": [],
         }
 
-    # â”€â”€ 3. Match single keywords â”€â”€
-    matched_single = jd_key & cv_words
-    missing_single = jd_key - cv_words
+    def _skill_match_state(term: str) -> Tuple[bool, bool]:
+        term_norm = str(term or "").strip().lower()
+        if not term_norm:
+            return False, False
+        if term_norm in cv:
+            return True, False
+        tokens = [t for t in re.findall(r"[a-z0-9\+\#\.]+", term_norm) if len(t) >= 3]
+        if not tokens:
+            return False, False
+        token_hits = sum(1 for t in tokens if t in cv_words)
+        if token_hits == 0:
+            return False, False
+        required_hits = 1 if len(tokens) == 1 else max(2, (len(tokens) + 1) // 2)
+        if token_hits >= required_hits:
+            return True, len(tokens) > 1 and token_hits < len(tokens)
+        return False, False
 
-    # â”€â”€ 4. Match multi-word phrases â”€â”€
-    matched_phrases = set()
-    missing_phrases = set()
-    for phrase in tech_phrases:
-        if phrase in cv_words_text:
-            matched_phrases.add(phrase)
+    def _dedupe_near_terms(items: List[str], limit: int) -> List[str]:
+        out: List[str] = []
+        norm_map: List[str] = []
+        for raw_item in items:
+            item = str(raw_item).strip().lower()
+            if not item:
+                continue
+            item_norm = re.sub(r"[^a-z0-9]+", "", item)
+            if not item_norm:
+                continue
+
+            replaced = False
+            skip = False
+            for idx, existing_norm in enumerate(norm_map):
+                if item_norm == existing_norm:
+                    skip = True
+                    break
+                # Prefer the more specific term when one is mostly a subset.
+                if len(item_norm) >= 4 and item_norm in existing_norm:
+                    skip = True
+                    break
+                if len(existing_norm) >= 4 and existing_norm in item_norm:
+                    out[idx] = item
+                    norm_map[idx] = item_norm
+                    replaced = True
+                    break
+            if skip:
+                continue
+            if not replaced:
+                out.append(item)
+                norm_map.append(item_norm)
+            if len(out) >= limit:
+                break
+        return out
+
+    matched_keyword_terms: List[str] = []
+    missing_keyword_terms: List[str] = []
+    seen_kw: set[str] = set()
+    keyword_candidates = [*tech_phrases_ordered, *requirement_phrases, *jd_terms_ordered]
+    for term in keyword_candidates:
+        token = str(term).strip().lower()
+        if not token or token in seen_kw:
+            continue
+        if " " not in token and token in phrase_component_tokens:
+            continue
+        if _is_role_title_phrase(token):
+            continue
+        seen_kw.add(token)
+        is_match, _ = _skill_match_state(token)
+        if is_match:
+            matched_keyword_terms.append(token)
         else:
-            missing_phrases.add(phrase)
+            missing_keyword_terms.append(token)
+    matched_keyword_terms = _dedupe_near_terms(matched_keyword_terms, limit=24)
+    missing_keyword_terms = _dedupe_near_terms(missing_keyword_terms, limit=24)
 
-    # â”€â”€ 5. Calculate scores â”€â”€
-    total_items = len(jd_key) + len(tech_phrases)
-    matched_items = len(matched_single) + len(matched_phrases)
+    required_skills: List[str] = []
+    seen_skills: set[str] = set()
+    for term in [
+        *requirement_phrases,
+        *tech_phrases_ordered,
+        *jd_terms_ordered,
+        *role_baseline_terms,
+    ]:
+        token = str(term).strip().lower()
+        if not token:
+            continue
+        if " " not in token and token in phrase_component_tokens:
+            continue
+        if _is_role_title_phrase(token):
+            continue
+        if not _is_actionable_phrase(token) and not _is_actionable_jd_term(token):
+            continue
+        if token in seen_skills:
+            continue
+        seen_skills.add(token)
+        required_skills.append(token)
+        if len(required_skills) >= 30:
+            break
 
-    if total_items == 0:
-        keyword_match_rate = TAILORING_DEFAULT_SCORE_NO_KEYWORDS
+    matched_skills: List[str] = []
+    missing_skills: List[str] = []
+    partial_skills: List[str] = []
+    for skill in required_skills:
+        is_match, is_partial = _skill_match_state(skill)
+        if is_match:
+            matched_skills.append(skill)
+            if is_partial:
+                partial_skills.append(skill)
+        else:
+            missing_skills.append(skill)
+
+    baseline_matched: List[str] = []
+    baseline_missing: List[str] = []
+    for term in role_baseline_terms:
+        is_match, _ = _skill_match_state(term)
+        if is_match:
+            baseline_matched.append(term)
+        else:
+            baseline_missing.append(term)
+    for term in baseline_missing:
+        if term not in missing_skills:
+            missing_skills.append(term)
+    for term in baseline_matched:
+        if term not in matched_skills:
+            matched_skills.append(term)
+
+    matched_skills = _dedupe_near_terms(
+        [s for s in matched_skills if _is_actionable_jd_term(s)], limit=20
+    )
+    missing_skills = _dedupe_near_terms(
+        [s for s in missing_skills if _is_actionable_jd_term(s)], limit=20
+    )
+
+    keyword_total = len(matched_keyword_terms) + len(missing_keyword_terms)
+    if keyword_total:
+        keyword_match_rate = min(MAX_SCORE, int((len(matched_keyword_terms) / keyword_total) * 100))
     else:
-        keyword_match_rate = min(MAX_SCORE, int((matched_items / total_items) * 100))
+        keyword_match_rate = TAILORING_DEFAULT_SCORE_NO_KEYWORDS
 
-    # Skill match: weight tech phrases higher (they're more specific)
-    if tech_phrases:
-        phrase_rate = len(matched_phrases) / len(tech_phrases) if tech_phrases else 0
-        single_rate = len(matched_single) / len(jd_key) if jd_key else 0
-        skill_match = min(MAX_SCORE, int(phrase_rate * 60 + single_rate * 40))
+    skill_total = len(matched_skills) + len(missing_skills)
+    if skill_total:
+        skill_match = min(MAX_SCORE, int((len(matched_skills) / skill_total) * 100))
     else:
         skill_match = keyword_match_rate
 
-    # Experience relevance: based on how many role-specific terms match
-    experience_relevance = int((keyword_match_rate + skill_match) / 2)
+    jd_signal_count = len(jd_key) + (2 * len(tech_phrases_ordered)) + len(requirement_phrases)
+    if jd_signal_count < 8 and role_baseline_terms:
+        baseline_rate = int((len(baseline_matched) / len(role_baseline_terms)) * 100)
+        skill_match = int(round(skill_match * 0.8 + baseline_rate * 0.2))
 
-    # Final alignment score: weighted combination
-    alignment_score = int(
-        keyword_match_rate * 0.4 + skill_match * 0.35 + experience_relevance * 0.25
+    experience_relevance = int(round(skill_match * 0.6 + keyword_match_rate * 0.4))
+    raw_alignment_score = int(
+        keyword_match_rate * 0.35 + skill_match * 0.45 + experience_relevance * 0.20
     )
-    alignment_score = max(MIN_SCORE, min(MAX_SCORE, alignment_score))
+    raw_alignment_score = max(MIN_SCORE, min(MAX_SCORE, raw_alignment_score))
 
-    # Build readable lists (top keywords only, min 3 chars)
-    matched_list = sorted(matched_phrases | {w for w in matched_single if len(w) >= 3})[:20]
-    missing_list = sorted(missing_phrases | {w for w in missing_single if len(w) >= 3})[:20]
+    specificity_factor = 1.0
+    if jd_signal_count < 6:
+        specificity_factor = 0.55 + min(0.30, jd_signal_count * 0.06)
+    alignment_score = int(round(raw_alignment_score * specificity_factor))
+    alignment_score = max(MIN_SCORE, min(MAX_SCORE, alignment_score))
+    specificity_status = "low" if specificity_factor < 0.9 else "good"
 
     details = {
         "keyword_match_rate": keyword_match_rate,
         "skill_match_rate": skill_match,
         "experience_relevance": experience_relevance,
+        "raw_alignment_score": raw_alignment_score,
         "alignment_score": alignment_score,
-        "matched_keywords": matched_list,
-        "missing_keywords": missing_list,
+        "matched_keywords": matched_keyword_terms,
+        "missing_keywords": missing_keyword_terms,
+        "required_skills": required_skills[:30],
+        "matched_skills": matched_skills,
+        "missing_skills": missing_skills,
+        "partial_skills": partial_skills[:20],
+        "role_baseline": {
+            "matched": baseline_matched[:16],
+            "missing": baseline_missing[:16],
+        },
+        "jd_specificity": {
+            "status": specificity_status,
+            "signal_count": jd_signal_count,
+            "factor": round(specificity_factor, 2),
+            "details": (
+                "Job description appears short or generic; provide a fuller JD for more accurate role alignment."
+                if specificity_status == "low"
+                else "Job description has enough detail for reliable tailoring."
+            ),
+        },
     }
 
     return alignment_score, details
@@ -1855,14 +2220,35 @@ def build_jd_skill_matrix(
         return []
 
     details = tailoring_details or calculate_tailoring(cv_raw, jd_raw)[1]
-    matched = list(details.get("matched_keywords", []))
-    missing = list(details.get("missing_keywords", []))
+    matched = [str(x).strip() for x in details.get("matched_skills", []) if str(x).strip()]
+    missing = [str(x).strip() for x in details.get("missing_skills", []) if str(x).strip()]
+    required = [str(x).strip() for x in details.get("required_skills", []) if str(x).strip()]
     if not matched and not missing:
+        matched = [str(x).strip() for x in details.get("matched_keywords", []) if str(x).strip()]
+        missing = [str(x).strip() for x in details.get("missing_keywords", []) if str(x).strip()]
+    if not required:
+        required = [*matched, *missing]
+    if not matched and not missing and not required:
         return []
 
-    skills = sorted(set([*matched, *missing]), key=lambda x: (len(str(x)), str(x)))[:max_items]
+    skills: List[str] = []
+    seen_skills: set[str] = set()
+    for skill in [*required, *missing, *matched]:
+        token = str(skill).strip()
+        if not token:
+            continue
+        token_lower = token.lower()
+        if token_lower in seen_skills:
+            continue
+        seen_skills.add(token_lower)
+        skills.append(token)
+        if len(skills) >= max_items:
+            break
+
     cv_lower = cv_raw.lower()
     cv_lines = [ln.strip() for ln in cv_raw.splitlines() if ln.strip()]
+    matched_lower = {m.lower() for m in matched}
+    missing_lower = {m.lower() for m in missing}
 
     def _best_evidence_line(skill: str) -> str:
         skill_lower = skill.lower()
@@ -1892,7 +2278,13 @@ def build_jd_skill_matrix(
         skill_lower = skill_str.lower()
         tokens = [t for t in re.findall(r"[a-z0-9\+\#\.]+", skill_lower) if len(t) >= 3]
 
-        if skill_lower in cv_lower:
+        if skill_lower in matched_lower:
+            status = "Found"
+            confidence = "High"
+        elif skill_lower in missing_lower:
+            status = "Missing"
+            confidence = "Low"
+        elif skill_lower in cv_lower:
             status = "Found"
             confidence = "High"
         elif tokens and any(t in cv_lower for t in tokens):

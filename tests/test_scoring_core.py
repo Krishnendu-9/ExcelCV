@@ -1,6 +1,7 @@
 import unittest
 
 from src.services.scoring import (
+    _extract_requirement_phrases,
     calculate_final_score_breakdown,
     calculate_sections_order,
     calculate_tailoring,
@@ -70,6 +71,53 @@ Python, SQL
         score, details = calculate_sections_order(cv_text)
         self.assertLessEqual(score, 80)
         self.assertEqual(details.get("status"), "warn")
+
+    def test_tailoring_applies_specificity_guardrail_for_role_only_jd(self) -> None:
+        cv_text = "Cloud engineer with DevOps experience in AWS, Kubernetes, and CI/CD."
+        short_jd = "Cloud Engineer"
+        full_jd = (
+            "Cloud Engineer role requiring AWS, Kubernetes, Terraform, CI/CD pipelines, "
+            "monitoring, incident response, and infrastructure automation."
+        )
+
+        short_score, short_details = calculate_tailoring(cv_text, short_jd)
+        full_score, full_details = calculate_tailoring(cv_text, full_jd)
+
+        self.assertLess(short_score, 90)
+        self.assertEqual(short_details.get("jd_specificity", {}).get("status"), "low")
+        self.assertLess(short_score, int(short_details.get("raw_alignment_score", 0) or 0))
+        self.assertEqual(full_details.get("jd_specificity", {}).get("status"), "good")
+        self.assertEqual(full_details.get("jd_specificity", {}).get("factor"), 1.0)
+
+    def test_tailoring_short_project_manager_jd_surfaces_role_baseline_gaps(self) -> None:
+        cv_text = "Software engineer with Python and cloud deployment experience."
+        score, details = calculate_tailoring(cv_text, "IT Project Manager")
+        missing = [str(x).lower() for x in details.get("missing_skills", [])]
+        missing_keywords = [str(x).lower() for x in details.get("missing_keywords", [])]
+        self.assertTrue(any("stakeholder" in item for item in missing))
+        self.assertTrue(any("risk management" in item for item in missing))
+        self.assertTrue(any(item == "project" for item in missing_keywords))
+        self.assertFalse(any("stakeholder management" == item for item in missing_keywords))
+        self.assertLess(score, 70)
+
+    def test_tailoring_avoids_role_title_false_positive_match(self) -> None:
+        cv_text = "Junior AI Developer with Python and SQL."
+        score, details = calculate_tailoring(cv_text, "Blockchain Developer")
+        matched_skills = [str(x).lower() for x in details.get("matched_skills", [])]
+        missing_skills = [str(x).lower() for x in details.get("missing_skills", [])]
+        self.assertFalse(any("blockchain developer" == item for item in matched_skills))
+        self.assertIn("blockchain", missing_skills)
+        self.assertLess(score, 80)
+
+    def test_extract_requirement_phrases_generic_jd(self) -> None:
+        jd = (
+            "Must have: Solidity, smart contracts, Ethereum, Web3.js. "
+            "Experience with Truffle and gas optimization."
+        )
+        phrases = _extract_requirement_phrases(jd)
+        joined = " | ".join(phrases)
+        self.assertIn("solidity", joined)
+        self.assertIn("smart contracts", joined)
 
 
 if __name__ == "__main__":

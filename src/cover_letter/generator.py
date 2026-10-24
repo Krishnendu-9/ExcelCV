@@ -9,6 +9,7 @@ from typing import Any, Dict, List
 
 import google.generativeai as genai
 
+from src import gemini_client, prompt_fence
 from src.config import get_api_key, preferred_models
 from src.cover_letter.models import CoverLetterDraft, CoverLetterRequest
 from src.cover_letter.validators import validate_draft_quality
@@ -92,12 +93,25 @@ def _generate_json(model_name: str, prompt: str) -> Dict[str, Any]:
     raise RuntimeError("Unexpected generation failure")
 
 
-def _build_prompt(req: CoverLetterRequest) -> str:
-    jd_text = req.job_description.strip() or "Not provided."
+def _build_prompt(req: CoverLetterRequest, delimiter: str = "") -> str:
+    """Build the cover-letter prompt, fencing the CV and JD with a random delimiter.
+
+    A fresh delimiter is generated per call unless one is passed (tests pass one).
+    """
+    delimiter = delimiter or prompt_fence.new_delimiter()
+    jd_text = (
+        prompt_fence.sanitize_untrusted(
+            req.job_description, gemini_client.max_jd_input_chars(), delimiter=delimiter
+        )
+        or "Not provided."
+    )
     add_text = req.additional_information.strip() or "Not provided."
     source_text = req.application_source.strip() or "Not provided."
-    cv_text = re.sub(r"\s+", " ", req.cv_text.strip())[:9000]
+    cv_text = prompt_fence.sanitize_untrusted(req.cv_text, 9000, delimiter=delimiter)
     name_line = req.candidate_name.strip() or "Candidate"
+    untrusted_notice = prompt_fence.untrusted_input_notice(delimiter)
+    jd_block = prompt_fence.fence("JOB_DESCRIPTION", jd_text, delimiter)
+    cv_block = prompt_fence.fence("CV", cv_text, delimiter)
 
     return f"""
 You are an expert career writing assistant.
@@ -128,14 +142,21 @@ INPUTS:
 - Job Title: {req.job_title.strip()}
 - Company Name: {req.company_name.strip()}
 - Application Source: {source_text}
-- Job Description: {jd_text}
 - Additional Information: {add_text}
-- CV Text: {cv_text}
+- Job Description and CV Text: in the fenced blocks below.
+
+{untrusted_notice}
+
+{jd_block}
+
+{cv_block}
 """
 
 
 def generate_cover_letter_draft(req: CoverLetterRequest) -> CoverLetterDraft:
     """Generate a structured cover letter draft using Gemini."""
+    # Same GEMINI_MAX_JD_CHARS cap as CV analysis, checked before any API setup.
+    gemini_client.validate_job_description_length(req.job_description)
     api_key = get_api_key()
     if not api_key:
         raise RuntimeError("Missing GOOGLE_API_KEY. Set it in your .env file.")

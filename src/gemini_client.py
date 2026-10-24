@@ -17,6 +17,7 @@ from typing import Any, Dict, List, Optional
 
 import google.generativeai as genai
 
+from src import prompt_fence
 from src.config import get_api_key, preferred_models
 from src.services.career_tools import (
     build_interview_prep_questions,
@@ -112,17 +113,27 @@ def _enforce_gemini_rate_limit() -> None:
         _REQUEST_BUCKETS[key] = timestamps
 
 
+def max_jd_input_chars() -> int:
+    """Return the configured job-description cap (GEMINI_MAX_JD_CHARS)."""
+    return _MAX_JD_INPUT_CHARS
+
+
+def validate_job_description_length(job_desc: str) -> None:
+    """Raise ValueError when a job description exceeds GEMINI_MAX_JD_CHARS."""
+    if len(job_desc or "") > _MAX_JD_INPUT_CHARS:
+        raise ValueError(
+            f"Job description is too large ({len(job_desc)} chars). "
+            f"Please keep it under {_MAX_JD_INPUT_CHARS} characters."
+        )
+
+
 def _validate_analysis_inputs(cv_text: str, job_desc: str, file_size_bytes: int) -> None:
     if len(cv_text) > _MAX_CV_INPUT_CHARS:
         raise ValueError(
             f"CV content is too large ({len(cv_text)} chars). "
             f"Please keep it under {_MAX_CV_INPUT_CHARS} characters."
         )
-    if len(job_desc or "") > _MAX_JD_INPUT_CHARS:
-        raise ValueError(
-            f"Job description is too large ({len(job_desc)} chars). "
-            f"Please keep it under {_MAX_JD_INPUT_CHARS} characters."
-        )
+    validate_job_description_length(job_desc)
     if file_size_bytes and file_size_bytes > _MAX_FILE_SIZE_BYTES:
         raise ValueError(
             f"Uploaded file is too large ({file_size_bytes} bytes). "
@@ -299,12 +310,6 @@ def _extract_response_text(response: Any) -> str:
             if part_text.strip():
                 parts_text.append(part_text.strip())
     return "\n".join(parts_text).strip()
-
-
-def _sanitize_prompt_text(text: str, limit: int) -> str:
-    """Trim and normalize input text to keep prompts stable and size-bounded."""
-    compact = " ".join((text or "").replace("\x00", " ").split())
-    return compact[:limit]
 
 
 def _normalize_model_name(model: Optional[str]) -> Optional[str]:
@@ -635,31 +640,11 @@ def _generate_with_retry(
     raise RuntimeError("Unexpected generation failure")
 
 
-def analyze_cv_with_gemini(
-    cv_text: str,
-    job_desc: str,
-    file_name: str = "",
-    file_size_bytes: int = 0,
-) -> Dict[str, Any]:
-    """Call Gemini to analyze CV vs job description and return JSON-friendly dict."""
-    if not cv_text or not cv_text.strip():
-        raise ValueError("CV text is empty. Please upload a readable PDF or DOCX CV.")
-    _validate_analysis_inputs(cv_text, job_desc, file_size_bytes)
-    _enforce_gemini_rate_limit()
+def _build_analysis_prompt(cv_text: str, job_desc: str, delimiter: str = "") -> str:
+    """Build the analysis prompt, fencing the untrusted CV and JD with a random delimiter.
 
-    api_key = get_api_key()
-    if not api_key:
-        raise RuntimeError("Missing GOOGLE_API_KEY. Set it in your .env file.")
-
-    genai.configure(api_key=api_key)
-    preferred_raw = preferred_models()
-    # Normalize model names to ensure they have the 'models/' prefix
-    preferred: List[str] = []
-    for model_name in preferred_raw:
-        normalized = _normalize_model_name(model_name)
-        if normalized:
-            preferred.append(normalized)
-
+    A fresh delimiter is generated per call unless one is passed (tests pass one).
+    """
     analysis_focus = """
 You are a career advisor and resume reviewer. Your goal is to provide comprehensive feedback on resume quality, content, and alignment with the job description.
 
@@ -673,8 +658,12 @@ PRIORITY FOCUS:
 Be BALANCED in scoring. Consider the overall fit and potential, not just exact keyword matches.
 """
 
-    job_desc_prompt = _sanitize_prompt_text(job_desc, 4000)
-    cv_text_prompt = _sanitize_prompt_text(cv_text, 6000)
+    delimiter = delimiter or prompt_fence.new_delimiter()
+    job_desc_prompt = prompt_fence.sanitize_untrusted(job_desc, 4000, delimiter=delimiter)
+    cv_text_prompt = prompt_fence.sanitize_untrusted(cv_text, 6000, delimiter=delimiter)
+    untrusted_notice = prompt_fence.untrusted_input_notice(delimiter)
+    job_desc_block = prompt_fence.fence("JOB_DESCRIPTION", job_desc_prompt, delimiter)
+    cv_block = prompt_fence.fence("CV", cv_text_prompt, delimiter)
 
     prompt = f"""{analysis_focus}
 
@@ -753,12 +742,41 @@ CALCULATION GUIDELINES:
 
 Start your response with {{ and end with }}. No other text before or after.
 
-Job Description:
-\"\"\"{job_desc_prompt}\"\"\"
+{untrusted_notice}
 
-CV:
-\"\"\"{cv_text_prompt}\"\"\"
+{job_desc_block}
+
+{cv_block}
 """
+    return prompt
+
+
+def analyze_cv_with_gemini(
+    cv_text: str,
+    job_desc: str,
+    file_name: str = "",
+    file_size_bytes: int = 0,
+) -> Dict[str, Any]:
+    """Call Gemini to analyze CV vs job description and return JSON-friendly dict."""
+    if not cv_text or not cv_text.strip():
+        raise ValueError("CV text is empty. Please upload a readable PDF or DOCX CV.")
+    _validate_analysis_inputs(cv_text, job_desc, file_size_bytes)
+    _enforce_gemini_rate_limit()
+
+    api_key = get_api_key()
+    if not api_key:
+        raise RuntimeError("Missing GOOGLE_API_KEY. Set it in your .env file.")
+
+    genai.configure(api_key=api_key)
+    preferred_raw = preferred_models()
+    # Normalize model names to ensure they have the 'models/' prefix
+    preferred: List[str] = []
+    for model_name in preferred_raw:
+        normalized = _normalize_model_name(model_name)
+        if normalized:
+            preferred.append(normalized)
+
+    prompt = _build_analysis_prompt(cv_text, job_desc)
 
     raw_text = ""
     tried: List[str] = []

@@ -63,7 +63,18 @@ def _env_int(name: str, default: int, minimum: int) -> int:
 
 _GEMINI_WINDOW_SECONDS = _env_int("GEMINI_RATE_WINDOW_SECONDS", 60, 10)
 _GEMINI_MAX_REQUESTS_PER_WINDOW = _env_int("GEMINI_MAX_REQUESTS_PER_WINDOW", 20, 1)
-_MAX_CV_INPUT_CHARS = _env_int("GEMINI_MAX_CV_CHARS", 120000, 2000)
+# Default CV cap: the text of four A4 pages packed edge to edge at 10 pt, which no real
+# resume reaches. Everything accepted is sent to the model whole, so this is also the
+# prompt cap. Derivation (the values marked "est." are estimates, not measurements):
+#   A4 is 595 x 842 pt; with 0.5 in (36 pt) margins the text area is 523 x 770 pt.
+#   At 10 pt with an average glyph width of ~0.5 em (est., proportional sans incl.
+#   spaces) that is 104 chars per line; at 1.2 line height (est.), 64 lines.
+#   104 * 64 = 6,656 chars for a completely full page: an upper bound, since headings,
+#   spacing and short lines leave real pages well under it.
+#   Four pages (est.: allows a senior three-page resume with room to spare) = 26,624.
+_DENSE_PAGE_CHARS = 104 * 64
+DEFAULT_MAX_CV_INPUT_CHARS = 4 * _DENSE_PAGE_CHARS
+_MAX_CV_INPUT_CHARS = _env_int("GEMINI_MAX_CV_CHARS", DEFAULT_MAX_CV_INPUT_CHARS, 2000)
 _MAX_JD_INPUT_CHARS = _env_int("GEMINI_MAX_JD_CHARS", 40000, 1000)
 
 
@@ -139,12 +150,22 @@ def validate_job_description_length(job_desc: str) -> None:
         )
 
 
-def _validate_analysis_inputs(cv_text: str, job_desc: str, file_size_bytes: int) -> None:
-    if len(cv_text) > _MAX_CV_INPUT_CHARS:
+def max_cv_input_chars() -> int:
+    """Return the configured CV cap (GEMINI_MAX_CV_CHARS)."""
+    return _MAX_CV_INPUT_CHARS
+
+
+def validate_cv_length(cv_text: str) -> None:
+    """Raise ValueError when CV text exceeds GEMINI_MAX_CV_CHARS."""
+    if len(cv_text or "") > _MAX_CV_INPUT_CHARS:
         raise ValueError(
             f"CV content is too large ({len(cv_text)} chars). "
             f"Please keep it under {_MAX_CV_INPUT_CHARS} characters."
         )
+
+
+def _validate_analysis_inputs(cv_text: str, job_desc: str, file_size_bytes: int) -> None:
+    validate_cv_length(cv_text)
     validate_job_description_length(job_desc)
     if file_size_bytes and file_size_bytes > _MAX_FILE_SIZE_BYTES:
         raise ValueError(

@@ -107,7 +107,11 @@ def _build_prompt(req: CoverLetterRequest, delimiter: str = "") -> str:
     )
     add_text = req.additional_information.strip() or "Not provided."
     source_text = req.application_source.strip() or "Not provided."
-    cv_text = prompt_fence.sanitize_untrusted(req.cv_text, 9000, delimiter=delimiter)
+    # Same rule as the analysis prompt: the prompt cap is the validation cap, so an
+    # accepted CV reaches the model whole and a longer one is rejected, never cut.
+    cv_text = prompt_fence.sanitize_untrusted(
+        req.cv_text, gemini_client.max_cv_input_chars(), delimiter=delimiter
+    )
     name_line = req.candidate_name.strip() or "Candidate"
     untrusted_notice = prompt_fence.untrusted_input_notice(delimiter)
     jd_block = prompt_fence.fence("JOB_DESCRIPTION", jd_text, delimiter)
@@ -155,7 +159,9 @@ INPUTS:
 
 def generate_cover_letter_draft(req: CoverLetterRequest) -> CoverLetterDraft:
     """Generate a structured cover letter draft using Gemini."""
-    # Same GEMINI_MAX_JD_CHARS cap as CV analysis, checked before any API setup.
+    # Same GEMINI_MAX_CV_CHARS / GEMINI_MAX_JD_CHARS caps as CV analysis, checked
+    # before any API setup.
+    gemini_client.validate_cv_length(req.cv_text)
     gemini_client.validate_job_description_length(req.job_description)
     api_key = get_api_key()
     if not api_key:

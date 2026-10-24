@@ -36,6 +36,38 @@ class UploadCapTests(unittest.TestCase):
         self.assertEqual(int(match.group(1)), config.MAX_FILE_BYTES)
 
 
+class CvCapDefaultTests(unittest.TestCase):
+    """GEMINI_MAX_CV_CHARS default: four edge-to-edge A4 pages at 10 pt (see gemini_client)."""
+
+    def test_default_is_the_derived_four_dense_pages(self) -> None:
+        self.assertEqual(gemini_client._DENSE_PAGE_CHARS, 104 * 64)
+        self.assertEqual(gemini_client.DEFAULT_MAX_CV_INPUT_CHARS, 26624)
+
+    def test_default_applies_when_env_unset(self) -> None:
+        with patch.dict("os.environ", {}, clear=False):
+            os.environ.pop("GEMINI_MAX_CV_CHARS", None)
+            self.assertEqual(
+                gemini_client._env_int(
+                    "GEMINI_MAX_CV_CHARS", gemini_client.DEFAULT_MAX_CV_INPUT_CHARS, 2000
+                ),
+                26624,
+            )
+
+    def test_cv_over_the_default_is_rejected_by_analysis(self) -> None:
+        with patch.object(gemini_client, "_MAX_CV_INPUT_CHARS", 26624):
+            gemini_client._validate_analysis_inputs("c" * 26624, "jd", 0)
+            with self.assertRaisesRegex(ValueError, "CV content is too large"):
+                gemini_client._validate_analysis_inputs("c" * 26625, "jd", 0)
+
+    def test_env_example_and_metrics_doc_state_the_default(self) -> None:
+        # docs/SETUP.md's table is checked in tests/test_setup_doc.py.
+        env_example = (REPO_ROOT / ".env.example").read_text(encoding="utf-8")
+        self.assertRegex(env_example, r"(?m)^GEMINI_MAX_CV_CHARS=26624$")
+        self.assertNotIn("120000", env_example)
+        metrics = (REPO_ROOT / "docs" / "METRICS_DOCUMENTATION.md").read_text(encoding="utf-8")
+        self.assertIn("`GEMINI_MAX_CV_CHARS` (default 26,624)", metrics)
+
+
 class StreamlitConfigTests(unittest.TestCase):
     def test_run_on_save_is_not_committed(self) -> None:
         with open(REPO_ROOT / ".streamlit" / "config.toml", "rb") as fh:

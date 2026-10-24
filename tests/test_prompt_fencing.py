@@ -213,12 +213,74 @@ class CoverLetterPromptFencingTests(unittest.TestCase):
         self.assertNotIn(_DELIM, jd_block.lower())
         self.assertEqual(prompt.lower().count(_DELIM), _TEMPLATE_DELIM_COUNT)
 
-    def test_cv_cap_kept_and_empty_jd_still_fenced(self) -> None:
-        prompt = cover_letter_generator._build_prompt(
-            _cover_letter_request("c" * 50000, ""), _DELIM
-        )
-        self.assertEqual(len(_block(prompt, "CV")), 9000)
+    def test_empty_jd_still_fenced(self) -> None:
+        prompt = cover_letter_generator._build_prompt(_cover_letter_request("CV body.", ""), _DELIM)
         self.assertEqual(_block(prompt, "JOB_DESCRIPTION"), "Not provided.")
+
+    def test_long_cv_reaches_the_cover_letter_model_whole(self) -> None:
+        # 20,000 chars: over the old silent 9,000 cut, under the default CV cap.
+        cv = " ".join(f"role{i:05d}" for i in range(2223))[:19999] + "x"  # no trailing space
+        sent: list[str] = []
+
+        def fake_generate(_model_name, prompt):
+            sent.append(prompt)
+            raise RuntimeError("stop after capturing the prompt")
+
+        with (
+            patch.object(gemini_client, "_MAX_CV_INPUT_CHARS", 26624),
+            patch.object(cover_letter_generator, "get_api_key", return_value="test-key"),
+            patch.object(cover_letter_generator, "genai", MagicMock()),
+            patch.object(prompt_fence, "new_delimiter", return_value=_DELIM),
+            patch.object(cover_letter_generator, "_generate_json", side_effect=fake_generate),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "Could not generate"):
+                cover_letter_generator.generate_cover_letter_draft(_cover_letter_request(cv))
+        self.assertTrue(sent)
+        self.assertEqual(_block(sent[0], "CV"), cv)
+
+    def test_cv_over_cap_rejected_before_any_api_setup(self) -> None:
+        get_key = MagicMock(return_value="test-key")
+        fake_genai = MagicMock()
+        generate = MagicMock()
+        with (
+            patch.object(gemini_client, "_MAX_CV_INPUT_CHARS", 7000),
+            patch.object(cover_letter_generator, "get_api_key", get_key),
+            patch.object(cover_letter_generator, "genai", fake_genai),
+            patch.object(cover_letter_generator, "_generate_json", generate),
+        ):
+            with self.assertRaisesRegex(ValueError, "CV content is too large"):
+                cover_letter_generator.generate_cover_letter_draft(
+                    _cover_letter_request("c" * 7001)
+                )
+        get_key.assert_not_called()
+        fake_genai.configure.assert_not_called()
+        generate.assert_not_called()
+
+    def test_cv_at_cap_accepted_and_prompt_capped(self) -> None:
+        sent: list[str] = []
+
+        def fake_generate(_model_name, prompt):
+            sent.append(prompt)
+            raise RuntimeError("stop after capturing the prompt")
+
+        with (
+            patch.object(gemini_client, "_MAX_CV_INPUT_CHARS", 7000),
+            patch.object(cover_letter_generator, "get_api_key", return_value="test-key"),
+            patch.object(cover_letter_generator, "genai", MagicMock()),
+            patch.object(prompt_fence, "new_delimiter", return_value=_DELIM),
+            patch.object(cover_letter_generator, "_generate_json", side_effect=fake_generate),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "Could not generate"):
+                cover_letter_generator.generate_cover_letter_draft(
+                    _cover_letter_request("c" * 7000)
+                )
+            # The prompt builder applies the same cap even if called directly.
+            direct = cover_letter_generator._build_prompt(
+                _cover_letter_request("c" * 50000), _DELIM
+            )
+        self.assertTrue(sent)
+        self.assertEqual(len(_block(sent[0], "CV")), 7000)
+        self.assertEqual(len(_block(direct, "CV")), 7000)
 
     def test_job_description_over_cap_rejected_before_any_api_setup(self) -> None:
         get_key = MagicMock(return_value="test-key")

@@ -334,4 +334,3 @@ This section maps each value on the report page to its source and code location,
 - Industry-specific metric weighting
 - Comparative scoring against industry benchmarks
 - Historical tracking and improvement recommendations
-

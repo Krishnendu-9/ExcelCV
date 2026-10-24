@@ -6,12 +6,8 @@ import zipfile
 from io import BytesIO
 from pathlib import Path
 
-try:
-    from pypdf import PdfReader
-    from pypdf.errors import PdfReadError
-except ImportError:  # pragma: no cover - fallback for environments without pypdf
-    from PyPDF2 import PdfReader  # type: ignore[no-redef]
-    from PyPDF2.errors import PdfReadError  # type: ignore[no-redef]
+from pypdf import PdfReader
+from pypdf.errors import PdfReadError
 
 _MIN_PARSE_TEXT_CHARS = 800
 
@@ -174,10 +170,10 @@ def extract_docx_text(uploaded_file) -> str:
             document = Document(BytesIO(raw_docx))
         except Exception:
             # Some valid DOCX variants may fail python-docx parsing; attempt raw XML extraction.
-            lines: list[str] = []
-            seen: set[str] = set()
-            _collect_docx_xml_text(raw_docx, lines, seen)
-            combined = "\n".join(lines).strip()
+            xml_lines: list[str] = []
+            xml_seen: set[str] = set()
+            _collect_docx_xml_text(raw_docx, xml_lines, xml_seen)
+            combined = "\n".join(xml_lines).strip()
             if combined:
                 return combined
             raise

@@ -1,6 +1,5 @@
 streamlit>=1.40,<2
 pypdf>=4.0,<7
-PyPDF2>=3.0.1,<4
 python-docx>=1.1.2,<2
 google-generativeai>=0.8.4,<1
 python-dotenv>=1.0.1,<2
@@ -13,4 +12,4 @@ playwright>=1.54,<2
 
 # py -m streamlit run app.py //to run the app
 
-#get API key from https://aistudio.google.com/api-keys?project=gen-lang-client-0152805506
+# Get a Gemini API key from https://aistudio.google.com/api-keys

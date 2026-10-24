@@ -8,7 +8,7 @@ from pathlib import Path
 from src.cover_letter.docx_builder import build_cover_letter_docx
 from src.cover_letter.generator import generate_cover_letter_draft
 from src.cover_letter.models import CoverLetterRequest, CoverLetterResult
-from src.cover_letter.validators import validate_form_inputs
+from src.cover_letter.validators import MAX_CANDIDATE_NAME_CHARS, validate_form_inputs
 from src.pdf_utils import extract_cv_text
 from src.services.scoring import calculate_contact_info
 from src.ui.app_utils import _sanitize_cv_filename
@@ -21,7 +21,7 @@ def _guess_candidate_name(cv_text: str, file_name: str) -> str:
     lines = [line.strip() for line in (cv_text or "").splitlines() if line.strip()]
     for line in lines[:25]:
         clean = re.sub(r"\s+", " ", line).strip(" -|,")
-        if len(clean) < 3 or len(clean) > 60:
+        if len(clean) < 3 or len(clean) > MAX_CANDIDATE_NAME_CHARS:
             continue
         if _EMAIL_RE.search(clean) or _PHONE_RE.search(clean):
             continue
@@ -33,7 +33,8 @@ def _guess_candidate_name(cv_text: str, file_name: str) -> str:
 
     stem = Path(file_name).stem
     stem = re.sub(r"[_\-.]+", " ", stem).strip()
-    if stem:
+    # The file name comes from the client and has no length limit of its own.
+    if stem and len(stem) <= MAX_CANDIDATE_NAME_CHARS:
         return stem.title()
     return "Candidate"
 

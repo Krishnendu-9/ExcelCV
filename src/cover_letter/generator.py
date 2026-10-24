@@ -12,7 +12,15 @@ import google.generativeai as genai
 from src import gemini_client, prompt_fence
 from src.config import get_api_key, preferred_models
 from src.cover_letter.models import CoverLetterDraft, CoverLetterRequest
-from src.cover_letter.validators import validate_draft_quality
+from src.cover_letter.validators import (
+    MAX_ADDITIONAL_INFO_CHARS,
+    MAX_APPLICATION_SOURCE_CHARS,
+    MAX_CANDIDATE_NAME_CHARS,
+    MAX_COMPANY_NAME_CHARS,
+    MAX_JOB_TITLE_CHARS,
+    validate_draft_quality,
+    validate_text_field_lengths,
+)
 
 
 def _normalize_model_name(name: str | None) -> str:
@@ -105,14 +113,19 @@ def _build_prompt(req: CoverLetterRequest, delimiter: str = "") -> str:
         )
         or "Not provided."
     )
-    add_text = req.additional_information.strip() or "Not provided."
-    source_text = req.application_source.strip() or "Not provided."
+    # The short fields are validated in generate_cover_letter_draft(); slicing here only
+    # keeps the prompt bounded if the builder is ever called without that check.
+    job_title = req.job_title.strip()[:MAX_JOB_TITLE_CHARS]
+    company_name = req.company_name.strip()[:MAX_COMPANY_NAME_CHARS]
+    candidate_name = req.candidate_name.strip()[:MAX_CANDIDATE_NAME_CHARS]
+    add_text = req.additional_information.strip()[:MAX_ADDITIONAL_INFO_CHARS] or "Not provided."
+    source_text = req.application_source.strip()[:MAX_APPLICATION_SOURCE_CHARS] or "Not provided."
     # Same rule as the analysis prompt: the prompt cap is the validation cap, so an
     # accepted CV reaches the model whole and a longer one is rejected, never cut.
     cv_text = prompt_fence.sanitize_untrusted(
         req.cv_text, gemini_client.max_cv_input_chars(), delimiter=delimiter
     )
-    name_line = req.candidate_name.strip() or "Candidate"
+    name_line = candidate_name or "Candidate"
     untrusted_notice = prompt_fence.untrusted_input_notice(delimiter)
     jd_block = prompt_fence.fence("JOB_DESCRIPTION", jd_text, delimiter)
     cv_block = prompt_fence.fence("CV", cv_text, delimiter)
@@ -142,9 +155,9 @@ RULES:
 9. Do not use markdown, bullet points, or headings in paragraphs.
 
 INPUTS:
-- Candidate Name: {req.candidate_name.strip() or "Not provided"}
-- Job Title: {req.job_title.strip()}
-- Company Name: {req.company_name.strip()}
+- Candidate Name: {candidate_name or "Not provided"}
+- Job Title: {job_title}
+- Company Name: {company_name}
 - Application Source: {source_text}
 - Additional Information: {add_text}
 - Job Description and CV Text: in the fenced blocks below.
@@ -163,6 +176,15 @@ def generate_cover_letter_draft(req: CoverLetterRequest) -> CoverLetterDraft:
     # before any API setup.
     gemini_client.validate_cv_length(req.cv_text)
     gemini_client.validate_job_description_length(req.job_description)
+    validate_text_field_lengths(
+        job_title=req.job_title,
+        company_name=req.company_name,
+        application_source=req.application_source,
+        additional_information=req.additional_information,
+    )
+    # Every Gemini path is metered by the same per-user limit; checked after the free
+    # length checks so a rejected input never spends a slot.
+    gemini_client.enforce_rate_limit()
     api_key = get_api_key()
     if not api_key:
         raise RuntimeError("Missing GOOGLE_API_KEY. Set it in your .env file.")

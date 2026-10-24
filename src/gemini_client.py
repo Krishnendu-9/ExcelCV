@@ -136,6 +136,11 @@ def _enforce_gemini_rate_limit() -> None:
         _REQUEST_BUCKETS[key] = timestamps
 
 
+def enforce_rate_limit() -> None:
+    """Public entry to the per-user Gemini rate limit, for call paths outside this module."""
+    _enforce_gemini_rate_limit()
+
+
 def max_jd_input_chars() -> int:
     """Return the configured job-description cap (GEMINI_MAX_JD_CHARS)."""
     return _MAX_JD_INPUT_CHARS

@@ -15,6 +15,7 @@ from src.cover_letter.models import CoverLetterResult
 from src.cover_letter.service import generate_cover_letter
 from src.database import CV, get_db
 from src.services.pdf_generator import generate_cv_pdf
+from src.ui.app_utils import _build_page_href
 
 _STATE_RESULT = "cover_letter_result"
 _STATE_ERROR = "cover_letter_error"
@@ -590,10 +591,39 @@ def _inject_styles() -> None:
     )
 
 
+def _render_guest_sign_in_prompt() -> None:
+    """Show the same sign-in card the Analyze CV and Compare forms show to guests."""
+    auth_href = _build_page_href("auth", next_page="cover-letter")
+    with st.container(key="cover_letter_guest_box"):
+        st.markdown(
+            f"""
+            <div class="guest-auth-shell">
+                <div class="guest-auth-icon">&#128274;</div>
+                <p class="guest-auth-title">
+                    Sign in to generate a cover letter
+                </p>
+                <p class="guest-auth-copy">
+                    Upload your resume and a job description to get a tailored, editable
+                    cover letter &mdash; free forever.
+                </p>
+                <a href="{auth_href}" target="_self" class="guest-auth-cta">
+                    Sign In / Create Account &rarr;
+                </a>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+
 def render_cover_letter_page() -> None:
     """Render the independent cover letter page."""
     user = get_session_user()
-    saved_cvs = _load_user_saved_cvs(user.get("id", "") if user else "")
+    if not user:
+        # Like Analyze CV and Compare, generation needs an account: the Gemini rate
+        # limit is per user, and a guest could reset a guest bucket with a new session.
+        _render_guest_sign_in_prompt()
+        return
+    saved_cvs = _load_user_saved_cvs(user.get("id", ""))
 
     with st.container(key="cover_letter_page_shell"):
         _inject_styles()

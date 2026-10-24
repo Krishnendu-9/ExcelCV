@@ -12,6 +12,7 @@ import re
 import threading
 import time
 from functools import lru_cache
+from json import JSONDecodeError
 from typing import Any, Dict, List, Optional
 
 import google.generativeai as genai
@@ -211,15 +212,74 @@ def _extract_json_from_text(text: str) -> str:
     # Remove markdown code blocks (```json ... ``` or ``` ... ```)
     text = re.sub(r"```(?:json)?\s*\n?(.*?)\n?```", r"\1", text, flags=re.DOTALL)
 
-    # Try to find JSON object boundaries
-    # Look for first { and last }
-    first_brace = text.find("{")
-    last_brace = text.rfind("}")
-
-    if first_brace != -1 and last_brace != -1 and last_brace > first_brace:
-        text = text[first_brace : last_brace + 1]
+    # Prefer the first *balanced* JSON object to avoid over-capturing when
+    # the model adds extra braces before/after the payload.
+    balanced = _extract_balanced_json_object(text)
+    if balanced:
+        return balanced.strip()
 
     return text.strip()
+
+
+def _extract_balanced_json_object(text: str) -> str:
+    """Return the first balanced JSON object substring from text, if any."""
+    start = -1
+    depth = 0
+    in_string = False
+    escaped = False
+
+    for idx, ch in enumerate(text):
+        if start == -1:
+            if ch == "{":
+                start = idx
+                depth = 1
+                in_string = False
+                escaped = False
+            continue
+
+        if in_string:
+            if escaped:
+                escaped = False
+                continue
+            if ch == "\\":
+                escaped = True
+                continue
+            if ch == '"':
+                in_string = False
+            continue
+
+        if ch == '"':
+            in_string = True
+            continue
+        if ch == "{":
+            depth += 1
+            continue
+        if ch == "}":
+            depth -= 1
+            if depth == 0:
+                return text[start : idx + 1]
+
+    return ""
+
+
+def _load_model_json_payload(raw_text: str) -> Dict[str, Any]:
+    """Best-effort parse of model JSON payload; returns {} on failure."""
+    json_text = _extract_json_from_text(raw_text)
+    if not json_text:
+        return {}
+
+    candidate_texts = [json_text]
+    # Common model glitch: trailing commas before object/array close.
+    candidate_texts.append(re.sub(r",\s*([}\]])", r"\1", json_text))
+
+    for candidate in candidate_texts:
+        try:
+            parsed = json.loads(candidate)
+        except JSONDecodeError:
+            continue
+        if isinstance(parsed, dict):
+            return parsed
+    return {}
 
 
 def _extract_response_text(response: Any) -> str:
@@ -265,6 +325,285 @@ def _normalize_model_name(model: Optional[str]) -> Optional[str]:
 def _as_dict(value: Any) -> Dict[str, Any]:
     """Return a dict or an empty dict when value is not a dict."""
     return value if isinstance(value, dict) else {}
+
+
+def _merge_unique_items(primary: List[str], secondary: List[str], limit: int = 40) -> List[str]:
+    """Merge two ordered string lists, preserving order and removing duplicates."""
+    out: List[str] = []
+    for item in [*primary, *secondary]:
+        text = str(item).strip()
+        if not text or text in out:
+            continue
+        out.append(text)
+        if len(out) >= limit:
+            break
+    return out
+
+
+def _is_informative_term(value: str) -> bool:
+    """Return True for terms that are meaningful enough for insights display."""
+    text = str(value or "").strip().lower()
+    if not text:
+        return False
+    if len(text) < 4:
+        return False
+    generic = {
+        "role",
+        "team",
+        "work",
+        "skill",
+        "skills",
+        "project",
+        "projects",
+        "manager",
+        "management",
+        "experience",
+        "developer",
+        "engineer",
+        "required",
+        "requiring",
+        "requirement",
+        "requirements",
+        "responsibility",
+        "responsibilities",
+        "qualification",
+        "qualifications",
+        "candidate",
+    }
+    return text not in generic
+
+
+def _is_noise_keyword(value: str) -> bool:
+    """Return True for non-skill boilerplate tokens often present in JD prose."""
+    text = str(value or "").strip().lower()
+    noise = {
+        "role",
+        "required",
+        "requiring",
+        "requirement",
+        "requirements",
+        "responsibility",
+        "responsibilities",
+        "qualification",
+        "qualifications",
+        "candidate",
+    }
+    return text in noise
+
+
+def _normalize_gap_term(value: str) -> str:
+    """Normalize skill/keyword text for overlap checks."""
+    text = str(value or "").strip().lower()
+    if not text:
+        return ""
+    # Remove explanatory suffixes like "(partial evidence)".
+    text = re.sub(r"\s*\(.*?\)\s*", " ", text)
+    text = re.sub(r"[^a-z0-9\+\#/\.\s]", " ", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    return text
+
+
+def _keyword_overlaps_skills(keyword: str, skills: List[str]) -> bool:
+    """Return True when a keyword is effectively already covered by skill gaps."""
+    k_norm = _normalize_gap_term(keyword)
+    if not k_norm:
+        return False
+    for skill in skills:
+        s_norm = _normalize_gap_term(skill)
+        if not s_norm:
+            continue
+        if k_norm == s_norm:
+            return True
+        if len(k_norm) >= 5 and k_norm in s_norm:
+            return True
+        if len(s_norm) >= 5 and s_norm in k_norm:
+            return True
+    return False
+
+
+def _derive_deterministic_insight_fallbacks(
+    *,
+    ats_parse_rate: int,
+    sections_score: int,
+    contact_info: Dict[str, Any],
+    tailoring_score: int,
+    has_job_description: bool,
+    tailoring_details: Dict[str, Any],
+    jd_skill_matrix: List[Dict[str, str]],
+    rewrite_recommendations: List[Dict[str, str]],
+    quant_score: int,
+    repetition_score: int,
+    spelling_score: int,
+    bullets_score: int,
+) -> Dict[str, List[str]]:
+    """Build evidence-based insight lists from CV/JD signals."""
+    strengths: List[str] = []
+    missing_skills: List[str] = []
+    missing_keywords: List[str] = []
+    suggestions: List[str] = []
+
+    found_matrix_terms: List[str] = []
+    missing_matrix_terms: List[str] = []
+    partial_matrix_terms: List[str] = []
+    found_evidence: Dict[str, str] = {}
+    partial_evidence: Dict[str, str] = {}
+    for row in jd_skill_matrix:
+        status = str(row.get("status", "")).strip().lower()
+        skill = str(row.get("skill", "")).strip()
+        evidence = str(row.get("evidence", "")).strip()
+        if not skill:
+            continue
+        if not _is_informative_term(skill):
+            continue
+        if status == "found" and skill not in found_matrix_terms:
+            found_matrix_terms.append(skill)
+            if evidence and "no direct evidence" not in evidence.lower():
+                found_evidence[skill] = evidence
+        elif status == "missing" and skill not in missing_matrix_terms:
+            missing_matrix_terms.append(skill)
+        elif status == "partial" and skill not in partial_matrix_terms:
+            partial_matrix_terms.append(skill)
+            if evidence and "no direct evidence" not in evidence.lower():
+                partial_evidence[skill] = evidence
+
+    if has_job_description and found_matrix_terms:
+        strengths.append("Matched JD skills: " + ", ".join(found_matrix_terms[:5]) + ".")
+        for skill in found_matrix_terms[:2]:
+            evidence = found_evidence.get(skill, "")
+            if evidence:
+                strengths.append(f'{skill}: evidence in CV - "{evidence}".')
+    elif has_job_description and partial_matrix_terms:
+        strengths.append(
+            "Related JD exposure (partial): " + ", ".join(partial_matrix_terms[:4]) + "."
+        )
+    elif has_job_description:
+        matched_from_tailoring = [
+            str(x).strip()
+            for x in tailoring_details.get("matched_skills", [])
+            if str(x).strip() and _is_informative_term(str(x).strip())
+        ][:4]
+        if matched_from_tailoring:
+            strengths.append(
+                "Some role-relevant overlap detected: " + ", ".join(matched_from_tailoring) + "."
+            )
+        else:
+            strengths.append("No strong JD-specific strengths found yet for this role.")
+    if ats_parse_rate >= 80:
+        strengths.append(f"ATS parse quality is strong ({ats_parse_rate}/100).")
+    if sections_score >= 80:
+        strengths.append(f"Section structure is solid ({sections_score}/100).")
+    if int(contact_info.get("score", 0) or 0) >= 67:
+        strengths.append(
+            f"Contact completeness is good ({int(contact_info.get('score', 0) or 0)}/100)."
+        )
+    if has_job_description and tailoring_score >= 75:
+        strengths.append(f"Overall JD alignment is strong ({tailoring_score}/100).")
+    jd_specificity = tailoring_details.get("jd_specificity", {})
+    if isinstance(jd_specificity, dict) and str(jd_specificity.get("status", "")).lower() == "low":
+        suggestions.append(
+            "The provided job description looks very short/generic. Paste a fuller JD (responsibilities + skills) for accurate tailoring."
+        )
+    role_baseline = tailoring_details.get("role_baseline", {})
+    if isinstance(role_baseline, dict):
+        baseline_missing = [
+            str(x).strip()
+            for x in role_baseline.get("missing", [])
+            if str(x).strip() and _is_informative_term(str(x).strip())
+        ]
+        for skill in baseline_missing:
+            if skill not in missing_skills:
+                missing_skills.append(skill)
+            if len(missing_skills) >= 12:
+                break
+
+    for skill in missing_matrix_terms:
+        if skill not in missing_skills:
+            missing_skills.append(skill)
+        if len(missing_skills) >= 12:
+            break
+
+    for skill in partial_matrix_terms:
+        if skill in missing_skills:
+            continue
+        evidence = partial_evidence.get(skill, "")
+        if evidence:
+            missing_skills.append(f'{skill} (partial: "{evidence}")')
+        else:
+            missing_skills.append(f"{skill} (partial evidence)")
+        if len(missing_skills) >= 12:
+            break
+
+    mk = tailoring_details.get("missing_keywords", [])
+    if isinstance(mk, list):
+        for item in mk:
+            token = str(item).strip()
+            if _is_noise_keyword(token):
+                continue
+            if _keyword_overlaps_skills(token, missing_skills):
+                continue
+            if token and token not in missing_keywords:
+                missing_keywords.append(token)
+            if len(missing_keywords) >= 20:
+                break
+
+    # Final fallback: use informative missing keywords as skill gaps.
+    if len(missing_skills) < 2 and has_job_description:
+        for token in missing_keywords:
+            if not _is_informative_term(token):
+                continue
+            if token in missing_skills:
+                continue
+            missing_skills.append(token)
+            if len(missing_skills) >= 12:
+                break
+
+    for rec in rewrite_recommendations[:4]:
+        rationale = str(rec.get("rationale", "")).strip()
+        if not rationale:
+            continue
+        text = f"Improve experience bullets: {rationale}."
+        if text not in suggestions:
+            suggestions.append(text)
+
+    if missing_skills:
+        suggestions.append(
+            "Add concrete role-specific evidence for these JD skills: "
+            + ", ".join(missing_skills[:4])
+            + "."
+        )
+    if missing_keywords:
+        suggestions.append(
+            "Naturally include missing JD keywords in relevant bullets: "
+            + ", ".join(missing_keywords[:5])
+            + "."
+        )
+    if has_job_description and tailoring_score < 70 and missing_skills:
+        suggestions.append(
+            f"JD alignment is currently {tailoring_score}/100. Prioritize closing the top missing skills first."
+        )
+    if quant_score < 70:
+        suggestions.append(
+            f"Quantifying Impact is low ({quant_score}/100). Add measurable outcomes (%, counts, time, revenue)."
+        )
+    if repetition_score < 80:
+        suggestions.append(
+            f"Repetition score is {repetition_score}/100. Reduce repeated wording and vary action verbs."
+        )
+    if spelling_score < 90:
+        suggestions.append(
+            f"Spelling & Grammar is {spelling_score}/100. Fix language issues for a cleaner professional impression."
+        )
+    if bullets_score < 80:
+        suggestions.append(
+            f"Bullets Consistency is {bullets_score}/100. Keep bullets concise and impact-focused."
+        )
+
+    return {
+        "strengths": _merge_unique_items(strengths, [], limit=8),
+        "missing_skills": _merge_unique_items(missing_skills, [], limit=12),
+        "missing_keywords": _merge_unique_items(missing_keywords, [], limit=20),
+        "suggestions": _merge_unique_items(suggestions, [], limit=12),
+    }
 
 
 def _generate_with_retry(
@@ -467,31 +806,13 @@ CV:
                 ) from exc
             raise RuntimeError(f"Gemini API error after trying {tried}: {exc}") from exc
 
-    # Try to extract and parse JSON
-    json_text = _extract_json_from_text(raw_text)
-
-    if not json_text:
+    parsed = _load_model_json_payload(raw_text)
+    if not parsed:
         logger.warning(
-            "Gemini response JSON extraction failed. tried_models=%s raw_preview=%r",
+            "Gemini response JSON parse failed. tried_models=%s raw_preview=%r",
             tried,
             raw_text[:800],
         )
-        raise ValueError("AI response was not in expected JSON format.")
-
-    try:
-        parsed = json.loads(json_text)
-    except json.JSONDecodeError as exc:
-        logger.warning(
-            "Gemini response JSON parse failed. tried_models=%s json_preview=%r raw_preview=%r error=%s",
-            tried,
-            json_text[:800],
-            raw_text[:800],
-            exc,
-        )
-        raise ValueError("AI response was not in expected JSON format.") from exc
-
-    if not isinstance(parsed, dict):
-        parsed = {}
 
     # Normalize and ensure keys exist
     def _as_list(val: Any, max_items: int = 40) -> List[str]:
@@ -590,6 +911,29 @@ CV:
         repetition_data=rep_prog_data,
     )
 
+    has_job_description = bool(job_desc and job_desc.strip())
+    fallback_insights = _derive_deterministic_insight_fallbacks(
+        ats_parse_rate=ats_parse_rate,
+        sections_score=sections_score,
+        contact_info=contact_info,
+        tailoring_score=tailoring_score,
+        has_job_description=has_job_description,
+        tailoring_details=tailoring_prog_details,
+        jd_skill_matrix=jd_skill_matrix,
+        rewrite_recommendations=rewrite_recommendations,
+        quant_score=quant_score,
+        repetition_score=rep_score,
+        spelling_score=spell_score,
+        bullets_score=bullets_score,
+    )
+
+    # Insights sections are evidence-first and deterministic so they remain
+    # grounded in CV↔JD signals and do not vary randomly across model runs.
+    merged_strengths = list(fallback_insights["strengths"])
+    merged_missing_skills = list(fallback_insights["missing_skills"])
+    merged_suggestions = list(fallback_insights["suggestions"])
+    merged_missing_keywords = list(fallback_insights["missing_keywords"])
+
     # Compute deterministic final score with explainable breakdown.
     contact_score_val = contact_info.get("score", 0)
     score_breakdown = calculate_final_score_breakdown(
@@ -601,7 +945,7 @@ CV:
         sections_score=sections_score,
         ats_essentials_score=ats_essentials_score,
         contact_score=contact_score_val,
-        has_job_description=bool(job_desc and job_desc.strip()),
+        has_job_description=has_job_description,
         bullets_consistency_score=bullets_score,
     )
     match_score = score_breakdown.get("final_score", normalize_score(parsed.get("match_score", 0)))
@@ -613,10 +957,10 @@ CV:
     priority_action_plan = build_priority_action_plan(
         {
             "match_score": match_score,
-            "strengths": _as_list(parsed.get("strengths", [])),
-            "missing_skills": _as_list(parsed.get("missing_skills", [])),
-            "missing_keywords": _as_list(parsed.get("missing_keywords", [])),
-            "suggestions": _as_list(parsed.get("suggestions", [])),
+            "strengths": merged_strengths,
+            "missing_skills": merged_missing_skills,
+            "missing_keywords": merged_missing_keywords,
+            "suggestions": merged_suggestions,
             "content_metrics": {
                 "ats_parse_rate": ats_parse_rate,
                 "quantifying_impact": {"score": quant_score},
@@ -628,15 +972,15 @@ CV:
     )
     interview_prep = build_interview_prep_questions(
         {
-            "strengths": _as_list(parsed.get("strengths", [])),
-            "missing_skills": _as_list(parsed.get("missing_skills", [])),
+            "strengths": merged_strengths,
+            "missing_skills": merged_missing_skills,
         },
         job_desc=job_desc,
     )
     learning_roadmap = build_learning_roadmap(
         {
-            "missing_skills": _as_list(parsed.get("missing_skills", [])),
-            "missing_keywords": _as_list(parsed.get("missing_keywords", [])),
+            "missing_skills": merged_missing_skills,
+            "missing_keywords": merged_missing_keywords,
         }
     )
     portfolio_checklist = build_portfolio_checklist(
@@ -644,16 +988,16 @@ CV:
             "sections_metrics": {"details": sections_prog_details},
             "contact_info": contact_info,
             "ats_essentials_metrics": {"details": ats_prog_details},
-            "suggestions": _as_list(parsed.get("suggestions", [])),
+            "suggestions": merged_suggestions,
         }
     )
 
     return {
         "match_score": match_score,
-        "strengths": _as_list(parsed.get("strengths", [])),
-        "missing_skills": _as_list(parsed.get("missing_skills", [])),
-        "suggestions": _as_list(parsed.get("suggestions", [])),
-        "missing_keywords": _as_list(parsed.get("missing_keywords", [])),
+        "strengths": merged_strengths,
+        "missing_skills": merged_missing_skills,
+        "suggestions": merged_suggestions,
+        "missing_keywords": merged_missing_keywords,
         "subscores": {
             "skills_alignment": normalize_score(subscores.get("skills_alignment", match_score)),
             "experience_alignment": normalize_score(

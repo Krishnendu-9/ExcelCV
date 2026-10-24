@@ -1,7 +1,122 @@
+import os
+import secrets
+import shutil
+import subprocess
+import sys
+import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
-from src import auth_utils, gemini_client
+from src import auth_utils, config, gemini_client, oauth_utils
+
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+_PUBLISHED_PLACEHOLDER = "change-this-to-a-random-secret"
+
+
+def _env_example_session_secret() -> str:
+    """Return the SESSION_SECRET value committed in .env.example (public by definition)."""
+    for line in (_REPO_ROOT / ".env.example").read_text(encoding="utf-8").splitlines():
+        if line.startswith("SESSION_SECRET="):
+            return line.split("=", 1)[1].strip()
+    raise AssertionError(".env.example has no SESSION_SECRET line")
+
+
+class SessionSecretGuardTests(unittest.TestCase):
+    """The startup guard must reject secrets an attacker could know or guess."""
+
+    def _assert_guard_raises(self, value) -> None:
+        env = {} if value is None else {"SESSION_SECRET": value}
+        with patch.dict(os.environ, env, clear=False):
+            if value is None:
+                os.environ.pop("SESSION_SECRET", None)
+            with self.assertRaises(RuntimeError) as ctx:
+                auth_utils.assert_session_secret_configured()
+            # The message must tell the operator how to make a real one.
+            self.assertIn(config.SESSION_SECRET_GENERATOR, str(ctx.exception))
+            with self.assertRaises(RuntimeError):
+                oauth_utils._state_secret()
+
+    def test_guard_raises_for_published_placeholder(self) -> None:
+        self.assertEqual(_env_example_session_secret(), _PUBLISHED_PLACEHOLDER)
+        self._assert_guard_raises(_PUBLISHED_PLACEHOLDER)
+        self._assert_guard_raises(_env_example_session_secret())
+
+    def test_guard_raises_for_empty_or_missing(self) -> None:
+        self._assert_guard_raises("")
+        self._assert_guard_raises("   ")
+        self._assert_guard_raises(None)
+
+    def test_guard_raises_for_placeholder_variants_even_when_long(self) -> None:
+        for value in (
+            "changeme",
+            "CHANGE_ME",
+            "change-this",
+            _PUBLISHED_PLACEHOLDER.upper(),
+            "change-this-to-a-random-secret-please-0123456789",  # long, still a placeholder
+            "changeme" + "0" * 40,
+        ):
+            with self.subTest(value=value):
+                self._assert_guard_raises(value)
+
+    def test_guard_raises_for_short_secret(self) -> None:
+        self._assert_guard_raises("a1" * 15 + "b")  # 31 chars
+        self._assert_guard_raises("unit-test-secret")
+
+    def test_guard_passes_for_real_64_hex_secret(self) -> None:
+        real = secrets.token_hex(32)
+        self.assertEqual(len(real), 64)
+        with patch.dict(os.environ, {"SESSION_SECRET": real}, clear=False):
+            auth_utils.assert_session_secret_configured()
+            self.assertEqual(oauth_utils._state_secret(), real)
+
+    def test_no_session_token_works_while_secret_is_placeholder(self) -> None:
+        user = {"id": "u1", "email": "victim@example.com", "full_name": "V"}
+        with patch.dict(os.environ, {"SESSION_SECRET": _PUBLISHED_PLACEHOLDER}, clear=False):
+            with self.assertRaises(RuntimeError):
+                auth_utils.create_session_token(user)
+        real = secrets.token_hex(32)
+        with patch.dict(os.environ, {"SESSION_SECRET": real}, clear=False):
+            token = auth_utils.create_session_token(user)
+        with patch.dict(os.environ, {"SESSION_SECRET": _PUBLISHED_PLACEHOLDER}, clear=False):
+            self.assertIsNone(auth_utils.validate_session_token(token))
+
+    def test_oauth_state_not_signed_or_accepted_with_placeholder(self) -> None:
+        with patch.dict(os.environ, {"SESSION_SECRET": _PUBLISHED_PLACEHOLDER}, clear=False):
+            with self.assertRaises(RuntimeError):
+                oauth_utils.create_oauth_state_token(nonce="n")
+            self.assertIsNone(oauth_utils.parse_oauth_state_token("a.b", "n"))
+
+
+class EnvExampleIsNotConfigTests(unittest.TestCase):
+    """src.config must not read .env.example: its values are published placeholders."""
+
+    def test_env_example_values_are_not_loaded(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            # A directory holding only .env.example, so no real .env can be picked up.
+            shutil.copy(_REPO_ROOT / ".env.example", Path(tmp) / ".env.example")
+            env = {
+                k: v
+                for k, v in os.environ.items()
+                if k not in {"SESSION_SECRET", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"}
+            }
+            env["PYTHONPATH"] = str(_REPO_ROOT)
+            env["PYTHONDONTWRITEBYTECODE"] = "1"
+            probe = (
+                "import os, src.config; "
+                "print(repr(os.environ.get('SESSION_SECRET')), "
+                "repr(os.environ.get('GOOGLE_CLIENT_ID')))"
+            )
+            result = subprocess.run(
+                [sys.executable, "-c", probe],
+                cwd=tmp,
+                env=env,
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.strip(), "None None")
 
 
 class AuthThrottleTests(unittest.TestCase):

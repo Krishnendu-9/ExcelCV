@@ -20,6 +20,7 @@ from src.auth_utils import (
     logout_user,
     restore_session_from_cookie,
     set_session_cookie,
+    take_oauth_nonce,
 )
 from src.database import init_db
 from src.ui.app_utils import APP_PAGES, _clear_analysis_state, _restore_report_snapshot
@@ -597,6 +598,13 @@ def _init_database() -> None:
     init_db()
 
 
+_OAUTH_NO_COOKIE_MESSAGE = (
+    "Google sign-in could not be completed because your browser did not send back "
+    "the sign-in cookie. Please click Continue with Google again. If this keeps "
+    "happening, your browser may be blocking cookies for this site."
+)
+
+
 def _handle_oauth_callback() -> None:
     """Process a Google OAuth authorization-code callback.
 
@@ -613,9 +621,17 @@ def _handle_oauth_callback() -> None:
         return
     from src.oauth_utils import parse_oauth_state_token
 
-    state_payload = parse_oauth_state_token(returned_state)
+    # Bind the callback to the browser that started the flow; the nonce is single use.
+    nonce = take_oauth_nonce()
+    state_payload = parse_oauth_state_token(returned_state, nonce)
     if not state_payload:
-        st.session_state["oauth_error"] = "Google sign-in failed (invalid state). Please try again."
+        # No cookie at all is usually a blocked cookie or a click before the cookie
+        # script ran (see auth_utils "OAuth browser binding"). Say so plainly.
+        st.session_state["oauth_error"] = (
+            _OAUTH_NO_COOKIE_MESSAGE
+            if not nonce
+            else "Google sign-in failed (invalid state). Please try again."
+        )
         st.session_state["page"] = "auth"
         _set_query_params_atomic({"page": "auth"})
         return

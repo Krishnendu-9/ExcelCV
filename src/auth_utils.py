@@ -17,8 +17,9 @@ import bcrypt
 import streamlit as st
 import streamlit.components.v1 as components
 
-from src import config as _app_config  # noqa: F401  # Ensures .env/.env.example are loaded.
+from src import config as _app_config  # Also ensures .env is loaded.
 from src.database import PasswordResetToken, User, get_db
+from src.oauth_utils import build_google_auth_url, create_oauth_state_token, new_oauth_nonce
 
 _SESSION_SECONDS = 3 * 24 * 3600  # 3 days
 _COOKIE_NAME = "excelcv_session"
@@ -167,14 +168,11 @@ def _persistent_login_enabled() -> bool:
 
 
 def _ensure_session_secret() -> str:
-    """Return configured session secret or raise a clear startup/runtime error."""
-    secret = _session_secret()
-    if not secret:
-        raise RuntimeError(
-            "SESSION_SECRET is required for secure authentication. "
-            "Set SESSION_SECRET in your environment or .env file."
-        )
-    return secret
+    """Return configured session secret or raise a clear startup/runtime error.
+
+    Rejects a missing value, known published placeholders and anything too short.
+    """
+    return _app_config.require_strong_secret(_session_secret(), "SESSION_SECRET")
 
 
 def assert_session_secret_configured() -> None:
@@ -217,6 +215,109 @@ def build_session_cookie_header(token: str, max_age: int = _SESSION_SECONDS) -> 
     return "; ".join(parts)
 
 
+def _write_browser_cookie(cookie: str) -> None:
+    """Write a cookie string from both the component iframe and the parent window."""
+    components.html(
+        f"""<script>
+(function() {{
+  var cookie = {json.dumps(cookie)};
+  try {{ document.cookie = cookie; }} catch(e) {{}}
+  try {{
+    var w = window.parent && window.parent !== window ? window.parent : window;
+    w.document.cookie = cookie;
+  }} catch(e) {{}}
+}})();
+</script>""",
+        height=0,
+    )
+
+
+def _read_request_cookie(name: str) -> str:
+    """Return a cookie value from the current request, or "" if absent."""
+    token = ""
+
+    # Primary path: Streamlit exposes parsed cookies here on current runtimes.
+    try:
+        context_cookies = getattr(st.context, "cookies", None)
+        if context_cookies:
+            token = str(context_cookies.get(name, "")).strip()
+    except Exception:
+        token = ""
+
+    # Fallback path: parse raw Cookie header if context cookies are unavailable.
+    if not token:
+        headers = st.context.headers
+        cookie_header = headers.get("Cookie") or headers.get("cookie") or ""
+        if not cookie_header:
+            for key, value in dict(headers).items():
+                if str(key).lower() == "cookie":
+                    cookie_header = str(value)
+                    break
+        if cookie_header:
+            parsed = SimpleCookie()
+            parsed.load(cookie_header)
+            morsel = parsed.get(name)
+            if morsel:
+                token = morsel.value.strip()
+
+    # Some environments encode cookie values; normalize before validation.
+    return unquote(token)
+
+
+# ── OAuth browser binding ─────────────────────────────────────────────────────
+#
+# The Google button is a full-page navigation, so the callback arrives in a NEW
+# Streamlit session whose st.session_state is empty. The nonce therefore travels in
+# a browser cookie. SameSite=Lax is the usual setting for OAuth state cookies, so the
+# cross-site return from Google cannot drop it. No max-age: the signed state expires.
+#
+# Known race, accepted: the cookie is written by a components.html script, which runs
+# after its iframe loads and has no ordering guarantee against the link becoming
+# clickable. A click inside that window reaches the callback with no cookie and fails
+# closed; app.py then tells the user to click Continue with Google again. Making the
+# link inert until the script runs was rejected: it would tie the login button to
+# Streamlit DOM and iframe-sandbox details and break theming.
+
+_OAUTH_NONCE_COOKIE = "excelcv_oauth_nonce"
+_OAUTH_NONCE_SESSION_KEY = "oauth_nonce"
+
+
+def _oauth_nonce_cookie_header(nonce: str, *, expire: bool = False) -> str:
+    parts = [f"{_OAUTH_NONCE_COOKIE}={nonce}", "path=/", "SameSite=Lax"]
+    if expire:
+        parts.append("max-age=0")
+    if _is_request_secure():
+        parts.append("Secure")
+    return "; ".join(parts)
+
+
+def begin_google_oauth(next_page: Optional[str] = None) -> str:
+    """Return a Google sign-in URL whose state only this browser can redeem.
+
+    Keeps one nonce per Streamlit session so reruns of the auth page reuse it, and
+    stores it in a browser cookie that the callback session reads back.
+    """
+    nonce = str(st.session_state.get(_OAUTH_NONCE_SESSION_KEY) or "")
+    if not nonce:
+        nonce = new_oauth_nonce()
+        st.session_state[_OAUTH_NONCE_SESSION_KEY] = nonce
+    _write_browser_cookie(_oauth_nonce_cookie_header(nonce))
+    state = create_oauth_state_token(next_page=next_page, nonce=nonce)
+    return build_google_auth_url(state=state)
+
+
+def take_oauth_nonce() -> str:
+    """Return this browser's OAuth nonce for the callback and clear it so it is used once."""
+    try:
+        nonce = _read_request_cookie(_OAUTH_NONCE_COOKIE)
+    except Exception:
+        nonce = ""
+    st.session_state.pop(_OAUTH_NONCE_SESSION_KEY, None)
+    if nonce:
+        _write_browser_cookie(_oauth_nonce_cookie_header("", expire=True))
+    return nonce
+
+
 def create_session_token(user_dict: dict) -> str:
     """Return a signed token encoding user_dict with a 3-day expiry."""
     secret = _ensure_session_secret()
@@ -255,34 +356,7 @@ def restore_session_from_cookie() -> bool:
     if not _persistent_login_enabled():
         return False
     try:
-        token = ""
-
-        # Primary path: Streamlit exposes parsed cookies here on current runtimes.
-        try:
-            context_cookies = getattr(st.context, "cookies", None)
-            if context_cookies:
-                token = str(context_cookies.get(_COOKIE_NAME, "")).strip()
-        except Exception:
-            token = ""
-
-        # Fallback path: parse raw Cookie header if context cookies are unavailable.
-        if not token:
-            headers = st.context.headers
-            cookie_header = headers.get("Cookie") or headers.get("cookie") or ""
-            if not cookie_header:
-                for key, value in dict(headers).items():
-                    if str(key).lower() == "cookie":
-                        cookie_header = str(value)
-                        break
-            if cookie_header:
-                parsed = SimpleCookie()
-                parsed.load(cookie_header)
-                morsel = parsed.get(_COOKIE_NAME)
-                if morsel:
-                    token = morsel.value.strip()
-
-        # Some environments encode cookie values; normalize before validation.
-        token = unquote(token)
+        token = _read_request_cookie(_COOKIE_NAME)
         if not token:
             return False
         user = validate_session_token(token)
@@ -356,20 +430,7 @@ def set_session_cookie(user_dict: dict) -> None:
     if not _persistent_login_enabled():
         return
     token = create_session_token(user_dict)
-    cookie = build_session_cookie_header(token, _SESSION_SECONDS)
-    components.html(
-        f"""<script>
-(function() {{
-  var cookie = {json.dumps(cookie)};
-  try {{ document.cookie = cookie; }} catch(e) {{}}
-  try {{
-    var w = window.parent && window.parent !== window ? window.parent : window;
-    w.document.cookie = cookie;
-  }} catch(e) {{}}
-}})();
-</script>""",
-        height=0,
-    )
+    _write_browser_cookie(build_session_cookie_header(token, _SESSION_SECONDS))
 
 
 def logout_user() -> None:
@@ -418,12 +479,15 @@ def logout_user() -> None:
 def get_or_create_google_user(google_info: dict) -> Optional[dict]:
     """Find or create a user from Google userinfo payload.
 
-    If the email already exists (password account), links the Google ID to it.
+    If the email already exists (password account), links the Google ID to it, but only
+    when Google reports the email as verified. Any match or account creation by email
+    requires email_verified to be True; a Google ID that is already linked does not.
     Returns a user dict on success, None on failure.
     """
     google_id = google_info.get("sub", "").strip()
     email = google_info.get("email", "").lower().strip()
     name = google_info.get("name", "") or email.split("@")[0]
+    email_verified = google_info.get("email_verified") is True
     if not google_id or not email:
         return None
 
@@ -431,6 +495,8 @@ def get_or_create_google_user(google_info: dict) -> Optional[dict]:
     try:
         user = db.query(User).filter(User.google_id == google_id).first()
         if not user:
+            if not email_verified:
+                return None
             user = db.query(User).filter(User.email == email).first()
             if user:
                 user.google_id = google_id

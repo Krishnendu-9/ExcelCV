@@ -3,6 +3,9 @@ from unittest.mock import patch
 
 from src import auth_utils
 
+# 64 hex chars: passes the strong-secret guard. Test-only value.
+_TEST_SECRET = "0f" * 32
+
 
 class AuthUtilsTests(unittest.TestCase):
     def test_hash_and_verify_password(self) -> None:
@@ -15,7 +18,7 @@ class AuthUtilsTests(unittest.TestCase):
 
     def test_session_token_round_trip_and_tamper_detection(self) -> None:
         user = {"id": "u1", "email": "a@example.com", "full_name": "A"}
-        with patch.dict("os.environ", {"SESSION_SECRET": "unit-test-secret"}, clear=False):
+        with patch.dict("os.environ", {"SESSION_SECRET": _TEST_SECRET}, clear=False):
             token = auth_utils.create_session_token(user)
             restored = auth_utils.validate_session_token(token)
             self.assertEqual(restored, user)
@@ -26,7 +29,7 @@ class AuthUtilsTests(unittest.TestCase):
     def test_session_token_expiry(self) -> None:
         user = {"id": "u2", "email": "b@example.com", "full_name": "B"}
         with (
-            patch.dict("os.environ", {"SESSION_SECRET": "unit-test-secret"}, clear=False),
+            patch.dict("os.environ", {"SESSION_SECRET": _TEST_SECRET}, clear=False),
             patch.object(auth_utils, "_SESSION_SECONDS", 1),
             patch("src.auth_utils.time.time", side_effect=[1000, 1002]),
         ):

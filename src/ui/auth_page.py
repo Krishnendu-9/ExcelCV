@@ -10,6 +10,7 @@ import streamlit.components.v1 as components
 
 from src.auth_utils import (
     authenticate_user,
+    begin_google_oauth,
     build_session_cookie_header,
     check_login_throttle,
     check_password_reset_throttle,
@@ -25,11 +26,7 @@ from src.auth_utils import (
 )
 from src.email_utils import is_email_configured, send_password_reset_email
 from src.oauth_utils import GOOGLE_REDIRECT_URI as _APP_URL
-from src.oauth_utils import (
-    build_google_auth_url,
-    create_oauth_state_token,
-    is_google_oauth_configured,
-)
+from src.oauth_utils import is_google_oauth_configured
 from src.ui.app_utils import APP_PAGES, _build_page_href
 
 
@@ -1086,8 +1083,7 @@ def _render_sign_in_register(col, t: dict) -> None:
             )
 
             if is_google_oauth_configured():
-                oauth_state = create_oauth_state_token(next_page=_resolve_post_login_target())
-                google_url = build_google_auth_url(state=oauth_state)
+                google_url = begin_google_oauth(next_page=_resolve_post_login_target())
                 st.markdown(
                     f'<a href="{google_url}" target="_self" class="google-btn">'
                     f"{_GOOGLE_SVG} Continue with Google</a>",

@@ -63,3 +63,7 @@ tmp_pdf_preview/
 generated_reports/
 samples/
 data/*.db
+# SQLite WAL side files: they hold the same personal data as the database itself.
+data/*.db-wal
+data/*.db-shm
+data/*.db-journal

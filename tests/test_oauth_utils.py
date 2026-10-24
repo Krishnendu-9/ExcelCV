@@ -1,4 +1,5 @@
 import base64
+import gc
 import hashlib
 import hmac
 import json
@@ -6,6 +7,7 @@ import os
 import re
 import time
 import unittest
+import warnings
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 from urllib.parse import parse_qs, urlparse
@@ -343,6 +345,7 @@ class GoogleEmailVerifiedTests(unittest.TestCase):
 
     def setUp(self) -> None:
         engine = create_engine("sqlite://")
+        self.addCleanup(engine.dispose)  # close the pooled in-memory connection
         Base.metadata.create_all(engine)
         self.Session = sessionmaker(bind=engine)
         db = self.Session()
@@ -399,6 +402,23 @@ class GoogleEmailVerifiedTests(unittest.TestCase):
             self.assertIsNone(db.query(User).filter_by(email="new@example.com").first())
         finally:
             db.close()
+
+
+class DatabaseHygieneTests(unittest.TestCase):
+    """The in-memory engine used by GoogleEmailVerifiedTests must be disposed, or the
+    suite prints "ResourceWarning: unclosed database" when the connection is collected."""
+
+    def test_email_verified_tests_leave_no_unclosed_database(self) -> None:
+        suite = unittest.defaultTestLoader.loadTestsFromTestCase(GoogleEmailVerifiedTests)
+        result = unittest.TestResult()
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always", ResourceWarning)
+            suite.run(result)  # TestSuite drops each test after running it
+            del suite
+            gc.collect()
+        self.assertTrue(result.wasSuccessful(), result.errors + result.failures)
+        leaks = [w for w in caught if "unclosed database" in str(w.message)]
+        self.assertEqual(leaks, [], f"{len(leaks)} unclosed SQLite connection(s)")
 
 
 if __name__ == "__main__":

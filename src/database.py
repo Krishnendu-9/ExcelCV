@@ -8,6 +8,7 @@ from typing import Optional
 from sqlalchemy import (
     JSON,
     DateTime,
+    Engine,
     Float,
     ForeignKey,
     Integer,
@@ -23,16 +24,40 @@ _DB_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
 os.makedirs(_DB_DIR, exist_ok=True)
 
 DB_PATH = os.path.join(_DB_DIR, "excelcv.db")
-engine = create_engine(f"sqlite:///{DB_PATH}", connect_args={"check_same_thread": False})
-SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
+
+# How long a connection waits for a competing writer before raising "database is
+# locked". Python's sqlite3 driver already defaults to 5 s; setting it explicitly keeps
+# it independent of driver defaults, and 15 s lets a write queued behind a slow
+# comparison save wait instead of failing.
+SQLITE_BUSY_TIMEOUT_MS = 15000
 
 
-@event.listens_for(engine, "connect")
 def _set_sqlite_pragma(dbapi_connection, _connection_record) -> None:
-    """Enable SQLite FK enforcement for every connection."""
+    """Configure every new SQLite connection.
+
+    - foreign_keys: enforce FK constraints.
+    - busy_timeout: wait for locks instead of failing at once. Set before journal_mode,
+      which itself needs a brief lock.
+    - journal_mode=WAL: readers no longer block the writer (or the reverse), which
+      matters because Streamlit sessions share this engine across threads. WAL is a
+      persistent property of the database file and adds -wal / -shm files beside it.
+    """
     cursor = dbapi_connection.cursor()
     cursor.execute("PRAGMA foreign_keys=ON")
+    cursor.execute(f"PRAGMA busy_timeout={SQLITE_BUSY_TIMEOUT_MS}")
+    cursor.execute("PRAGMA journal_mode=WAL")
     cursor.close()
+
+
+def create_sqlite_engine(path: str) -> Engine:
+    """Create a thread-shared SQLite engine with the connection pragmas above."""
+    new_engine = create_engine(f"sqlite:///{path}", connect_args={"check_same_thread": False})
+    event.listen(new_engine, "connect", _set_sqlite_pragma)
+    return new_engine
+
+
+engine = create_sqlite_engine(DB_PATH)
+SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
 
 
 class Base(DeclarativeBase):

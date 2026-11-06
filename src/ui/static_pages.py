@@ -219,7 +219,7 @@ def render_static_page(page: str) -> None:
             "- Explainable weighted score breakdown\n"
             "- Missing skills and keyword gaps\n"
             "- Rewrite suggestions\n"
-            "- Downloadable Markdown and JSON output"
+            "- Downloadable PDF, Markdown and JSON reports"
         )
         if analysis:
             st.success("A recent report is available in this session.")
@@ -282,7 +282,7 @@ def render_static_page(page: str) -> None:
             "- Session-scoped analysis state for fast cross-page navigation\n"
             "- HMAC-SHA256 signed tokens + bcrypt 12-round hashing for auth security\n"
             "- SQLite (SQLAlchemy ORM) with `_migrate()` for zero-downtime schema evolution\n"
-            "- Export support (`Markdown`, `JSON`) for demos and portfolio records"
+            "- Export support (`PDF`, `Markdown`, `JSON`) for demos and portfolio records"
         )
         st.markdown("### Suggested Next Iterations")
         st.markdown(

@@ -9,7 +9,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 from src.services.evaluation import build_evaluation_record, summarize_evaluation
-from src.services.reporting import build_report_pdf_bytes
+from src.services.reporting import build_report_md, build_report_pdf_bytes
 from src.ui.app_utils import _clear_analysis_state, _save_report_snapshot
 from src.ui.common import (
     _markdown_inline_to_html,
@@ -854,7 +854,7 @@ def _build_list_card(
 def _render_download_buttons(name: str, analysis: Dict[str, Any]) -> None:
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("### Download Reports", unsafe_allow_html=False)
-    col1, col2 = st.columns(2, gap="medium")
+    col1, col2, col3 = st.columns(3, gap="medium")
     pdf_bytes = b""
     pdf_error = ""
     try:
@@ -874,6 +874,16 @@ def _render_download_buttons(name: str, analysis: Dict[str, Any]) -> None:
             disabled=not bool(pdf_bytes),
         )
     with col2:
+        st.download_button(
+            "\U0001f4dd Download Markdown Report",
+            data=build_report_md(name, analysis),
+            file_name=f"{name}-analysis.md",
+            mime="text/markdown",
+            width="stretch",
+            key="download_md_main",
+            on_click="ignore",
+        )
+    with col3:
         st.download_button(
             "\U0001f9fe Download JSON Export",
             data=json.dumps(analysis, indent=2),

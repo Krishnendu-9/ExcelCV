@@ -9,7 +9,10 @@ discarded. If it is called again, the blending test skips itself and the claim c
 Six report enrichments are built into every analysis but nothing reads them
 (docs/KNOWN_ISSUES.md §6). Each one's check skips itself once something reads its key.
 
-All three guards scan the same files: everything a user or a reader of the repository can
+The Markdown export is the inverse case: it is real, and the copy says so. That guard
+fails if the report page stops offering it while any copy still promises it.
+
+All four guards scan the same files: everything a user or a reader of the repository can
 encounter (see _user_facing_lines). A claim left in any of them is still shipping.
 """
 
@@ -17,7 +20,8 @@ import ast
 import re
 import unittest
 from functools import lru_cache
-from typing import Callable
+from typing import Any, Callable
+from unittest.mock import MagicMock, patch
 
 from tests.repo_files import REPO_ROOT, repo_text_files
 
@@ -78,6 +82,9 @@ _NOT_CLAIMS = {
     "scripts/generate_changes_report.py": {
         '"2.2.6 Hybrid Scoring (simple (AI+Rule)/2)",': (
             "Old PDF column: quotes a section title of the superseded report"
+        ),
+        "'\"Markdown / JSON export\"',": (
+            "Old PDF column: quotes the superseded report's export line"
         ),
     },
 }
@@ -313,6 +320,109 @@ class UnreadEnrichmentClaimTests(unittest.TestCase):
         ):
             with self.subTest(read=read):
                 self.assertIsNotNone(storing.search(read))
+
+
+# Markdown named next to another export format, or as a report: "PDF, Markdown and JSON",
+# "`Markdown`, `JSON`", "PDF and Markdown reports", "PDF / Markdown", "Markdown report".
+_MARKDOWN_EXPORT_CLAIM = re.compile(
+    r"markdown\W{0,4}(?:and|or)?\W{0,4}json"
+    r"|pdf\W{0,4}(?:and|or)?\W{0,4}markdown"
+    r"|markdown (?:report|export)",
+    re.I,
+)
+
+
+def _is_markdown_export_claim(line: str) -> bool:
+    return bool(_MARKDOWN_EXPORT_CLAIM.search(line))
+
+
+_SAMPLE_NAME = "Jane-Doe"
+_SAMPLE_ANALYSIS: dict[str, Any] = {
+    "match_score": 72,
+    "subscores": {"skills_alignment": 70, "experience_alignment": 65, "ats_readiness": 80},
+    "strengths": ["Python"],
+    "missing_skills": ["Kubernetes"],
+    "missing_keywords": ["terraform"],
+    "suggestions": ["Quantify impact"],
+}
+
+
+def _render_download_buttons_calls() -> list[dict[str, Any]]:
+    """Keyword arguments of every st.download_button the report page's downloads render."""
+    from src.ui import report
+
+    fake_st = MagicMock()
+    fake_st.columns.side_effect = lambda spec, **_: [
+        MagicMock() for _ in range(spec if isinstance(spec, int) else len(spec))
+    ]
+    with patch.object(report, "st", fake_st):
+        report._render_download_buttons(_SAMPLE_NAME, _SAMPLE_ANALYSIS)
+    return [c.kwargs for c in fake_st.download_button.call_args_list]
+
+
+def _page_calls_download_buttons() -> bool:
+    """Whether render_report_page() in src/ui/report.py calls _render_download_buttons()."""
+    tree = ast.parse((REPO_ROOT / "src" / "ui" / "report.py").read_text(encoding="utf-8"))
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef) and node.name == "render_report_page":
+            return any(
+                isinstance(call, ast.Call)
+                and isinstance(call.func, ast.Name)
+                and call.func.id == "_render_download_buttons"
+                for call in ast.walk(node)
+            )
+    return False
+
+
+def _markdown_export_problems() -> list[str]:
+    """Why the report page does not offer build_report_md() as a download; empty if it does."""
+    from src.services.reporting import build_report_md
+
+    problems = []
+    if not _page_calls_download_buttons():
+        problems.append("render_report_page() no longer calls _render_download_buttons()")
+    markdown = [kw for kw in _render_download_buttons_calls() if kw.get("mime") == "text/markdown"]
+    if not markdown:
+        problems.append("_render_download_buttons() renders no text/markdown download")
+    for kw in markdown:
+        if kw.get("data") != build_report_md(_SAMPLE_NAME, _SAMPLE_ANALYSIS):
+            problems.append("the text/markdown download is not build_report_md(name, analysis)")
+        if kw.get("file_name") != f"{_SAMPLE_NAME}-analysis.md":
+            problems.append(f"unexpected Markdown file name: {kw.get('file_name')!r}")
+    return problems
+
+
+class MarkdownExportClaimTests(unittest.TestCase):
+    def test_pattern_tells_export_claims_from_other_markdown(self) -> None:
+        for claim in (
+            '"- Downloadable PDF, Markdown and JSON reports"',
+            '"- Export support (`PDF`, `Markdown`, `JSON`) for demos and portfolio records"',
+            "alignment, ATS readiness) for the downloadable PDF and Markdown reports; it sets no",
+            "    reporting.py              — Analysis report PDF / Markdown",
+            "- Download Markdown report",
+            '"(ReportLab), Markdown or JSON; cover letters as DOCX; comparison results as CSV or PDF. "',
+        ):
+            with self.subTest(claim=claim):
+                self.assertTrue(_is_markdown_export_claim(claim))
+        for other in (
+            "Gemini drafts the letter, which renders as Markdown and downloads as DOCX.",
+            "CRITICAL: You MUST respond with ONLY valid JSON. No markdown, no code blocks,",
+            "Ask model to respond only in valid JSON, no markdown.",
+            '"Robust JSON extraction tolerant of markdown wrappers and partial responses.",',
+        ):
+            with self.subTest(other=other):
+                self.assertFalse(_is_markdown_export_claim(other))
+
+    def test_offered_while_the_copy_promises_it(self) -> None:
+        claims = _hits(_is_markdown_export_claim)
+        if not claims:
+            self.skipTest("nothing promises a Markdown export")
+        self.assertEqual(
+            _markdown_export_problems(),
+            [],
+            "the copy promises a Markdown export the report page does not offer:\n"
+            + "\n".join(claims),
+        )
 
 
 if __name__ == "__main__":

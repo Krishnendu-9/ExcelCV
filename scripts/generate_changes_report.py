@@ -219,7 +219,7 @@ for s in [
     "Weighted scoring formula: Content 30%, JD Alignment 25%, Sections 15%, ATS "
     'Essentials 15%, Contact 15% — was just "hybrid scoring".',
     'PDF + DOCX input support (was "PDF only").',
-    'PDF / JSON / DOCX / CSV outputs (was "Markdown / JSON").',
+    'PDF / Markdown / JSON / DOCX / CSV outputs (was "Markdown / JSON").',
     "Human-vs-AI evaluation toolkit (MAE / RMSE / Pearson correlation).",
     "Authentication + persistence: SQLite, 5 tables, Google OAuth, session cookies.",
 ]:
@@ -307,7 +307,7 @@ add_compare_table(
         ],
         [
             '"Markdown / JSON export"',
-            '"PDF (ReportLab) or JSON; cover letters as DOCX; comparison results as CSV or PDF"',
+            '"PDF (ReportLab), Markdown or JSON; cover letters as DOCX; comparison results as CSV or PDF"',
         ],
         ["No scoring formula", "Weighted formula laid out inline"],
     ],
@@ -417,7 +417,7 @@ add_compare_table(
     rows=[
         ["10 completed features", "26 completed features"],
         ['"Dual-mode" listed as feature', "REMOVED (no longer exists)"],
-        ['"Markdown / JSON export"', '"PDF / JSON export"'],
+        ['"Markdown / JSON export"', '"PDF / Markdown / JSON export"'],
         ["—", "Multi-resume comparison + ranking + Top Match + CSV/PDF export (NEW)"],
         ["—", "Cover Letter Generator + DOCX download (NEW)"],
         ["—", "Resume Builder + 3 templates + live preview (NEW)"],

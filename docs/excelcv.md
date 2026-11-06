@@ -124,7 +124,7 @@ Core files:
 - Categories: Content, Sections, ATS Essentials, Insights.
 - Score display: horizontal animated bar (was a circular ring earlier); colour tier green ≥ 80, amber ≥ 60, red < 60. Shared animation engine (`@keyframes hv-sweep` + `@property --hv-p`) with the homepage hero panel.
 - Includes score breakdown card and a collapsed Model Evaluation Toolkit expander (MAE / RMSE / correlation vs human reviewer scores).
-- Download options: PDF and JSON.
+- Download options: PDF, Markdown and JSON.
 
 Core file: `src/ui/report.py`. See [docs/report_page.md](report_page.md) for the full reference.
 

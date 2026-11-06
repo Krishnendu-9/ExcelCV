@@ -590,7 +590,7 @@ intro_paragraphs = [
     "reliability.",
     "On the engineering side, the platform supports both PDF and DOCX input (≤ 2 MB), "
     "with text extraction via PyPDF2 / pypdf and python-docx. Reports are exported as PDF "
-    "(ReportLab) or JSON; cover letters as DOCX; comparison results as CSV or PDF. "
+    "(ReportLab), Markdown or JSON; cover letters as DOCX; comparison results as CSV or PDF. "
     "Robust error handling covers PDF parse failures, malformed AI responses, Gemini 429 / "
     "quota errors (with a per-file short-circuit so remaining files in a multi-resume run "
     "are marked ‘skipped’ rather than burning more quota), model fallback chains, and a "
@@ -706,7 +706,8 @@ for s in [
     "Report renders: sticky sidebar (file name, horizontal animated score bar, issue count, "
     "“How this score is calculated” card, category accordion) + four group cards on the "
     "right (Content, Sections, ATS Essentials, Insights).",
-    "Download the report as PDF (ReportLab) or JSON; auto-saved to the user’s analyses table.",
+    "Download the report as PDF (ReportLab), Markdown or JSON; auto-saved to the user’s "
+    "analyses table.",
 ]:
     add_bullet(s)
 
@@ -781,7 +782,7 @@ dfd_rows = [
     ["Gemini AI", "Structured JSON (scores, suggestions, missing skills)", "→ ExcelCV"],
     ["ExcelCV (scoring engine)", "Deterministic 11-metric scores + weighted final", "internal"],
     ["ExcelCV (persistence)", "User, CV, Analysis, Comparison, PasswordResetToken", "↔ SQLite"],
-    ["ExcelCV (report)", "Rendered report / PDF / JSON / DOCX / CSV", "→ Job Seeker"],
+    ["ExcelCV (report)", "Rendered report / PDF / Markdown / JSON / DOCX / CSV", "→ Job Seeker"],
 ]
 for r_idx, row in enumerate(dfd_rows):
     for c_idx, val in enumerate(row):
@@ -1221,7 +1222,7 @@ add_para(
     "The proposed work focused on building an integrated, AI-assisted career platform that "
     "goes beyond traditional resume screening: every score is computed by deterministic, "
     "explainable rules, and a large language model drafts cover letters and adds three "
-    "subscores to the PDF report. The platform is implemented as a modular "
+    "subscores to the PDF and Markdown reports. The platform is implemented as a modular "
     "Streamlit application with a database-backed persistence layer and full authentication. "
     "The list below separates what has shipped from what remains as backlog.",
     space_after=10,
@@ -2110,8 +2111,9 @@ add_para(
     "Every report-page score is computed in code, so the same CV and job description always "
     "produce the same scores and model stochasticity cannot move them. The only model numbers "
     "kept are its three subscores (skills alignment, experience alignment, ATS readiness), "
-    "which appear only in the downloadable PDF report. The evaluation toolkit (MAE / RMSE / "
-    "correlation) compares the final score against human reviewer scores.",
+    "which appear only in the downloadable PDF and Markdown reports and the raw JSON export. "
+    "The evaluation toolkit (MAE / RMSE / correlation) compares the final score against "
+    "human reviewer scores.",
     space_after=8,
 )
 

@@ -26,7 +26,7 @@ Every score on the report page is computed in code from the CV text and job desc
 | `match_score` | Discarded. "Your Score" is `calculate_final_score_breakdown`'s `final_score`. |
 | `content_metrics`, `sections_metrics`, `ats_essentials_metrics`, `tailoring_metrics` | Discarded. Every metric is computed in code. |
 | `strengths`, `missing_skills`, `suggestions`, `missing_keywords` | Not shown. The report's Insights lists are built in code by `_derive_deterministic_insight_fallbacks` from the metrics, the tailoring details, the JD skill matrix and the rewrite recommendations. |
-| `subscores` (`skills_alignment`, `experience_alignment`, `ats_readiness`) | Kept. Each falls back to the final score when the model omits it or its JSON cannot be parsed. They are printed in the downloadable PDF report. The report page reads them only as stand-ins when a stored older analysis lacks a Sections or ATS Essentials score. |
+| `subscores` (`skills_alignment`, `experience_alignment`, `ats_readiness`) | Kept. Each falls back to the final score when the model omits it or its JSON cannot be parsed. They are printed in the downloadable PDF and Markdown reports. The report page reads them only as stand-ins when a stored older analysis lacks a Sections or ATS Essentials score. |
 
 The model's own `strengths` and `missing_skills` also supply the top strength and top gap in `recruiter_snapshot`, which is stored in the `analysis` dict but not displayed anywhere.
 
@@ -231,7 +231,7 @@ The breakdown is returned as `analysis["score_breakdown"]` (`mode`, `components`
 ## Data Sources
 
 1. **Programmatic calculations** (`src/services/scoring.py`): every score, status, category and the final score; the Insights lists.
-2. **Google Gemini** (`src/gemini_client.py`): the three subscores in the downloadable PDF report. See [What the AI model contributes](#what-the-ai-model-contributes).
+2. **Google Gemini** (`src/gemini_client.py`): the three subscores in the downloadable PDF and Markdown reports. See [What the AI model contributes](#what-the-ai-model-contributes).
 
 ---
 
@@ -255,7 +255,7 @@ This section maps each value on the report page to its source and code location,
 | `src/services/scoring.py` | All `calculate_*` metrics, `get_metric_status`, `calculate_final_score_breakdown` |
 | `src/ui/common.py` | `issue_count()`, `get_score_color_class()`, shared UI helpers |
 | `src/ui/report.py` | Sidebar + detail-card rendering for the report page (category scores computed here) |
-| `src/services/reporting.py` | The downloadable PDF report, including the model's subscores |
+| `src/services/reporting.py` | The downloadable PDF and Markdown reports, both including the model's subscores |
 | `app.py` | Routes to `render_report_view()`; stores analysis in session state |
 
 ### "Your Score" (e.g. 72/100)
@@ -332,7 +332,7 @@ This section maps each value on the report page to its source and code location,
 | Tailoring / JD Alignment % | App | services/scoring.calculate_tailoring(cv_text, job_desc); used as `jd_alignment` component in calculate_final_score_breakdown |
 | Insights % | App | ui/report `render_report_page` (share of clean insight areas) |
 | Final weighted score | App | services/scoring.calculate_final_score_breakdown (weights: jd_aligned vs no_jd mode) |
-| Skills / Experience Alignment, ATS Readiness | Gemini | gemini_client (parse); services/reporting (PDF report) |
+| Skills / Experience Alignment, ATS Readiness | Gemini | gemini_client (parse); services/reporting (PDF and Markdown reports) |
 
 ---
 

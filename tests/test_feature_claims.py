@@ -12,13 +12,22 @@ Six report enrichments are built into every analysis but nothing reads them
 The Markdown export is the inverse case: it is real, and the copy says so. That guard
 fails if the report page stops offering it while any copy still promises it.
 
-All four guards scan the same files: everything a user or a reader of the repository can
+The cover-letter form has no tone control: tone can only be asked for in the free-text
+notes. If generate_cover_letter() or CoverLetterRequest gains a tone input, that check
+skips itself and the copy can describe it.
+
+The evaluation toolkit records the computed final score, never a model output. While
+that holds, no copy may frame it as comparing an AI or model score with human scores.
+
+All six guards scan the same files: everything a user or a reader of the repository can
 encounter (see _user_facing_lines). A claim left in any of them is still shipping.
 """
 
 import ast
+import inspect
 import re
 import unittest
+from dataclasses import fields
 from functools import lru_cache
 from typing import Any, Callable
 from unittest.mock import MagicMock, patch
@@ -74,9 +83,6 @@ _NOT_CLAIMS = {
         ),
         '"[4] T. Miller and I. Bhattacharya, “Hybrid Generative-AI Systems with Rule-Based "': (
             "bibliography entry"
-        ),
-        '"error list. Combined with text truncation and model fallback, this preserves user "': (
-            "about rate-limit handling, not scoring"
         ),
     },
     "scripts/generate_changes_report.py": {
@@ -422,6 +428,143 @@ class MarkdownExportClaimTests(unittest.TestCase):
             [],
             "the copy promises a Markdown export the report page does not offer:\n"
             + "\n".join(claims),
+        )
+
+
+# Tone named as a cover-letter input: listed next to the other fields ("company, role,
+# source and tone", "Optional tone, company, role", "role / source / tone fields",
+# "Other), tone."), named as a control, or offered as a choice. A line that says there
+# is no tone control is a denial, so that phrase is removed before matching.
+_TONE_CLAIM = re.compile(
+    r"\btone\b[^.]{0,40}\b(?:company|role|source)\b"
+    r"|\b(?:company|role|source)\b[^.]{0,40}\btone\b"
+    r"|[,/+]\s*tone\b|\btone\s*[,/+]"
+    r"|\btone\s+(?:control|option|selector|setting|picker|dropdown|field|input)s?\b"
+    r"|\b(?:choose|pick|select|set)\s+(?:a|the|your)\s+tone\b",
+    re.I,
+)
+_TONE_DENIAL = re.compile(r"\bno (?:separate )?tone \w+", re.I)
+
+
+def _is_tone_claim(line: str) -> bool:
+    return bool(_TONE_CLAIM.search(_TONE_DENIAL.sub("", line)))
+
+
+def _tone_inputs() -> list[str]:
+    """generate_cover_letter() parameters and CoverLetterRequest fields that name a tone."""
+    from src.cover_letter.models import CoverLetterRequest
+    from src.cover_letter.service import generate_cover_letter
+
+    names = [*inspect.signature(generate_cover_letter).parameters]
+    names += [f.name for f in fields(CoverLetterRequest)]
+    return [name for name in names if "tone" in name.lower()]
+
+
+class CoverLetterToneClaimTests(unittest.TestCase):
+    def test_pattern_tells_claims_from_other_uses_of_tone(self) -> None:
+        for claim in (
+            "Upload a resume and job description, optionally add company, role, source and tone.",
+            "AI-tailored to your resume + JD. Optional tone, company, role. DOCX export.",
+            '"Careers Page / Referral / Recruiter / Campus / Other), tone.",',
+            '"that includes the parsed resume snippet, the JD, and optional tone / company / role / "',
+            '"Add company + role + tone",',
+            '"Resume uploader + JD textarea on top; optional company / role / source / tone fields "',
+            "Pick a tone for the letter: formal, friendly or enthusiastic.",
+            "- Tone selector with three presets",
+        ):
+            with self.subTest(claim=claim):
+                self.assertTrue(_is_tone_claim(claim))
+        for other in (
+            "information (achievements, projects or tone notes). There is no separate tone control.",
+            "2. Use natural, human tone (not robotic), business professional.",
+            'placeholder=("Specific achievements, projects, or tone notes you want emphasised."),',
+            "## Tone and Voice",
+        ):
+            with self.subTest(other=other):
+                self.assertFalse(_is_tone_claim(other))
+
+    def test_no_tone_control_claim_while_there_is_no_tone_input(self) -> None:
+        if _tone_inputs():
+            self.skipTest("the cover-letter pipeline takes a tone input")
+        self.assertEqual(_hits(_is_tone_claim), [], "advertises a cover-letter tone control")
+
+    def test_there_really_is_no_tone_input(self) -> None:
+        self.assertEqual(
+            _tone_inputs(),
+            [],
+            "a tone input exists: the copy may describe it, and docs/excelcv.md's "
+            '"There is no separate tone control" is now false',
+        )
+
+
+# The toolkit framed as measuring a model: "human-vs-AI", "model-vs-human", or an AI /
+# model / Gemini word on the same line as the toolkit's vocabulary ("MAE, RMSE and
+# correlation between the AI", "measuring model quality", "Model evaluation (project
+# benchmark)"). "no model output" is a denial, so it is removed before matching. Lines
+# about employers' AI screening ("both AI and human readers") use none of this vocabulary.
+_AI_WORD = r"(?:\bAI\b|\bmodel\b|\bGemini\b)"
+_TOOLKIT_WORD = re.compile(
+    r"\bMAE\b|\bRMSE\b|correlation|benchmark|evaluation toolkit|\btoolkit\b"
+    r"|model (?:quality|evaluation)",
+    re.I,
+)
+_AI_VS_HUMAN = re.compile(
+    rf"{_AI_WORD}\s*-?\s*(?:vs\.?|versus)\s*-?\s*human|human\s*-?\s*(?:vs\.?|versus)\s*-?\s*{_AI_WORD}",
+    re.I,
+)
+_AI = re.compile(_AI_WORD, re.I)
+_TOOLKIT_DENIAL = re.compile(r"\bno (?:model|AI) output\b", re.I)
+
+
+def _is_model_benchmark_claim(line: str) -> bool:
+    text = _TOOLKIT_DENIAL.sub("", line)
+    return bool(_AI_VS_HUMAN.search(text) or (_AI.search(text) and _TOOLKIT_WORD.search(text)))
+
+
+def _toolkit_score_ignores_the_model() -> bool:
+    """Whether the toolkit records the same score whatever the model returns."""
+    from tests.test_evaluation_toolkit import _analyze, _model_response, _record_human_score
+
+    low = _record_human_score(_analyze(_model_response(1)))
+    high = _record_human_score(_analyze(_model_response(99)))
+    return low["model_score"] == high["model_score"]
+
+
+class EvaluationToolkitClaimTests(unittest.TestCase):
+    def test_pattern_tells_model_framing_from_other_text(self) -> None:
+        for claim in (
+            "Add a human reviewer score per resume and track MAE, RMSE and correlation between the AI",
+            "and human scores. Benchmark JSON exports for measuring model quality over time.",
+            '"Add human-review scores to validate model quality (MAE, RMSE, correlation) for the project benchmark."',
+            'with st.expander("Model evaluation (project benchmark)", expanded=False):',
+            '"Benchmark model output against human reviewer scores for project validation.",',
+            '"Use this toolkit to track model quality with:\\n"',
+            '"""Evaluation helpers for model-vs-human validation tracking."""',
+            '"Human-vs-AI evaluation toolkit (MAE / RMSE / Pearson correlation).",',
+            '"between human and model scores — providing a measurable benchmark for the AI’s "',
+            '"correlation) provides a measurable benchmark for the AI’s reliability.",',
+        ):
+            with self.subTest(claim=claim):
+                self.assertTrue(_is_model_benchmark_claim(claim))
+        for other in (
+            "and Pearson correlation between ExcelCV's computed score and the human scores, so it",
+            "measures the scoring rules, not Gemini. Records last for the current session only: they can",
+            "scoring code computes; no model output is benchmarked.",
+            'valid_records.append({"model_score": model, "human_score": human})',
+            "Numbers do two things at once: they make a human reviewer take you seriously, and they "
+            "give the AI ranker concrete signal to weight. Compare:",
+            '"Comparative benchmarking against anonymised peer resumes.",',
+        ):
+            with self.subTest(other=other):
+                self.assertFalse(_is_model_benchmark_claim(other))
+
+    def test_no_model_framing_while_the_toolkit_records_the_computed_score(self) -> None:
+        if not _toolkit_score_ignores_the_model():
+            self.skipTest("the toolkit's score now depends on the model")
+        self.assertEqual(
+            _hits(_is_model_benchmark_claim),
+            [],
+            "frames the evaluation toolkit as benchmarking a model",
         )
 
 

@@ -356,11 +356,12 @@ run = p.add_run(
     "Fortune 500 companies use Applicant Tracking Systems (ATS) to filter candidates, yet "
     "traditional optimization methods rely on manual keyword matching with inconsistent "
     "accuracy. ExcelCV is a Streamlit-based GenAI-powered career platform that goes well "
-    "beyond a single-purpose resume scanner. It integrates Google Gemini’s semantic "
-    "analysis with a deterministic, explainable scoring engine across eleven distinct metrics "
+    "beyond a single-purpose resume scanner. Every score it reports comes from a "
+    "deterministic, explainable scoring engine computed in code across eleven distinct metrics "
     "(ATS Parse Rate, Quantifying Impact, Repetition, Spelling & Grammar, Bullets "
     "Consistency, Sections Completeness, Sections Order, Contact Completeness, ATS "
-    "Essentials, File Name Quality, and Tailoring/JD Alignment)."
+    "Essentials, File Name Quality, and Tailoring/JD Alignment). Google Gemini drafts "
+    "cover letters and supplies three subscores for the downloadable reports."
 )
 run.font.size = Pt(11)
 run.font.name = "Times New Roman"
@@ -388,11 +389,12 @@ p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
 p.paragraph_format.space_after = Pt(12)
 p.paragraph_format.first_line_indent = Inches(0.3)
 run = p.add_run(
-    "Input handling supports both PDF and DOCX (≤ 2 MB) via PyPDF2/pypdf and python-docx. "
+    "Input handling supports both PDF and DOCX (≤ 2 MB) via pypdf and python-docx. "
     "The final score is computed via an explainable weighted formula (Content Quality 30%, "
     "JD Alignment 25%, Sections 15%, ATS Essentials 15%, Contact Completeness 15% in "
-    "JD-aligned mode), and an integrated evaluation toolkit tracks human-vs-AI MAE, RMSE, "
-    "and Pearson correlation for model validation. Tested across 50+ CVs and 35+ test cases "
+    "JD-aligned mode), and an integrated evaluation toolkit reports the MAE, RMSE and "
+    "Pearson correlation between the computed score and human reviewer scores. Tested "
+    "across 50+ CVs and 35+ test cases "
     "covering single-CV analysis, multi-resume comparison, authentication, persistence, the "
     "resume builder, and edge scenarios, the system achieves an end-to-end average analysis "
     "time of ~5.4 seconds, sub-second local-processing latency, and robust error handling "
@@ -572,8 +574,9 @@ intro_paragraphs = [
     "detail-card groups: Content, Sections, ATS Essentials, and Insights. The Compare "
     "Resumes module ranks 2–5 CVs against the same job description on a dedicated results "
     "page, with eight sort options, a Top Match card, per-resume drill-downs, and CSV / PDF "
-    "export. The Cover Letter module produces a tailored cover letter from a resume and a "
-    "job description, downloadable as DOCX. The Resume Builder is a FlowCV-inspired "
+    "export. The Cover Letter module drafts a tailored cover letter from a resume, the job "
+    "title and the company name, with the job description optional, downloadable as DOCX. "
+    "The Resume Builder is a FlowCV-inspired "
     "three-panel workspace with live preview, three templates (Classic, Creative, Modern), "
     "and one-click PDF export. All four are gated by a full "
     "authentication system (email/password and Google OAuth) with per-user persistence — "
@@ -586,10 +589,10 @@ intro_paragraphs = [
     "Essentials 15%, Contact Completeness 15% in JD-aligned mode) so users see exactly "
     "which lever moves their score. An evaluation toolkit lets a human reviewer score a "
     "resume independently; the system then reports MAE, RMSE, and Pearson correlation "
-    "between human and model scores — providing a measurable benchmark for the AI’s "
-    "reliability.",
+    "between the human scores and the computed final score — a measurable check of the "
+    "scoring rules against human judgement.",
     "On the engineering side, the platform supports both PDF and DOCX input (≤ 2 MB), "
-    "with text extraction via PyPDF2 / pypdf and python-docx. Reports are exported as PDF "
+    "with text extraction via pypdf and python-docx. Reports are exported as PDF "
     "(ReportLab), Markdown or JSON; cover letters as DOCX; comparison results as CSV or PDF. "
     "Robust error handling covers PDF parse failures, malformed AI responses, Gemini 429 / "
     "quota errors (with a per-file short-circuit so remaining files in a multi-resume run "
@@ -654,7 +657,8 @@ lit = [
         "11-metric deterministic scoring with a weighted, explainable final score; "
         "extends beyond analysis into comparison, cover-letter authoring, and a resume "
         "builder — closing the optimize→author loop in a single platform with per-user "
-        "persistence and a human-vs-AI evaluation toolkit.",
+        "persistence and an evaluation toolkit that benchmarks the computed score against "
+        "human reviewers.",
         "Sequential Gemini calls in compare-mode for quota safety (bounded parallelism is "
         "future work); report snapshots are in-memory (not yet DB-backed).",
     ],
@@ -732,12 +736,14 @@ for s in [
 add_heading("2.1.4  Cover Letter Flow", 3)
 for s in [
     "Click “Cover Letter” in the top nav (sign-in required).",
-    "Upload a resume + paste the JD; optional fields: company name, role, source (LinkedIn / "
-    "Careers Page / Referral / Recruiter / Campus / Other), tone.",
+    "Provide a resume (upload a PDF / DOCX or pick a CV saved in the Resume Builder), the job "
+    "title and the company name — all three required. Optional: the job description, how the "
+    "role was found (LinkedIn / Company Careers Page / Employee Referral / Recruiter "
+    "Outreach / Campus Placement / Other) and free-text additional information.",
     "validators.py checks required fields and file constraints.",
     "service.py orchestrates: parse resume → generator.py builds the prompt → Gemini call → "
     "wrap result in CoverLetterResult dataclass.",
-    "Render on-screen as Markdown; download as DOCX via docx_builder.py.",
+    "Show a read-only plain-text preview on the page; download as DOCX via docx_builder.py.",
 ]:
     add_bullet(s)
 
@@ -753,8 +759,9 @@ for s in [
     "reorderable via drag-and-drop (streamlit-sortables).",
     "Customize: accent color, font, font size, line height, entry spacing — all persisted "
     "with the saved CV.",
-    "Real-time preview: Personal Details fields update in the preview as the user types "
-    "(no Enter needed) via a postMessage JS bridge.",
+    "Real-time preview: Personal Details fields update in the template as the user types "
+    "(no Enter needed) via a postMessage JS bridge; other fields show as plain text lines "
+    "until the next rerun redraws them in the template.",
     "Save to DB / Load from DB / Import-Export JSON / One-click PDF download (cached via "
     "@st.cache_data, only rebuilt on data change).",
 ]:
@@ -778,8 +785,8 @@ dfd_rows = [
     ["External Entity / Process", "Data Flow", "Direction"],
     ["Job Seeker / Recruiter", "Credentials, CV/JD uploads, builder edits", "→ ExcelCV"],
     ["ExcelCV (auth)", "Session cookie, OAuth tokens", "↔ Job Seeker / Google OAuth"],
-    ["ExcelCV (analyze)", "Truncated CV+JD text + prompt", "→ Gemini AI"],
-    ["Gemini AI", "Structured JSON (scores, suggestions, missing skills)", "→ ExcelCV"],
+    ["ExcelCV (analyze)", "Fenced CV + JD text + prompt", "→ Gemini AI"],
+    ["Gemini AI", "Structured JSON (only its three subscores are kept)", "→ ExcelCV"],
     ["ExcelCV (scoring engine)", "Deterministic 11-metric scores + weighted final", "internal"],
     ["ExcelCV (persistence)", "User, CV, Analysis, Comparison, PasswordResetToken", "↔ SQLite"],
     ["ExcelCV (report)", "Rendered report / PDF / Markdown / JSON / DOCX / CSV", "→ Job Seeker"],
@@ -841,7 +848,7 @@ for layer in [
 
 add_heading("2.2.2  Authentication and Session Management", 3)
 add_para(
-    "Auth is enforced by gating four protected pages (resume-builder, my-cvs, my-analyses, "
+    "Auth is enforced by gating six protected pages (resume-builder, my-cvs, my-analyses, "
     "my-comparisons, compare-report, settings). Cookies are HMAC-SHA256 signed using a "
     "secret loaded from SESSION_SECRET; tampered or expired cookies are rejected on the "
     "next render. Google OAuth follows the standard authorization-code flow with the "
@@ -872,32 +879,34 @@ for item in [
 
 add_heading("2.2.4  Resume Text Extraction", 3)
 add_para(
-    "Text extraction is handled by src/pdf_utils.py. PDF inputs go through pypdf (with a "
-    "PyPDF2 fallback for older fixtures); DOCX inputs go through python-docx. All extracted "
-    "text is concatenated and stripped of double-spaces and surrogate characters. A "
-    "parse-confidence indicator (extracted characters per page) flags scanned or image-only "
-    "PDFs so the AI is never given empty input — ATS Parse Rate is graded down "
-    "deterministically in that case.",
+    "Text extraction is handled by src/pdf_utils.py. PDF inputs go through pypdf; DOCX "
+    "inputs go through python-docx, with a raw-XML fallback for files python-docx cannot "
+    "parse. A PDF with no extractable text, such as a scanned image, is rejected with a "
+    "message, so the model is never given empty input, and a parse-confidence chip flags "
+    "extractions of under 800 characters.",
     space_after=8,
 )
 
-add_heading("2.2.5  AI-Based Semantic Analysis", 3)
+add_heading("2.2.5  AI Analysis (Gemini)", 3)
 add_para(
     "The AI layer is in src/gemini_client.py. The default model is models/gemini-2.0-flash "
     "(overridable via GEMINI_MODEL). The prompt asks Gemini for a single JSON object with "
-    "the keys match_score, subscores, content_metrics, sections_metrics, ats_essentials_"
-    "metrics, contact_info, strengths, missing_skills, missing_keywords, suggestions, "
-    "recruiter_snapshot, priority_action_plan, interview_prep, learning_roadmap, "
-    "portfolio_checklist, jd_skill_matrix, and rewrite_recommendations. JSON parsing is "
-    "robust to markdown-wrapped responses, partial outputs, and minor schema drift; "
-    "missing keys fail soft (“Not assessed”) rather than throwing.",
+    "the keys match_score, strengths, missing_skills, suggestions, subscores, "
+    "missing_keywords, content_metrics, sections_metrics, ats_essentials_metrics and "
+    "tailoring_metrics. Only the three subscores are kept: every score is computed in "
+    "code, and the insight lists and other analysis fields are built in code from the "
+    "computed metrics. JSON parsing is robust to markdown-wrapped responses, partial "
+    "outputs, and minor schema drift; an empty response raises an error rather than "
+    "producing a partial report.",
     space_after=8,
 )
 add_para(
-    "Truncation limits: CV text capped at 6,000 characters, JD at 4,000 characters — "
-    "enough to capture the substance of even long resumes while keeping the prompt within "
-    "Gemini’s 2.0-flash token budget. A model fallback chain steps through alternate "
-    "Gemini variants if the primary returns a hard error.",
+    "Input caps: a CV longer than GEMINI_MAX_CV_CHARS (default 26,624 characters, four "
+    "densely packed A4 pages) or a job description longer than GEMINI_MAX_JD_CHARS "
+    "(default 40,000) is rejected with a message before any Gemini call, never cut, so "
+    "accepted text reaches the model whole. Both are fenced with a random per-request "
+    "delimiter as untrusted input. A model fallback chain steps through alternate Gemini "
+    "variants if the primary returns a hard error.",
     space_after=8,
 )
 
@@ -921,13 +930,15 @@ add_para(
 
 add_heading("2.2.7  Cover Letter Generation", 3)
 add_para(
-    "src/cover_letter/service.py is the end-to-end entry. It calls "
-    "validators.validate_inputs (file type, size, required fields), then pdf_utils to "
-    "extract the resume text, then generator.build_prompt to construct a Gemini prompt "
-    "that includes the parsed resume snippet, the JD, and optional tone / company / role / "
-    "source. The Gemini response is wrapped in a CoverLetterResult dataclass and returned "
-    "to the page renderer. docx_builder.build_docx produces the downloadable .docx via "
-    "python-docx.",
+    "src/cover_letter/service.py is the end-to-end entry. It extracts the resume text with "
+    "pdf_utils, then calls validators.validate_form_inputs (job title and company name "
+    "required, PDF or DOCX, enough readable text). generator.generate_cover_letter_draft "
+    "checks the length caps and builds the prompt with _build_prompt: the full resume text "
+    "and the job description fenced as untrusted input, and the job title, company, "
+    "application source and additional information inline, with “Not provided.” for "
+    "empty optional fields. It calls Gemini and validates the draft's structure. The result "
+    "is wrapped in a CoverLetterResult dataclass, and docx_builder.build_cover_letter_docx "
+    "produces the downloadable .docx via python-docx.",
     space_after=8,
 )
 
@@ -1000,7 +1011,9 @@ metrics_rows = [
     ],
     [
         "Tailoring / JD Alignment",
-        "Keyword overlap between JD and CV (3+ letter alphabetic tokens, stop-words removed).",
+        "Weighted mix of keyword match, skill match and experience relevance against JD "
+        "terms (tech phrases, requirement phrases, single terms, role baseline skills); "
+        "scaled down for short or generic JDs.",
         "calculate_tailoring",
     ],
 ]
@@ -1028,7 +1041,9 @@ add_para(
     "structured breakdown (components list, weighted points, formula string, mode) so the "
     "report page can render the “How this score is calculated” card without re-deriving "
     "anything client-side. Every component score is computed in code; the scores the "
-    "model returns for the same metrics are discarded.",
+    "model returns for the same metrics are discarded. Every page that runs an analysis "
+    "requires a job description, so the app always uses the JD-aligned weights; the no-JD "
+    "weights exist only in the scoring function and its unit tests.",
     space_after=8,
 )
 
@@ -1079,21 +1094,24 @@ for s in [
     "Single-CV report: rendered on the report page (src/ui/report.py) as two columns — "
     "sticky sidebar with the score card (horizontal animated bar) + four category accordion, "
     "and right pane with four group cards holding collapsible detail cards per check.",
-    "Downloads: PDF (ReportLab via src/services/reporting.py) and JSON.",
+    "Downloads: PDF (ReportLab via src/services/reporting.py), Markdown and JSON.",
     "Comparison report: dedicated compare-report page with ranked table, Top Match card, "
     "drill-downs, CSV download, and ReportLab PDF download "
     "(src/services/comparison_pdf.py).",
-    "Cover letter: in-page Markdown view + DOCX download via src/cover_letter/docx_builder.py.",
-    "Resume Builder: PDF download via src/services/pdf_generator.py with three "
-    "template-specific layouts (Classic / Creative / Modern).",
+    "Cover letter: read-only plain-text preview + DOCX download via "
+    "src/cover_letter/docx_builder.py.",
+    "Resume Builder: PDF rendered from the preview HTML by headless Chromium via Playwright "
+    "(src/ui/cv_builder_pdf.py), so each template (Classic / Creative / Modern) keeps its "
+    "layout. Saved CVs downloaded from My CVs use the ReportLab builder in "
+    "src/services/pdf_generator.py.",
 ]:
     add_bullet(s)
 
 add_heading("2.2.12  Error Handling and Recovery", 3)
 for s in [
     "Input validation (form-stage + runner-stage); first-interaction hydration retry loop.",
-    "PDF/DOCX extraction wrapped with exception handling — a parse confidence indicator "
-    "flags low-text outputs instead of returning a misleading score.",
+    "PDF/DOCX extraction wrapped with exception handling — a file with no extractable text "
+    "is rejected with a message, and a parse-confidence chip flags low-text extractions.",
     "Gemini API: model-fallback chain, retry on transient failures, structured-JSON "
     "extraction tolerant of markdown wrappers and partial responses.",
     "429 / quota short-circuit in compare mode — remaining files in the batch are marked "
@@ -1123,7 +1141,7 @@ for s in [
     "Requires active internet connectivity for Gemini API and Google OAuth.",
     "Subject to Gemini free-tier rate limits (~15 RPM on gemini-2.0-flash).",
     "Currently supports only text-based PDF/DOCX inputs; scanned (image-only) PDFs are "
-    "flagged with a low parse confidence indicator but not OCR-processed.",
+    "rejected with a message rather than OCR-processed.",
     "Performance depends on external Gemini latency (~83% of total response time).",
     "Streamlit reruns the entire script on each interaction — widget-state protection "
     "(_protect_builder_widget_state) is needed to keep complex Resume Builder state intact.",
@@ -1137,8 +1155,7 @@ add_heading("2.3  Software & Hardware Requirements", 2)
 add_heading("2.3.1  Software Specifications", 3)
 add_para("Development Environment", bold=True, space_after=4)
 for s in [
-    "Programming Language: Python 3.11 or higher (codebase uses match statements and "
-    "PEP 604 union syntax such as dict | None).",
+    "Programming Language: Python 3.13, the version CI and the mypy configuration target.",
     "Operating System: Windows 10/11, macOS, or Linux.",
     "Package Manager: pip (Python package installer).",
 ]:
@@ -1147,7 +1164,7 @@ for s in [
 add_para("Core Dependencies (from requirements.txt)", bold=True, space_after=4)
 for s in [
     "streamlit ≥ 1.40, < 2.0 — web application framework.",
-    "pypdf ≥ 4.0 + PyPDF2 ≥ 3.0.1 — PDF text extraction.",
+    "pypdf ≥ 4.0 — PDF text extraction.",
     "python-docx ≥ 1.1.2 — DOCX resume parsing and cover-letter export.",
     "google-generativeai ≥ 0.8.4 — client library for Google Gemini API.",
     "sqlalchemy ≥ 2.0 — ORM layer over SQLite.",
@@ -1156,13 +1173,13 @@ for s in [
     "python-dotenv ≥ 1.0 — .env loading.",
     "requests ≥ 2.28 — Google OAuth token exchange.",
     "streamlit-sortables ≥ 0.3 — drag-and-drop section reorder in the Resume Builder.",
-    "playwright ≥ 1.54 — reserved for future E2E tests of the CV-builder JS bridge.",
+    "playwright ≥ 1.54 — headless Chromium for the Resume Builder's PDF export.",
 ]:
     add_bullet(s)
 
 add_para("External Services", bold=True, space_after=4)
 for s in [
-    "Google Gemini API — semantic resume analysis and cover-letter generation (API key "
+    "Google Gemini API — three analysis subscores and cover-letter generation (API key "
     "required, GOOGLE_API_KEY).",
     "Google OAuth 2.0 (optional) — “Continue with Google” sign-in "
     "(GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET / GOOGLE_REDIRECT_URI).",
@@ -1243,7 +1260,8 @@ for s in [
     "Multi-resume comparison (2–5 files) with ranked table, 8 sort options, Top Match "
     "card, per-resume drill-downs, identity-locked ★ winner pill, CSV + PDF export, and "
     "auto-save to the comparisons table.",
-    "Cover Letter Generator with optional tone / company / role / source inputs and DOCX download.",
+    "Cover Letter Generator: required job title and company, optional job description / "
+    "source / additional information, and DOCX download.",
     "Resume Builder: three-panel workspace, three templates (Classic / Creative / Modern), "
     "drag-and-drop section reorder, accent color / font / spacing "
     "controls, real-time preview for Personal Details, save/load to DB, import/export "
@@ -1252,8 +1270,8 @@ for s in [
     "opt-in 3-day persistent login, forgot-password email flow.",
     "Per-user persistence: saved resumes, analyses, and comparisons survive logout via a "
     "SQLite database (5 tables).",
-    "Human-vs-AI evaluation toolkit (MAE / RMSE / Pearson correlation) inside a collapsed "
-    "expander on the report page.",
+    "Evaluation toolkit (MAE / RMSE / Pearson correlation between the computed score and "
+    "human reviewer scores) inside a collapsed expander on the report page.",
     "Quota-aware Gemini 429 short-circuit in multi-resume runs.",
     "Light / dark theme toggle with localStorage persistence; theme survives reruns.",
 ]:
@@ -1289,9 +1307,8 @@ for s in [
 add_heading("2.4.2  Future Enhancements (Backlog)", 3)
 add_para("Short-Term", bold=True, space_after=4)
 for s in [
-    "Extend real-time preview in the Resume Builder beyond Personal Details to Experience, "
-    "Education, Skills, Projects, Certifications.",
-    "Skeleton / sample data for the blank-preview-on-first-load case.",
+    "Render Experience, Education, Skills, Projects and Certifications in their template as "
+    "the user types (today they show as plain text until the rerun).",
     "Move report snapshots from in-memory (@st.cache_resource dict) to DB-backed so "
     "shareable ?rid= links survive a server restart.",
     "Shareable permalink for saved comparisons (currently owner-only).",
@@ -1375,7 +1392,13 @@ add_table(
     [
         ["TC-07", "Single-page PDF", "Text-based PDF", "Text extracted successfully", "Pass"],
         ["TC-08", "Multi-page PDF", "Multiple text pages", "Text concatenated correctly", "Pass"],
-        ["TC-09", "Scanned PDF", "Image-only PDF", "Low parse confidence warning", "Pass"],
+        [
+            "TC-09",
+            "Scanned PDF",
+            "Image-only PDF",
+            "Rejected: no extractable text (it may be a scanned image)",
+            "Pass",
+        ],
         ["TC-10", "DOCX resume", "Valid .docx", "Extracted via python-docx", "Pass"],
         [
             "TC-11",
@@ -1440,10 +1463,11 @@ add_table(
         ],
         [
             "TC-26",
-            "No-JD Mode",
-            "No job description provided",
-            "Score formula uses no_jd weights",
-            "Pass",
+            "Withdrawn",
+            "—",
+            "No page reaches the no-JD weights: every analysis requires a job description "
+            "(TC-01). They are unit-tested in tests/test_scoring_core.py",
+            "Withdrawn",
         ],
     ],
     col_widths=[0.7, 1.5, 1.7, 1.7, 0.5],
@@ -1661,16 +1685,16 @@ add_table(
     [
         [
             "TC-58",
-            "Basic Generation",
-            "Resume + JD only",
-            "Markdown letter rendered + DOCX ready",
+            "Required Fields",
+            "Resume + JD, job title and company left blank",
+            "Generate disabled: “Required to continue: Job Title, Company Name.”",
             "Pass",
         ],
         [
             "TC-59",
             "Optional Fields",
-            "Add company + role + tone",
-            "Generated letter reflects inputs",
+            "Required fields + JD + source + additional info",
+            "Letter reflects inputs; one opening sentence names the source",
             "Pass",
         ],
         [
@@ -1680,8 +1704,20 @@ add_table(
             "Valid .docx with formatted content",
             "Pass",
         ],
-        ["TC-61", "Missing JD", "Resume only, no JD", "Validation error", "Pass"],
-        ["TC-62", "Auth Gate", "Visit /cover-letter logged out", "Bounced to auth page", "Pass"],
+        [
+            "TC-61",
+            "Missing JD",
+            "Resume + job title + company, no JD",
+            "Letter generated; plain-text preview + DOCX ready",
+            "Pass",
+        ],
+        [
+            "TC-62",
+            "Auth Gate",
+            "Visit ?page=cover-letter logged out",
+            "Sign-in card shown in place of the form",
+            "Pass",
+        ],
     ],
     col_widths=[0.7, 1.5, 1.7, 1.7, 0.5],
 )
@@ -1693,16 +1729,22 @@ add_table(
         [
             "TC-63",
             "Long Resume",
-            "> 10,000 characters",
-            "Text truncated to 6,000 for Gemini",
+            "Over GEMINI_MAX_CV_CHARS (default 26,624 characters)",
+            "Rejected with a message; nothing sent to Gemini",
             "Pass",
         ],
-        ["TC-64", "Long JD", "> 5,000 characters", "JD truncated to 4,000 for Gemini", "Pass"],
+        [
+            "TC-64",
+            "Long JD",
+            "Over GEMINI_MAX_JD_CHARS (default 40,000 characters)",
+            "Rejected with a message; nothing sent to Gemini",
+            "Pass",
+        ],
         [
             "TC-65",
-            "Empty AI Output",
-            "No structured JSON returned",
-            "Programmatic fallback used",
+            "Non-JSON AI Output",
+            "Model returns prose with no JSON",
+            "Report still built: scores and insights computed in code",
             "Pass",
         ],
         [
@@ -1771,8 +1813,9 @@ screens = [
     ),
     (
         "Figure 3.2.5: Cover Letter Generator Page",
-        "Resume uploader + JD textarea on top; optional company / role / source / tone fields "
-        "below; generated cover letter rendered as Markdown with a “Download DOCX” button.",
+        "Resume uploader (or saved-CV picker) on top; required job title and company fields, "
+        "then optional source, job description and additional information; the generated "
+        "letter in a read-only plain-text preview with a “Download .docx” button.",
     ),
     (
         "Figure 3.2.6: My Comparisons / History Page",
@@ -1808,7 +1851,7 @@ add_table(
         ["PDF / DOCX Text Extraction", "0.30", "0.10", "0.50"],
         ["Programmatic Scoring (11 metrics)", "0.05", "0.02", "0.10"],
         ["Gemini API Processing", "4.50", "2.00", "8.00"],
-        ["JSON Parsing + Score Blending", "0.05", "0.02", "0.10"],
+        ["JSON Parsing + Report Assembly", "0.05", "0.02", "0.10"],
         ["UI Rendering (Streamlit)", "0.50", "0.30", "1.00"],
         ["Total End-to-End", "5.40", "2.50", "9.70"],
     ],
@@ -1844,7 +1887,8 @@ add_para("Inference:", bold=True, space_after=4)
 for s in [
     "External Gemini latency is the primary performance bottleneck.",
     "Local processing is lightweight and not a meaningful contributor.",
-    "Optimisations therefore target API usage (truncation, caching) rather than local code.",
+    "Optimisations therefore target API usage (input caps, session-state reuse) rather than "
+    "local code.",
 ]:
     add_bullet(s)
 
@@ -1921,7 +1965,12 @@ add_para(
 add_table(
     ["Parameter", "Traditional ATS", "ExcelCV"],
     [
-        ["Semantic Analysis", "Limited (keyword match)", "Advanced (Gemini-based)"],
+        [
+            "Semantic Analysis",
+            "Limited (keyword match)",
+            "Not used for scoring: scores are computed in code; Gemini writes cover letters "
+            "and three report subscores",
+        ],
         [
             "Resume Feedback",
             "Rule-based, opaque",
@@ -1930,8 +1979,16 @@ add_table(
         ["Response Time", "Fast", "Moderate (≥5 s due to Gemini latency)"],
         ["Score Explainability", "Low (black box)", "High (weighted breakdown shown to user)"],
         ["Customisation", "Low", "High (themes, builder templates, customisation knobs)"],
-        ["Adaptability", "Static rules", "Dynamic AI + tunable weights"],
-        ["Output Artifacts", "Pass/fail", "Score + report (PDF/JSON) + cover letter + built CV"],
+        [
+            "Adaptability",
+            "Static rules",
+            "Deterministic rules; weights fixed in code (industry weighting is future work)",
+        ],
+        [
+            "Output Artifacts",
+            "Pass/fail",
+            "Score + report (PDF/Markdown/JSON) + cover letter + built CV",
+        ],
         ["Multi-Resume Shortlisting", "Internal only", "First-class feature with PDF/CSV export"],
         [
             "Persistent History",
@@ -1952,8 +2009,9 @@ add_para(
 add_heading("3.3.6  Optimization Analysis", 3)
 add_para("Implemented Optimizations:", bold=True, space_after=4)
 for s in [
-    "Text truncation (CV → 6,000 chars, JD → 4,000 chars) to reduce Gemini payload size.",
-    "Programmatic scoring to reduce hard dependency on AI for every metric.",
+    "Input caps (GEMINI_MAX_CV_CHARS, GEMINI_MAX_JD_CHARS) that reject oversized text "
+    "before any Gemini call.",
+    "Every metric scored in code, so no score depends on a Gemini response.",
     "Session-state reuse to avoid re-running Gemini on UI interactions (sort change, "
     "expander toggle, theme switch).",
     "Cached PDF generation for the Resume Builder (@st.cache_data) — rebuilt only on data change.",
@@ -1992,9 +2050,10 @@ add_heading("4.1  Conclusion", 2)
 
 for para in [
     "The ExcelCV project successfully implements an integrated, AI-assisted career "
-    "platform that goes well beyond a single-purpose resume scanner. By combining Google "
-    "Gemini’s semantic reasoning with a deterministic eleven-metric scoring engine and "
-    "wrapping both in an authenticated, database-backed Streamlit application, the system "
+    "platform that goes well beyond a single-purpose resume scanner. By pairing a "
+    "deterministic eleven-metric scoring engine with Google Gemini for cover-letter "
+    "drafting and report subscores, and wrapping both in an authenticated, database-backed "
+    "Streamlit application, the system "
     "addresses the full optimize→compare→author loop that job seekers and recruiters "
     "actually need.",
     "The platform demonstrates strong performance and reliability across all five modules "
@@ -2010,7 +2069,7 @@ for para in [
     "pill, per-resume drill-down expanders, and CSV / PDF export turn what could be "
     "manual recruiter work into a one-page side-by-side view. The Cover Letter Generator "
     "and Resume Builder close the loop — the same platform that points out a missing "
-    "keyword or weak bullet can also rewrite or rebuild that section.",
+    "keyword or weak bullet is where the user rewrites that section and drafts the letter.",
     "From a usability standpoint, the system delivers a modern, intuitive, and responsive "
     "interface backed by a light/dark theme that survives Streamlit reruns. The sticky "
     "report sidebar, horizontal animated score bar, color-coded score tiers, and "
@@ -2029,8 +2088,8 @@ for para in [
     "5.4 seconds, with Gemini API latency contributing ~83% of that figure. Local "
     "processing (PDF/DOCX extraction, eleven-metric scoring, JSON parsing) all execute in "
     "well under one second. The platform scales predictably with paid API tiers and "
-    "infrastructure upgrades, and a human-vs-AI evaluation toolkit (MAE / RMSE / Pearson "
-    "correlation) provides a measurable benchmark for the AI’s reliability.",
+    "infrastructure upgrades, and an evaluation toolkit (MAE / RMSE / Pearson correlation) "
+    "measures how far the computed score sits from human reviewer scores.",
 ]:
     p = doc.add_paragraph()
     p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
@@ -2042,9 +2101,9 @@ for para in [
 
 add_para("Overall Remarks", bold=True, space_after=4)
 for s in [
-    "The system achieves high accuracy through hybrid evaluation and 11 distinct metrics.",
+    "The system scores consistently through 11 deterministic metrics computed in code.",
     "It ensures consistent output under varied input conditions (PDF / DOCX, single or "
-    "multi-resume, with or without a JD).",
+    "multi-resume).",
     "It maintains robustness and reliability across edge cases (corrupted PDFs, partial "
     "AI responses, API quotas, hydration races, theme switches mid-form).",
     "The design supports future expansion (OCR, bounded parallelism, DB-backed snapshots, "
@@ -2078,9 +2137,9 @@ add_heading("4.2.1  Technical Challenges", 3)
 add_para("Reliability of PDF / DOCX Text Extraction", bold=True, space_after=4)
 add_para(
     "Resumes arrive in many formats, including scanned PDFs without an embedded text "
-    "layer and DOCX files with mixed content. A parse-confidence indicator (extracted "
-    "characters per page) was introduced to flag low-text extraction scenarios so the AI "
-    "is never given misleading input. python-docx complements PyPDF2 / pypdf for DOCX "
+    "layer and DOCX files with mixed content. A PDF with no extractable text is rejected "
+    "with a message, so the model is never given empty input, and a parse-confidence chip "
+    "flags extractions of under 800 characters. python-docx complements pypdf for DOCX "
     "inputs. OCR is on the future-work list for fully scanned documents.",
     space_after=8,
 )
@@ -2089,9 +2148,10 @@ add_para("AI Response Consistency", bold=True, space_after=4)
 add_para(
     "Gemini responses occasionally deviated from the expected JSON schema or returned "
     "incomplete data. The system mitigates this with robust JSON extraction logic "
-    "(markdown unwrapping, partial-key tolerance, missing-key fail-soft) and falls back "
-    "to programmatic scoring when AI output is insufficient. Future work may add explicit "
-    "response-schema validation and a retry layer.",
+    "(markdown unwrapping, partial-key tolerance, missing-key fail-soft). Scores never "
+    "depend on the response: every score is computed in code, and an empty response is "
+    "reported as an error instead of producing a partial report. Future work may add "
+    "explicit response-schema validation.",
     space_after=8,
 )
 
@@ -2101,7 +2161,7 @@ add_para(
     "multi-resume compare runs this would normally cause silent failures mid-batch. ExcelCV "
     "implements a quota-aware short-circuit: if file N hits a 429, files N+1..end are "
     "explicitly marked “skipped (rate limit)” in both the progress card and the per-file "
-    "error list. Combined with text truncation and model fallback, this preserves user "
+    "error list. Together with the per-user rate limit and model fallback, this preserves user "
     "experience even under quota pressure.",
     space_after=8,
 )
@@ -2131,7 +2191,7 @@ add_heading("4.2.2  Design Challenges", 3)
 
 add_para("Information Density Management", bold=True, space_after=4)
 add_para(
-    "Presenting an 11-metric analysis plus AI insights risked overwhelming users. This was "
+    "Presenting an 11-metric analysis plus insight lists risked overwhelming users. This was "
     "addressed via collapsible detail cards, color-coded status badges, a sticky sidebar "
     "with a category accordion, and a clear visual hierarchy. The score breakdown card is "
     "collapsed by default so the score is visible at first glance and the formula is one "
@@ -2163,9 +2223,10 @@ add_para("Real-Time Preview vs. Streamlit Rerun Model", bold=True, space_after=4
 add_para(
     "Streamlit’s rerun-on-interaction model conflicts with the live-preview UX expected "
     "from a resume builder. A postMessage JS bridge "
-    "(inject_cv_builder_realtime_js) injected via a 0-height iframe was used to push "
-    "Personal Details updates directly to the preview without a full rerun. Extending this "
-    "bridge to all sections is a tracked future improvement.",
+    "(_inject_realtime_js) injected via a 0-height iframe pushes Personal Details updates "
+    "into the template without a full rerun; other fields show as plain text lines until "
+    "the rerun redraws them. Rendering every section in its template as the user types is "
+    "a tracked future improvement.",
     space_after=8,
 )
 
@@ -2174,7 +2235,8 @@ add_heading("4.2.3  Operational and Business Challenges", 3)
 add_para("API Usage Costs", bold=True, space_after=4)
 add_para(
     "As API usage scales, operational costs grow proportionally. Cost control is achieved "
-    "via efficient text truncation, scoring every metric in code rather than with API calls, "
+    "via input caps that reject oversized text before any API call, scoring every metric in "
+    "code rather than with API calls, "
     "session-state "
     "reuse (no Gemini call on sort change), and a cached PDF builder. Planned strategies "
     "include usage caps, persistent result caching, and a premium-tier model selection.",
@@ -2207,41 +2269,30 @@ for n, title, body in [
     (
         "1.",
         "Real-Time Preview Extension",
-        "Extend the postMessage JS bridge in the Resume Builder beyond Personal Details to "
-        "Experience, Education, Skills, Projects, and Certifications.",
+        "Render Experience, Education, Skills, Projects and Certifications in their template "
+        "as the user types; today the postMessage bridge shows them as plain text lines until "
+        "the rerun.",
     ),
     (
         "2.",
-        "Skeleton / Sample-Data First Load",
-        "Replace the blank preview on first builder load with a tasteful skeleton or sample "
-        "CV so users immediately see the layout of the chosen template.",
-    ),
-    (
-        "3.",
         "DB-Backed Report Snapshots",
         "Move the in-memory @st.cache_resource snapshot store to a dedicated DB table so "
         "?rid= permalinks survive a server restart.",
     ),
     (
-        "4.",
+        "3.",
         "Shareable Comparison Permalinks",
         "Add a snapshot-style URL for saved comparisons so a recruiter can share a shortlist "
         "view via link.",
     ),
     (
-        "5.",
+        "4.",
         "Heavier Spell / Grammar Checking",
         "Optionally integrate pyspellchecker or LanguageTool for the Spelling & Grammar "
         "metric, behind a config flag to avoid adding a hard dependency.",
     ),
     (
-        "6.",
-        "Static-Page Content",
-        "Fill in real content for ATS Insights, Evaluation Toolkit, Project Notes, How It "
-        "Works, Interview Prep, Privacy Policy, Terms of Service.",
-    ),
-    (
-        "7.",
+        "5.",
         "E2E Tests",
         "Add Playwright-based E2E tests for the CV-builder JS bridge, multi-resume flow, "
         "and auth gate.",

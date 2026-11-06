@@ -220,7 +220,8 @@ for s in [
     'Essentials 15%, Contact 15% — was just "hybrid scoring".',
     'PDF + DOCX input support (was "PDF only").',
     'PDF / Markdown / JSON / DOCX / CSV outputs (was "Markdown / JSON").',
-    "Human-vs-AI evaluation toolkit (MAE / RMSE / Pearson correlation).",
+    "Evaluation toolkit comparing the computed score with human reviewer scores "
+    "(MAE / RMSE / Pearson correlation).",
     "Authentication + persistence: SQLite, 5 tables, Google OAuth, session cookies.",
 ]:
     add_bullet(s)
@@ -300,7 +301,7 @@ add_compare_table(
             "5 paragraphs (~600 words) describing all 5 modules with concrete feature names",
         ],
         ['"8 key metrics"', '"Eleven metrics" — each named explicitly'],
-        ['"PyPDF2" only', '"PyPDF2 / pypdf and python-docx"'],
+        ['"PyPDF2" only', '"pypdf and python-docx"'],
         [
             "No mention of auth, persistence, comparison, cover letter, builder",
             "All explicitly covered",
@@ -361,7 +362,7 @@ add_compare_table(
             "2.2.3 Resume Text Extraction (PyPDF2 only)",
             "2.2.4 Resume Text Extraction (PDF + DOCX; parse-confidence indicator)",
         ],
-        ["2.2.4 AI Analysis", "2.2.5 AI Analysis (model name, fallback chain, truncation limits)"],
+        ["2.2.4 AI Analysis", "2.2.5 AI Analysis (model name, fallback chain, input caps)"],
         [
             "2.5 Programmatic Metrics (8 metrics)",
             "2.2.9 Scoring Engine — Eleven Metrics (full table with function names)",
@@ -392,10 +393,10 @@ add_compare_table(
 add_heading("§2.3 Software & Hardware Requirements", 3)
 add_compare_table(
     rows=[
-        ["Python 3.8+", "Python 3.11+ (codebase uses match statements and PEP 604 union syntax)"],
+        ["Python 3.8+", "Python 3.13 (the version CI and the mypy configuration target)"],
         [
             "4 dependencies (Streamlit, PyPDF2, google-generativeai, python-dotenv)",
-            "11 dependencies from actual requirements.txt: streamlit, pypdf, PyPDF2, "
+            "11 dependencies from actual requirements.txt: streamlit, pypdf, "
             "python-docx, google-generativeai, sqlalchemy, bcrypt, reportlab, "
             "python-dotenv, requests, streamlit-sortables, playwright",
         ],
@@ -423,7 +424,7 @@ add_compare_table(
         ["—", "Resume Builder + 3 templates + live preview (NEW)"],
         ["—", "Authentication + Google OAuth + session cookies (NEW)"],
         ["—", "Per-user persistence + My CVs / Analyses / Comparisons (NEW)"],
-        ["—", "Human-vs-AI evaluation toolkit (NEW)"],
+        ["—", "Evaluation toolkit: computed score vs. human reviewer scores (NEW)"],
         ["—", "Gemini 429 quota short-circuit (NEW)"],
         [
             "Future enhancements: long list",
@@ -443,7 +444,8 @@ add_heading("7. Chapter 3 — Tests, Output & Performance", 2)
 
 add_heading("§3.1 Test Cases — Biggest Expansion", 3)
 add_para(
-    "Old: 27 tests across 6 tables (all Pass). New: 68 tests across 9 tables (all Pass).",
+    "Old: 27 tests across 6 tables (all Pass). New: 68 tests across 9 tables (66 Pass, "
+    "2 withdrawn).",
     space_after=6,
 )
 add_compare_table(
@@ -462,7 +464,8 @@ add_compare_table(
         ],
         [
             "3.1.4 Scoring (5 tests)",
-            "3.1.4 Scoring (8 tests) — added Bullets Consistency, Weighted Final Score, No-JD Mode",
+            "3.1.4 Scoring (8 tests, 1 withdrawn) — added Bullets Consistency, Weighted Final "
+            "Score; the No-JD Mode test is withdrawn because no page reaches it",
         ],
         ["3.1.5 Mode-switch tests (3 tests)", "REMOVED — feature no longer exists"],
         [
@@ -489,8 +492,8 @@ add_compare_table(
         ],
         [
             "—",
-            "3.1.8 Cover Letter (5 tests) — NEW: basic, optional fields, DOCX "
-            "download, missing JD, auth gate",
+            "3.1.8 Cover Letter (5 tests) — NEW: required fields, optional fields, DOCX "
+            "download, missing JD (optional), sign-in card",
         ],
     ],
     col_widths=[3.0, 3.8],
@@ -500,8 +503,8 @@ add_para("Fixes to original test tables:", bold=True, space_after=4)
 for s in [
     'TC-04 "Upload restricted to PDF" → "PDF / DOCX".',
     "TC-24 had the same text for Input Description and Expected Outcome (both said "
-    '">10,000 characters") → fixed: Expected now says "Text truncated to 6,000 for '
-    'Gemini".',
+    '">10,000 characters") → fixed (now TC-63): a resume over GEMINI_MAX_CV_CHARS is '
+    "rejected with a message.",
     'Tables 3.1.4 and 3.1.5 in the old PDF were both titled "Scoring System '
     'Validation" (duplicate) → fixed: 3.1.5 is now "Authentication & Persistence".',
 ]:
@@ -566,7 +569,7 @@ add_compare_table(
     rows=[
         [
             "6 paragraphs talking only about single-CV analysis + dual-mode",
-            "6 paragraphs rewritten — covers all 5 modules, hybrid scoring, weighted "
+            "6 paragraphs rewritten — covers all 5 modules, deterministic scoring, weighted "
             "formula, multi-resume shortlisting, cover letter + builder closing the loop, "
             "modular architecture, evaluation toolkit",
         ],
@@ -612,7 +615,7 @@ add_compare_table(
         [
             "—",
             "Added: DB-backed snapshots, shareable comparison permalinks, real-time "
-            "preview extension, bounded parallelism, E2E tests, static-page content",
+            "preview extension, bounded parallelism, E2E tests",
         ],
     ],
     col_widths=[3.4, 3.4],
@@ -632,7 +635,11 @@ add_compare_table(
             "Added: pypdf docs, python-docx docs, ReportLab guide, SQLAlchemy 2.0 docs, "
             "Python Cookbook (Beazley & Jones)",
         ],
-        ["Streamlit, Gemini, PyPDF2, Python — kept", "Kept all with proper IEEE formatting"],
+        [
+            "Streamlit, Gemini, PyPDF2, Python — kept",
+            "Streamlit, Gemini and Python kept with proper IEEE formatting; PyPDF2 replaced by "
+            "the pypdf documentation",
+        ],
     ],
     col_widths=[3.4, 3.4],
 )
@@ -658,7 +665,7 @@ for s in [
 add_heading("10. Summary in Numbers", 2)
 add_compare_table(
     rows=[
-        ["Total test cases", "27", "68 (1 withdrawn)"],
+        ["Total test cases", "27", "68 (2 withdrawn)"],
         ["Tables (excluding TOC)", "~9", "17"],
         ["Figures referenced", "4", "8"],
         ["Documented features", "~10", "26"],
@@ -703,7 +710,7 @@ for n, item in [
     (
         7,
         "Optional: re-run the generator at any time via "
-        "`py -3 tmp/generate_minor_report.py` — the script overwrites the DOCX so "
+        "`py -3 scripts/generate_minor_report.py` — the script overwrites the DOCX so "
         "tweaks can be regenerated easily.",
     ),
 ]:

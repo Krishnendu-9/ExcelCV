@@ -75,7 +75,7 @@ Protected pages in current code (`PROTECTED_PAGES` in [app.py:53](../app.py)):
 ## 4.1 Single Resume Analysis
 - Input: job description + one `.pdf` or `.docx` file.
 - File size limit: 2 MB (`src/config.py` + `.streamlit/config.toml`).
-- Flow: text extraction → Gemini response → deterministic scoring merge → report page.
+- Flow: text extraction → Gemini call (only its three subscores are kept) → every score computed in code → report page.
 - Auto-saved per user to the `analyses` table; reviewable from **My Analyses**.
 
 Core files:
@@ -358,7 +358,7 @@ See [docs/SETUP.md](SETUP.md) for the full setup walkthrough.
 - Comparison results page: `src/ui/compare_report.py`
 - Saved comparisons list: `src/ui/my_comparisons_page.py`
 - Single/multi analysis runners: `src/ui/analysis_runner.py`
-- Gemini orchestration + merge: `src/gemini_client.py`
+- Gemini orchestration and analysis assembly: `src/gemini_client.py`
 - Scoring engine: `src/services/scoring.py`
 - Report rendering: `src/ui/report.py`
 - Resume builder (entry): `src/ui/cv_builder_page.py`

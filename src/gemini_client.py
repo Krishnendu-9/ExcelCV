@@ -2,7 +2,9 @@
 Gemini Client Module
 
 This module handles communication with Google Gemini AI for CV analysis.
-It orchestrates AI analysis and blends it with programmatic scoring calculations.
+analyze_cv_with_gemini() calls the model, runs every programmatic metric in
+src/services/scoring.py, and assembles the analysis dict. Every score in it is computed
+in code; of the model's output only its three subscores are kept.
 """
 
 import json

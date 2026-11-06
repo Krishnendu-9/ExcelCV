@@ -2,8 +2,8 @@
 Scoring Module - Programmatic score calculations for CV analysis.
 
 This module contains all scoring calculation functions that analyze CV text
-programmatically, independent of AI analysis. These scores can be blended
-with AI-provided scores for more accurate results.
+programmatically, independent of AI analysis. Every score the report shows comes
+from these functions.
 """
 
 import re

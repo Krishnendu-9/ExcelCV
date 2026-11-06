@@ -17,10 +17,12 @@
 ---
 
 ExcelCV is a career tool built on Streamlit and Google Gemini. Every score it reports
-is explainable: the model returns structured JSON, which is merged with deterministic
-scoring so a number can always be traced back to a reason. It also ranks a shortlist of
-candidates against one job description, writes cover letters, and includes a resume
-builder with live preview and PDF export.
+is computed in code from the CV and the job description, so the same inputs always give
+the same number and each number can be traced to the rule that produced it. Gemini
+writes the cover letters and supplies three subscores (skills alignment, experience
+alignment, ATS readiness) for the downloadable PDF report; it sets no score on the report
+page. ExcelCV also ranks a shortlist of candidates against one job description, and
+includes a resume builder with live preview and PDF export.
 
 ## Features
 

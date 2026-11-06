@@ -278,7 +278,7 @@ def render_static_page(page: str) -> None:
         )
         st.markdown("### Engineering Decisions")
         st.markdown(
-            "- Two-pronged scoring: deterministic rules (explainability) + Gemini qualitative analysis\n"
+            "- Deterministic scoring: every score is computed in code, so it is explainable and repeatable\n"
             "- Session-scoped analysis state for fast cross-page navigation\n"
             "- HMAC-SHA256 signed tokens + bcrypt 12-round hashing for auth security\n"
             "- SQLite (SQLAlchemy ORM) with `_migrate()` for zero-downtime schema evolution\n"
@@ -302,7 +302,7 @@ def render_static_page(page: str) -> None:
         st.markdown(
             "Paste a job description and upload a PDF or DOCX resume. ExcelCV extracts the text, "
             "runs deterministic checks (ATS parse rate, quantifying impact, repetition, spelling, "
-            "section completeness), and combines them with a model-based qualitative review. "
+            "section completeness, JD alignment) and computes every score from them in code. "
             "You get a weighted final score, explainable component breakdown, missing skills, "
             "keyword gaps, and rewrite suggestions you can act on."
         )

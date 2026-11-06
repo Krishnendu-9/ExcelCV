@@ -54,12 +54,20 @@ def generate_comparison_pdf(
     avg_score: float,
     errors: list[str] | None = None,
     warnings: list[str] | None = None,
+    *,
+    top_match_name: str,
 ) -> bytes:
     """Render a comparison PDF and return its bytes.
 
     Layout: title + meta strip → JD block → ranked table (color-coded scores,
     winner row tinted) → per-resume summary blocks (one paragraph each with
     summary text + top missing skills + top suggestions).
+
+    ``rows`` arrive in the user's chosen sort order. ``top_match_name`` is the
+    true top match (the resume the Top Match card shows: rank 1 in scoring
+    order), so the header and the tinted row stay on it after any re-sort, as
+    the star does in the on-page table. It falls back to the first row only if
+    no row has that name.
     """
     buffer = BytesIO()
     doc = SimpleDocTemplate(
@@ -109,7 +117,10 @@ def generate_comparison_pdf(
     # Header
     story.append(Paragraph("Resume Comparison Report", styles["title"]))
     generated_on = datetime.now().strftime("%b %d, %Y · %H:%M")
-    top_row = rows[0] if rows else {}
+    top_row: dict[str, Any] = next(
+        (row for row in rows if str(row.get("Resume", "") or "") == top_match_name),
+        rows[0] if rows else {},
+    )
     top_name = str(top_row.get("Resume", "—") or "—")
     top_score = int(top_row.get("Final Score", 0) or 0)
     meta_line = (
@@ -189,7 +200,8 @@ def generate_comparison_pdf(
         style_cmds.append(("TEXTCOLOR", (5, i), (5, i), _tier_color(sections)))
         style_cmds.append(("TEXTCOLOR", (6, i), (6, i), _issue_color(issues)))
         style_cmds.append(("FONTNAME", (2, i), (6, i), "Helvetica-Bold"))
-        if int(row.get("Rank", 0) or 0) == 1:
+        # Identity, not position: after a re-sort the top match may not be #1.
+        if row is top_row:
             style_cmds.append(("BACKGROUND", (0, i), (-1, i), _WIN_BG))
             style_cmds.append(("LINEBEFORE", (0, i), (0, i), 2.4, _WIN_BORDER))
             style_cmds.append(("FONTNAME", (0, i), (0, i), "Helvetica-Bold"))

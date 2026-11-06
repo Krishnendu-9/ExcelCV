@@ -399,10 +399,13 @@ def _build_comparison_pdf_bytes(
     avg_score: float,
     errors: list[str],
     warnings: list[str],
+    top_match_name: str,
 ) -> bytes:
     """Cache the rendered PDF so re-runs (sort changes, expander toggles)
     don't re-invoke ReportLab. Cache key is the full args tuple — different
-    sort = different rows order = fresh PDF, which is what we want."""
+    sort = different rows order = fresh PDF, which is what we want.
+    ``top_match_name`` is part of the key too, though for one comparison it
+    never changes with the sort."""
     from src.services.comparison_pdf import generate_comparison_pdf
 
     return generate_comparison_pdf(
@@ -411,6 +414,7 @@ def _build_comparison_pdf_bytes(
         avg_score=avg_score,
         errors=errors,
         warnings=warnings,
+        top_match_name=top_match_name,
     )
 
 
@@ -554,6 +558,10 @@ def render_compare_report_page() -> None:
         1,
     )
     top_score = int(comparison_rows[0].get("Final Score", 0) or 0)
+    # The true top match: rank 1 in the original scoring order, which is what the
+    # Top Match card shows. The table's ★ and the PDF's header and tinted row all
+    # stay on this resume whatever the user picks in the Sort by dropdown.
+    true_top_match_name = str(comparison_rows[0].get("Resume", "") or "")
     resumes_compared = len(comparison_rows)
 
     resume_word = "resume" if resumes_compared == 1 else "resumes"
@@ -622,7 +630,6 @@ def render_compare_report_page() -> None:
             # unsorted scoring order) so the star stays glued to the resume
             # the Top Match card on the right is showing — regardless of what
             # the user picks in the Sort by dropdown.
-            true_top_match_name = str(comparison_rows[0].get("Resume", "") or "")
             _render_comparison_table_html(sorted_rows, top_match_name=true_top_match_name)
         with primary_right:
             st.markdown(
@@ -665,6 +672,7 @@ def render_compare_report_page() -> None:
                 avg_score,
                 comparison_errors,
                 comparison_warnings,
+                true_top_match_name,
             )
             st.download_button(
                 "Download PDF",

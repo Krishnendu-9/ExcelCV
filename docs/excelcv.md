@@ -235,7 +235,8 @@ With a job description (`mode="jd_aligned"`):
 - ATS Essentials: 0.15
 - Contact Completeness: 0.15
 
-Without a job description (`mode="no_jd"`):
+Without a job description (`mode="no_jd"`), reachable only by calling the scoring functions
+directly, since every page that runs an analysis requires a job description:
 - Content Quality: 0.35
 - Sections: 0.25
 - ATS Essentials: 0.25

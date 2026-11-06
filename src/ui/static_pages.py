@@ -98,14 +98,16 @@ def render_static_page(page: str) -> None:
       <article class="landing-clean-card">
         <div class="landing-clean-icon">1</div>
         <h4>Text extraction</h4>
-        <p>Your PDF or DOCX is parsed and raw text is extracted. Parse confidence
-           becomes your ATS Parse Rate score.</p>
+        <p>Your PDF or DOCX is parsed and raw text is extracted. How much text comes
+           through, and whether standard section headings are present, set your ATS
+           Parse Rate.</p>
       </article>
       <article class="landing-clean-card">
         <div class="landing-clean-icon">2</div>
         <h4>Deterministic checks</h4>
-        <p>Five rule-based checks run on the extracted text: parse rate, quantifying
-           impact, repetition, spelling &amp; grammar, and section completeness.</p>
+        <p>Rule-based checks run on the extracted text: content quality, section
+           completeness, ATS essentials, contact details, and alignment with the job
+           description you paste.</p>
       </article>
       <article class="landing-clean-card">
         <div class="landing-clean-icon">3</div>
@@ -127,36 +129,36 @@ def render_static_page(page: str) -> None:
     <div class="landing-clean-grid features-grid">
       <article class="landing-clean-card">
         <h4>Content Quality &nbsp;<span style="color:#2563eb;font-size:1.1rem;font-weight:800;">30%</span></h4>
-        <p>Average of ATS parse rate, quantifying impact, repetition penalty, and
-           spelling &amp; grammar — all computed deterministically on your text.</p>
-      </article>
-      <article class="landing-clean-card">
-        <h4>ATS Essentials &nbsp;<span style="color:#2563eb;font-size:1.1rem;font-weight:800;">20%</span></h4>
-        <p>Checks for contact info, measurable bullets, appropriate resume length,
-           and absence of ATS-unfriendly formatting like tables or images.</p>
+        <p>Average of ATS parse rate, quantifying impact, repetition, spelling &amp;
+           grammar, and bullet length — all computed deterministically on your text.</p>
       </article>
       <article class="landing-clean-card">
         <h4>JD Alignment &nbsp;<span style="color:#2563eb;font-size:1.1rem;font-weight:800;">25%</span></h4>
-        <p>Keyword overlap and skill gap count between your resume and the job
-           description. Only active in JD mode — weight shifts to Content when no JD is provided.</p>
+        <p>How much of the job description your resume covers: its tech phrases,
+           stated requirements and key terms, plus the skills expected for recognised
+           roles. Every analysis needs a job description, so this always counts.</p>
       </article>
       <article class="landing-clean-card">
-        <h4>Section Quality &nbsp;<span style="color:#2563eb;font-size:1.1rem;font-weight:800;">15%</span></h4>
-        <p>Checks that key sections (Summary, Experience, Education, Skills) are
-           present, non-empty, and correctly labeled for ATS recognition.</p>
+        <h4>Sections &nbsp;<span style="color:#2563eb;font-size:1.1rem;font-weight:800;">15%</span></h4>
+        <p>Contact, Summary, Experience, Education and Skills sections, found by their
+           headings and keywords. Each one present is worth 20 points.</p>
       </article>
       <article class="landing-clean-card">
-        <h4>Skills Match &nbsp;<span style="color:#2563eb;font-size:1.1rem;font-weight:800;">10%</span></h4>
-        <p>Compares listed skills against role-relevant keywords extracted from the
-           job description to surface critical gaps.</p>
+        <h4>ATS Essentials &nbsp;<span style="color:#2563eb;font-size:1.1rem;font-weight:800;">15%</span></h4>
+        <p>Starts at 60 and adds points for standard section headers, text-based
+           content, and at least 200 words.</p>
       </article>
       <article class="landing-clean-card">
-        <h4>Score bands</h4>
+        <h4>Contact Completeness &nbsp;<span style="color:#2563eb;font-size:1.1rem;font-weight:800;">15%</span></h4>
+        <p>The share of phone number, email address and LinkedIn profile found in
+           your resume. Location and other links are reported but not scored.</p>
+      </article>
+      <article class="landing-clean-card">
+        <h4>Score colours</h4>
         <p>
-          <strong>90–100</strong> — Submit with confidence<br>
-          <strong>75–89</strong> — Good, minor fixes needed<br>
-          <strong>60–74</strong> — Fair, targeted improvements<br>
-          <strong>0–59</strong> — High risk, revise before applying
+          <strong>80–100</strong> — green<br>
+          <strong>60–79</strong> — amber<br>
+          <strong>0–59</strong> — red
         </p>
       </article>
     </div>
@@ -175,19 +177,20 @@ def render_static_page(page: str) -> None:
       <article class="landing-clean-card">
         <div class="landing-clean-icon">&#10003;</div>
         <h4>No guessing</h4>
-        <p>All five checks are deterministic — same resume always returns the same score.</p>
+        <p>Every check is deterministic — the same resume and job description always
+           return the same score.</p>
       </article>
       <article class="landing-clean-card">
         <div class="landing-clean-icon">&#10003;</div>
         <h4>Actionable gaps</h4>
-        <p>Each low-scoring component links directly to the section of your report
-           that explains how to fix it.</p>
+        <p>Each check in the report sidebar jumps to its detail card, which shows
+           what was found and what to fix.</p>
       </article>
       <article class="landing-clean-card">
         <div class="landing-clean-icon">&#10003;</div>
-        <h4>JD-aware mode</h4>
-        <p>Add a job description and the scoring shifts to prioritise role-specific
-           keyword alignment and skill match.</p>
+        <h4>Measured against the job</h4>
+        <p>Every analysis scores your resume against the job description you paste,
+           so the same resume can score differently for different roles.</p>
       </article>
     </div>
   </section>
@@ -261,19 +264,21 @@ def render_static_page(page: str) -> None:
         )
         st.markdown("### Architecture")
         st.markdown(
-            "- `app.py` (~350 lines): routing, session orchestration, OAuth/cookie handling\n"
+            "- `app.py`: routing, session orchestration, OAuth/cookie handling\n"
             "- `src/ui/layout.py`: site header, footer, theme toggle\n"
             "- `src/ui/upload.py`: upload page, compare mode, file handling UI\n"
             "- `src/ui/report.py`: full report rendering, evaluation toolkit\n"
-            "- `src/ui/css_injection.py`: all custom CSS/JS injection (header bar, top-bar)\n"
+            "- `src/ui/css_injection.py`: shared CSS/JS injection (header bar, top bar); "
+            "pages add their own styles\n"
             "- `src/ui/analysis_runner.py`: CV analysis pipeline, multi-resume comparison, DB auto-save\n"
             "- `src/ui/app_utils.py`: URL helpers, state helpers, report snapshot store\n"
             "- `src/ui/static_pages.py`: informational pages (blog, privacy, contact, how-it-works)\n"
             "- `src/ui/auth_page.py`: sign in, create account, forgot/reset password\n"
             "- `src/gemini_client.py`: Gemini 2.0 Flash orchestration + JSON parsing\n"
-            "- `src/scoring.py`: deterministic ATS/content/tailoring scoring\n"
+            "- `src/services/scoring.py`: deterministic ATS/content/tailoring scoring\n"
             "- `src/auth_utils.py`: bcrypt login, HMAC session tokens, cookie restore\n"
-            "- `src/database.py`: SQLAlchemy ORM (User, CV, Analysis, PasswordResetToken)\n"
+            "- `src/database.py`: SQLAlchemy ORM (User, PasswordResetToken, CV, Analysis, "
+            "Comparison)\n"
             "- `src/email_utils.py`: SMTP password reset + contact form email"
         )
         st.markdown("### Engineering Decisions")
@@ -281,7 +286,7 @@ def render_static_page(page: str) -> None:
             "- Deterministic scoring: every score is computed in code, so it is explainable and repeatable\n"
             "- Session-scoped analysis state for fast cross-page navigation\n"
             "- HMAC-SHA256 signed tokens + bcrypt 12-round hashing for auth security\n"
-            "- SQLite (SQLAlchemy ORM) with `_migrate()` for zero-downtime schema evolution\n"
+            "- SQLite (SQLAlchemy ORM) with an additive `_migrate()` at startup for older databases\n"
             "- Export support (`PDF`, `Markdown`, `JSON`) for demos and portfolio records"
         )
         st.markdown("### Suggested Next Iterations")

@@ -496,8 +496,8 @@ _BULLETS_NO_DATA_SCORE = 75
 def calculate_bullets_consistency(cv_text: str) -> Tuple[int, Dict]:
     """
     Score 0-100 based on whether experience/project bullet points fall within a
-    recruiter-friendly word range (10-35 words). Too short reads vague; too long
-    is a wall of text recruiters skip.
+    recruiter-friendly word range (BULLET_MIN_WORDS to BULLET_MAX_WORDS). Too short
+    reads vague; too long is a wall of text recruiters skip.
 
     Reuses the same bullet-extraction pipeline as ``calculate_quantifying_impact``.
     PDF text extraction routinely strips bullet markers, so this check fails soft

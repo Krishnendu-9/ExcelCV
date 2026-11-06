@@ -222,6 +222,12 @@ Tailoring has no category; its score appears only as the JD Alignment component 
 | ATS Essentials | 0.15 | 0.25 |
 | Contact Completeness | 0.15 | 0.15 |
 
+Every page that runs an analysis (single analysis and comparison) rejects a blank job
+description before scoring, so the app always uses the first column. The second is
+reachable only by calling `calculate_final_score_breakdown` or `analyze_cv_with_gemini`
+directly with no job description; `tests/test_scoring_core.py` covers it, and
+`tests/test_jd_required.py` fails if a page stops requiring a job description.
+
 The breakdown is returned as `analysis["score_breakdown"]` (`mode`, `components`, `formula`) and shown under the score.
 
 **Score ring color**: green at 80 or more, amber at 60–79, red below 60.

@@ -665,7 +665,7 @@ add_compare_table(
         ["Dependencies listed", "4", "11"],
         ["Reference entries", "5", "12"],
         ["Scoring metrics covered", "8", "11"],
-        ["Hybrid formula", "(AI + Rule) / 2", "5-component weighted breakdown"],
+        ["Score formula", "(AI + Rule) / 2", "5-component weighted breakdown"],
         ["Approximate page count", "~36", "~40"],
     ],
     headers=["Metric", "Old PDF", "New DOCX"],

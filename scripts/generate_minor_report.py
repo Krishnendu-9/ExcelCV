@@ -564,8 +564,8 @@ intro_paragraphs = [
     "well to human recruiters. Manual optimization is slow, inconsistent, and expensive when "
     "every role requires a tailored variant. ExcelCV was conceived as a single integrated "
     "platform that closes this loop — from analysis and shortlisting through to drafting "
-    "and authoring — powered by a hybrid of Google Gemini’s semantic reasoning and a "
-    "deterministic, explainable scoring engine.",
+    "and authoring — built on a deterministic, explainable scoring engine that computes "
+    "every score, with Google Gemini drafting cover letters and adding three subscores.",
     "Unlike a one-shot resume scanner, ExcelCV is structured as a multi-feature web "
     "application with five integrated modules. The Analyze CV module evaluates a single "
     "resume against a job description and produces a weighted final score with four "
@@ -651,7 +651,7 @@ lit = [
     [
         "This work (ExcelCV)",
         "2026",
-        "Hybrid Gemini + 11-metric deterministic scoring; weighted explainable final score; "
+        "11-metric deterministic scoring with a weighted, explainable final score; "
         "extends beyond analysis into comparison, cover-letter authoring, and a resume "
         "builder — closing the optimize→author loop in a single platform with per-user "
         "persistence and a human-vs-AI evaluation toolkit.",
@@ -698,7 +698,7 @@ for s in [
     "Form-stage validation (non-empty JD, valid file type, size cap) blocks submit on failure.",
     "On “Upload & Analyze”: pdf_utils.py extracts text → gemini_client.py builds the "
     "structured prompt → Gemini returns JSON → services/scoring.py runs the 11 programmatic "
-    "metrics → blend_scores averages AI + programmatic where both exist.",
+    "metrics; every score is computed in code and the scores in the model's JSON are discarded.",
     "calculate_final_score_breakdown produces the weighted final score with per-component "
     "weights and weighted points.",
     "User is navigated to the report page (route: report) with the analysis stashed in "
@@ -951,7 +951,7 @@ add_para("Table 2.1: Eleven Programmatic Scoring Metrics", bold=True, size=11, s
 metrics_rows = [
     [
         "ATS Parse Rate",
-        "Text-extraction quality + section-header presence. Programmatic + optional AI blend.",
+        "Text-extraction quality + section-header presence. Computed in code only.",
         "calculate_ats_parse_rate",
     ],
     [
@@ -1030,8 +1030,8 @@ add_para(
     "The weighted total is computed by calculate_final_score_breakdown, which returns a "
     "structured breakdown (components list, weighted points, formula string, mode) so the "
     "report page can render the “How this score is calculated” card without re-deriving "
-    "anything client-side. When the AI and the programmatic engine both score a metric, "
-    "blend_scores averages them; AI-only or programmatic-only fall through cleanly.",
+    "anything client-side. Every component score is computed in code; the scores the "
+    "model returns for the same metrics are discarded.",
     space_after=8,
 )
 
@@ -1223,8 +1223,9 @@ page_break()
 add_heading("2.4  Proposed Work", 2)
 add_para(
     "The proposed work focused on building an integrated, AI-assisted career platform that "
-    "goes beyond traditional resume screening by combining large-language-model capability "
-    "with deterministic, explainable scoring. The platform is implemented as a modular "
+    "goes beyond traditional resume screening: every score is computed by deterministic, "
+    "explainable rules, and a large language model drafts cover letters and adds three "
+    "subscores to the PDF report. The platform is implemented as a modular "
     "Streamlit application with a database-backed persistence layer and full authentication. "
     "The list below separates what has shipped from what remains as backlog.",
     space_after=10,
@@ -1240,8 +1241,8 @@ for s in [
     "Gemini integration for semantic analysis, AI bullet suggestions, and cover-letter generation.",
     "Eleven programmatic scoring metrics with status thresholds and weighted final-score "
     "breakdown (calculate_final_score_breakdown).",
-    "Hybrid evaluation: AI scores blended with programmatic where both exist; fail-soft on "
-    "missing metrics.",
+    "Deterministic evaluation: every score is computed in code and the model's own scores "
+    "are discarded, so the same CV and job description always score the same.",
     "Multi-resume comparison (2–5 files) with ranked table, 8 sort options, Top Match "
     "card, per-resume drill-downs, identity-locked ★ winner pill, CSV + PDF export, and "
     "auto-save to the comparisons table.",
@@ -1927,7 +1928,7 @@ add_table(
         [
             "Resume Feedback",
             "Rule-based, opaque",
-            "Hybrid (AI + 11 metrics) + actionable suggestions",
+            "11 deterministic metrics + actionable suggestions",
         ],
         ["Response Time", "Fast", "Moderate (≥5 s due to Gemini latency)"],
         ["Score Explainability", "Low (black box)", "High (weighted breakdown shown to user)"],
@@ -2001,9 +2002,9 @@ for para in [
     "actually need.",
     "The platform demonstrates strong performance and reliability across all five modules "
     "(Analyze CV, Compare Resumes, Cover Letter, Resume Builder, and per-user history). The "
-    "hybrid scoring methodology — averaging AI scores with programmatic scores where both "
-    "exist and falling through cleanly when either is unavailable — enhances "
-    "trustworthiness and minimises dependency on any single evaluation source. The "
+    "deterministic scoring methodology — every score is computed in code from the CV and job "
+    "description, and the model's own scores are discarded — makes every report-page score "
+    "reproducible and independent of model output. The "
     "explainable weighted final-score formula (Content Quality 30%, JD Alignment 25%, "
     "Sections 15%, ATS Essentials 15%, Contact Completeness 15% in JD-aligned mode) makes "
     "the score legible to non-technical users and provides a clear lever for improvement.",
@@ -2110,11 +2111,11 @@ add_para(
 
 add_para("Score Accuracy and Stability", bold=True, space_after=4)
 add_para(
-    "AI-generated scores may vary slightly across repeated analyses due to model "
-    "stochasticity. The hybrid scoring methodology (AI + programmatic average) stabilises "
-    "the output considerably — the deterministic engine anchors the score even when the "
-    "AI drifts. The evaluation toolkit (MAE / RMSE / correlation against human reviewer "
-    "scores) provides quantitative validation of this stability.",
+    "Every report-page score is computed in code, so the same CV and job description always "
+    "produce the same scores and model stochasticity cannot move them. The only model numbers "
+    "kept are its three subscores (skills alignment, experience alignment, ATS readiness), "
+    "which appear only in the downloadable PDF report. The evaluation toolkit (MAE / RMSE / "
+    "correlation) compares the final score against human reviewer scores.",
     space_after=8,
 )
 
@@ -2175,7 +2176,8 @@ add_heading("4.2.3  Operational and Business Challenges", 3)
 add_para("API Usage Costs", bold=True, space_after=4)
 add_para(
     "As API usage scales, operational costs grow proportionally. Cost control is achieved "
-    "via efficient text truncation, hybrid scoring (less AI per metric), session-state "
+    "via efficient text truncation, scoring every metric in code rather than with API calls, "
+    "session-state "
     "reuse (no Gemini call on sort change), and a cached PDF builder. Planned strategies "
     "include usage caps, persistent result caching, and a premium-tier model selection.",
     space_after=8,

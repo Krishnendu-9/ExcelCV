@@ -5,6 +5,9 @@ resume builder, the first test passes on its own and the copy can come back.
 
 blend_scores() has no caller: every score is computed in code and the model's scores are
 discarded. If it is called again, the blending test skips itself and the claim can return.
+
+Six report enrichments are built into every analysis but nothing reads them
+(docs/KNOWN_ISSUES.md §6). Each one's check skips itself once something reads its key.
 """
 
 import re
@@ -110,6 +113,79 @@ class ScoreBlendingClaimTests(unittest.TestCase):
             [],
             "called again: the metrics doc and the report script may describe blending again",
         )
+
+
+# Analysis-dict key -> how user-facing text would advertise it.
+_UNREAD_ENRICHMENTS = {
+    "jd_skill_matrix": r"skill matrix|evidence matrix",
+    "rewrite_recommendations": r"rewrite assistant|before\s*(?:→|->)\s*after",
+    "recruiter_snapshot": r"recruiter snapshot|hiring summary",
+    "priority_action_plan": r"action plan",
+    "learning_roadmap": r"learning roadmap|skill[- ]gap closure",
+    "portfolio_checklist": r"portfolio checklist|readiness check",
+}
+
+_USER_FACING_DOCS = ("README.md", "docs/SETUP.md", "docs/excelcv.md")
+
+
+def _quoted_use(key: str) -> re.Pattern[str]:
+    """*key* as a string literal, except as a dict-literal key (`"key": value`)."""
+    return re.compile(rf"""["']{re.escape(key)}["'](?!\s*:)""")
+
+
+def _key_readers(key: str) -> list[str]:
+    """Lines in src/ and app.py that use *key* as a string, other than storing it.
+
+    analyze_cv_with_gemini() stores each one as `"key": value`. Any other quoted use
+    (a .get(), a subscript, a list of key names to loop over) counts as a reader.
+    """
+    quoted = _quoted_use(key)
+    paths = [REPO_ROOT / "app.py", *sorted((REPO_ROOT / "src").rglob("*.py"))]
+    return [
+        f"{p.relative_to(REPO_ROOT).as_posix()}:{lineno}"
+        for p in paths
+        for lineno, line in enumerate(p.read_text(encoding="utf-8").splitlines(), start=1)
+        if quoted.search(line) and not line.strip().startswith("#")
+    ]
+
+
+class UnreadEnrichmentClaimTests(unittest.TestCase):
+    def test_no_claim_while_nothing_reads_it(self) -> None:
+        user_facing = dict(_ui_sources())
+        for doc in _USER_FACING_DOCS:
+            user_facing[doc] = (REPO_ROOT / doc).read_text(encoding="utf-8")
+        for key, claim in _UNREAD_ENRICHMENTS.items():
+            with self.subTest(feature=key):
+                if _key_readers(key):
+                    self.skipTest(f"{key} has a reader again")
+                pattern = re.compile(claim, re.I)
+                hits = [
+                    f"{name}:{lineno}: {line.strip()}"
+                    for name, text in user_facing.items()
+                    for lineno, line in enumerate(text.splitlines(), start=1)
+                    if pattern.search(line)
+                ]
+                self.assertEqual(hits, [], f"advertises {key}, which nothing renders")
+
+    def test_they_really_have_no_reader(self) -> None:
+        for key in _UNREAD_ENRICHMENTS:
+            with self.subTest(feature=key):
+                self.assertEqual(
+                    _key_readers(key),
+                    [],
+                    f"{key} is read again: restore its copy and update KNOWN_ISSUES §6",
+                )
+
+    def test_reader_detection_ignores_storage_and_catches_reads(self) -> None:
+        storing = _quoted_use("jd_skill_matrix")
+        self.assertIsNone(storing.search('        "jd_skill_matrix": jd_skill_matrix,'))
+        for read in (
+            'analysis.get("jd_skill_matrix", [])',
+            "analysis['jd_skill_matrix']",
+            'for key in ("jd_skill_matrix", "learning_roadmap"):',
+        ):
+            with self.subTest(read=read):
+                self.assertIsNotNone(storing.search(read))
 
 
 if __name__ == "__main__":

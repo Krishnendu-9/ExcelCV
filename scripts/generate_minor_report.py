@@ -1947,7 +1947,7 @@ add_table(
 add_para(
     "Key Advantage: ExcelCV balances accuracy with interpretability and goes well beyond "
     "the pass/fail dichotomy of traditional ATS systems — a candidate using ExcelCV gets "
-    "transparent feedback, an action plan, and tools to act on that feedback (cover letter, "
+    "transparent feedback, specific suggestions, and tools to act on that feedback (cover letter, "
     "rebuilt resume) without leaving the platform.",
     space_after=8,
 )

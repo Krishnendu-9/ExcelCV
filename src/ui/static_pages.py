@@ -218,7 +218,7 @@ def render_static_page(page: str) -> None:
             "- Overall match score\n"
             "- Explainable weighted score breakdown\n"
             "- Missing skills and keyword gaps\n"
-            "- Rewrite suggestions and priority action plan\n"
+            "- Rewrite suggestions\n"
             "- Downloadable Markdown and JSON output"
         )
         if analysis:

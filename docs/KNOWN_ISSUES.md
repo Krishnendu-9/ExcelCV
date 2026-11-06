@@ -248,3 +248,89 @@ advertise it.
 - **A check in a browser**: the card layout is driven by CSS keyed to container names,
   which unit tests do not see. This is why it was not restored blind.
 - Rough size (an estimate): half a day including tests and that visual check.
+
+---
+
+## 6. Dormant: report enrichments that are built but not shown
+
+**Status: dormant.** `analyze_cv_with_gemini()` in
+[src/gemini_client.py](../src/gemini_client.py) builds seven extra structures into every
+analysis. Since commit `ddb486d` the report page shows none of them. Six have no reader
+anywhere in `src/` or `app.py`; Interview Prep is shown only on a page nothing links to.
+While they are dormant, nothing user-facing should advertise them as report features.
+
+**Code:** `build_recruiter_snapshot()`, `build_priority_action_plan()`,
+`build_interview_prep_questions()`, `build_learning_roadmap()` and
+`build_portfolio_checklist()` in [src/services/career_tools.py](../src/services/career_tools.py);
+`build_jd_skill_matrix()` and `generate_section_rewrite_recommendations()` in
+[src/services/scoring.py](../src/services/scoring.py). All seven are called from
+`analyze_cv_with_gemini()`.
+
+### Where the data goes
+
+Each structure is stored in the analysis dict under its key. For a signed-in user the
+whole dict is saved to the `Analysis.result` JSON column, and opening the analysis from
+My Analyses loads it back. The report page's **Download JSON Export** serialises the whole
+dict (`json.dumps(analysis)` in `_render_download_buttons()`), so all seven are in it.
+The PDF export, `build_report_pdf_bytes()`, includes none of them.
+
+Two of them still shape what the report shows, before they are stored:
+`_derive_deterministic_insight_fallbacks()` turns the skill matrix's Found, Partial and
+Missing rows into Strengths and Missing Skills entries, and the first four rewrite
+rationales into "Improve experience bullets: …" Suggestions. Deleting those two builders
+would change the Insights lists.
+
+### The structures
+
+| Key | What it holds | Shape |
+|---|---|---|
+| `jd_skill_matrix` | Up to 24 job-description skills, each marked Found, Partial or Missing in the CV, with the CV line that best evidences it. Empty without a CV or a job description. | list of `{skill, status, confidence, evidence}`: status `Found` / `Partial` / `Missing`, confidence `High` / `Medium` / `Low`, evidence cut to 140 characters or "No direct evidence found in resume text." |
+| `rewrite_recommendations` | Up to 8 experience bullets rewritten: bullets without a number (or, if there are none, lines with a repeated verb) get the first synonym for a repeated verb and the placeholder "by [X%], improving [outcome] by [Y]." | list of `{section, before, after, rationale}`; `section` is always "Experience / Projects" |
+| `recruiter_snapshot` | A verdict from the final score (Strong Fit at 80 or more, Potential Fit at 65 or more, otherwise Needs Improvement) and one sentence naming the top strength and top gap. The strength and gap come from the model's raw `strengths` and `missing_skills`, not from the lists the report shows. | `{verdict, summary}` |
+| `priority_action_plan` | Up to 8 fixed actions, each triggered by a threshold: parse rate under 80, Quantifying Impact under 70, Spelling & Grammar under 90, Repetition under 80, missing sections, missing skills, missing keywords. If none fire, one "Maintain Current Resume Quality" item. Priority, impact and effort are fixed per action, not computed. | list of `{title, priority, impact, effort, action}`; the middle three are `High` / `Medium` / `Low` |
+| `interview_prep` | Up to 8 templated questions: one per missing skill (up to 5), one per strength (up to 3), then a fixed behavioural question and, with a job description, a fixed role-alignment question, while there is room. | list of `{type, question, why}` |
+| `learning_roadmap` | One entry per missing skill, or per missing keyword when there are no missing skills, up to 6. The target and plan are the same text for every entry. | list of `{skill, target, plan}` |
+| `portfolio_checklist` | Four checks (Experience section, Skills section, contact details, header links), each listed as done or to do, plus "Apply top suggestions before final submission" when there are suggestions. | `{completed, missing}`, two lists of strings |
+
+### How they stopped being shown
+
+- Commit `04be65f` (2026-04-23) added a card for each of the seven to the report's
+  Insights group.
+- Commit `ddb486d` (2026-05-11, "Analyze page restructure done") deleted the six card
+  renderers and the Portfolio Checklist card, leaving Insights with Strengths, Missing
+  Skills, Missing Keywords and Suggestions. The builders and the dict keys stayed. The
+  commit message does not say whether removing the cards was intended, and the history
+  does not show it.
+- Interview Prep also has its own page, `?page=interview-prep`, rendered by
+  `render_static_page()` in [src/ui/static_pages.py](../src/ui/static_pages.py) from the
+  latest analysis in the session. The footer linked to it until commit `2a26cbb`
+  (2026-05-18, "restructure CV builder") removed the link. Nothing links to it now, so it
+  is reachable only by typing the URL. It does not require sign-in.
+
+### What restoring them would take
+
+- **The renderers are in history.** `git show ddb486d^:src/ui/report.py` contains the six
+  card renderers; the Portfolio Checklist card used `_build_list_card()`, which still
+  exists. The renderers read the same field names the builders return today, and every
+  CSS class they use is still in the current stylesheets. Since `ddb486d` the builders'
+  output shapes have not changed; `650e0d7` changed which skills the matrix lists and how
+  it decides their status.
+- **Fix the recruiter snapshot first.** It is built from the model's raw lists
+  (`parsed | {"match_score": match_score}` in `analyze_cv_with_gemini()`), so restored as
+  it is, its top strength and gap would disagree with the Insights lists on the same page.
+  Pass it the merged lists.
+- **Decisions**: the action plan, the roadmap and the interview questions are built from
+  the same missing skills, missing keywords and suggestions the Insights lists already
+  show, and the portfolio checklist repeats Sections and ATS Essentials checks, so decide
+  which cards add enough to justify the length. Decide whether the Insights percentage
+  (`insights_score`, over four areas today) should count the restored cards; before
+  `ddb486d`, pending portfolio items counted as Insights issues. For Interview Prep, choose
+  between a report card, a link to its page, or both.
+- **A check in a browser**: `report.py` has changed in five commits since `ddb486d`,
+  including a layout and theme update (`ae1f60a`), so how the old cards sit in today's
+  layout can only be judged by looking.
+- No size estimate: the code exists, but the work is mostly the decisions and the visual
+  check above, and neither can be sized from the code.
+- When a card is restored, update the matching guard in
+  [tests/test_feature_claims.py](../tests/test_feature_claims.py); it skips itself for any
+  structure that has a reader again.

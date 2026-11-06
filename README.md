@@ -29,13 +29,9 @@ builder with live preview and PDF export.
 - Upload a resume (PDF or DOCX, max 2 MB) and paste a job description
 - **Explainable weighted score (0–100)** across five components: content quality, JD
   alignment, section structure, ATS essentials, contact completeness
-- **JD skill matrix** — each required skill mapped to resume evidence (Found / Partial / Missing)
-- **Rewrite assistant** — section-level Before → After → Why guidance for stronger bullets
-- **Recruiter snapshot** — one-card hiring summary with key strength and key risk
-- **Priority action plan** — ranked fix list with impact and effort guidance
-- **Interview prep** — questions generated from the strengths and gaps found
-- **Learning roadmap** — skill-gap closure plan with short practical targets
-- **Portfolio checklist** — readiness check for sections, links and contact details
+- **Interview prep** — questions generated from the strengths and gaps found, on a separate
+  page (`?page=interview-prep`) for the latest analysis in your session. It is not part of
+  the report, and no menu or footer links to it.
 - Download the report as PDF or JSON; every analysis is saved to **My Analyses**
 
 ### Multi-resume comparison

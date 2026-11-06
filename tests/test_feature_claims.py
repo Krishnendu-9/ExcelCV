@@ -8,12 +8,166 @@ discarded. If it is called again, the blending test skips itself and the claim c
 
 Six report enrichments are built into every analysis but nothing reads them
 (docs/KNOWN_ISSUES.md §6). Each one's check skips itself once something reads its key.
+
+All three guards scan the same files: everything a user or a reader of the repository can
+encounter (see _user_facing_lines). A claim left in any of them is still shipping.
 """
 
+import ast
 import re
 import unittest
+from functools import lru_cache
+from typing import Callable
 
-from tests.repo_files import REPO_ROOT
+from tests.repo_files import REPO_ROOT, repo_text_files
+
+# Every file git would commit with one of these suffixes is scanned, wherever it lives:
+# README and docs, the in-app copy in src/ and app.py, and scripts/ (whose strings are
+# printed into the project reports).
+_TEXT_SUFFIXES = frozenset(
+    {".py", ".md", ".txt", ".toml", ".yml", ".yaml", ".cfg", ".ini", ".tpl", ".html", ".css"}
+)
+
+# Excluded on purpose: the guards and their tests quote the claims they look for.
+_EXCLUDED_PREFIXES = ("tests/",)
+
+# Excluded on purpose: these sections record the dormant features, so they name them.
+_DORMANT_SECTIONS = {"docs/KNOWN_ISSUES.md": ("## 5. Dormant", "## 6. Dormant")}
+
+# Excluded on purpose: the definitions of the dormant functions and of the builders whose
+# output nothing renders. A function's own docstring describing what it builds is not a
+# claim that the user sees it.
+_DORMANT_DEFINITIONS = {
+    "src/gemini_client.py": ("suggest_cv_bullets",),
+    "src/services/scoring.py": (
+        "blend_scores",
+        "build_jd_skill_matrix",
+        "generate_section_rewrite_recommendations",
+    ),
+    "src/services/career_tools.py": (
+        "build_recruiter_snapshot",
+        "build_priority_action_plan",
+        "build_learning_roadmap",
+        "build_portfolio_checklist",
+    ),
+}
+
+# Excluded on purpose, by exact line: text that matches a claim pattern but says nothing
+# about this codebase. Each entry gives the reason.
+_NOT_CLAIMS = {
+    "src/gemini_client.py": {
+        "# Build JD-to-skill evidence matrix.": "call-site comment naming what the next line builds",
+    },
+    "docs/METRICS_DOCUMENTATION.md": {
+        "| `strengths`, `missing_skills`, `suggestions`, `missing_keywords` | Not shown. The "
+        "report's Insights lists are built in code by `_derive_deterministic_insight_fallbacks` "
+        "from the metrics, the tailoring details, the JD skill matrix and the rewrite "
+        "recommendations. |": "says the matrix feeds the Insights lists, which is true",
+    },
+    "scripts/generate_minor_report.py": {
+        '"Proposed hybrid AI systems combining generative AI with rule-based scoring; "': (
+            "related-work table: describes a cited paper, not ExcelCV"
+        ),
+        '"[4] T. Miller and I. Bhattacharya, “Hybrid Generative-AI Systems with Rule-Based "': (
+            "bibliography entry"
+        ),
+        '"error list. Combined with text truncation and model fallback, this preserves user "': (
+            "about rate-limit handling, not scoring"
+        ),
+    },
+    "scripts/generate_changes_report.py": {
+        '"2.2.6 Hybrid Scoring (simple (AI+Rule)/2)",': (
+            "Old PDF column: quotes a section title of the superseded report"
+        ),
+    },
+}
+
+
+def _section_lines(lines: list[str], heading: str) -> set[int]:
+    starts = [n for n, line in enumerate(lines, start=1) if line.startswith(heading)]
+    if not starts:
+        return set()
+    start = starts[0]
+    ends = [n for n, line in enumerate(lines, start=1) if n > start and line.startswith("## ")]
+    return set(range(start, ends[0] if ends else len(lines) + 1))
+
+
+def _definition_lines(lines: list[str], name: str) -> set[int]:
+    for node in ast.walk(ast.parse("\n".join(lines))):
+        if isinstance(node, ast.FunctionDef) and node.name == name:
+            return set(range(node.lineno, (node.end_lineno or node.lineno) + 1))
+    return set()
+
+
+def _excluded_lines(rel: str, lines: list[str]) -> set[int]:
+    excluded: set[int] = set()
+    for heading in _DORMANT_SECTIONS.get(rel, ()):
+        excluded |= _section_lines(lines, heading)
+    for name in _DORMANT_DEFINITIONS.get(rel, ()):
+        excluded |= _definition_lines(lines, name)
+    not_claims = _NOT_CLAIMS.get(rel, {})
+    excluded |= {n for n, line in enumerate(lines, start=1) if line.strip() in not_claims}
+    return excluded
+
+
+@lru_cache(maxsize=1)
+def _user_facing_lines() -> tuple[tuple[str, int, str], ...]:
+    """(path, line number, line) for every scanned line, exclusions removed."""
+    out: list[tuple[str, int, str]] = []
+    for path in sorted(repo_text_files()):
+        rel = path.relative_to(REPO_ROOT).as_posix()
+        if path.suffix not in _TEXT_SUFFIXES or rel.startswith(_EXCLUDED_PREFIXES):
+            continue
+        lines = path.read_text(encoding="utf-8").splitlines()
+        excluded = _excluded_lines(rel, lines)
+        out.extend((rel, n, line) for n, line in enumerate(lines, start=1) if n not in excluded)
+    return tuple(out)
+
+
+def _hits(is_claim: Callable[[str], bool]) -> list[str]:
+    return [f"{rel}:{n}: {line.strip()}" for rel, n, line in _user_facing_lines() if is_claim(line)]
+
+
+class ScanScopeTests(unittest.TestCase):
+    """The scan must keep covering the places these claims have actually shipped from."""
+
+    def test_covers_docs_ui_copy_and_report_scripts(self) -> None:
+        scanned = {rel for rel, _, _ in _user_facing_lines()}
+        for rel in (
+            "README.md",
+            "docs/SETUP.md",
+            "docs/excelcv.md",
+            "docs/METRICS_DOCUMENTATION.md",
+            "docs/KNOWN_ISSUES.md",
+            "app.py",
+            "src/ui/static_pages.py",
+            "src/gemini_client.py",
+            "scripts/generate_minor_report.py",
+            "scripts/generate_changes_report.py",
+        ):
+            with self.subTest(file=rel):
+                self.assertIn(rel, scanned)
+        self.assertFalse([rel for rel in scanned if rel.startswith("tests/")])
+
+    def test_every_exclusion_still_points_at_something(self) -> None:
+        for rel, headings in _DORMANT_SECTIONS.items():
+            lines = (REPO_ROOT / rel).read_text(encoding="utf-8").splitlines()
+            for heading in headings:
+                with self.subTest(section=heading):
+                    self.assertTrue(_section_lines(lines, heading))
+        for rel, names in _DORMANT_DEFINITIONS.items():
+            lines = (REPO_ROOT / rel).read_text(encoding="utf-8").splitlines()
+            for name in names:
+                with self.subTest(definition=name):
+                    self.assertTrue(_definition_lines(lines, name))
+        for rel, entries in _NOT_CLAIMS.items():
+            stripped = {
+                line.strip() for line in (REPO_ROOT / rel).read_text(encoding="utf-8").splitlines()
+            }
+            for text in entries:
+                with self.subTest(file=rel, line=text):
+                    self.assertIn(text, stripped)
+
 
 _CLAIM = re.compile(r"bullet suggestion|ai[- ]suggest|ai bullet|suggested bullet", re.I)
 
@@ -35,19 +189,9 @@ def _code_references(text: str) -> list[str]:
 
 class BulletSuggestionClaimTests(unittest.TestCase):
     def test_no_claim_while_the_feature_is_unreachable(self) -> None:
-        ui = _ui_sources()
-        if any(_code_references(text) for text in ui.values()):
+        if any(_code_references(text) for text in _ui_sources().values()):
             self.skipTest("suggest_cv_bullets() is wired into the UI again")
-        user_facing = dict(ui)
-        for doc in ("README.md", "docs/SETUP.md"):
-            user_facing[doc] = (REPO_ROOT / doc).read_text(encoding="utf-8")
-        hits = [
-            f"{name}:{lineno}"
-            for name, text in user_facing.items()
-            for lineno, line in enumerate(text.splitlines(), start=1)
-            if _CLAIM.search(line)
-        ]
-        self.assertEqual(hits, [])
+        self.assertEqual(_hits(lambda line: bool(_CLAIM.search(line))), [])
 
     def test_the_function_really_has_no_caller(self) -> None:
         callers = [name for name, text in _ui_sources().items() if _code_references(text)]
@@ -55,12 +199,10 @@ class BulletSuggestionClaimTests(unittest.TestCase):
 
 
 # A line that names the model and mixing: "optional AI blend", "blend_scores averages AI +
-# programmatic", "averaged with the AI score". Naming blend_scores at all counts.
+# programmatic", "merged with deterministic scoring", "Two-pronged scoring ... + Gemini",
+# "combines them with a model-based review". Naming blend_scores at all counts.
 _MODEL = re.compile(r"\bAI\b|Gemini|\bmodel\b|blend_scores", re.I)
-_MIXING = re.compile(r"blend|averag", re.I)
-
-# The metrics doc explains the scores; the report script prints its text into a report.
-_SCORING_DESCRIPTIONS = ("docs/METRICS_DOCUMENTATION.md", "scripts/generate_minor_report.py")
+_MIXING = re.compile(r"blend|averag|merg|combin|hybrid|two-pronged", re.I)
 
 
 def _is_blending_claim(line: str) -> bool:
@@ -84,6 +226,9 @@ class ScoreBlendingClaimTests(unittest.TestCase):
             "- **Final Score**: Average of programmatic base score and AI-provided parse rate",
             "| ATS Parse Rate score | App + AI blend | blended via blend_scores |",
             '"metrics → blend_scores averages AI + programmatic where both exist.",',
+            "is explainable: the model returns structured JSON, which is merged with deterministic",
+            '"- Two-pronged scoring: deterministic rules (explainability) + Gemini qualitative"',
+            '"section completeness), and combines them with a model-based qualitative review. "',
         ):
             with self.subTest(claim=claim):
                 self.assertTrue(_is_blending_claim(claim))
@@ -97,21 +242,13 @@ class ScoreBlendingClaimTests(unittest.TestCase):
     def test_no_blending_claim_while_blend_scores_has_no_caller(self) -> None:
         if _blend_scores_callers():
             self.skipTest("blend_scores() is called again")
-        hits = [
-            f"{name}:{lineno}: {line.strip()}"
-            for name in _SCORING_DESCRIPTIONS
-            for lineno, line in enumerate(
-                (REPO_ROOT / name).read_text(encoding="utf-8").splitlines(), start=1
-            )
-            if _is_blending_claim(line)
-        ]
-        self.assertEqual(hits, [])
+        self.assertEqual(_hits(_is_blending_claim), [])
 
     def test_blend_scores_really_has_no_caller(self) -> None:
         self.assertEqual(
             _blend_scores_callers(),
             [],
-            "called again: the metrics doc and the report script may describe blending again",
+            "called again: user-facing text may describe blending again",
         )
 
 
@@ -124,8 +261,6 @@ _UNREAD_ENRICHMENTS = {
     "learning_roadmap": r"learning roadmap|skill[- ]gap closure",
     "portfolio_checklist": r"portfolio checklist|readiness check",
 }
-
-_USER_FACING_DOCS = ("README.md", "docs/SETUP.md", "docs/excelcv.md")
 
 
 def _quoted_use(key: str) -> re.Pattern[str]:
@@ -151,20 +286,12 @@ def _key_readers(key: str) -> list[str]:
 
 class UnreadEnrichmentClaimTests(unittest.TestCase):
     def test_no_claim_while_nothing_reads_it(self) -> None:
-        user_facing = dict(_ui_sources())
-        for doc in _USER_FACING_DOCS:
-            user_facing[doc] = (REPO_ROOT / doc).read_text(encoding="utf-8")
         for key, claim in _UNREAD_ENRICHMENTS.items():
             with self.subTest(feature=key):
                 if _key_readers(key):
                     self.skipTest(f"{key} has a reader again")
                 pattern = re.compile(claim, re.I)
-                hits = [
-                    f"{name}:{lineno}: {line.strip()}"
-                    for name, text in user_facing.items()
-                    for lineno, line in enumerate(text.splitlines(), start=1)
-                    if pattern.search(line)
-                ]
+                hits = _hits(lambda line: bool(pattern.search(line)))
                 self.assertEqual(hits, [], f"advertises {key}, which nothing renders")
 
     def test_they_really_have_no_reader(self) -> None:

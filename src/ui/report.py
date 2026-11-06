@@ -1629,9 +1629,11 @@ def render_report_page(analysis: Dict[str, Any], name: str = "CV") -> None:
 
 
 def render_evaluation_toolkit(analysis: Dict[str, Any], resume_name: str) -> None:
-    """Render benchmark/evaluation controls for model-vs-human validation."""
+    """Render controls that benchmark the computed score against human reviewer scores."""
     st.caption(
-        "Add human-review scores to validate model quality (MAE, RMSE, correlation) for the project benchmark."
+        "Add a human reviewer's score to see how far ExcelCV's computed score is from human "
+        "judgement (MAE, RMSE, correlation). Records last for this session; download the "
+        "JSON to keep them."
     )
 
     with st.form("evaluation_form", clear_on_submit=True):
@@ -1668,7 +1670,12 @@ def render_evaluation_toolkit(analysis: Dict[str, Any], resume_name: str) -> Non
         corr = summary.get("correlation")
         c4.metric("Correlation", "-" if corr is None else corr)
 
-        st.dataframe(records, width="stretch", hide_index=True)
+        st.dataframe(
+            records,
+            width="stretch",
+            hide_index=True,
+            column_config={"model_score": "ExcelCV score"},
+        )
         st.download_button(
             "Download benchmark JSON",
             data=json.dumps(records, indent=2),
@@ -1713,7 +1720,7 @@ def render_report_view() -> None:
             key="report_upload_another",
             help="Start a fresh analysis",
         )
-        with st.expander("Model evaluation (project benchmark)", expanded=False):
+        with st.expander("Benchmark against human reviewers", expanded=False):
             render_evaluation_toolkit(analysis, str(name))
 
     if upload_clicked:

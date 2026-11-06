@@ -50,13 +50,17 @@ description, and includes a resume builder with live preview and PDF export.
 
 ### Cover letter generator
 
-Upload a resume and job description, optionally add company, role, source and tone.
-Gemini drafts the letter, which renders as Markdown and downloads as DOCX.
+Give it a resume (upload a PDF or DOCX, or pick a CV saved in the resume builder), the job
+title and the company name; all three are required. The job description, where you found
+the role and any extra notes are optional. Gemini drafts the letter, which you can preview
+as plain text on the page and download as DOCX.
 
 ### Resume builder
 
 - Three-panel workspace: sections and style controls, editable cards, zoomable preview
-- Live preview that updates as you type, through a postMessage JS bridge
+- Live preview through a postMessage JS bridge: name, title and contact details update in
+  the template as you type; other sections show your text as plain lines while you type and
+  are redrawn in the template when you leave the field and Streamlit reruns
 - Three templates — Classic, Creative, Modern — each with a distinct layout in both the
   preview and the exported PDF
 - Nine section types, all collapsible, reorderable and individually hideable
@@ -65,8 +69,10 @@ Gemini drafts the letter, which renders as Markdown and downloads as DOCX.
 
 ### Evaluation toolkit
 
-Add a human reviewer score per resume and track MAE, RMSE and correlation between the AI
-and human scores. Benchmark JSON exports for measuring model quality over time.
+Enter a human reviewer's score for an analysed resume, and the toolkit reports the MAE, RMSE
+and Pearson correlation between ExcelCV's computed score and the human scores, so it
+measures the scoring rules, not Gemini. Records last for the current session only: they can
+be downloaded as JSON but not loaded back in.
 
 ### Accounts
 

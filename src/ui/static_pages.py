@@ -239,10 +239,10 @@ def render_static_page(page: str) -> None:
     if page_key == "evaluation-toolkit":
         _render_info_page_header(
             "Evaluation Toolkit",
-            "Benchmark model output against human reviewer scores for project validation.",
+            "Benchmark ExcelCV's computed score against human reviewer scores.",
         )
         st.markdown(
-            "Use this toolkit to track model quality with:\n"
+            "It reports how far the computed score is from the human scores, as:\n"
             "- Mean Absolute Error (MAE)\n"
             "- Root Mean Square Error (RMSE)\n"
             "- Pearson correlation"

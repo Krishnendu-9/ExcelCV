@@ -361,7 +361,7 @@ def render_upload_landing_sections() -> None:
                                 <span class="lsc-cl-pill">DOCX</span>
                             </div>
                         </div>
-                        <p class="lsc-desc">AI-tailored to your resume + JD. Optional tone, company, role. DOCX export.</p>
+                        <p class="lsc-desc">AI-drafted from your resume, job title and company. JD optional. DOCX export.</p>
                     </article>
                     <article class="landing-showcase-card">
                         <div class="lsc-emoji">📁</div>

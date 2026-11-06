@@ -603,8 +603,9 @@ def _render_guest_sign_in_prompt() -> None:
                     Sign in to generate a cover letter
                 </p>
                 <p class="guest-auth-copy">
-                    Upload your resume and a job description to get a tailored, editable
-                    cover letter &mdash; free forever.
+                    Add your resume, the job title and the company (and the job description,
+                    if you have it) to get a tailored cover letter as an editable DOCX
+                    &mdash; free forever.
                 </p>
                 <a href="{auth_href}" target="_self" class="guest-auth-cta">
                     Sign In / Create Account &rarr;

@@ -149,7 +149,8 @@ See [docs/compareCV.md](compareCV.md) for the full compare-flow reference.
   saved CV), the job title and the company name.
 - Optional: the job description, how the opening was found, and free-text additional
   information (achievements, projects or tone notes). There is no separate tone control.
-- Calls Gemini to draft the letter; renders it on-screen as Markdown with a Word/DOCX download.
+- Calls Gemini to draft the letter; shows it as a read-only plain-text preview with a
+  Word/DOCX download.
 
 Core files:
 - `src/cover_letter/page.py` — Streamlit page renderer.
@@ -165,8 +166,9 @@ Core files:
 - Score display: horizontal animated bar; colour tier green ≥ 80, amber ≥ 60, red < 60. The
   animation (`@keyframes hv-sweep` and `@property --hv-p`) is shared with the homepage hero panel.
 - Includes a "How this score is calculated" breakdown card and a collapsed
-  "Model evaluation (project benchmark)" expander (MAE / RMSE / correlation against human
-  reviewer scores).
+  "Benchmark against human reviewers" expander (MAE / RMSE / correlation between the
+  computed score and human reviewer scores; records last for the session, with a JSON
+  download and no import).
 - Download options: PDF, Markdown and JSON.
 
 Core file: `src/ui/report.py`. See [docs/report_page.md](report_page.md) for the full reference.
@@ -179,8 +181,10 @@ Core file: `src/ui/report.py`. See [docs/report_page.md](report_page.md) for the
   Playwright).
 - Templates shipped (`TEMPLATE_CONFIGS` in `src/ui/cv_builder_constants.py`): `classic`,
   `modern`, `creative`.
-- Real-time preview for Personal Details fields via a postMessage JS bridge; other sections
-  re-render on Streamlit's normal rerun.
+- Real-time preview via a postMessage JS bridge: the name, title and contact details update
+  in the template as you type. Every other field, the summary included, shows as a plain
+  "Label: value" line while you type, and the formatted sections return on Streamlit's
+  normal rerun.
 - Split across focused modules:
   - `src/ui/cv_builder_page.py` — page composition and rendering.
   - `src/ui/cv_builder_constants.py` — template configs, zoom levels, section ordering.

@@ -1,4 +1,8 @@
-"""Evaluation helpers for model-vs-human validation tracking."""
+"""Evaluation helpers: compare ExcelCV's computed score with human reviewer scores.
+
+The record field is named model_score, but it holds the analysis's match_score, which the
+scoring code computes; no model output is benchmarked.
+"""
 
 from __future__ import annotations
 

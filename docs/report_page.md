@@ -17,10 +17,10 @@ After analysis is complete, the report page renders:
 - Right main lane:
   - Group cards for Content, Sections, ATS Essentials, Insights
   - Detail cards under each group
-  - Download buttons (PDF and JSON)
+  - Download buttons (PDF, Markdown and JSON)
 - Bottom actions:
   - "Upload another resume" button
-  - Collapsed "Model evaluation (project benchmark)"
+  - Collapsed "Benchmark against human reviewers"
 
 ## 2) Routing and lifecycle
 
@@ -169,8 +169,9 @@ It supports:
 
 - Human reviewer score input
 - Optional notes
-- Session-based benchmark record list
-- MAE/RMSE/correlation summary
+- Session-based benchmark record list (lost when the session ends; nothing loads it back)
+- MAE/RMSE/correlation summary between the analysis's computed `match_score` and the
+  human scores; no model output is involved
 - Benchmark JSON download
 
 ## 11) Re-export notes

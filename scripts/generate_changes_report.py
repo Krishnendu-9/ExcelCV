@@ -420,7 +420,7 @@ add_compare_table(
         ['"Markdown / JSON export"', '"PDF / JSON export"'],
         ["—", "Multi-resume comparison + ranking + Top Match + CSV/PDF export (NEW)"],
         ["—", "Cover Letter Generator + DOCX download (NEW)"],
-        ["—", "Resume Builder + 3 templates + AI bullets + live preview (NEW)"],
+        ["—", "Resume Builder + 3 templates + live preview (NEW)"],
         ["—", "Authentication + Google OAuth + session cookies (NEW)"],
         ["—", "Per-user persistence + My CVs / Analyses / Comparisons (NEW)"],
         ["—", "Human-vs-AI evaluation toolkit (NEW)"],
@@ -484,8 +484,8 @@ add_compare_table(
         ],
         [
             "—",
-            "3.1.7 Resume Builder (9 tests) — NEW: template switch, reorder, hide, "
-            "AI bullet, save/load, PDF, live preview, customisation persist",
+            "3.1.7 Resume Builder (9 tests, 1 withdrawn) — NEW: template switch, reorder, "
+            "hide, save/load, PDF, live preview, customisation persist",
         ],
         [
             "—",
@@ -658,7 +658,7 @@ for s in [
 add_heading("10. Summary in Numbers", 2)
 add_compare_table(
     rows=[
-        ["Total test cases", "27", "68"],
+        ["Total test cases", "27", "68 (1 withdrawn)"],
         ["Tables (excluding TOC)", "~9", "17"],
         ["Figures referenced", "4", "8"],
         ["Documented features", "~10", "26"],

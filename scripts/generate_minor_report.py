@@ -376,7 +376,7 @@ run = p.add_run(
     "candidates side-by-side with eight sort options, a Top Match card, drill-down "
     "expanders, and CSV/PDF export; (3) AI-generated cover letters with DOCX export; (4) a "
     "FlowCV-inspired resume builder with three templates (Classic, Creative, Modern), live "
-    "preview, AI bullet suggestions, and one-click PDF download; and (5) per-user persistence "
+    "preview, and one-click PDF download; and (5) per-user persistence "
     "backed by a SQLite database with email/password and Google OAuth authentication and "
     "history pages for saved resumes, analyses, and comparisons."
 )
@@ -575,7 +575,7 @@ intro_paragraphs = [
     "export. The Cover Letter module produces a tailored cover letter from a resume and a "
     "job description, downloadable as DOCX. The Resume Builder is a FlowCV-inspired "
     "three-panel workspace with live preview, three templates (Classic, Creative, Modern), "
-    "AI bullet suggestions, and one-click PDF export. All four are gated by a full "
+    "and one-click PDF export. All four are gated by a full "
     "authentication system (email/password and Google OAuth) with per-user persistence — "
     "saved resumes, analyses, and comparisons survive logout via a SQLite database.",
     "The deterministic scoring engine computes eleven metrics: ATS Parse Rate, Quantifying "
@@ -750,8 +750,6 @@ for s in [
     "Canonical sections: personal, summary, experience, education, skills, projects, "
     "languages, certifications, interests. Each is collapsible, hideable (eye toggle), and "
     "reorderable via drag-and-drop (streamlit-sortables).",
-    "AI Bullet Suggestions: Gemini generates achievement bullets from job title + company, "
-    "using existing bullets as context to avoid duplication.",
     "Customize: accent color, font, font size, line height, entry spacing — all persisted "
     "with the saved CV.",
     "Real-time preview: Personal Details fields update in the preview as the user types "
@@ -829,7 +827,7 @@ for layer in [
     "Business Logic Layer (src/services/) — deterministic scoring engine, evaluation "
     "metrics, weighted final-score breakdown, PDF/CSV report builders, comparison PDF.",
     "AI / Feature Packages (src/cover_letter/, src/gemini_client.py) — prompt construction, "
-    "Gemini orchestration, JSON parsing, AI bullet suggestions, cover-letter pipeline.",
+    "Gemini orchestration, JSON parsing, cover-letter pipeline.",
     "Data Layer (src/database.py) — SQLAlchemy ORM models, additive migrations, "
     "per-user persistence backed by SQLite at data/excelcv.db.",
     "Auth & Session Layer (src/auth_utils.py, src/oauth_utils.py, src/email_utils.py) — "
@@ -940,9 +938,7 @@ add_para(
     "owns section visibility/order and template/style choice; the middle column owns the "
     "editable section cards; the right column owns a zoomable HTML preview that mirrors "
     "the chosen template. PDF export is cached (@st.cache_data — _cached_generate_cv_pdf) "
-    "so the bytes are only rebuilt when the underlying data actually changes. AI Bullet "
-    "Suggestions call suggest_cv_bullets(role, company, context) in gemini_client.py, "
-    "passing existing bullets as context so Gemini avoids duplication.",
+    "so the bytes are only rebuilt when the underlying data actually changes.",
     space_after=8,
 )
 
@@ -1238,7 +1234,7 @@ for s in [
     "cover-letter, resume-builder, my-cvs, my-analyses, my-comparisons, settings, auth, "
     "plus static informational pages.",
     "Robust PDF + DOCX text extraction with validation and parse-confidence indicator.",
-    "Gemini integration for semantic analysis, AI bullet suggestions, and cover-letter generation.",
+    "Gemini integration for analysis subscores and cover-letter generation.",
     "Eleven programmatic scoring metrics with status thresholds and weighted final-score "
     "breakdown (calculate_final_score_breakdown).",
     "Deterministic evaluation: every score is computed in code and the model's own scores "
@@ -1248,7 +1244,7 @@ for s in [
     "auto-save to the comparisons table.",
     "Cover Letter Generator with optional tone / company / role / source inputs and DOCX download.",
     "Resume Builder: three-panel workspace, three templates (Classic / Creative / Modern), "
-    "drag-and-drop section reorder, AI bullet suggestions, accent color / font / spacing "
+    "drag-and-drop section reorder, accent color / font / spacing "
     "controls, real-time preview for Personal Details, save/load to DB, import/export "
     "JSON, one-click PDF download (cached).",
     "Authentication: email/password (bcrypt), Google OAuth, HMAC-signed session cookies, "
@@ -1626,10 +1622,10 @@ add_table(
         ],
         [
             "TC-52",
-            "AI Bullet Suggestion",
-            "Click “AI Suggest”",
-            "Gemini-generated bullet inserted",
-            "Pass",
+            "Withdrawn",
+            "—",
+            "The feature this covered is no longer in the resume builder (docs/KNOWN_ISSUES.md §5)",
+            "Withdrawn",
         ],
         ["TC-53", "Save to DB", "Click Save", "Row inserted into cvs table", "Pass"],
         [

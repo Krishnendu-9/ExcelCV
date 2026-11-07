@@ -123,15 +123,23 @@ per analysis or cover letter. Each of those then works through a fallback chain 
 models from `preferred_models()`: four built-in models, plus `GEMINI_MODEL` when it is
 set to a model not already in that list. A model can be tried twice:
 
-| Path | Models failing with | API calls for one charged request |
+| Path | Models failing with | Calls the app makes for one charged request |
 |---|---|---|
 | Analysis | timeouts, 500, 503 (retried once per model) | 2 per model, then 2 for an auto-picked model: 10, or 12 with a distinct `GEMINI_MODEL` |
 | Analysis | quota errors, 429 (not retried, but the loop moves to the next model) | 1 per model, then 1: 5, or 6 with a distinct `GEMINI_MODEL` |
 | Cover letter | any error, 429 included (every error is retried once) | 2 per model: 8, or 10 with a distinct `GEMINI_MODEL` |
 | Either | nothing (the first model succeeds) | 1 |
 
-So the real call rate can reach 10 to 12 times the configured limit, and it is highest
-exactly when the API is already failing. A five-resume comparison is charged five times,
+These counts are the app's own attempts: each is one `generate_content` call, counted
+with the SDK replaced by a fake. The SDK may add retries of its own on top. Reading its
+source, it retries a 503 with backoff for up to 600 seconds per call, so on a 503 each
+attempt in the table can be several API calls
+([§9](#9-the-gemini-sdk-has-reached-end-of-life)). That comes from the source only and
+has not been observed against the live API.
+
+So the app's own attempts alone can reach 10 to 12 times the configured limit, more if
+the SDK retries, and the rate is highest exactly when the API is already failing. A
+five-resume comparison is charged five times,
 one per resume; the comparison runner skips the remaining resumes after the first quota
 error, which limits the damage there. Model listing for the auto-pick runs once per
 process and is cached.
@@ -405,3 +413,119 @@ signs the user out and drops the unsaved work.
   be HttpOnly and any script in the page can read it, and it is a signed three-day token
   with no server-side record, so a copied one stays valid until it expires, even after the
   user signs out.
+
+---
+
+## 9. The Gemini SDK has reached end of life
+
+**Status: unfixed.** Nothing is broken today. Moving to the successor is contained in two
+modules, but its error handling can only be confirmed against the live API.
+
+**Code:** `import google.generativeai as genai` in
+[src/gemini_client.py](../src/gemini_client.py) and
+[src/cover_letter/generator.py](../src/cover_letter/generator.py), the only two modules
+that use the SDK ([tests/test_gemini_call_paths.py](../tests/test_gemini_call_paths.py)
+fails if a third one starts to); the pin `google-generativeai>=0.8.4,<1` in
+[requirements.txt](../requirements.txt).
+
+### What it is
+
+Google has ended support for `google-generativeai`. Version 0.8.6, which a fresh install of
+`requirements.txt` picks up, says so with a `FutureWarning` when `src/gemini_client.py`
+imports it:
+
+> All support for the `google.generativeai` package has ended. It will no longer be
+> receiving updates or bug fixes. Please switch to the `google.genai` package as soon as
+> possible.
+
+0.8.5 does not print it, so an environment installed before 0.8.6 shows nothing. The
+successor, `google-genai` (imported as `from google import genai`), is a different API,
+not a newer version of this one.
+
+### Where it bites
+
+- **The warning:** once per server process, the first time the app runs, and once in
+  every test run, CI included. It is noise, not a failure.
+- **No more fixes.** Changes on Google's side and security fixes in the SDK will not come.
+  The SDK pins `google-ai-generativelanguage==0.6.15` exactly, so that package cannot move
+  either. CI's pip-audit fails on any advisory, so an advisory against either one fails CI
+  with no upgrade to move to.
+- **Retries the rate-limit table does not count.** The SDK sends no retry setting to the
+  client it wraps, and that client's default retries a 503 (`ServiceUnavailable`) with
+  backoff of 1 to 10 seconds for up to 600 seconds. Each of the app's own attempts on a
+  503 can therefore be many API calls and last up to ten minutes. The 503 counts in
+  [§2](#2-the-gemini-rate-limit-counts-user-actions-not-api-calls) count the app's
+  attempts only. Found by reading the SDK source
+  (`google/ai/generativelanguage_v1beta/services/generative_service/transports/base.py`),
+  not observed against the API.
+
+### What moving to `google-genai` would take
+
+Checked against the `google-genai` 3.0.0 source. The change stays inside the two modules:
+no SDK object leaves them (responses become text in `_extract_response_text()` straight
+away), and no module imports an SDK exception type.
+
+- **Client construction.** `genai.configure(api_key=...)` sets a process-wide key in
+  `analyze_cv_with_gemini()`, `suggest_cv_bullets()` and `generate_cover_letter_draft()`.
+  The new SDK has no global: each becomes `genai.Client(api_key=...)`, passed on to
+  whatever makes the call.
+- **Model objects and the generate call.** `genai.GenerativeModel(name)` (four places) and
+  `model.generate_content(prompt, generation_config=genai.types.GenerationConfig(...))`
+  (three) become `client.models.generate_content(model=name, contents=prompt,
+  config=types.GenerateContentConfig(...))`. The config fields the app sets
+  (`temperature`, `top_p`, `max_output_tokens`, `response_mime_type`) keep their names,
+  and `models/gemini-…` names are still accepted. `_generate_with_retry()` would take the
+  client and a model name instead of a model object, and `_generate_json()` the client as
+  well; the former's fallback for SDKs without `response_mime_type` can go.
+- **Model listing.** `_pick_model_id()` calls `genai.list_models()` and keeps models whose
+  `supported_generation_methods` include `generateContent`. That becomes
+  `client.models.list()` and `supported_actions`. If the attribute is missed, nothing
+  fails: `getattr` returns nothing, no model qualifies, and the function quietly falls
+  back to `models/gemini-2.0-flash`. It is cached with no arguments, so it also needs
+  reshaping to take a client.
+- **Response shape: no change.** `.text` and `.candidates[].content.parts[].text` keep
+  their names. The new `.text` returns `None` where the old one raised `ValueError`, and
+  both copies of `_extract_response_text()` already handle that.
+- **Exceptions.** Errors are classified by matching text in `str(exc)`, in
+  `_is_quota_error()` (both modules), `_is_retryable_error()`,
+  `_user_friendly_quota_message()` and `_quota_message()`. The new SDK raises
+  `google.genai.errors.APIError` (`ClientError`, `ServerError`) whose text is
+  `"<code> <STATUS>. <response JSON>"`. 429, 500 and 503 still match by their codes. A
+  504 would stop being retried: its status is `DEADLINE_EXCEEDED`, with an underscore,
+  which the `"deadline exceeded"` marker misses, and 504 is not in the list. The
+  `retry_delay { seconds: N }` pattern is protobuf text and will not match the JSON's
+  `retryDelay`; the `retry in Ns` pattern reads the server's message, which the SDK does
+  not change. Checking `APIError.code` instead of text would remove the guessing. Network
+  timeouts would come from a different HTTP library, whose messages have not been checked.
+- **Retries and call counts.** The new SDK does not retry unless `retry_options` is set,
+  so the hidden 503 retries above go away and §2's table becomes the whole count. It does
+  add automatic continuation, on by default: when a response ends with
+  `finish_reason == CONTINUATION`, it sends follow-up requests itself. Set
+  `automatic_continuation=False`, or count those calls in §2.
+- **Rate limiting: no change.** `_enforce_gemini_rate_limit()` is the app's own and does
+  not touch the SDK.
+- **Tests.** Six test files patch a module-level `genai`. If the new import keeps that
+  name, the plain `patch.object(module, "genai", MagicMock())` patches keep working. Three
+  kinds need edits:
+  - fakes built in the old shape, `genai.GenerativeModel.return_value.generate_content`,
+    in [tests/test_gemini_call_amplification.py](../tests/test_gemini_call_amplification.py)
+    and [tests/test_report_scores_computed.py](../tests/test_report_scores_computed.py);
+  - `genai.configure.assert_not_called()`, once in
+    [tests/test_cover_letter_limits.py](../tests/test_cover_letter_limits.py) and twice in
+    [tests/test_prompt_fencing.py](../tests/test_prompt_fencing.py). Against a `MagicMock`
+    these keep passing after the move while checking nothing, because nothing calls
+    `configure` any more. They need to become `genai.Client.assert_not_called()`;
+  - the call-site pattern in `tests/test_gemini_call_paths.py`, which looks for
+    `GenerativeModel(` and `.list_models(`.
+- **Dependencies.** One line in `requirements.txt`, but a different tree. The old SDK is
+  the only thing that needs `google-api-core`, `grpcio`, `google-ai-generativelanguage`
+  and `google-api-python-client`; `google-genai` brings `httpx2`, `tenacity`,
+  `websockets`, `anyio` and `google-auth[requests]`. pip-audit will check the new tree on
+  the first CI run. The package ships type hints, so mypy starts checking these calls,
+  with an unknown number of errors.
+- **A check against the real API.** The unit tests mock the SDK, so the new error text
+  and model listing can only be confirmed with a real key, and a 429 or 503 is hard to
+  provoke on purpose.
+- Rough size (an estimate): about a day for the code and test changes above. Not
+  included, because it cannot be sized from the code: what mypy and pip-audit report on
+  the new package, and the check against the real API.

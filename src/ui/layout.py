@@ -627,9 +627,13 @@ def render_site_footer() -> None:
         (function() {
             var w = window.parent && window.parent !== window ? window.parent : window;
             var doc = w.document;
-            if (doc.__excelcv_smooth_scroll_bound__) return;
-            doc.__excelcv_smooth_scroll_bound__ = true;
-            doc.addEventListener('click', function(ev) {
+            // Replace the listener on every run. This iframe is replaced when a page with
+            // a different layout loads, and a listener from the replaced document stops
+            // running: binding once per page left the home footer's links falling through
+            // to a full page load, which signs the user out.
+            var KEY = '__excelcv_smooth_scroll_click__';
+            if (doc[KEY]) doc.removeEventListener('click', doc[KEY], true);
+            doc[KEY] = function(ev) {
                 var el = ev.target;
                 while (el && el !== doc && !(el.getAttribute && el.getAttribute('data-smooth-scroll'))) {
                     el = el.parentNode;
@@ -653,7 +657,8 @@ def render_site_footer() -> None:
                 if (!target) return;
                 try { w.history.replaceState(null, '', w.location.pathname + w.location.search + '#' + id); } catch (_e4) {}
                 try { target.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (_e5) { target.scrollIntoView(true); }
-            }, true);
+            };
+            doc.addEventListener('click', doc[KEY], true);
         })();
         </script>
         """,

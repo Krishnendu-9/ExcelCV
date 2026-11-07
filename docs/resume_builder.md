@@ -399,7 +399,7 @@ Link behavior in exported PDF:
 7. Middle-panel edits update preview immediately.
 8. Theme switch during editing preserves preview content.
 9. Empty builder shows demo preview; first user edit switches to user-only preview.
-10. Save/Load/Backup/Import/Reset continue to work.
+10. Save, Load, Backup, Import and Reset work, including Import of a backup made before Backup was filtered, and Reset after leaving the builder and coming back.
 11. Reordering sections does not clear previously entered personal/summary/content data.
 12. Preview and PDF sizing behavior matches intended split: stable preview + larger PDF typography.
 13. Modern template sidebar shows visible LinkedIn/GitHub/Website text (not icons-only).

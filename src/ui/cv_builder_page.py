@@ -1125,41 +1125,48 @@ def _inject_reset_popup_native_js() -> None:
 
   closeResetPopup();
 
-  if (!w.__excelcvResetPopupBound) {
-    w.__excelcvResetPopupBound = true;
+  function onClick(evt) {
+    var t = evt && evt.target;
+    if (!t) return;
 
-    doc.addEventListener('click', function (evt) {
-      var t = evt && evt.target;
-      if (!t) return;
+    var openBtn = t.closest && t.closest('.cvb-reset-open-native');
+    if (openBtn) {
+      evt.preventDefault();
+      evt.stopPropagation();
+      openResetPopup();
+      return;
+    }
 
-      var openBtn = t.closest && t.closest('.cvb-reset-open-native');
-      if (openBtn) {
-        evt.preventDefault();
-        evt.stopPropagation();
-        openResetPopup();
-        return;
-      }
+    var cancelBtn = t.closest && t.closest('.cvb-reset-cancel-native');
+    if (cancelBtn) {
+      evt.preventDefault();
+      evt.stopPropagation();
+      closeResetPopup();
+      return;
+    }
 
-      var cancelBtn = t.closest && t.closest('.cvb-reset-cancel-native');
-      if (cancelBtn) {
-        evt.preventDefault();
-        evt.stopPropagation();
+    if (doc.body.classList.contains('cvb-reset-open')) {
+      var panel = doc.querySelector('.st-key-cvb-reset-float-native');
+      if (panel && !panel.contains(t)) {
         closeResetPopup();
-        return;
       }
-
-      if (doc.body.classList.contains('cvb-reset-open')) {
-        var panel = doc.querySelector('.st-key-cvb-reset-float-native');
-        if (panel && !panel.contains(t)) {
-          closeResetPopup();
-        }
-      }
-    }, true);
-
-    w.addEventListener('keydown', function (evt) {
-      if (evt && evt.key === 'Escape') closeResetPopup();
-    }, true);
+    }
   }
+  function onKeydown(evt) {
+    if (evt && evt.key === 'Escape') closeResetPopup();
+  }
+
+  // Replace the listeners every time this script runs. Coming back to the builder
+  // reloads this iframe's document, and listeners created by the old document stop
+  // running, so binding once per window left Reset unable to open its popup.
+  var CLICK_KEY = '__excelcvResetPopupClick';
+  var KEYDOWN_KEY = '__excelcvResetPopupKeydown';
+  if (doc[CLICK_KEY]) doc.removeEventListener('click', doc[CLICK_KEY], true);
+  if (w[KEYDOWN_KEY]) w.removeEventListener('keydown', w[KEYDOWN_KEY], true);
+  doc[CLICK_KEY] = onClick;
+  w[KEYDOWN_KEY] = onKeydown;
+  doc.addEventListener('click', onClick, true);
+  w.addEventListener('keydown', onKeydown, true);
 })();
 </script>""",
         height=0,

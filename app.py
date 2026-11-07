@@ -730,19 +730,22 @@ def _render_page_body(current_page: str) -> None:
 
 
 def _render_page(current_page: str) -> None:
-    """Render the page body, showing an exception in its place instead of ending the run.
+    """Render the page body, showing an error message in its place instead of ending the run.
 
     main() renders the nav-link handler, the header and footer scripts and the URL
     clean-up after the page body, so they ran only if the body returned. When it raised,
     Streamlit removed the previous run's copies of those scripts, and the next nav-link
     click did a full page load into a new session: the user was signed out and unsaved
     work was lost. Streamlit's stop and rerun signals are not Exceptions and pass through.
+
+    The user sees a fixed message, as elsewhere in the app; the traceback goes to the
+    server log only, since it can carry file paths, library versions and values in scope.
     """
     try:
         _render_page_body(current_page)
-    except Exception as exc:
+    except Exception:
         _logger.exception("Page %r raised", current_page)
-        st.exception(exc)
+        st.error("Something went wrong while loading this page.")
 
 
 def main() -> None:

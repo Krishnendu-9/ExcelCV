@@ -378,13 +378,16 @@ callbacks across [src/ui/](../src/ui/).
 
 ### What happens
 
-An exception in a page's body is shown in place, and the rest of the page, the nav links'
-in-app routing included, still renders. An exception anywhere else in a run has no such
+An exception in a page's body is replaced by a short error message, with the traceback
+going to the server log, and the rest of the page, the nav links' in-app routing included,
+still renders. An exception anywhere else in a run has no such
 guard: in the steps the entry point runs before the header (database start-up, cookie restore, URL
 handling, the header itself), or in a widget's on_click or on_change callback, which
 Streamlit runs before the script. The page then shows the error and nothing else: no header
 and no nav links. Observed in headless Edge with an exception forced in a copy of the app,
-in both places.
+in both places. That error is Streamlit's own, with the full traceback, because
+[.streamlit/config.toml](../.streamlit/config.toml) leaves `client.showErrorDetails` at its
+default, `"full"`.
 
 The session survives, so the user is still signed in and unsaved builder work is still
 there, but the only way off the page is to reload it. A reload starts a new session, which

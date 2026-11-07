@@ -4,8 +4,8 @@ main() injects the script that keeps nav links in-app, along with the header and
 scripts and the URL clean-up, after the page body. When a page body raised, the run ended
 there, Streamlit removed the previous run's copies of those scripts, and the next nav
 click did a full page load into a new session: the user was signed out and unsaved work
-was lost. Checked in headless Edge. _render_page() now shows the exception in place and
-lets main() carry on.
+was lost. Checked in headless Edge. _render_page() now shows an error message in place and
+lets main() carry on. The traceback goes to the server log, never to the page.
 
 The first test runs _render_page() under Streamlit's AppTest. The second reads app.py:
 the fix holds only while main() renders every page body through _render_page(), which the
@@ -13,6 +13,7 @@ first cannot see. The nav handler itself is JavaScript and is not run here.
 """
 
 import ast
+import logging
 import unittest
 
 from streamlit.testing.v1 import AppTest
@@ -30,28 +31,43 @@ def _raising_page():
     def boom():
         raise RuntimeError("page body failed")
 
-    log = mock.Mock()
     with (
         mock.patch.object(app, "render_my_cvs_page", boom),
         mock.patch.object(app, "_require_auth", lambda *_: None),
-        mock.patch.object(app, "_logger", log),
     ):
         app._render_page("my-cvs")
-    st.session_state["_logged"] = log.exception.called
     st.markdown("after the page body")
 
 
-def _after_markdown(at):
-    return any(m.value == "after the page body" for m in at.markdown)
+def _page_text(node):
+    """Every element's proto on the page, as text: what the browser is sent."""
+    parts = [str(node.proto)] if getattr(node, "proto", None) is not None else []
+    for child in getattr(node, "children", {}).values():
+        parts.extend(_page_text(child))
+    return parts
 
 
 class RenderPageTests(unittest.TestCase):
-    def test_an_exception_in_a_page_body_is_shown_and_the_run_goes_on(self):
-        at = AppTest.from_function(_raising_page, default_timeout=60).run()
-        messages = [str(e.value) for e in at.exception]
-        self.assertTrue(any("page body failed" in m for m in messages), messages)
-        self.assertTrue(_after_markdown(at), "the run ended at the page body")
-        self.assertTrue(at.session_state["_logged"], "the exception was not logged")
+    def test_an_exception_in_a_page_body_is_logged_not_shown_and_the_run_goes_on(self):
+        with self.assertLogs("app", level="ERROR") as logs:
+            at = AppTest.from_function(_raising_page, default_timeout=60).run()
+
+        page = "\n".join(_page_text(at.main) + _page_text(at.sidebar))
+        self.assertEqual(len(at.exception), 0, "an exception element is on the page")
+        for detail in ("page body failed", "RuntimeError", "Traceback", "boom"):
+            self.assertNotIn(detail, page, f"the page carries {detail!r}")
+        self.assertEqual(
+            [e.value for e in at.error], ["Something went wrong while loading this page."]
+        )
+        self.assertTrue(
+            any(m.value == "after the page body" for m in at.markdown),
+            "the run ended at the page body",
+        )
+
+        logged = "\n".join(logging.Formatter().format(r) for r in logs.records)
+        self.assertIn("'my-cvs'", logged)
+        self.assertIn("Traceback", logged, "the log has no traceback")
+        self.assertIn("RuntimeError: page body failed", logged)
 
 
 # Page renderers app.py imports and calls; the header, footer and sign-in page are not

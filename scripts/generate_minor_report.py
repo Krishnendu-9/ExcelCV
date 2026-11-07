@@ -1133,7 +1133,7 @@ for s in [
     "(green ≥ 80, amber ≥ 60, red < 60).",
     "Toast-style progress card for multi-resume runs; one-shot scroll-to-top on entering "
     "the comparison report.",
-    "Drag-and-drop section reorder in the resume builder via streamlit-sortables.",
+    "Drag-and-drop section reorder in the resume builder via SortableJS in the sections list.",
 ]:
     add_bullet(s)
 
@@ -1173,7 +1173,6 @@ for s in [
     "reportlab ≥ 4.2 — PDF report and CV / comparison PDF export.",
     "python-dotenv ≥ 1.0 — .env loading.",
     "requests ≥ 2.28 — Google OAuth token exchange.",
-    "streamlit-sortables ≥ 0.3 — drag-and-drop section reorder in the Resume Builder.",
     "playwright ≥ 1.54 — headless Chromium for the Resume Builder's PDF export.",
 ]:
     add_bullet(s)

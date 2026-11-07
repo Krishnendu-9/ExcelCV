@@ -396,9 +396,9 @@ add_compare_table(
         ["Python 3.8+", "Python 3.13 (the version CI and the mypy configuration target)"],
         [
             "4 dependencies (Streamlit, PyPDF2, google-generativeai, python-dotenv)",
-            "11 dependencies from actual requirements.txt: streamlit, pypdf, "
+            "10 dependencies from actual requirements.txt: streamlit, pypdf, "
             "python-docx, google-generativeai, sqlalchemy, bcrypt, reportlab, "
-            "python-dotenv, requests, streamlit-sortables, playwright",
+            "python-dotenv, requests, playwright",
         ],
         ["External services: Gemini only", "Gemini + Google OAuth + SMTP"],
         [

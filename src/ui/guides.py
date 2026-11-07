@@ -1030,9 +1030,12 @@ _GUIDE_NAV_DELEGATED_JS = """
 (function() {
     var w = window.parent && window.parent !== window ? window.parent : window;
     var doc = w.document;
-    if (doc.__excelcv_guide_nav_bound__) return;
-    doc.__excelcv_guide_nav_bound__ = true;
-    doc.addEventListener('click', function(ev) {
+    // Replace the listener on every run. A listener from a replaced iframe document
+    // stops running, so binding once per page would leave guide links falling through
+    // to a full page load, which signs the user out, if this iframe were replaced.
+    var KEY = '__excelcv_guide_nav_click__';
+    if (doc[KEY]) doc.removeEventListener('click', doc[KEY], true);
+    doc[KEY] = function(ev) {
         var el = ev.target;
         while (el && el !== doc && !(el.getAttribute && el.getAttribute('data-guide-nav'))) {
             el = el.parentNode;
@@ -1052,7 +1055,8 @@ _GUIDE_NAV_DELEGATED_JS = """
         ev.stopPropagation();
         try { w.scrollTo({ top: 0, left: 0, behavior: 'instant' }); } catch (_e1) { w.scrollTo(0, 0); }
         btn.click();
-    }, true);
+    };
+    doc.addEventListener('click', doc[KEY], true);
 })();
 </script>
 """

@@ -518,8 +518,6 @@ def _inject_chunk_load_recovery() -> None:
         """<script>
 (function () {
     var w = window.parent && window.parent !== window ? window.parent : window;
-    if (w.__excelcvChunkRecoveryInstalled) return;
-    w.__excelcvChunkRecoveryInstalled = true;
 
     var RETRY_KEY = "excelcv_chunk_retry_ts";
     var RETRY_WINDOW_MS = 15000;
@@ -561,16 +559,24 @@ def _inject_chunk_load_recovery() -> None:
         }
     }
 
-    w.addEventListener("error", function (evt) {
+    // Replace the listeners every time this script runs, as the nav handler does. A
+    // listener created by a replaced iframe document stops running, so binding once per
+    // window would leave the page without recovery if this iframe were ever replaced.
+    var ERROR_KEY = "__excelcvChunkRecoveryError";
+    var REJECTION_KEY = "__excelcvChunkRecoveryRejection";
+    if (w[ERROR_KEY]) w.removeEventListener("error", w[ERROR_KEY], true);
+    if (w[REJECTION_KEY]) w.removeEventListener("unhandledrejection", w[REJECTION_KEY]);
+    w[ERROR_KEY] = function (evt) {
         var message = (evt && evt.message) || (evt && evt.error && evt.error.message) || "";
         if (shouldRecover(message)) recover();
-    }, true);
-
-    w.addEventListener("unhandledrejection", function (evt) {
+    };
+    w[REJECTION_KEY] = function (evt) {
         var reason = evt && evt.reason;
         var message = (reason && reason.message) || String(reason || "");
         if (shouldRecover(message)) recover();
-    });
+    };
+    w.addEventListener("error", w[ERROR_KEY], true);
+    w.addEventListener("unhandledrejection", w[REJECTION_KEY]);
 })();
 </script>""",
         height=0,

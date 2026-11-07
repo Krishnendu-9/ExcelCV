@@ -157,9 +157,9 @@ Main detail builders include:
 
 `_render_download_buttons(name, analysis)` renders:
 
-- Download PDF report
-- Download Markdown report
-- Download JSON export
+- Download PDF
+- Download Markdown
+- Download JSON
 
 ## 10) Evaluation toolkit
 

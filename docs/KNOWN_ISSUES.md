@@ -278,7 +278,7 @@ While they are dormant, nothing user-facing should advertise them as report feat
 
 Each structure is stored in the analysis dict under its key. For a signed-in user the
 whole dict is saved to the `Analysis.result` JSON column, and opening the analysis from
-My Analyses loads it back. The report page's **Download JSON Export** serialises the whole
+My Analyses loads it back. The report page's **Download JSON** button serialises the whole
 dict (`json.dumps(analysis)` in `_render_download_buttons()`), so all seven are in it.
 The PDF and Markdown exports, `build_report_pdf_bytes()` and `build_report_md()`, include
 none of them.

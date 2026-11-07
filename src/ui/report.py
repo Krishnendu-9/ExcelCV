@@ -862,9 +862,11 @@ def _render_download_buttons(name: str, analysis: Dict[str, Any]) -> None:
     except RuntimeError as exc:
         pdf_error = str(exc)
 
+    # Short labels keep each button on one line from 1280px wide: with "Report" and
+    # "Export" in them, all three wrapped at 1280px and the Markdown one at 1366-1440px.
     with col1:
         st.download_button(
-            "\U0001f4c4 Download PDF Report",
+            "\U0001f4c4 Download PDF",
             data=pdf_bytes,
             file_name=f"{name}-analysis.pdf",
             mime="application/pdf",
@@ -875,7 +877,7 @@ def _render_download_buttons(name: str, analysis: Dict[str, Any]) -> None:
         )
     with col2:
         st.download_button(
-            "\U0001f4dd Download Markdown Report",
+            "\U0001f4dd Download Markdown",
             data=build_report_md(name, analysis),
             file_name=f"{name}-analysis.md",
             mime="text/markdown",
@@ -885,7 +887,7 @@ def _render_download_buttons(name: str, analysis: Dict[str, Any]) -> None:
         )
     with col3:
         st.download_button(
-            "\U0001f9fe Download JSON Export",
+            "\U0001f9fe Download JSON",
             data=json.dumps(analysis, indent=2),
             file_name=f"{name}-analysis.json",
             mime="application/json",

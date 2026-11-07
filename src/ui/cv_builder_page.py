@@ -7,6 +7,7 @@ import inspect
 import json
 import re
 import uuid
+from collections.abc import Mapping
 from datetime import date, datetime
 
 import streamlit as st
@@ -19,6 +20,7 @@ from src.ui.cv_builder_constants import (
     A4_WIDTH_PX,
     ACCENT_COLORS,
     CVB_ENTRY_SPACING_VALUES,
+    CVB_INIT_FLAG_KEYS,
     CVB_LINE_HEIGHT_VALUES,
     CVB_PDF_TYPOGRAPHY_SCALE,
     CVB_PERSIST_BASE_KEYS,
@@ -1037,9 +1039,26 @@ def _pdf_request_payload(
     )
 
 
+def _builder_backup_data(state: Mapping[str, object]) -> dict:
+    """The builder state a backup carries, taken from *state*.
+
+    An allowlist: the CV's content and settings (the keys the mirror protects), the
+    one-time setup flags, and the link to the saved CV. Everything else in the session is
+    left out: button, uploader and date-picker widget keys, the mirror, cached PDF bytes.
+    Streamlit refuses a session-state value for a button, so restoring one crashed the
+    builder.
+    """
+    keys = (
+        set(CVB_PERSIST_BASE_KEYS)
+        | _persistable_dynamic_keys(state)
+        | set(CVB_INIT_FLAG_KEYS)
+        | {"cvb_loaded_cv_id", "cvb_last_saved"}
+    )
+    return {k: _copy_state_value(state[k]) for k in sorted(keys) if k in state}
+
+
 def _get_backup_json() -> str:
-    data = {k: v for k, v in st.session_state.items() if k.startswith("cvb_")}
-    return json.dumps(data, indent=2, default=str)
+    return json.dumps(_builder_backup_data(st.session_state), indent=2, default=str)
 
 
 def _build_resume_pdf_filename(ss: dict) -> str:
@@ -1068,12 +1087,13 @@ def _import_from_json(uploaded_file) -> None:
         data = json.loads(payload)
         if not isinstance(data, dict):
             raise ValueError("Backup payload must be a JSON object.")
+        # Backups made before the export was filtered carry every widget key too.
+        data = _builder_backup_data(data)
         for k in [k for k in st.session_state.keys() if str(k).startswith("cvb_")]:
             st.session_state.pop(k, None)
         _clear_link_query_params()
         for k, v in data.items():
-            if k.startswith("cvb_"):
-                st.session_state[k] = v
+            st.session_state[k] = v
         _init_builder()
         st.session_state["cvb_show_import"] = False
         _rerun_resume_builder()

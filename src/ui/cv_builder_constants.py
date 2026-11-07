@@ -159,3 +159,25 @@ CVB_PERSIST_BASE_KEYS: tuple[str, ...] = (
     "cvb_interests",
     "cvb_interest_ctr",
 )
+
+# Flags that mark the builder's one-time setup as done. A backup carries them so that
+# importing one does not re-run that setup over the imported CV: without
+# cvb_sidebar_layout_v2_migrated, for one, _init_builder() resets the section order.
+CVB_INIT_FLAG_KEYS: tuple[str, ...] = (
+    "cvb_sidebar_layout_v2_migrated",
+    "cvb_sidebar_layout_v3_migrated",
+    "cvb_zoom_default_v4_migrated",
+    "cvb_zoom_default_v5_migrated",
+    "cvb_exp_default_seed_v1",
+    "cvb_sections_open_default_v1",
+    "cvb_sections_open_default_v2",
+    "cvb_sections_open_default_v3",
+    "cvb_proj_default_seed_v1",
+    "cvb_lang_default_seed_v1",
+    "cvb_cert_default_seed_v1",
+    "cvb_item_visibility_defaults_v1",
+    "cvb_link_url_defaults_v1",
+    "cvb_edu_desc_migration_v1",
+    "cvb_link_query_bootstrap_v1",
+    "cvb_skill_default_seed_done",
+)

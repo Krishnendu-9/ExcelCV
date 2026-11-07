@@ -305,9 +305,17 @@ column rules) — match that pattern in any new toolbar/column CSS.
 ### Functional behavior
 
 - **Import** — toggles a JSON file uploader below the toolbar (`cvb_show_import`).
-  Selected file is parsed by `_import_from_json(...)` and rehydrates builder state.
-- **Backup** — serializes current `collect_cv_data()` payload to JSON and offers it
-  via the backup fragment (`_render_backup_button_fragment`).
+  Selected file is parsed by `_import_from_json(...)`, which keeps only the keys
+  `_builder_backup_data(...)` allows and rehydrates builder state from them. Backups
+  made before Backup was filtered carry every widget key; they import too.
+- **Backup** — writes the builder's data to JSON and offers it via the backup fragment
+  (`_render_backup_button_fragment`). `_builder_backup_data(...)` picks the keys: the
+  CV's content and settings (the keys the state mirror protects), the one-time setup
+  flags (`CVB_INIT_FLAG_KEYS`, so an import does not re-run that setup and reset the
+  section order), and the link to the saved CV. It leaves out the session's button,
+  uploader and date-picker keys, which Streamlit refuses to restore, and the mirror.
+  [tests/test_builder_backup.py](../tests/test_builder_backup.py) round-trips a backup
+  through the real page, including one made before the filter.
 - **Save** — persists current CV to the `cvs` table (creates new on first save,
   updates same row thereafter). Renders inline success/error notice (`cvb_toolbar_save_notice`).
 - **Download PDF** — lazy-generated. When cached `pdf_bytes` exist for the current

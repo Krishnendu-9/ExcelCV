@@ -6,6 +6,7 @@ All rendering logic lives in src/ui/*.
 """
 
 import json
+import logging
 from uuid import uuid4
 
 import streamlit as st
@@ -54,6 +55,8 @@ from src.ui.settings_page import render_settings_page
 from src.ui.static_pages import render_static_page
 from src.ui.ui_components import inject_back_button_sync, inject_base_css
 from src.ui.upload import render_upload_page
+
+_logger = logging.getLogger(__name__)
 
 PROTECTED_PAGES = {
     "resume-builder",
@@ -687,6 +690,61 @@ def _require_auth(intended_page: str = "home") -> None:
         _render_auth_gate(intended_page)
 
 
+def _render_page_body(current_page: str) -> None:
+    """Render the body of the current page."""
+    from src.ui.guides import GUIDES_META
+
+    if current_page in ("home", "upload", "upload-cv"):
+        render_upload_page(compare_mode=False)
+    elif current_page == "compare-report":
+        _require_auth("compare-report")
+        render_compare_report_page()
+    elif current_page == "report":
+        render_report_view()
+    elif current_page == "resume-builder":
+        _require_auth("resume-builder")
+        render_cv_builder_page()
+    elif current_page == "my-cvs":
+        _require_auth("my-cvs")
+        render_my_cvs_page()
+    elif current_page == "my-analyses":
+        _require_auth("my-analyses")
+        render_my_analyses_page()
+    elif current_page == "my-comparisons":
+        _require_auth("my-comparisons")
+        render_my_comparisons_page()
+    elif current_page == "settings":
+        _require_auth("settings")
+        render_settings_page()
+    elif current_page in GUIDES_META:
+        # Resume Tips sub-guide articles (see src/ui/guides.py). Each guide
+        # slug is registered in APP_PAGES; dispatch here by checking
+        # membership in the canonical GUIDES_META dict rather than relying
+        # on a slug prefix (slugs no longer carry a "guide-" prefix so they
+        # render shorter in the URL bar).
+        from src.ui.guides import render_guide_article
+
+        render_guide_article(current_page)
+    else:
+        render_static_page(current_page)
+
+
+def _render_page(current_page: str) -> None:
+    """Render the page body, showing an exception in its place instead of ending the run.
+
+    main() renders the nav-link handler, the header and footer scripts and the URL
+    clean-up after the page body, so they ran only if the body returned. When it raised,
+    Streamlit removed the previous run's copies of those scripts, and the next nav-link
+    click did a full page load into a new session: the user was signed out and unsaved
+    work was lost. Streamlit's stop and rerun signals are not Exceptions and pass through.
+    """
+    try:
+        _render_page_body(current_page)
+    except Exception as exc:
+        _logger.exception("Page %r raised", current_page)
+        st.exception(exc)
+
+
 def main() -> None:
     """Main application entry point."""
     st.set_page_config(
@@ -911,39 +969,7 @@ def main() -> None:
         st.session_state.pop("nav_action_pending", None)
         current_page = str(st.session_state.get("page", "upload"))
 
-    if current_page in ("home", "upload", "upload-cv"):
-        render_upload_page(compare_mode=False)
-    elif current_page == "compare-report":
-        _require_auth("compare-report")
-        render_compare_report_page()
-    elif current_page == "report":
-        render_report_view()
-    elif current_page == "resume-builder":
-        _require_auth("resume-builder")
-        render_cv_builder_page()
-    elif current_page == "my-cvs":
-        _require_auth("my-cvs")
-        render_my_cvs_page()
-    elif current_page == "my-analyses":
-        _require_auth("my-analyses")
-        render_my_analyses_page()
-    elif current_page == "my-comparisons":
-        _require_auth("my-comparisons")
-        render_my_comparisons_page()
-    elif current_page == "settings":
-        _require_auth("settings")
-        render_settings_page()
-    elif current_page in _GUIDES_META:
-        # Resume Tips sub-guide articles (see src/ui/guides.py). Each guide
-        # slug is registered in APP_PAGES; dispatch here by checking
-        # membership in the canonical GUIDES_META dict rather than relying
-        # on a slug prefix (slugs no longer carry a "guide-" prefix so they
-        # render shorter in the URL bar).
-        from src.ui.guides import render_guide_article
-
-        render_guide_article(current_page)
-    else:
-        render_static_page(current_page)
+    _render_page(current_page)
 
     _inject_theme_persistence(st.session_state["theme"])
     # Layout-critical CSS (inject_base_css, inject_compact_header_css,

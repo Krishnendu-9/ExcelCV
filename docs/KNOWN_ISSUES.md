@@ -366,3 +366,39 @@ page for every session. A browser can show it working. A Python test would have 
 `app.py` under Streamlit's AppTest with the sign-in gate and database handled;
 [tests/test_builder_state_navigation.py](../tests/test_builder_state_navigation.py)
 runs the builder page alone and does not cover this case.
+
+---
+
+## 8. A crash before the page body or in a widget callback leaves no way to navigate
+
+**Status: unfixed.** Each case needs its own decision about what the page can still show.
+
+**Code:** the page guard and the steps before it in the entry point in [app.py](../app.py); widget
+callbacks across [src/ui/](../src/ui/).
+
+### What happens
+
+An exception in a page's body is shown in place, and the rest of the page, the nav links'
+in-app routing included, still renders. An exception anywhere else in a run has no such
+guard: in the steps the entry point runs before the header (database start-up, cookie restore, URL
+handling, the header itself), or in a widget's on_click or on_change callback, which
+Streamlit runs before the script. The page then shows the error and nothing else: no header
+and no nav links. Observed in headless Edge with an exception forced in a copy of the app,
+in both places.
+
+The session survives, so the user is still signed in and unsaved builder work is still
+there, but the only way off the page is to reload it. A reload starts a new session, which
+signs the user out and drops the unsaved work.
+
+### What fixing it would take
+
+- **Callbacks:** Streamlit has no app-wide hook for callback exceptions. Each callback that
+  can fail would have to catch its own error and leave it for the page to show.
+- **Before the header:** render the header and its nav script first, or guard the earlier
+  steps and still render them. Those steps include the database and session checks the page
+  depends on, so each needs a decision about what to show when it fails.
+- **Not a fix: turning `ENABLE_PERSISTENT_LOGIN` on by default.** It restores the sign-in
+  after a reload but not the lost work. Its cookie is written from JavaScript, so it cannot
+  be HttpOnly and any script in the page can read it, and it is a signed three-day token
+  with no server-side record, so a copied one stays valid until it expires, even after the
+  user signs out.

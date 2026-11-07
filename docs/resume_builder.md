@@ -197,14 +197,14 @@ What updates immediately:
 
 User-mode transition:
 - On first resolvable edit interaction in middle panel, preview switches from demo composition to user-only composition immediately.
-- User-mode transition is guarded to avoid destructive blank states before valid payloads are available.
+- Only that keystroke enters user mode. The bootstrap replay when the builder mounts and the full-field sync after button clicks still update the name, title and contact details, but the preview ignores their other fields until a keystroke, so opening a saved CV or clicking a section chevron leaves the formatted sections in place.
 
 Section placement stability:
 - Live section insertion in preview uses deterministic rank ordering derived from normalized `section_order`.
 - This prevents transient wrong ordering/placement on first update for non-personal sections (Experience/Education/Skills/Projects/Languages/Certifications/Interests).
 
 Theme-switch resilience:
-- Sync bootstrap replays current values after rerender, so toggling light/dark during edits does not leave preview blank.
+- Toggling light/dark reruns the page and rebuilds the preview from the builder's state, so toggling during edits does not leave the preview blank.
 
 ## Preview Source Rules
 Function: `_build_preview_source(cv_data)`.
@@ -392,3 +392,4 @@ Link behavior in exported PDF:
 13. Modern template sidebar shows visible LinkedIn/GitHub/Website text (not icons-only).
 14. First realtime non-personal updates are placed in correct section order immediately (no delayed reflow).
 15. Long Professional Summary paste appears consistently in field, preview, and PDF.
+16. Opening a saved CV, returning to the builder and clicking a section chevron keep the preview's formatted sections; only typing switches them to plain lines.

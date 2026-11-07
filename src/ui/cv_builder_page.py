@@ -7118,6 +7118,11 @@ function __liveUpsertField(key, label, value) {{
     cvb_github_url: 1
   }};
   if (personalKeys[key]) return;
+  // Only a keystroke (cv-rt-user-mode) may swap the formatted sections for plain
+  // lines. The load and button-click syncs replay values this preview was already
+  // rendered from, so before a keystroke they must leave it alone.
+  var paper = document.querySelector('.cv-paper');
+  if (!paper || !paper.dataset.liveUserMode) return;
 
   var root = __liveEnterUserMode(true);
   if (!root) return;

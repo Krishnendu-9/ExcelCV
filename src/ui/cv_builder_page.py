@@ -293,7 +293,7 @@ def _init_builder() -> None:
         st.session_state["cvb_sidebar_layout_v2_migrated"] = True
     if "cvb_sidebar_layout_v3_migrated" not in st.session_state:
         current_order = st.session_state.get("cvb_section_order", [])
-        if list(current_order) == list(LEGACY_SECTION_ORDER_V2):
+        if list(current_order) == _normalize_section_order(LEGACY_SECTION_ORDER_V2):
             st.session_state["cvb_section_order"] = list(CVR_SECTION_ORDER)
         st.session_state["cvb_sidebar_layout_v3_migrated"] = True
     if "cvb_zoom_default_v4_migrated" not in st.session_state:
@@ -4857,15 +4857,22 @@ def _render_sections_list_component(
     hov = "#60a5fa" if is_dark else "#0a64ca"
     pg_bg = "transparent"
 
-    items_html = "".join(
-        f'<li class="sec-item" data-id="{sid}">'
-        f'<button type="button" class="grip-btn" tabindex="-1" aria-label="Drag to reorder"></button>'
-        f'<span class="sec-label">{SECTION_ID_TO_LABEL.get(sid, sid.title())}</span>'
-        f'<button type="button" class="eye-btn" data-visible="{str(visibility.get(sid, True)).lower()}"'
-        f' aria-label="Toggle visibility"></button>'
-        f"</li>"
-        for sid in section_order
-    )
+    def _item(sid: str) -> str:
+        label = f'<span class="sec-label">{SECTION_ID_TO_LABEL.get(sid, sid.title())}</span>'
+        if sid == "personal":
+            # The resume's header: always first and always shown, so its row has no grip
+            # and no eye. Both used to be here; the eye hid only the editor card.
+            return f'<li class="sec-item sec-fixed" data-id="{sid}"><span class="grip-gap"></span>{label}</li>'
+        return (
+            f'<li class="sec-item" data-id="{sid}">'
+            '<button type="button" class="grip-btn" tabindex="-1" aria-label="Drag to reorder"></button>'
+            f"{label}"
+            f'<button type="button" class="eye-btn" data-visible="{str(visibility.get(sid, True)).lower()}"'
+            ' aria-label="Toggle visibility"></button>'
+            "</li>"
+        )
+
+    items_html = "".join(_item(sid) for sid in section_order)
 
     html = f"""<!DOCTYPE html>
 <html><head><meta charset="UTF-8">
@@ -4890,6 +4897,7 @@ html,body{{background:{pg_bg};overflow:hidden;font-family:system-ui,-apple-syste
   border-radius:4px;transition:color .12s;
 }}
 .grip-btn:hover{{color:{text}}}
+.grip-gap{{width:18px;flex-shrink:0}}
 .grip-btn:active{{cursor:grabbing}}
 .sec-label{{
   flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
@@ -4930,6 +4938,12 @@ if(typeof Sortable!=='undefined'){{
   Sortable.create(document.getElementById('sl'),{{
     animation:150,handle:'.grip-btn',
     ghostClass:'s-ghost',chosenClass:'s-chosen',
+    // Personal Information stays first: it cannot be picked up, and nothing can be
+    // dropped above it.
+    filter:'.sec-fixed',
+    onMove:function(evt){{
+      return !(evt.related && evt.related.classList.contains('sec-fixed') && !evt.willInsertAfter);
+    }},
     onEnd:function(evt){{
       if(!evt || evt.oldIndex === evt.newIndex) return;
       sendDragEnd(evt.item.dataset.id, evt.newIndex);
@@ -5235,7 +5249,10 @@ def _render_left_panel_native() -> None:
     # JS .click() fires through position:absolute + overflow:hidden; pointer-events:none
     # only blocks user mouse — programmatic .click() always works.
     with st.container(key="cvb-hidden-buttons"):
-        for sid in SECTION_IDS:
+        # Personal Information is pinned first and always shown, so it has no position
+        # or eye buttons; the section list gives its row neither control.
+        movable_ids = [sid for sid in SECTION_IDS if sid != "personal"]
+        for sid in movable_ids:
             for pos in range(len(SECTION_IDS)):
                 if st.button("_", key=f"cvb_pos_{sid}_{pos}"):
                     order = list(ss.get("cvb_section_order", list(SECTION_IDS)))
@@ -5244,7 +5261,7 @@ def _render_left_panel_native() -> None:
                     order.insert(pos, sid)
                     ss["cvb_section_order"] = _normalize_section_order(order)
                     _rerun_resume_builder()
-        for sid in SECTION_IDS:
+        for sid in movable_ids:
             if st.button("_", key=f"cvb_eye_{sid}"):
                 current_vis = _normalize_section_visibility(ss.get("cvb_section_visibility"))
                 current_vis[sid] = not current_vis.get(sid, True)

@@ -4,7 +4,8 @@ Checked in headless Edge against a running copy of the app: the three templates 
 differently in the preview and in the exported PDF (Classic one centred column, Modern a
 32% solid accent sidebar, Creative a 30% tinted sidebar with its own section split), and
 of the 27 section behaviours, collapse holds for all nine sections, while hide and reorder
-hold for every section but Personal Information, which is always the resume's header. In
+hold for every section but Personal Information, which is always the resume's header. Its
+row now has no eye or drag handle, and a saved order or eye state cannot move or hide it. In
 Modern and Creative the order applies within each column. Summary used to be pinned to the
 top of the main column there, so moving it did nothing; it now follows the order.
 
@@ -165,18 +166,20 @@ class SectionControlTests(_Builder):
     def test_every_section_collapses_and_expands(self):
         for sid in SECTION_IDS:
             with self.subTest(section=sid):
-                self.assertIn(CARD_WIDGET[sid], self._keys())
+                self.assertTrue(CARD_WIDGET[sid] in self._keys(), "card closed before the click")
                 self._click(f"cvb_section_toggle_{sid}")
-                self.assertNotIn(CARD_WIDGET[sid], self._keys())
+                self.assertFalse(
+                    CARD_WIDGET[sid] in self._keys(), "the chevron did not collapse it"
+                )
                 self._click(f"cvb_section_toggle_{sid}")
-                self.assertIn(CARD_WIDGET[sid], self._keys())
+                self.assertTrue(CARD_WIDGET[sid] in self._keys(), "the chevron did not reopen it")
 
     def test_every_section_but_personal_hides_from_the_preview(self):
         for sid in MOVABLE:
             with self.subTest(section=sid):
                 self._click(f"cvb_eye_{sid}")
                 self.assertNotIn(HEADINGS[sid], [h for _, h in layout(self._preview())])
-                self.assertNotIn(CARD_WIDGET[sid], self._keys())
+                self.assertFalse(CARD_WIDGET[sid] in self._keys(), "the eye left the card shown")
                 self._click(f"cvb_eye_{sid}")
                 self.assertIn(HEADINGS[sid], [h for _, h in layout(self._preview())])
 
@@ -189,11 +192,27 @@ class SectionControlTests(_Builder):
                 self.assertEqual([h for _, h in layout(self._preview())][0], HEADINGS[sid])
 
     def test_personal_information_stays_the_header(self):
-        self._click(f"cvb_pos_personal_{len(SECTION_IDS) - 1}")
-        self._click("cvb_eye_personal")
+        """Its row offers no eye or drag handle, and no saved state can move or hide it."""
+        personal_controls = [
+            k for k in self._keys() if k.startswith(("cvb_pos_personal_", "cvb_eye_personal"))
+        ]
+        self.assertEqual(personal_controls, [])
+        section_list = next(
+            n.proto.srcdoc
+            for n in self._nodes()
+            if getattr(n, "type", "") == "iframe" and 'class="sec-item' in n.proto.srcdoc
+        )
+        personal_row = section_list.split('data-id="personal"', 1)[1].split("</li>", 1)[0]
+        self.assertNotIn("grip-btn", personal_row)
+        self.assertNotIn("eye-btn", personal_row)
+        # A CV saved while the Personal row could still be dragged and hidden.
+        self.at.session_state["cvb_section_order"] = [*MOVABLE, "personal"]
+        self.at.session_state["cvb_section_visibility"] = {"personal": False}
+        self._run()
+        self.assertEqual(self.at.session_state["cvb_section_order"][0], "personal")
+        self.assertTrue(CARD_WIDGET["personal"] in self._keys(), "the Personal card is hidden")
         html = self._preview().split("<body>", 1)[-1]
         self.assertIn("Ada Lovelace", html.split("<h2", 1)[0], "the name left the header")
-        self.assertNotIn(CARD_WIDGET["personal"], self._keys(), "the eye hides the card")
 
 
 class TemplateRuleTests(unittest.TestCase):

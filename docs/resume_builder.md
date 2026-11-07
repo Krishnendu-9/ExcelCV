@@ -76,13 +76,16 @@ Default order (`CVR_SECTION_ORDER`):
 ## Visibility, Order and Collapse
 Three independent controls:
 1. Sidebar eye (`cvb_section_visibility`): hide/show the section in the preview and the PDF,
-   and its editor card. Personal Information is the exception: its eye hides only the editor
-   card, because the name and contact details are the resume's header and always render.
+   and its editor card.
 2. Sidebar drag handle (`cvb_section_order`): sets the order of the editor cards and of the
-   sections in the preview and the PDF. Personal Information stays the header wherever it is
-   dragged. In Modern and Creative the order applies within each column: the sidebar holds
-   Skills, Languages and Interests, plus Certifications in Modern, and the main column holds
-   the rest, Summary included.
+   sections in the preview and the PDF. In Modern and Creative the order applies within each
+   column: the sidebar holds Skills, Languages and Interests, plus Certifications in Modern,
+   and the main column holds the rest, Summary included.
+
+Personal Information has neither control: its name and contact details are the resume's
+header, so its row is pinned first in the section list with no drag handle or eye, and nothing
+can be dropped above it. `_normalize_section_order()` and `_normalize_section_visibility()`
+keep it first and shown even for a CV saved when the row could still be dragged and hidden.
 3. Section chevron (`cvb_section_open_<section_id>`): collapse/expand editor body only.
 
 ## Seeded Rows
@@ -418,3 +421,4 @@ Link behavior in exported PDF:
 16. Opening a saved CV, returning to the builder and clicking a section chevron keep the preview's formatted sections; only typing switches them to plain lines.
 17. Leaving the builder for another page and coming back keeps every field edited before the click that left, for a CV opened from My CVs and for unsaved typing, and Save afterwards writes them all (an edit made in that same click is lost: KNOWN_ISSUES.md §7).
 18. In all three templates, the preview shows the CV's own location after opening a CV and while typing in an experience or education Location; typing in the CV's Location still updates it live.
+19. Personal Information stays first in the section list with no drag handle or eye; a section dragged to the very top lands just below it.

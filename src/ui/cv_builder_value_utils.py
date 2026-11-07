@@ -54,7 +54,10 @@ def _normalize_section_order(order: list | None) -> list[str]:
     for sid in SECTION_IDS:
         if sid not in normalized:
             normalized.append(sid)
-    return normalized
+    # Personal Information is the resume's header, so its card always comes first; an
+    # order saved while its row could still be dragged is put right here.
+    normalized.remove("personal")
+    return ["personal", *normalized]
 
 
 def _normalize_section_visibility(visibility: dict | None) -> dict[str, bool]:
@@ -65,6 +68,10 @@ def _normalize_section_visibility(visibility: dict | None) -> dict[str, bool]:
         sid = _section_id(str(key))
         if sid:
             normalized[sid] = _coerce_bool(value, True)
+    # The header always renders, so its card cannot be hidden either. A CV saved while the
+    # Personal row had an eye may say otherwise; without this its card would stay hidden
+    # with no control left to bring it back.
+    normalized["personal"] = True
     return normalized
 
 

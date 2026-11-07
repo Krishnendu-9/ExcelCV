@@ -63,7 +63,10 @@ as plain text on the page and download as DOCX.
   are redrawn in the template when you leave the field and Streamlit reruns
 - Three templates — Classic, Creative, Modern — each with a distinct layout in both the
   preview and the exported PDF
-- Nine section types, all collapsible, reorderable and individually hideable
+- Nine section types, all collapsible. Every section but Personal Information, which is
+  always the resume's header, can be reordered and hidden; in Modern and Creative, Skills,
+  Languages and Interests (and Certifications in Modern) sit in the sidebar, so sections
+  reorder within their column
 - Accent colour, font, font size, line height and spacing, persisted per saved CV
 - One-click PDF download; manage saved CVs from **My CVs**
 

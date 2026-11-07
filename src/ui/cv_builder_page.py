@@ -6705,7 +6705,9 @@ def generate_cv_html(
     def _section_label(section_id: str) -> str:
         return SECTION_ID_TO_LABEL.get(section_id, section_id.replace("_", " ").title())
 
-    def _ordered_sections(ids: list[str], compact: bool = False) -> str:
+    def _ordered_sections(
+        ids: list[str], compact: bool = False, labels: dict[str, str] | None = None
+    ) -> str:
         html_parts: list[str] = []
         for sid in ids:
             if sid == "personal":
@@ -6715,7 +6717,7 @@ def generate_cv_html(
             inner = section_map.get(sid, "")
             if not inner.strip():
                 continue
-            label = _section_label(sid)
+            label = (labels or {}).get(sid) or _section_label(sid)
             html_parts.append(_sec_compact(label, inner) if compact else _sec(label, inner))
         return "".join(html_parts)
 
@@ -6752,6 +6754,8 @@ def generate_cv_html(
             if inner.strip():
                 modern_left_sections.append(_sec_compact(_section_label(sid), inner))
 
+    # In both sidebar templates the summary follows the section order like every other
+    # main-column section. It used to be pinned first, so dragging it did nothing there.
     modern_body = (
         f"<div class='cv-paper modern {icons_class}'>"
         "<div class='modern-grid'>"
@@ -6766,12 +6770,7 @@ def generate_cv_html(
         + "".join(modern_left_sections)
         + "</aside>"
         "<main class='modern-right'>"
-        + (
-            _sec("Professional Summary", section_map.get("summary", ""))
-            if vis.get("summary", True)
-            else ""
-        )
-        + _ordered_sections([sid for sid in right_modern_ids if sid != "summary"], compact=False)
+        + _ordered_sections(right_modern_ids, compact=False)
         + "</main>"
         + "</div></div>"
     )
@@ -6807,8 +6806,7 @@ def generate_cv_html(
         + "".join(creative_left_sections)
         + "</aside>"
         "<main class='creative-right'>"
-        + (_sec("About Me", section_map.get("summary", "")) if vis.get("summary", True) else "")
-        + _ordered_sections([sid for sid in right_creative_ids if sid != "summary"], compact=False)
+        + _ordered_sections(right_creative_ids, compact=False, labels={"summary": "About Me"})
         + "</main>"
         + "</div></div>"
     )

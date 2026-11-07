@@ -755,8 +755,9 @@ for s in [
     "Choose template: Classic, Creative, or Modern — each has distinct layout in both the "
     "live preview and the downloaded PDF.",
     "Canonical sections: personal, summary, experience, education, skills, projects, "
-    "languages, certifications, interests. Each is collapsible, hideable (eye toggle), and "
-    "reorderable via drag-and-drop (streamlit-sortables).",
+    "languages, certifications, interests. Each is collapsible; all but personal, which is "
+    "always the resume's header, are hideable (eye toggle) and reorderable by drag-and-drop. "
+    "In the Modern and Creative templates sections reorder within their column.",
     "Customize: accent color, font, font size, line height, entry spacing — all persisted "
     "with the saved CV.",
     "Real-time preview: Personal Details fields update in the template as the user types "

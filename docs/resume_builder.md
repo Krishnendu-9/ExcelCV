@@ -73,10 +73,17 @@ Default order (`CVR_SECTION_ORDER`):
 8. `certifications`
 9. `interests`
 
-## Visibility and Collapse
-Two independent controls:
-1. Sidebar eye (`cvb_section_visibility`): hide/show entire section from output.
-2. Section chevron (`cvb_section_open_<section_id>`): collapse/expand editor body only.
+## Visibility, Order and Collapse
+Three independent controls:
+1. Sidebar eye (`cvb_section_visibility`): hide/show the section in the preview and the PDF,
+   and its editor card. Personal Information is the exception: its eye hides only the editor
+   card, because the name and contact details are the resume's header and always render.
+2. Sidebar drag handle (`cvb_section_order`): sets the order of the editor cards and of the
+   sections in the preview and the PDF. Personal Information stays the header wherever it is
+   dragged. In Modern and Creative the order applies within each column: the sidebar holds
+   Skills, Languages and Interests, plus Certifications in Modern, and the main column holds
+   the rest, Summary included.
+3. Section chevron (`cvb_section_open_<section_id>`): collapse/expand editor body only.
 
 ## Seeded Rows
 Initial rows are seeded:

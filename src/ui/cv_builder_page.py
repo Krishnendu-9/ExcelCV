@@ -6057,10 +6057,15 @@ def _interests_section() -> None:
             with st.container(key=f"cvb-int-item-{i}"):
                 c1, c2 = st.columns([8, 1.4])
                 with c1:
+                    # Set the row's text through session state: a value= default only
+                    # applies when the widget is first drawn, so row i went on showing
+                    # its old interest after a delete shifted the list.
+                    row_key = f"cvb_interest_readonly_{i}"
+                    if st.session_state.get(row_key) != interest:
+                        st.session_state[row_key] = interest
                     st.text_input(
                         f"Interest {i + 1}",
-                        value=interest,
-                        key=f"cvb_interest_readonly_{i}",
+                        key=row_key,
                         disabled=True,
                         label_visibility="collapsed",
                     )

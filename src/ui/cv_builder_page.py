@@ -238,6 +238,9 @@ def _protect_builder_widget_state() -> None:
 
 
 def _init_builder() -> None:
+    # Put back the fields Streamlit dropped while another page was showing, before the
+    # defaults below can fill them with "".
+    _protect_builder_widget_state()
     defaults: dict = {
         "cvb_cv_title": "My Resume",
         "cvb_template": "classic",
@@ -686,6 +689,9 @@ def load_cv_into_builder(cv_record: CV) -> None:
                 cust.get("section_visibility")
             )
     _normalize_builder_tuning_state()
+    # This run's _init_builder() mirrored the builder as it was before the load. Mirror
+    # the loaded CV now, or leaving the page before the next rerun restores the old one.
+    _protect_builder_widget_state()
 
 
 def _load_cv_for_builder_if_requested() -> None:

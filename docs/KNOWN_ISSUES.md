@@ -335,3 +335,34 @@ would change the Insights lists.
 - When a card is restored, update the matching guard in
   [tests/test_feature_claims.py](../tests/test_feature_claims.py); it skips itself for any
   structure that has a reader again.
+
+---
+
+## 7. A builder edit made in the same click as leaving the page is lost
+
+**Status: unfixed.** The fix belongs in the app-wide entry point rather than the builder,
+and no test can reach it yet.
+
+**Code:** `_protect_builder_widget_state()` in
+[src/ui/cv_builder_page.py](../src/ui/cv_builder_page.py), called from `_init_builder()`
+and `load_cv_into_builder()`.
+
+### What happens
+
+Type in a resume-builder field and, without clicking anywhere else first, click a link in
+the top navigation. Streamlit receives the new value with that click, but the run renders
+the other page, not the builder. `_protect_builder_widget_state()` does not run, so its
+mirror keeps the field's previous value, and Streamlit drops the field's key at the end of
+the run. Back in the builder, the mirror restores the previous value. Only that field's
+last edit is lost: edits committed earlier, for example by leaving the field, survive. The field shows the older text on return, and a Save writes it. Observed in
+headless Edge against a running copy of the app on 2026-11-07.
+
+### What fixing it would take
+
+Refresh the mirror on every run, not only on runs that render the builder: call it from
+the entry point in [app.py](../app.py) before routing, so the run that leaves the builder copies
+the incoming value before Streamlit drops it. That runs builder state handling on every
+page for every session. A browser can show it working. A Python test would have to run
+`app.py` under Streamlit's AppTest with the sign-in gate and database handled;
+[tests/test_builder_state_navigation.py](../tests/test_builder_state_navigation.py)
+runs the builder page alone and does not cover this case.

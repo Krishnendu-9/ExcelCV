@@ -34,11 +34,16 @@ The original monolith was split into focused modules (all in `src/ui/`):
 9. Apply final alignment overrides with `_inject_builder_final_alignment_overrides()`.
 
 ## State Persistence Guard
-To prevent content loss during reruns caused by sidebar actions (reorder, visibility, template/style changes), `_init_builder()` now applies `_protect_builder_widget_state()`:
+To prevent content loss during reruns caused by sidebar actions (reorder, visibility, template/style changes) and visits to other pages, which make Streamlit drop the keys of widgets a run does not render, the builder applies `_protect_builder_widget_state()`:
 - Mirrors key `cvb_*` values into `cvb_state_mirror_v1`.
 - Restores missing keys when widgets are temporarily unmounted.
+- Runs at the start of `_init_builder()`, before the defaults, so a field dropped while another page was showing comes back with its value instead of an empty default, and again at the end.
+- Runs at the end of `load_cv_into_builder()`, so a CV opened from My CVs is mirrored at once and survives leaving the builder straight after opening it.
 - Covers both fixed keys and dynamic row keys (`exp/edu/skill/project/lang/cert`).
 - Preserves user-entered middle-panel data while allowing normal delete behavior.
+- Does not cover an edit made in the same click as leaving the page: see [KNOWN_ISSUES.md §7](KNOWN_ISSUES.md#7-a-builder-edit-made-in-the-same-click-as-leaving-the-page-is-lost).
+
+[tests/test_builder_state_navigation.py](../tests/test_builder_state_navigation.py) runs the real page under Streamlit's AppTest, switches to another page and back, and checks typed fields, an opened CV and a second opened CV. It also checks that Reset clears an opened CV and the mirror with it, so the restore cannot bring the cleared CV back.
 
 ## Page Layout
 Three columns:
@@ -393,3 +398,4 @@ Link behavior in exported PDF:
 14. First realtime non-personal updates are placed in correct section order immediately (no delayed reflow).
 15. Long Professional Summary paste appears consistently in field, preview, and PDF.
 16. Opening a saved CV, returning to the builder and clicking a section chevron keep the preview's formatted sections; only typing switches them to plain lines.
+17. Leaving the builder for another page and coming back keeps every field edited before the click that left, for a CV opened from My CVs and for unsaved typing, and Save afterwards writes them all (an edit made in that same click is lost: KNOWN_ISSUES.md §7).

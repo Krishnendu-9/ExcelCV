@@ -44,12 +44,6 @@ def _nav_action_button_key(action: str) -> str:
     return f"nav_action_{normalized}"
 
 
-def _nav_action_css_class(action: str) -> str:
-    """Return the CSS class used by Streamlit for a nav action button key."""
-    normalized = "".join(ch if ch.isalnum() else "_" for ch in str(action).strip().lower())
-    return f"st-key-nav_action_{normalized}"
-
-
 def _queue_nav_action(action: str) -> None:
     """Persist the most recent nav action so header highlight can update immediately."""
     st.session_state["nav_action_pending"] = str(action)
@@ -245,12 +239,6 @@ def render_site_header(show_theme_toggle: bool = True, current_page: str = "uplo
     elif pending_action in {item[1] for item in nav_items}:
         active_page = pending_action
 
-    # If the user is already on the home page, clicking Analyze CV / Compare
-    # Resumes can be handled entirely client-side with a smooth scroll — no
-    # Streamlit rerun, no full repaint. The bridge-button path is still used
-    # for cross-page nav (e.g. Resume Builder → Compare Resumes) where the
-    # server has to swap pages first.
-    is_home_page = current_page in ("upload-cv", "compare-cv", "home", "upload")
     nav_links: List[str] = []
     for label, page_key in nav_items:
         is_active = page_key == active_page or (
@@ -264,46 +252,10 @@ def render_site_header(show_theme_toggle: bool = True, current_page: str = "uplo
         else:
             href = _build_page_href(page_key)
 
-        if is_home_page and page_key == "upload-cv":
-            # Already on home — smooth-scroll to the top instead of triggering
-            # a Streamlit rerun. Streamlit has TWO candidate scrollers (the
-            # <html> element and [data-testid="stAppViewContainer"]); the
-            # visible scroll lives on whichever has overflow at the moment, so
-            # we scroll both. CSS `scroll-behavior: smooth` on both elements
-            # handles the animation — passing behavior:'smooth' explicitly here
-            # would be redundant but doesn't hurt.
-            onclick_js = (
-                "try{var w=window.parent&&window.parent!==window?window.parent:window;"
-                "var d=w.document;"
-                "event.preventDefault();event.stopPropagation();"
-                "try{w.history.replaceState(null,'',w.location.pathname+w.location.search);}catch(_e){}"
-                "try{w.scrollTo({top:0,left:0,behavior:'smooth'});}catch(_e2){w.scrollTo(0,0);}"
-                "var m=d.querySelector('[data-testid=\\'stAppViewContainer\\']');"
-                "if(m){try{m.scrollTo({top:0,left:0,behavior:'smooth'});}catch(_e3){m.scrollTop=0;}}"
-                "return false;}catch(_e){}"
-            )
-        elif is_home_page and page_key == "compare-anchor":
-            # Already on home — smooth-scroll to the compare anchor. The anchor
-            # carries scroll-margin-top: 130px, which scrollIntoView honors, so
-            # the heading lands at the same resting position as a hash navigation.
-            # scrollIntoView finds the nearest scrollable ancestor on its own,
-            # so we don't need to dual-target like the scroll-to-top case.
-            onclick_js = (
-                "try{var w=window.parent&&window.parent!==window?window.parent:window;"
-                "var a=w.document.getElementById('compare-section-anchor');"
-                "if(a){event.preventDefault();event.stopPropagation();"
-                "try{w.history.replaceState(null,'',w.location.pathname+w.location.search+'#compare-section-anchor');}catch(_e){}"
-                "a.scrollIntoView({behavior:'smooth',block:'start'});return false;}}catch(_e){}"
-            )
-        else:
-            onclick_js = (
-                "try{var w=window.parent&&window.parent!==window?window.parent:window;"
-                f"var b=w.document.querySelector('.{_nav_action_css_class(page_key)} button');"
-                "if(b){event.preventDefault();event.stopPropagation();b.click();return false;}}catch(_e){}"
-            )
-
+        # Routed in-app by app.py's click handler through data-nav-action. Streamlit's
+        # sanitizer strips inline event handlers, so an onclick here would never run.
         nav_links.append(
-            f'<a href="{href}" target="_self" onclick="{onclick_js}" '
+            f'<a href="{href}" target="_self" '
             f'class="site-nav-item{active_cls}" data-nav-action="{page_key}" style="text-decoration:none;">{label}</a>'
         )
 
@@ -385,13 +337,10 @@ def render_site_header(show_theme_toggle: bool = True, current_page: str = "uplo
                 href = "#"
             else:
                 href = _build_page_href(page_key)
-            # The bridge button can be missing from DOM for a noticeable
-            # window after Streamlit tears down a dialog with st.rerun() — up
-            # to a second in practice. Retry generously (20 × 100ms = 2s)
-            # before falling back to URL nav, and trigger the click via a
-            # full MouseEvent dispatch (more reliable than .click() for
-            # React's synthetic event system, which sometimes ignores .click()
-            # invocations on freshly remounted widgets).
+            # app.py's click handler routes it through data-nav-action. The bridge
+            # button can be missing for up to a second after a dialog closes with
+            # st.rerun(), so the handler retries for about 2s (25 × 80ms) and
+            # dispatches a full MouseEvent before falling back to the href.
             cls = f"site-user-item{(' ' + extra_class) if extra_class else ''}"
             return (
                 f'<a href="{href}" target="_self" class="{cls}" '

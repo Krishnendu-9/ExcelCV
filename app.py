@@ -24,7 +24,12 @@ from src.auth_utils import (
     take_oauth_nonce,
 )
 from src.database import init_db
-from src.ui.app_utils import APP_PAGES, _clear_analysis_state, _restore_report_snapshot
+from src.ui.app_utils import (
+    APP_PAGES,
+    NAV_ACTION_TO_PAGE,
+    _clear_analysis_state,
+    _restore_report_snapshot,
+)
 from src.ui.auth_page import render_auth_page
 from src.ui.css_injection import (
     inject_compact_header_css,
@@ -77,18 +82,6 @@ NAV_ACTIVE_LABELS = {
     "my-analyses": "My Analyses",
     "my-comparisons": "My Comparisons",
     "compare-report": "Compare Resumes",
-}
-NAV_ACTION_TO_PAGE = {
-    "upload-cv": "upload-cv",
-    "compare-anchor": "home",
-    "cover-letter": "cover-letter",
-    "resume-builder": "resume-builder",
-    "my-cvs": "my-cvs",
-    "my-analyses": "my-analyses",
-    # User-dropdown destinations (bridge buttons live in layout.py).
-    "my-comparisons": "my-comparisons",
-    "settings": "settings",
-    "contact": "contact",
 }
 HOME_COMPARE_FOCUS_KEY = "home_nav_focus_compare"
 
@@ -951,6 +944,12 @@ def main() -> None:
         if nav_action == "compare-anchor":
             st.session_state["scroll_to_compare_anchor"] = True
             st.session_state[HOME_COMPARE_FOCUS_KEY] = True
+        elif nav_action == "home":
+            # The logo starts over, as its `_clear` URL did when it was a full page load,
+            # but keeps the session: the user stays signed in and builder work survives.
+            _clear_analysis_state(clear_comparison=True)
+            st.session_state[HOME_COMPARE_FOCUS_KEY] = False
+            st.session_state.pop("scroll_to_compare_anchor", None)
         elif nav_action == "upload-cv":
             # Explicit "Analyze CV" click — also drop the
             # return-to-compare scroll hint set by the compare-report page so

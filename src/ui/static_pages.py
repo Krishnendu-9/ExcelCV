@@ -4,7 +4,7 @@ import streamlit as st
 
 from src.cover_letter import render_cover_letter_page
 from src.email_utils import is_email_configured, send_acknowledgement_email, send_contact_email
-from src.ui.app_utils import _build_page_href
+from src.ui.app_utils import _nav_link_attrs
 from src.ui.report import render_evaluation_toolkit
 
 
@@ -391,9 +391,10 @@ def render_static_page(page: str) -> None:
         return
 
     if page_key == "contact":
-        privacy_href = _build_page_href("privacy-policy")
-        how_it_works_href = _build_page_href("how-it-works")
-        resume_tips_href = _build_page_href("resume-tips")
+        # In-app links (see _nav_link_attrs): a plain href would sign the user out.
+        privacy_link = _nav_link_attrs("privacy-policy")
+        how_it_works_link = _nav_link_attrs("how-it-works")
+        resume_tips_link = _nav_link_attrs("resume-tips")
 
         # SVG icons inlined so we don't depend on an icon font. Kept compact —
         # `currentColor` so they inherit the accent tint from the surrounding
@@ -632,9 +633,9 @@ def render_static_page(page: str) -> None:
                             <h4>Try the docs first</h4>
                             <p>Most questions are answered in our guides:</p>
                             <ul class="support-doc-list">
-                                <li>→ <a href="{how_it_works_href}" target="_self">How It Works</a></li>
-                                <li>→ <a href="{resume_tips_href}" target="_self">Resume Tips</a></li>
-                                <li>→ <a href="{privacy_href}" target="_self">Privacy Policy</a></li>
+                                <li>→ <a {how_it_works_link}>How It Works</a></li>
+                                <li>→ <a {resume_tips_link}>Resume Tips</a></li>
+                                <li>→ <a {privacy_link}>Privacy Policy</a></li>
                             </ul>
                         </div>
                     </div>
@@ -728,7 +729,7 @@ def render_static_page(page: str) -> None:
                 st.markdown(
                     f'<p class="support-privacy-note">Your message is sent to '
                     f"<strong>support@excelcv.app</strong> and isn't shared with third "
-                    f'parties. See our <a href="{privacy_href}" target="_self">Privacy Policy</a>.</p>',
+                    f"parties. See our <a {privacy_link}>Privacy Policy</a>.</p>",
                     unsafe_allow_html=True,
                 )
         return

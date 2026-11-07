@@ -21,6 +21,7 @@ from src.ui.analysis_runner import (
 from src.ui.app_utils import (
     _build_page_href,
     _clear_comparison_run_artifacts,
+    _nav_link_attrs,
     _sanitize_cv_filename,
     _save_report_snapshot,
 )
@@ -1363,11 +1364,10 @@ def render_upload_page(compare_mode: bool = False) -> None:
                 unsafe_allow_html=True,
             )
         if st.session_state.get("comparison_results"):
-            _view_compare_results_href = _build_page_href("compare-report")
             st.markdown(
                 f"""
                 <div class="compare-view-results-row">
-                    <a href="{_view_compare_results_href}" target="_self" class="compare-view-results-link">
+                    <a {_nav_link_attrs("compare-report")} class="compare-view-results-link">
                         View latest comparison results &rarr;
                     </a>
                 </div>

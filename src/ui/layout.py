@@ -10,7 +10,12 @@ import streamlit.components.v1 as components
 
 from src.auth_utils import get_session_user
 from src.email_utils import is_email_configured, send_acknowledgement_email, send_contact_email
-from src.ui.app_utils import _build_page_href, _load_logo_data_uri
+from src.ui.app_utils import (
+    NAV_ACTION_TO_PAGE,
+    _build_page_href,
+    _load_logo_data_uri,
+    _nav_link_attrs,
+)
 
 PROTECTED_HEADER_PAGES = {"resume-builder", "my-cvs", "my-analyses", "compare-cv"}
 NAV_LABEL_TO_PAGE = {
@@ -30,15 +35,6 @@ NAV_ITEMS = [
     ("My CVs", "my-cvs"),
     ("My Analyses", "my-analyses"),
     ("My Comparisons", "my-comparisons"),
-]
-# Page keys that need a hidden bridge button so the user-dropdown <a> tags
-# can route through Streamlit's in-app nav (preserving session_state)
-# instead of triggering a full-page reload. These do NOT render as visible
-# top-nav items — only their bridge buttons are emitted.
-DROPDOWN_NAV_ITEMS = [
-    "give-feedback",
-    "support",
-    "settings",
 ]
 
 
@@ -228,9 +224,8 @@ def render_site_header(show_theme_toggle: bool = True, current_page: str = "uplo
         else '<div class="site-logo-badge">EC</div><div class="site-brand-copy"><div class="site-name">ExcelCV</div></div>'
     )
     _cur_theme = st.session_state.get("theme", "light")
-    logo_target_url = f"/?page=home&_clear=1&_t={_cur_theme}"
     logo_html = (
-        f'<a href="{logo_target_url}" target="_self" class="site-logo-link" aria-label="Go to homepage">'
+        f'<a {_nav_link_attrs("home")} class="site-logo-link" aria-label="Go to homepage">'
         f'<div class="site-logo-shell">{logo_content_html}</div></a>'
     )
 
@@ -443,7 +438,10 @@ def render_site_header(show_theme_toggle: bool = True, current_page: str = "uplo
 
     nav_action: str | None = None
     with st.container(key="site_nav_action_bridge"):
-        for _, page_key in nav_items:
+        # One hidden bridge button per in-app destination, header, footer and page links
+        # alike: app.py's click handler clicks the one a link's data-nav-action names.
+        # A link whose action had no bridge here fell back to a full page load.
+        for page_key in NAV_ACTION_TO_PAGE:
             if st.button(
                 " ",
                 key=_nav_action_button_key(page_key),
@@ -452,37 +450,19 @@ def render_site_header(show_theme_toggle: bool = True, current_page: str = "uplo
                 args=(page_key,),
             ):
                 nav_action = page_key
-        # Bridge buttons for the user-dropdown items. Same mechanism, just
-        # not rendered as visible nav links — they exist so the dropdown
-        # <a> tags' onclick handler can find a Streamlit button to click,
-        # keeping the click in-app instead of triggering a hard reload.
-        for page_key in DROPDOWN_NAV_ITEMS:
-            # Modal-only items: bridge button fires a dedicated callback that
-            # flips a session flag, instead of queuing a page navigation.
-            if page_key == "give-feedback":
-                st.button(
-                    " ",
-                    key=_nav_action_button_key(page_key),
-                    help="Internal trigger for the feedback modal",
-                    on_click=_open_feedback_dialog,
-                )
-                continue
-            if page_key == "support":
-                st.button(
-                    " ",
-                    key=_nav_action_button_key(page_key),
-                    help="Internal trigger for the support modal",
-                    on_click=_open_support_dialog,
-                )
-                continue
-            if st.button(
-                " ",
-                key=_nav_action_button_key(page_key),
-                help=f"Internal navigation trigger for {page_key}",
-                on_click=_queue_nav_action,
-                args=(page_key,),
-            ):
-                nav_action = page_key
+        # Modal-only items: the bridge flips a session flag instead of navigating.
+        st.button(
+            " ",
+            key=_nav_action_button_key("give-feedback"),
+            help="Internal trigger for the feedback modal",
+            on_click=_open_feedback_dialog,
+        )
+        st.button(
+            " ",
+            key=_nav_action_button_key("support"),
+            help="Internal trigger for the support modal",
+            on_click=_open_support_dialog,
+        )
 
     # Mutually exclusive — Streamlit can only render one dialog per script run.
     # `elif` is a safety net in case both flags somehow ended up True (e.g. a
@@ -516,51 +496,48 @@ def render_site_footer() -> None:
         else '<div class="site-footer-brand-title">ExcelCV</div>'
     )
     is_guest = not get_session_user()
-    # When the user is already on the home page, the Analyze CV / Compare
-    # Resumes footer links should smooth-scroll client-side (no hard reload).
-    # Anywhere else, they navigate normally via href.
     current_page = str(st.session_state.get("page", "")).lower()
     is_home_page = current_page in ("home", "upload", "upload-cv", "compare-cv")
-    # Product footer links act like deliberate deep-nav: route guests through
-    # the auth gate (with a `next` hint so they bounce back) instead of letting
-    # them land on the home/cover-letter page and see a guest shell.
-    analyze_cv_href = (
-        _build_page_href("auth", next_page="upload-cv") if is_guest else _build_page_href("home")
-    )
-    compare_resumes_href = (
-        _build_page_href("auth", next_page="compare-cv")
-        if is_guest
-        else _build_page_href("home") + "#compare-section-anchor"
-    )
-    cover_letter_href = (
-        _build_page_href("auth", next_page="cover-letter")
-        if is_guest
-        else _build_page_href("cover-letter")
-    )
-    footer_links = {
-        "analyze_cv": analyze_cv_href,
-        "compare_resumes": compare_resumes_href,
-        "cover_letter": cover_letter_href,
-        "resume_builder": _build_page_href("resume-builder"),
-        "my_cvs": _build_page_href("my-cvs"),
-        "my_analyses": _build_page_href("my-analyses"),
-        "resume_tips": _build_page_href("resume-tips"),
-        "cover_letter_guide": _build_page_href("cover-letter-guide"),
-        "how_it_works": _build_page_href("how-it-works"),
-        "privacy_policy": _build_page_href("privacy-policy"),
-        "terms_of_service": _build_page_href("terms-of-service"),
-        "contact": _build_page_href("contact"),
-    }
-    # When on home, footer links for Analyze CV / Compare Resumes get a data
-    # attribute that a delegated click listener (injected below) intercepts to
-    # smooth-scroll client-side instead of doing a full hard reload. Off-home,
-    # the data attribute is omitted and the link navigates normally via href.
-    if is_home_page and not is_guest:
-        analyze_cv_attr = ' data-smooth-scroll="top"'
-        compare_resumes_attr = ' data-smooth-scroll="#compare-section-anchor"'
+
+    # Every footer link stays in the app: it carries data-nav-action, which routes it
+    # through a header bridge button (see _nav_link_attrs). A plain href would be a full
+    # page load, which signs the user out and drops unsaved work.
+    def _auth_link(next_page: str) -> str:
+        # Product links send guests to sign in, with a `next` hint so they bounce back.
+        # A guest has no session worth keeping, so this one stays a plain link.
+        return f'href="{_build_page_href("auth", next_page=next_page)}" target="_self"'
+
+    if is_guest:
+        analyze_cv = _auth_link("upload-cv")
+        compare_resumes = _auth_link("compare-cv")
+        cover_letter = _auth_link("cover-letter")
+    elif is_home_page:
+        # Already on home: scroll there client-side (the data-smooth-scroll listener
+        # below) instead of rerunning the page.
+        analyze_cv = f'href="{_build_page_href("home")}" target="_self" data-smooth-scroll="top"'
+        compare_resumes = (
+            f'href="{_build_page_href("home")}#compare-section-anchor" target="_self" '
+            'data-smooth-scroll="#compare-section-anchor"'
+        )
+        cover_letter = _nav_link_attrs("cover-letter")
     else:
-        analyze_cv_attr = ""
-        compare_resumes_attr = ""
+        analyze_cv = _nav_link_attrs("upload-cv")
+        compare_resumes = _nav_link_attrs("compare-anchor")
+        cover_letter = _nav_link_attrs("cover-letter")
+    footer_links = {
+        "analyze_cv": analyze_cv,
+        "compare_resumes": compare_resumes,
+        "cover_letter": cover_letter,
+        "resume_builder": _nav_link_attrs("resume-builder"),
+        "my_cvs": _nav_link_attrs("my-cvs"),
+        "my_analyses": _nav_link_attrs("my-analyses"),
+        "resume_tips": _nav_link_attrs("resume-tips"),
+        "cover_letter_guide": _nav_link_attrs("cover-letter-guide"),
+        "how_it_works": _nav_link_attrs("how-it-works"),
+        "privacy_policy": _nav_link_attrs("privacy-policy"),
+        "terms_of_service": _nav_link_attrs("terms-of-service"),
+        "contact": _nav_link_attrs("contact"),
+    }
 
     footer_html = f"""
     <footer class="site-footer-band {footer_theme_cls}" role="contentinfo" aria-label="Website footer">
@@ -576,25 +553,25 @@ def render_site_footer() -> None:
                     <div class="site-footer-link-col site-footer-link-col--wide">
                         <h4>Product</h4>
                         <div class="site-footer-link-grid-2col">
-                            <a href="{footer_links["analyze_cv"]}" target="_self"{analyze_cv_attr}>Analyze CV</a>
-                            <a href="{footer_links["resume_builder"]}" target="_self">Resume Builder</a>
-                            <a href="{footer_links["compare_resumes"]}" target="_self"{compare_resumes_attr}>Compare Resumes</a>
-                            <a href="{footer_links["my_cvs"]}" target="_self">My CVs</a>
-                            <a href="{footer_links["cover_letter"]}" target="_self">Cover Letter</a>
-                            <a href="{footer_links["my_analyses"]}" target="_self">My Analyses</a>
+                            <a {footer_links["analyze_cv"]}>Analyze CV</a>
+                            <a {footer_links["resume_builder"]}>Resume Builder</a>
+                            <a {footer_links["compare_resumes"]}>Compare Resumes</a>
+                            <a {footer_links["my_cvs"]}>My CVs</a>
+                            <a {footer_links["cover_letter"]}>Cover Letter</a>
+                            <a {footer_links["my_analyses"]}>My Analyses</a>
                         </div>
                     </div>
                     <div class="site-footer-link-col">
                         <h4>Resources</h4>
-                        <a href="{footer_links["resume_tips"]}" target="_self">Resume Tips</a>
-                        <a href="{footer_links["cover_letter_guide"]}" target="_self">Cover Letter Guide</a>
-                        <a href="{footer_links["how_it_works"]}" target="_self">How It Works</a>
+                        <a {footer_links["resume_tips"]}>Resume Tips</a>
+                        <a {footer_links["cover_letter_guide"]}>Cover Letter Guide</a>
+                        <a {footer_links["how_it_works"]}>How It Works</a>
                     </div>
                     <div class="site-footer-link-col">
                         <h4>About</h4>
-                        <a href="{footer_links["privacy_policy"]}" target="_self">Privacy Policy</a>
-                        <a href="{footer_links["terms_of_service"]}" target="_self">Terms of Service</a>
-                        <a href="{footer_links["contact"]}" target="_self">Contact Us</a>
+                        <a {footer_links["privacy_policy"]}>Privacy Policy</a>
+                        <a {footer_links["terms_of_service"]}>Terms of Service</a>
+                        <a {footer_links["contact"]}>Contact Us</a>
                     </div>
                 </div>
             </div>

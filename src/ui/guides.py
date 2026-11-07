@@ -26,7 +26,7 @@ from typing import Any, Dict, List, Tuple
 import streamlit as st
 import streamlit.components.v1 as components
 
-from src.ui.app_utils import _build_page_href
+from src.ui.app_utils import _build_page_href, _nav_link_attrs
 
 # ---------------------------------------------------------------------------
 # Metadata
@@ -1013,7 +1013,8 @@ def _emit_guide_nav_bridges() -> None:
     user's behalf. The bridge buttons themselves are invisible thanks to
     the existing ``st-key-nav_action_*`` CSS rules in ``base_theme.css.tpl``.
     """
-    targets = list(GUIDES_META.keys()) + ["resume-tips"]
+    # The pillar's bridge, nav_action_resume_tips, is the header's (see NAV_ACTION_TO_PAGE).
+    targets = list(GUIDES_META.keys())
     with st.container(key="guide_nav_action_bridge"):
         for slug in targets:
             st.button(
@@ -1342,7 +1343,7 @@ def render_guide_article(slug: str) -> None:
             <div class="excelcv-guide-placeholder">
                 <strong>Guide not found.</strong>
                 <p>The slug <code>{slug}</code> isn't registered. "
-                "<a href="{_build_page_href("resume-tips")}" target="_self">Return to the guide hub →</a></p>
+                "<a {_nav_link_attrs("resume-tips")}>Return to the guide hub →</a></p>
             </div>
             """,
             unsafe_allow_html=True,
@@ -1514,9 +1515,9 @@ def render_guide_article(slug: str) -> None:
                 <strong>This guide is being written.</strong>
                 <p>The content for this article hasn't been added yet. Check
                 back soon — or return to the
-                <a href=\""""
-            + pillar_href
-            + """\" target="_self">Resume Tips hub</a>
+                <a """
+            + _nav_link_attrs("resume-tips")
+            + """>Resume Tips hub</a>
                 to read other guides in the meantime.</p>
             </div>
             """,
@@ -1891,7 +1892,7 @@ def render_cover_letter_guide() -> None:
     # links from the article template were dropped: they're off-topic on a
     # cover-letter page. The secondary line still points at the Resume Tips
     # hub for readers who want broader application advice.
-    cover_letter_href = _build_page_href("cover-letter")
+    cover_letter_link = _nav_link_attrs("cover-letter")
     resume_tips_href = _build_page_href("resume-tips")
     st.markdown(
         f"""
@@ -1899,7 +1900,7 @@ def render_cover_letter_guide() -> None:
             <h3>Ready to write yours?</h3>
             <p class="excelcv-guide-continue-sub">
                 Use the
-                <a href="{cover_letter_href}" target="_self">Cover Letter generator</a>
+                <a {cover_letter_link}>Cover Letter generator</a>
                 to produce a tailored first draft from your saved CV and a job
                 description — then refine it with the guidance above.
             </p>

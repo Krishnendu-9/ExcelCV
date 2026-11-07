@@ -9,8 +9,8 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 from src.ui.app_utils import (
-    _build_page_href,
     _clear_comparison_run_artifacts,
+    _nav_link_attrs,
     _save_report_snapshot_from_data,
 )
 
@@ -135,10 +135,6 @@ def _comparison_rows_to_csv(rows: list[dict[str, object]], ordered_columns: list
     for row in rows:
         writer.writerow({key: row.get(key, "") for key in ordered_columns})
     return buffer.getvalue()
-
-
-def _back_to_form_href() -> str:
-    return _build_page_href("compare-cv")
 
 
 def _build_top_match_card_html(best: dict[str, object]) -> str:
@@ -315,7 +311,7 @@ def _render_empty_state(attempted: bool = False, error_count: int = 0) -> None:
             <div class="compare-report-empty__icon">{icon}</div>
             <h2 class="compare-report-empty__title">{title}</h2>
             <p class="compare-report-empty__copy">{detail}</p>
-            <a href="{_back_to_form_href()}" target="_self" class="guest-auth-cta">
+            <a {_nav_link_attrs("compare-anchor")} class="guest-auth-cta">
                 {cta_label}
             </a>
         </div>

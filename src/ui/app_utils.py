@@ -62,6 +62,39 @@ def _build_page_href(page: str, include_rid: bool = False, next_page: str | None
     return f"/?{urlencode(params)}"
 
 
+# In-app navigation. A link stays in the app only when it carries data-nav-action: app.py's
+# click handler then clicks the hidden bridge button the header renders for that action, and
+# main() moves the session to NAV_ACTION_TO_PAGE[action]. A plain href does a full page load,
+# which starts a new session: the user is signed out and unsaved work is lost. The header
+# renders one bridge per entry here, so a link built with _nav_link_attrs() always has one.
+NAV_ACTION_TO_PAGE: Dict[str, str] = {
+    "home": "home",  # the logo; main() also clears the current analysis and comparison
+    "upload-cv": "upload-cv",
+    "compare-anchor": "home",
+    "cover-letter": "cover-letter",
+    "resume-builder": "resume-builder",
+    "my-cvs": "my-cvs",
+    "my-analyses": "my-analyses",
+    "my-comparisons": "my-comparisons",
+    "compare-report": "compare-report",
+    "settings": "settings",
+    "resume-tips": "resume-tips",
+    "cover-letter-guide": "cover-letter-guide",
+    "how-it-works": "how-it-works",
+    "privacy-policy": "privacy-policy",
+    "terms-of-service": "terms-of-service",
+    "contact": "contact",
+}
+
+
+def _nav_link_attrs(action: str) -> str:
+    """The href, target and data-nav-action of a link that routes in-app to *action*."""
+    href = _build_page_href(NAV_ACTION_TO_PAGE[action])
+    if action == "compare-anchor":
+        href += "#compare-section-anchor"
+    return f'href="{href}" target="_self" data-nav-action="{action}"'
+
+
 def _sanitize_cv_filename(raw_name: str) -> str:
     """Return a safe single-segment filename for display and downloads."""
     safe_name = str(raw_name or "CV.pdf").strip()

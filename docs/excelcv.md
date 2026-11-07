@@ -286,9 +286,7 @@ the main files are named.
   and `.github/pip-audit-ignore.txt` (reviewed advisory ignores, read in CI by
   `scripts/pip_audit_ignores.py`). The `.github/workflows/` directory holds only that workflow.
 - `.streamlit/` — `.streamlit/config.toml` (upload cap, theme, server settings).
-- `assets/` — `assets/images/` holds the logo PNGs used by the header and sign-in page; the
-  two FireShot PDFs at the top of `assets/` are saved captures of a third-party resume
-  checker's page.
+- `assets/` — `assets/images/` holds the logo PNGs used by the header and sign-in page.
 - `data/` — the SQLite database `data/excelcv.db` (created on first run, gitignored) and
   `data/.gitkeep`.
 - `docs/` — this guide, `docs/SETUP.md`, `docs/KNOWN_ISSUES.md`,

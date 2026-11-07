@@ -3024,10 +3024,14 @@ def inject_fixed_top_bar() -> None:
                 }
             }, 140);
 
-            if (!target.__excelcvFixedHeaderResizeBound) {
-                target.__excelcvFixedHeaderResizeBound = true;
-                target.addEventListener('resize', scheduleApply);
+            // Replace the listener on every run, as the observer below is. A listener from
+            // a replaced iframe document stops running, and binding once per window left
+            // the header's width stale after a resize once another page had been visited.
+            if (target.__excelcvFixedHeaderResize) {
+                target.removeEventListener('resize', target.__excelcvFixedHeaderResize);
             }
+            target.__excelcvFixedHeaderResize = scheduleApply;
+            target.addEventListener('resize', scheduleApply);
 
             if (target.__excelcvFixedHeaderObserver) {
                 target.__excelcvFixedHeaderObserver.disconnect();

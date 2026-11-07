@@ -1081,8 +1081,6 @@ _GUIDE_TOC_DELEGATED_JS = """
 (function() {
     var w = window.parent && window.parent !== window ? window.parent : window;
     var doc = w.document;
-    if (doc.__excelcv_guide_toc_click_bound__) return;
-    doc.__excelcv_guide_toc_click_bound__ = true;
 
     var scrollToId = function(id) {
         var target = doc.getElementById(id);
@@ -1092,7 +1090,12 @@ _GUIDE_TOC_DELEGATED_JS = """
         return true;
     };
 
-    doc.addEventListener('click', function(ev) {
+    // Replace the listener on every run. A listener from a replaced iframe document stops
+    // running, and binding once per page left contents links to the browser's own anchor
+    // jump, which adds a history entry, after an in-app visit to another guide page.
+    var KEY = '__excelcv_guide_toc_click__';
+    if (doc[KEY]) doc.removeEventListener('click', doc[KEY], true);
+    doc[KEY] = function(ev) {
         var el = ev.target;
         while (el && el !== doc && !(el.getAttribute && el.getAttribute('data-toc-target'))) {
             el = el.parentNode;
@@ -1111,7 +1114,8 @@ _GUIDE_TOC_DELEGATED_JS = """
                 w.location.pathname + w.location.search + '#' + id
             );
         } catch (_e2) {}
-    }, true);
+    };
+    doc.addEventListener('click', doc[KEY], true);
 
     // Fallback for the case where the user clicked a TOC link BEFORE this
     // script bound: the browser's native anchor nav put a hash in the URL

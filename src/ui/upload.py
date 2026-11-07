@@ -161,13 +161,16 @@ def render_upload_preview_card() -> None:
     setTimeout(alignHero, 240);
     setTimeout(alignHero, 720);
 
-    // Re-align on window resize.
-    if (!w.__excelcvHeroAlignResize) {
-        w.__excelcvHeroAlignResize = true;
-        w.addEventListener('resize', function () {
-            setTimeout(alignHero, 60);
-        });
+    // Re-align on window resize. Replace the listener on every run: a listener from a
+    // replaced iframe document stops running, and binding once per window left the card
+    // unaligned after a resize once another page had been visited.
+    if (w.__excelcvHeroAlignResizeHandler) {
+        w.removeEventListener('resize', w.__excelcvHeroAlignResizeHandler);
     }
+    w.__excelcvHeroAlignResizeHandler = function () {
+        setTimeout(alignHero, 60);
+    };
+    w.addEventListener('resize', w.__excelcvHeroAlignResizeHandler);
 
     // Observe the wrapper for size/content changes (Streamlit reruns) and re-align.
     try {

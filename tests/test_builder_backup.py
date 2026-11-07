@@ -10,10 +10,15 @@ ignores everything else, so files made before the change import too.
 The round-trip tests run the real page, _get_backup_json() and _import_from_json() under
 Streamlit's AppTest. AppTest has no file uploader, so the file's bytes are handed to
 _import_from_json() directly; the uploader widget itself is not covered.
+
+A backup does not carry the link to the saved CV it was made from, and Import ignores the
+link in older files, so an imported backup is an unsaved copy: Save adds it as a new CV.
+Carrying the link made Save overwrite the CV the backup came from.
 """
 
 import json
 import unittest
+from datetime import datetime
 from types import SimpleNamespace
 from unittest import mock
 
@@ -80,6 +85,10 @@ CV_B_FIELDS = {
 }
 
 
+# The link to the saved CV that Save writes to, and the save time the toolbar shows.
+LINK = ["cvb_loaded_cv_id", "cvb_last_saved"]
+
+
 def _app():
     import io
     import json
@@ -104,7 +113,9 @@ def _app():
 
 
 def _record(cv_id, data):
-    return SimpleNamespace(id=cv_id, title=cv_id, template="classic", data=data, updated_at=None)
+    return SimpleNamespace(
+        id=cv_id, title=cv_id, template="classic", data=data, updated_at=datetime(2026, 1, 1, 9, 30)
+    )
 
 
 class _SessionDict(dict):
@@ -126,9 +137,10 @@ class BackupKeysTests(unittest.TestCase):
             "cvb_interests": ["Chess"],
             "cvb_section_order": list(SECTION_IDS),
             "cvb_sidebar_layout_v2_migrated": True,
-            "cvb_loaded_cv_id": "cv-a",
         }
         junk = {
+            "cvb_loaded_cv_id": "cv-a",  # the link to the saved CV
+            "cvb_last_saved": "09:30 AM",
             "cvb_toolbar_import": False,  # buttons: Streamlit refuses these
             "cvb_toolbar_save": False,
             "cvb_section_add_experience": False,
@@ -158,15 +170,21 @@ class BackupKeysTests(unittest.TestCase):
     def test_keeps_every_key_that_opening_a_cv_sets(self):
         state = self._keys_set_by(cv_builder_page.load_cv_into_builder, _record("cv-a", CV_A))
         dropped = set(state) - set(cv_builder_page._builder_backup_data(state))
-        self.assertEqual(dropped, {"cvb_state_mirror_v1"}, "opening a CV sets keys Backup drops")
+        # The link to the saved CV and its save time are left out on purpose.
+        self.assertEqual(
+            dropped,
+            {"cvb_state_mirror_v1", "cvb_loaded_cv_id", "cvb_last_saved"},
+            "opening a CV sets keys Backup drops",
+        )
 
     def test_keeps_every_key_the_builders_setup_sets(self):
         state = self._keys_set_by(cv_builder_page._init_builder)
         dropped = set(state) - set(cv_builder_page._builder_backup_data(state))
-        # The mirror is rebuilt from the data, and the uploader's open state is not data.
+        # The mirror is rebuilt from the data, the uploader's open state is not data, and
+        # the link to the saved CV and its save time are left out on purpose.
         self.assertEqual(
             dropped,
-            {"cvb_state_mirror_v1", "cvb_show_import"},
+            {"cvb_state_mirror_v1", "cvb_show_import", "cvb_loaded_cv_id", "cvb_last_saved"},
             "_init_builder() sets keys Backup drops: a new setup flag belongs in "
             "CVB_INIT_FLAG_KEYS, a new data key in CVB_PERSIST_BASE_KEYS",
         )
@@ -202,11 +220,16 @@ class BackupRoundTripTests(unittest.TestCase):
     def _import_over_cv_a(self, backup):
         self._open("cv-a")
         self.assertEqual(self._state(CV_A_FIELDS), CV_A_FIELDS)
+        self.assertEqual(
+            self._state(LINK), {"cvb_loaded_cv_id": "cv-a", "cvb_last_saved": "09:30 AM"}
+        )
         self.at.session_state["_import"] = backup
         self._run()
         self.assertEqual(self._state(CV_B_FIELDS), CV_B_FIELDS)
         left = {k: v for k, v in self._state(CV_A_FIELDS).items() if v == CV_A_FIELDS[k]}
         self.assertEqual(left, {}, "CV A's fields survived the import")
+        # An unsaved copy: Save adds a new CV instead of overwriting CV A or CV B.
+        self.assertEqual(self._state(LINK), {"cvb_loaded_cv_id": None, "cvb_last_saved": None})
 
     def test_a_backup_holds_no_widget_keys(self):
         self._open("cv-b")
@@ -218,6 +241,8 @@ class BackupRoundTripTests(unittest.TestCase):
             k for k in backup if k in ("cvb_toolbar_import", "cvb_state_mirror_v1") or "__" in k
         )
         self.assertEqual(widget_keys, [])
+        self.assertEqual(unfiltered.get("cvb_loaded_cv_id"), "cv-b")
+        self.assertEqual([k for k in LINK if k in backup], [])
 
     def test_a_backup_imports_over_another_open_cv(self):
         self._open("cv-b")

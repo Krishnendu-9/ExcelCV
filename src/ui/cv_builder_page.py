@@ -1042,18 +1042,17 @@ def _pdf_request_payload(
 def _builder_backup_data(state: Mapping[str, object]) -> dict:
     """The builder state a backup carries, taken from *state*.
 
-    An allowlist: the CV's content and settings (the keys the mirror protects), the
-    one-time setup flags, and the link to the saved CV. Everything else in the session is
-    left out: button, uploader and date-picker widget keys, the mirror, cached PDF bytes.
-    Streamlit refuses a session-state value for a button, so restoring one crashed the
-    builder.
+    An allowlist: the CV's content and settings (the keys the mirror protects) and the
+    one-time setup flags. Everything else in the session is left out: button, uploader
+    and date-picker widget keys, the mirror, cached PDF bytes. Streamlit refuses a
+    session-state value for a button, so restoring one crashed the builder.
+
+    The link to the saved CV (cvb_loaded_cv_id) and its save time stay out too, so an
+    imported backup is an unsaved copy and Save adds it as a new CV. Carrying the link
+    made Save overwrite the CV the backup came from, typically with an older version of
+    it.
     """
-    keys = (
-        set(CVB_PERSIST_BASE_KEYS)
-        | _persistable_dynamic_keys(state)
-        | set(CVB_INIT_FLAG_KEYS)
-        | {"cvb_loaded_cv_id", "cvb_last_saved"}
-    )
+    keys = set(CVB_PERSIST_BASE_KEYS) | _persistable_dynamic_keys(state) | set(CVB_INIT_FLAG_KEYS)
     return {k: _copy_state_value(state[k]) for k in sorted(keys) if k in state}
 
 

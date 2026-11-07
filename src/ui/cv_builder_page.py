@@ -1229,11 +1229,25 @@ def _inject_realtime_js() -> None:
     website: 'cvb_lurl_website',
     github: 'cvb_lurl_github'
   };
+  // Personal fields are resolved by widget key. Labels are reused: experience and
+  // education entries have their own "Location" inputs, and resolving by label sent
+  // them to the preview as the CV's location. FIELD_BY_LABEL is only a fallback for an
+  // input without a key.
+  var PERSONAL_KEYS = [
+    'cvb_full_name', 'cvb_prof_title', 'cvb_email', 'cvb_phone', 'cvb_location',
+    'cvb_linkedin', 'cvb_website', 'cvb_github', 'cvb_summary'
+  ];
   var FIELD_BY_KEY = {
     cvb_linkedin_url: 'cvb_linkedin_url',
     cvb_website_url: 'cvb_website_url',
     cvb_github_url: 'cvb_github_url'
   };
+  PERSONAL_KEYS.forEach(function(k) { FIELD_BY_KEY[k] = k; });
+
+  function fieldFor(widgetKey, labelText) {
+    if (widgetKey) return FIELD_BY_KEY[widgetKey] || '';
+    return FIELD_BY_LABEL[labelText] || '';
+  }
 
   function linkStateKeyForCf(cf) {
     if (LINK_URL_KEYS[cf]) return LINK_URL_KEYS[cf];
@@ -1249,24 +1263,10 @@ def _inject_realtime_js() -> None:
     return '';
   }
 
-  function getFieldValue(labelText, cardSel) {
-    var card = doc.querySelector(cardSel);
-    if (!card) return '';
-    var labels = card.querySelectorAll('label');
-    for (var i = 0; i < labels.length; i++) {
-      if (labels[i].textContent.trim() !== labelText) continue;
-      var t1 = labels[i].closest('[data-testid="stTextInput"]');
-      if (t1) {
-        var inp = t1.querySelector('input');
-        return inp ? String(inp.value || '') : '';
-      }
-      var t2 = labels[i].closest('[data-testid="stTextArea"]');
-      if (t2) {
-        var ta = t2.querySelector('textarea');
-        return ta ? String(ta.value || '') : '';
-      }
-    }
-    return '';
+  function getFieldValue(key) {
+    var box = doc.querySelector('.st-key-' + key);
+    var el = box ? box.querySelector('input, textarea') : null;
+    return el ? String(el.value || '') : '';
   }
 
   function getWidgetKey(node) {
@@ -1320,16 +1320,10 @@ def _inject_realtime_js() -> None:
     }
   }
 
-  function syncAllPersonalFields(cardSel) {
-    var labels = [
-      'Full Name', 'Professional Title', 'Email', 'Phone',
-      'Location', 'LinkedIn', 'Website', 'GitHub', 'Professional Summary'
-    ];
-    for (var i = 0; i < labels.length; i++) {
-      var l = labels[i];
-      var f = FIELD_BY_LABEL[l];
-      if (!f) continue;
-      broadcast({ type: 'cv-rt-update', field: f, value: getFieldValue(l, cardSel) });
+  function syncAllPersonalFields() {
+    for (var i = 0; i < PERSONAL_KEYS.length; i++) {
+      var k = PERSONAL_KEYS[i];
+      broadcast({ type: 'cv-rt-update', field: k, value: getFieldValue(k) });
     }
     ['linkedin', 'website', 'github'].forEach(function(cf) {
       var urlInput = getUrlInputFromField(cf);
@@ -1340,13 +1334,9 @@ def _inject_realtime_js() -> None:
     });
   }
 
-  function hasAnyPersonalInput(cardSel) {
-    var labels = [
-      'Full Name', 'Professional Title', 'Email', 'Phone',
-      'Location', 'LinkedIn', 'Website', 'GitHub', 'Professional Summary'
-    ];
-    for (var i = 0; i < labels.length; i++) {
-      if (getFieldValue(labels[i], cardSel).trim().length > 0) return true;
+  function hasAnyPersonalInput() {
+    for (var i = 0; i < PERSONAL_KEYS.length; i++) {
+      if (getFieldValue(PERSONAL_KEYS[i]).trim().length > 0) return true;
     }
     var linkKinds = ['linkedin', 'website', 'github'];
     for (var j = 0; j < linkKinds.length; j++) {
@@ -1667,7 +1657,7 @@ def _inject_realtime_js() -> None:
         broadcast({ type: 'cv-rt-widget', key: widgetKey, label: lt || widgetKey, value: vWidget });
       }
 
-      var field = FIELD_BY_LABEL[lt] || FIELD_BY_KEY[widgetKey];
+      var field = fieldFor(widgetKey, lt);
       if (field) {
         var vField = String(input.value || '');
         broadcast({ type: 'cv-rt-update', field: field, value: vField });
@@ -1683,20 +1673,19 @@ def _inject_realtime_js() -> None:
     if (tag !== 'INPUT' && tag !== 'TEXTAREA' && tag !== 'SELECT') return;
     var middle = doc.querySelector('.st-key-cvb-middle-scroll-native');
     if (!middle || !middle.contains(input)) return;
-    var CARD = '.st-key-cvb-middle-scroll-native';
     var c = input.closest('[data-testid="stTextInput"], [data-testid="stTextArea"], [data-testid="stSelectbox"], [data-testid="stNumberInput"]')
       || input.closest('[class*="st-key-"]');
     var lt = getLabelText(c || null, input);
     var widgetKey = getWidgetKey(c || input) || getWidgetKey(input) || '';
     if (!lt && widgetKey) lt = widgetKey;
     if (!lt && !widgetKey) {
-      syncAllPersonalFields(CARD);
+      syncAllPersonalFields();
       return;
     }
     // Enter user-mode once we have a resolvable source field, so the first
     // keystroke switches to user-only formatting immediately.
     broadcast({ type: 'cv-rt-user-mode' });
-    var field = FIELD_BY_LABEL[lt] || FIELD_BY_KEY[widgetKey];
+    var field = fieldFor(widgetKey, lt);
     if (widgetKey) {
       var widgetVal = String(input.value || '');
       broadcast({ type: 'cv-rt-widget', key: widgetKey, label: lt, value: widgetVal });
@@ -1705,7 +1694,7 @@ def _inject_realtime_js() -> None:
       var fieldVal = String(input.value || '');
       broadcast({ type: 'cv-rt-update', field: field, value: fieldVal });
     }
-    syncAllPersonalFields(CARD);
+    syncAllPersonalFields();
     scheduleFullRealtimeSync();
   }
 
@@ -1747,8 +1736,8 @@ def _inject_realtime_js() -> None:
     var CARD = '.st-key-cvb-middle-scroll-native';
     var middle = doc.querySelector(CARD);
     if (!middle) return;
-    if (!hasAnyMiddleInputValue(middle) && !hasAnyPersonalInput(CARD)) return;
-    syncAllPersonalFields(CARD);
+    if (!hasAnyMiddleInputValue(middle) && !hasAnyPersonalInput()) return;
+    syncAllPersonalFields();
     broadcastAllMiddleFields();
   }
 

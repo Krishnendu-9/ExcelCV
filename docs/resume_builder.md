@@ -417,3 +417,4 @@ Link behavior in exported PDF:
 15. Long Professional Summary paste appears consistently in field, preview, and PDF.
 16. Opening a saved CV, returning to the builder and clicking a section chevron keep the preview's formatted sections; only typing switches them to plain lines.
 17. Leaving the builder for another page and coming back keeps every field edited before the click that left, for a CV opened from My CVs and for unsaved typing, and Save afterwards writes them all (an edit made in that same click is lost: KNOWN_ISSUES.md §7).
+18. In all three templates, the preview shows the CV's own location after opening a CV and while typing in an experience or education Location; typing in the CV's Location still updates it live.

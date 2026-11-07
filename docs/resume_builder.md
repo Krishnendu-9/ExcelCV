@@ -395,7 +395,7 @@ Link behavior in exported PDF:
 ## QA Checklist
 1. Personal layout is `Email/Phone`, `Location/LinkedIn`, `Website/GitHub`.
 2. LinkedIn/Website/GitHub display fields behave as plain text fields.
-3. Inline link icon opens popover and saves explicit URL with checkmark.
+3. Inline link icon opens popover and saves explicit URL with checkmark; Escape and a click outside close it. All of this also after a theme toggle and after leaving the builder and coming back.
 4. Preview links open the explicit saved URLs.
 5. Downloaded PDF links open the same explicit saved URLs.
 6. Row eye toggles hide/show output without deleting row data.

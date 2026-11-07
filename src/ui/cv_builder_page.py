@@ -1421,60 +1421,49 @@ def _inject_realtime_js() -> None:
   function ensureLinkPopover() {
     if (__linkPopover && __linkPopover.parentElement) return __linkPopover;
 
-    var stale = doc.querySelectorAll('.cvb-link-popover:not([data-cvb-link-popover="1"])');
-    for (var si = 0; si < stale.length; si++) stale[si].remove();
+    // Build a new popover instead of reusing one an earlier run of this script left in
+    // the page: its listeners came from that run's document, which a theme toggle or a
+    // return to the builder reloads, and they stop working with it.
+    var old = doc.querySelectorAll('.cvb-link-popover');
+    for (var oi = 0; oi < old.length; oi++) old[oi].remove();
 
-    var existing = doc.querySelector('.cvb-link-popover[data-cvb-link-popover="1"]');
-    if (existing) {
-      var dups = doc.querySelectorAll('.cvb-link-popover[data-cvb-link-popover="1"]');
-      for (var di = 1; di < dups.length; di++) dups[di].remove();
-      __linkPopover = existing;
-    } else {
-      var root = doc.createElement('div');
-      root.className = 'cvb-link-popover';
-      root.setAttribute('data-cvb-link-popover', '1');
-      root.style.display = 'none';
-      root.innerHTML = ''
-        + '<div class="cvb-link-popover-title">Link URL</div>'
-        + '<div class="cvb-link-popover-row">'
-        +   '<input class="cvb-link-popover-input" type="text" placeholder="https://example.com" />'
-        +   '<button type="button" class="cvb-link-popover-save" title="Save link">&#10003;</button>'
-        + '</div>';
-      doc.body.appendChild(root);
-      __linkPopover = root;
-    }
+    var root = doc.createElement('div');
+    root.className = 'cvb-link-popover';
+    root.setAttribute('data-cvb-link-popover', '1');
+    root.style.display = 'none';
+    root.innerHTML = ''
+      + '<div class="cvb-link-popover-title">Link URL</div>'
+      + '<div class="cvb-link-popover-row">'
+      +   '<input class="cvb-link-popover-input" type="text" placeholder="https://example.com" />'
+      +   '<button type="button" class="cvb-link-popover-save" title="Save link">&#10003;</button>'
+      + '</div>';
+    doc.body.appendChild(root);
+    __linkPopover = root;
 
-    if (__linkPopover && !__linkPopover.__cvbBound) {
-      __linkPopover.__cvbBound = true;
-      __linkPopover.addEventListener('mousedown', function(ev) { ev.stopPropagation(); }, true);
-      __linkPopover.addEventListener('click', function(ev) { ev.stopPropagation(); }, true);
+    root.addEventListener('mousedown', function(ev) { ev.stopPropagation(); }, true);
+    root.addEventListener('click', function(ev) { ev.stopPropagation(); }, true);
 
-      var inputEl = __linkPopover.querySelector('.cvb-link-popover-input');
-      var saveBtn = __linkPopover.querySelector('.cvb-link-popover-save');
-      if (saveBtn) {
-        var commitFromBtn = function(ev) {
-          if (ev) {
-            ev.preventDefault();
-            ev.stopPropagation();
-          }
-          commitLinkPopover();
-        };
-        saveBtn.addEventListener('pointerdown', commitFromBtn, true);
-        saveBtn.addEventListener('mousedown', commitFromBtn, true);
-        saveBtn.addEventListener('click', commitFromBtn, true);
+    var inputEl = root.querySelector('.cvb-link-popover-input');
+    var saveBtn = root.querySelector('.cvb-link-popover-save');
+    var commitFromBtn = function(ev) {
+      if (ev) {
+        ev.preventDefault();
+        ev.stopPropagation();
       }
-      if (inputEl) {
-        inputEl.addEventListener('keydown', function(ev) {
-          if (ev.key === 'Enter') {
-            ev.preventDefault();
-            commitLinkPopover();
-          } else if (ev.key === 'Escape') {
-            ev.preventDefault();
-            closeLinkPopover();
-          }
-        });
+      commitLinkPopover();
+    };
+    saveBtn.addEventListener('pointerdown', commitFromBtn, true);
+    saveBtn.addEventListener('mousedown', commitFromBtn, true);
+    saveBtn.addEventListener('click', commitFromBtn, true);
+    inputEl.addEventListener('keydown', function(ev) {
+      if (ev.key === 'Enter') {
+        ev.preventDefault();
+        commitLinkPopover();
+      } else if (ev.key === 'Escape') {
+        ev.preventDefault();
+        closeLinkPopover();
       }
-    }
+    });
 
     return __linkPopover;
   }
@@ -1613,26 +1602,36 @@ def _inject_realtime_js() -> None:
   }
 
   function setupLinkPopoverDismiss() {
+    // Replace the listeners on every run, as Reset does: a reloaded document leaves the
+    // previous run's listeners dead, so binding once per page stopped working.
     var KEY = '__cvb_link_popover_dismiss__';
-    if (doc[KEY]) return;
-    var handler = function(ev) {
+    var prev = doc[KEY];
+    if (prev && typeof prev === 'object') {
+      doc.removeEventListener('mousedown', prev.dismiss, true);
+      doc.removeEventListener('touchstart', prev.dismiss, true);
+      doc.removeEventListener('keydown', prev.keydown, true);
+      w.removeEventListener('resize', prev.resize);
+    }
+    var dismiss = function(ev) {
       if (!__linkPopover || __linkPopover.style.display === 'none') return;
       var t = ev.target;
       if (t && (__linkPopover.contains(t) || t.closest('.cvb-inline-link'))) return;
       closeLinkPopover();
     };
-    doc.addEventListener('mousedown', handler, true);
-    doc.addEventListener('touchstart', handler, true);
-    doc.addEventListener('keydown', function(ev) {
+    var keydown = function(ev) {
       if (ev.key === 'Escape') closeLinkPopover();
-    }, true);
-    w.addEventListener('resize', function() {
+    };
+    var resize = function() {
       if (!__linkPopover || __linkPopover.style.display === 'none') return;
       if (__linkEditorState && (__linkEditorState.iconEl || __linkEditorState.displayInput)) {
         positionLinkPopover(__linkEditorState.iconEl || __linkEditorState.displayInput);
       }
-    });
-    doc[KEY] = 1;
+    };
+    doc.addEventListener('mousedown', dismiss, true);
+    doc.addEventListener('touchstart', dismiss, true);
+    doc.addEventListener('keydown', keydown, true);
+    w.addEventListener('resize', resize);
+    doc[KEY] = { dismiss: dismiss, keydown: keydown, resize: resize };
   }
 
   function hasAnyMiddleInputValue(middleEl) {
